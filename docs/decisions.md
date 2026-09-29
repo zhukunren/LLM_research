@@ -10,9 +10,9 @@
 
 ### 2026-09-29 Codex 第一条后端垂直链路：已实现，运行时就绪后自动切换
 
-已加入 `018_codex_runtime.sql`、Codex SDK 适配、投研 Skills、stdio MCP 工具桥、Codex thread/turn 关联、回合事件持久化和 `/codex-process` Web API。真实本地回合已验证 SDK/App Server 启动、MCP 工具列表和事件落库；离线回归通过。
+已加入 `018_codex_runtime.sql`、Codex SDK 适配、投研 Skills、stdio MCP 工具桥、Codex thread/turn 关联、回合事件持久化和 `/process` Codex Web API。真实本地回合已验证 SDK/App Server 启动、MCP 工具列表和事件落库；离线回归通过。
 
-`/{conversation_id}/turns/{turn_id}/process` 已在 Codex runtime 就绪时自动选择 Codex。Codex MCP 动作现在可以保存结构化 `ScreeningTaskRevision`、记录服务端校验的执行授权，随后复用现有 `screening_service` 创建运行；旧 planner 只在未安装锁定 Codex CLI runtime 的本地启动诊断场景保留。完整真实模型任务仍需继续扩大验收，不能把单次 smoke 当成生产质量证明。
+`/{conversation_id}/turns/{turn_id}/process` 只走 Codex。Codex MCP 动作现在可以保存结构化 `ScreeningTaskRevision`、记录服务端校验的执行授权，随后复用现有 `screening_service` 创建运行；未安装锁定 Codex CLI runtime 时返回明确的 runtime unavailable，不再启动旧 planner。完整真实模型任务仍需继续扩大验收，不能把单次 smoke 当成生产质量证明。
 
 本轮新增 MCP stdio 协议集成测试，并用真实 App Server 直调 `get_research_state` 验证环境传递和工具返回。离线模型形状修复覆盖 `type/domain/condition_type`、非规范逻辑树、缺失范围和未完成 Python 程序；真实模型仍可能反复修正复杂任务合同，后续需用代表性中文任务集统计并降低这类修正次数。
 

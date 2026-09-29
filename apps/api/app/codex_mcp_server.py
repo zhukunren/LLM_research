@@ -14,7 +14,8 @@ import sys
 from uuid import uuid4
 from typing import Any
 
-from . import conversation_service, conversation_store, screening_tools
+from . import conversation_store, screening_tools
+from .codex_context import task_tool_context
 from .model_client import FunctionCall
 from .screening_contracts import ScreeningTaskRevision
 
@@ -74,7 +75,7 @@ def _context() -> screening_tools.ToolContext:
         )["source_refs"]
     except conversation_store.ConversationNotFound:
         pass
-    return conversation_service._task_tool_context(
+    return task_tool_context(
         conversation_id,
         turn_id,
         revision,

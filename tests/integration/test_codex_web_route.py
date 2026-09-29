@@ -33,7 +33,7 @@ def test_process_route_selects_codex_when_runtime_is_ready(tmp_path, monkeypatch
             },
         ).json()
         response = client.post(
-            f"/api/v1/conversations/{conversation['id']}/turns/{message['turn_id']}/codex-process"
+            f"/api/v1/conversations/{conversation['id']}/turns/{message['turn_id']}/process"
         )
 
     assert response.status_code == 200

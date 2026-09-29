@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from . import codex_runtime, codex_store, conversation_service, conversation_store
+from . import codex_runtime, codex_store, conversation_store
 from .screening_contracts import (
     AddUserMessageRequest,
     ConversationScope,
@@ -80,31 +80,6 @@ def get_conversation_turn(conversation_id: str, turn_id: str):
 
 @router.post("/{conversation_id}/turns/{turn_id}/process")
 def process_conversation_turn(conversation_id: str, turn_id: str):
-    try:
-        # Once the locked Codex runtime is available, the existing Web button
-        # enters the Codex path automatically. An unbootstrapped checkout keeps
-        # the legacy planner only so the application remains diagnosable while
-        # dependencies are being installed; it is not a second target runtime.
-        if codex_runtime.availability()["available"]:
-            conversation_store.start_turn(conversation_id, turn_id)
-            return codex_runtime.process_conversation_turn(conversation_id, turn_id)
-        return conversation_service.process_turn(conversation_id, turn_id)
-    except codex_runtime.CodexRuntimeError as exc:
-        raise HTTPException(
-            503,
-            {"code": "codex_runtime_unavailable", "message": str(exc)},
-        ) from exc
-    except (
-        conversation_store.ConversationNotFound,
-        conversation_store.ConversationConflict,
-        conversation_store.ConversationStoreError,
-    ) as exc:
-        _store_error(exc)
-
-
-@router.post("/{conversation_id}/turns/{turn_id}/codex-process")
-def process_codex_conversation_turn(conversation_id: str, turn_id: str):
-    """Process a Web turn with the server-owned Codex runtime."""
     try:
         conversation_store.start_turn(conversation_id, turn_id)
         return codex_runtime.process_conversation_turn(conversation_id, turn_id)

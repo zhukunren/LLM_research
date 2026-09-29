@@ -1,7 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import db, main, market, pattern_adapter, screening_execution, conversation_service, news_sources
+from apps.api.app import db, main, market, pattern_adapter, screening_execution, news_sources
+from apps.api.app.codex_context import task_tool_context
 from apps.api.app.screening_contracts import ScreeningTaskRevision, ConditionDecision
 
 
@@ -72,7 +73,7 @@ def test_news_attachment_is_validated_and_watchlist_context_preserves_separate_s
         connection.execute("INSERT INTO watchlist_items(watchlist_id,stock_code,added_at) VALUES('pool','600000.SH',?)", (db.utc_now(),))
     payload = task().model_dump(mode="json")
     payload["scope"]["universe"] = dict(kind="watchlist", watchlist_id="pool", stock_codes=[])
-    context = conversation_service._task_tool_context(conversation["id"], response.json()["turn_id"], 1,
+    context = task_tool_context(conversation["id"], response.json()["turn_id"], 1,
         ScreeningTaskRevision.model_validate(payload), [dict(kind="news_item", source_id=item["id"]), dict(kind="report_page", source_id="report-1")])
     assert context.stock_codes == frozenset({"600000.SH"})
     assert context.allowed_news_ids == frozenset({item["id"]})

@@ -89,10 +89,10 @@ Codex 的回合结束不等于所有后台计算已经结束。应用关联实�
 | --- | --- |
 | `market.py`、`documents.py`、`evidence_sources.py`、`news_library.py` 等数据能力 | 复用经过验证的读写、索引与来源定位能力，整理为领域服务和 MCP 工具 |
 | `runtime_executor.py`、数值计算、结果校验、运行快照及观察记录 | 复用有效算法和业务合同，按新工具边界重组 |
-| `conversation_service.py` 的 planner 与工具循环、对应自建 planner 提示词 | 新架构由 Codex 接管，正式切换后退役该执行路径 |
+| 旧对话 planner 与工具循环 | 已从生产入口和测试中移除；Codex Runtime + MCP 是唯一对话执行路径 |
 | `evidence_analysis.py` 的模型工具循环 | 语义阅读与判断交给 Codex；原文是否存在、日期/证券范围及覆盖检查提取为确定性校验 |
 | `condition_language.py`、`pattern_language.py`、`report_catalog.py` 等直接模型调用 | 各自的语言理解任务归入 Codex 工作流，提取并保留数据转换及验证能力 |
-| `model_client.py` 与旧自建模型回合协议 | 不作为新研究流程的第二内核；旧路径全部退役后清除其生产依赖 |
+| `model_client.py` 与旧模型回合协议 | 不再服务对话选股 Agent；其他资料库的独立模型能力待后续按 Skills/MCP 迁移 |
 | 会话工作台与产品页面 | 复用显示组件，按 Codex 事件和结构化业务成果重建助手主流程 |
 | 历史资产与结果 | 通过明确转换或只读历史视图保存价值；历史读取不再依赖旧 Agent 运行 |
 
