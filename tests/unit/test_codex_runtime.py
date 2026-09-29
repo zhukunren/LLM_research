@@ -149,6 +149,11 @@ def test_expired_turn_recovers_without_overwriting_live_or_completed_turns(tmp_p
     assert conversation_store.get_turn(other, live["turn_id"])["state"] == "running"
     with pytest.raises(conversation_store.ConversationConflict):
         conversation_store.finish_turn(cid, message["turn_id"], 1, "succeeded", "迟到结果", {})
+    with pytest.raises(conversation_store.ConversationConflict):
+        conversation_store.save_task_revision(cid, 1, message["message_id"], _task(cid).model_copy(update={"revision": 2}),
+                                             turn_id=message["turn_id"])
+    with pytest.raises(conversation_store.ConversationConflict):
+        conversation_store.set_pending_execute_message(cid, 1, message["message_id"], turn_id=message["turn_id"])
     assert conversation_store.recover_expired_turns() == 0
     assert len(conversation_store.get_conversation(cid)["messages"]) == 2
     assert conversation_store.add_user_message(cid, "resumed", 1, "继续")["state"] == "awaiting_agent"

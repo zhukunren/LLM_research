@@ -226,6 +226,7 @@ export default function ConversationWorkspace({
   const followLatestRef = useRef(true)
   const saveAttemptRef = useRef<{ taskKey: string; assetId: string; requestId: string } | null>(null)
   const reuseAttemptRef = useRef<{ key: string; conversation?: Conversation; messageId?: string; clientId: string } | null>(null)
+  const executionAttempts = useRef(new Map<string, Promise<{ run_id: string }>>())
 
   useEffect(() => {
     api<{ items: { id: string; name: string }[] }>('/watchlists')
@@ -332,6 +333,17 @@ export default function ConversationWorkspace({
     return next
   }
 
+  async function enqueueAuthorizedTurn(conversationId: string, turnId: string) {
+    const key = `${conversationId}:${turnId}`
+    let request = executionAttempts.current.get(key)
+    if (!request) {
+      request = api<{ run_id: string }>(`/conversations/${conversationId}/turns/${turnId}/execute`, { method: 'POST' })
+      executionAttempts.current.set(key, request)
+    }
+    const queued = await request
+    if (selectedIdRef.current === conversationId) setViewingRunId(queued.run_id)
+  }
+
   async function processTurn(conversationId: string, turnId: string) {
     setBusy(true)
     setError('')
@@ -340,11 +352,7 @@ export default function ConversationWorkspace({
       await reloadConversation(conversationId)
       const turn = await api<ConversationTurn>(`/conversations/${conversationId}/turns/${turnId}/process`, { method: 'POST' })
       if (turn.result.ready_to_execute) {
-        const queued = await api<{ run_id: string }>(
-          `/conversations/${conversationId}/turns/${turnId}/execute`,
-          { method: 'POST' },
-        )
-        setViewingRunId(queued.run_id)
+        await enqueueAuthorizedTurn(conversationId, turnId)
       }
       await reloadConversation(conversationId)
       setRefreshIndex((value) => value + 1)
@@ -455,6 +463,20 @@ export default function ConversationWorkspace({
     const timer = globalThis.setInterval(() => { void poll() }, 1200)
     return () => { active = false; globalThis.clearInterval(timer) }
   }, [selectedId, activeTurnId])
+
+  const readyTurnId = conversation?.id === selectedId && conversation.pending_execution && !activeTurnId
+    ? conversation.turns.find(turn => turn.state === 'succeeded' && turn.result.ready_to_execute
+      && turn.result.execution_authorized && turn.result.task_revision === conversation.task_revision)?.id
+    : undefined
+  useEffect(() => {
+    if (!selectedId || !readyTurnId) return
+    let active = true
+    // Resume the already-authorized action after a reload or lost process response.
+    enqueueAuthorizedTurn(selectedId, readyTurnId)
+      .then(() => { if (active) return reloadConversation(selectedId, () => active) })
+      .catch(reason => { if (active) setError((reason as Error).message) })
+    return () => { active = false }
+  }, [selectedId, readyTurnId])
 
   useEffect(() => {
     followLatestRef.current = true
@@ -717,8 +739,8 @@ export default function ConversationWorkspace({
     setBusy(true)
     setError('')
     try {
-      const queued = await api<{ run_id: string }>(`/conversations/${conversation.id}/turns/${turnId}/execute`, { method: 'POST' })
-      setViewingRunId(queued.run_id)
+      executionAttempts.current.delete(`${conversation.id}:${turnId}`)
+      await enqueueAuthorizedTurn(conversation.id, turnId)
       setRefreshIndex((value) => value + 1)
     } catch (reason) {
       setError((reason as Error).message)

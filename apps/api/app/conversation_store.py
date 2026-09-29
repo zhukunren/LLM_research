@@ -89,6 +89,16 @@ def heartbeat_turn(conversation_id: str, turn_id: str) -> bool:
         ).rowcount)
 
 
+def require_running_turn(connection, conversation_id: str, turn_id: str) -> None:
+    row = connection.execute(
+        """SELECT 1 FROM conversation_turns t JOIN conversations c ON c.id=t.conversation_id
+           WHERE t.id=? AND t.conversation_id=? AND t.state='running' AND c.state='active'
+             AND t.updated_at>?""", (turn_id, conversation_id, _lease_cutoff()),
+    ).fetchone()
+    if not row:
+        raise ConversationConflict("对话回合已结束或中断，迟到动作不能修改任务")
+
+
 @contextmanager
 def keep_turn_alive(conversation_id: str, turn_id: str):
     stop = Event()
@@ -403,10 +413,13 @@ def set_pending_execute_message(
     conversation_id: str,
     expected_revision: int,
     message_id: str,
+    *, turn_id: str | None = None,
 ) -> None:
     """Record a server-checked execution grant for the current user message."""
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
+        if turn_id is not None:
+            require_running_turn(connection, conversation_id, turn_id)
         conversation = connection.execute(
             "SELECT task_revision,state FROM conversations WHERE id=?", (conversation_id,)
         ).fetchone()
@@ -429,9 +442,11 @@ def set_pending_execute_message(
         )
 
 
-def clear_pending_execute_message(conversation_id: str, expected_revision: int) -> None:
+def clear_pending_execute_message(conversation_id: str, expected_revision: int, *, turn_id: str | None = None) -> None:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
+        if turn_id is not None:
+            require_running_turn(connection, conversation_id, turn_id)
         conversation = connection.execute(
             "SELECT task_revision,state FROM conversations WHERE id=?", (conversation_id,)
         ).fetchone()
@@ -589,6 +604,7 @@ def save_task_revision(
     candidate: ScreeningTaskRevision,
     *,
     _connection: sqlite3.Connection | None = None,
+    turn_id: str | None = None,
 ) -> dict[str, Any]:
     if candidate.task_id != conversation_id or candidate.revision != base_revision + 1:
         raise ConversationStoreError("条件修订必须属于当前对话，并且版本号必须递增1")
@@ -597,6 +613,8 @@ def save_task_revision(
     with (nullcontext(_connection) if _connection is not None else connect()) as connection:
         if _connection is None:
             connection.execute("BEGIN IMMEDIATE")
+        if turn_id is not None:
+            require_running_turn(connection, conversation_id, turn_id)
         conversation = connection.execute(
             "SELECT task_revision,state FROM conversations WHERE id=?", (conversation_id,)
         ).fetchone()

@@ -90,6 +90,39 @@ describe('ConversationWorkspace', () => {
     view.unmount()
   })
 
+  it('resumes an already-authorized execution after restoring a completed turn exactly once', async () => {
+    const id = 'restored-authorized'
+    let stored = conversation(id, { task_revision: 1, pending_execution: true,
+      messages: [{ id: 'request', role: 'user', content: '按这个筛', source_refs: [], created_at: '2026-09-30' }],
+      turns: [{ id: 'ready', user_message_id: 'request', base_revision: 1, state: 'succeeded', response_text: '条件已核对',
+        result: { ready_to_execute: true, execution_authorized: true, task_revision: 1 }, created_at: '2026-09-30', updated_at: '2026-09-30' }],
+    })
+    let submissions = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input), 'http://localhost').pathname
+      if (path === '/api/v1/conversations') return jsonResponse({ items: [{ ...stored, title: '恢复已授权研究' }] })
+      if (path === `/api/v1/conversations/${id}`) return jsonResponse(stored)
+      if (path.endsWith('/revisions/1')) return jsonResponse(revision(id))
+      if (path.endsWith('/execute') && init?.method === 'POST') {
+        submissions++
+        stored = { ...stored, pending_execution: false, active_run_id: 'restored-run' }
+        return jsonResponse({ run_id: 'restored-run' }, 202)
+      }
+      if (path.endsWith('/screening-runs/restored-run')) return jsonResponse({
+        id: 'restored-run', as_of: '2026-09-14', status: 'queued', task_revision: 1, task: revision(id),
+        job_id: 'job', result: {}, job: { state: 'queued', progress: 0, message: '已恢复排队' },
+      })
+      if (path.endsWith('/screening-runs')) return jsonResponse({ items: stored.active_run_id
+        ? [{ id: 'restored-run', task_revision: 1, as_of: '2026-09-14', status: 'queued', created_at: '2026-09-30' }] : [] })
+      return jsonResponse({ items: [] })
+    }))
+    const view = render(<ConversationWorkspace />)
+    await screen.findByText('已恢复排队')
+    expect(submissions).toBe(1)
+    expect(stored.pending_execution).toBe(false)
+    view.unmount()
+  })
+
   it('persists a user turn and shows its clarification without creating a run', async () => {
     const user = userEvent.setup()
     const id = 'conversation-1'

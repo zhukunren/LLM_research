@@ -764,6 +764,7 @@ def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, A
             base_revision,
             current_user["id"],
             candidate,
+            turn_id=context.turn_id,
         )
     except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict,
             conversation_store.ConversationStoreError) as exc:
@@ -798,6 +799,7 @@ def _authorize_screening_execution(args: ToolArgs, context: ToolContext) -> dict
         context.conversation_id,
         args.revision,
         message["id"],
+        turn_id=context.turn_id,
     )
     gap = None
     try:
@@ -821,7 +823,7 @@ def _revoke_screening_execution(args: ToolArgs, context: ToolContext) -> dict[st
     message = _current_turn_user_message(context)
     if not denies_execution(message["content"]):
         raise ToolDispatchError("revoke_not_explicit", "当前用户消息没有明确撤销执行")
-    conversation_store.clear_pending_execute_message(context.conversation_id, args.revision)
+    conversation_store.clear_pending_execute_message(context.conversation_id, args.revision, turn_id=context.turn_id)
     return {"execution_authorized": False, "task_revision": args.revision, "note": "本次执行授权已撤销。"}
 
 
@@ -831,6 +833,7 @@ def _save_screening_plan(args: ToolArgs, context: ToolContext) -> dict[str, Any]
     try:
         with connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            conversation_store.require_running_turn(connection, context.conversation_id, context.turn_id)
             turn = connection.execute(
                 """SELECT t.state,c.task_revision FROM conversation_turns t
                    JOIN conversations c ON c.id=t.conversation_id WHERE t.id=? AND c.id=? AND c.state='active'""",
