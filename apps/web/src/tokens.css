@@ -1,0 +1,109 @@
+/**
+ * tokens.css - Design Tokens for LLM Research Platform
+ * Color palette aligned with Soochow Securities (东吴证券) blue brand and slate neutrals.
+ * No hardcoded dark greens or unmanaged overrides.
+ */
+:root {
+  --ui-font-sans: "PingFang SC", "Segoe UI", "Microsoft YaHei UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --ui-font-mono: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+
+  color-scheme: light;
+
+  /* Surfaces & Canvas */
+  --ui-canvas: #f4f6fa;
+  --ui-surface: #ffffff;
+  --ui-surface-subtle: #f8fafc;
+  --ui-surface-hover: #f0f4f9;
+  --ui-surface-active: #e7eff7;
+
+  /* Typography Colors */
+  --ui-text: #1a2736;
+  --ui-text-muted: #53677d;
+  --ui-text-faint: #788b9e;
+  --ui-text-disabled: #a0b0c0;
+
+  /* Borders & Dividers */
+  --ui-border: #dbe4ee;
+  --ui-border-subtle: #edf2f7;
+  --ui-border-strong: #b5c7d8;
+
+  /* Primary Brand: Soochow Blue (东吴蓝) */
+  --ui-brand: #174f78;
+  --ui-brand-navy: #0f3957;
+  --ui-accent: #0b699c;
+  --ui-primary: var(--ui-brand);
+  --ui-primary-hover: #124063;
+  --ui-primary-active: #0c2d47;
+  --ui-primary-soft: #edf5fc;
+  --ui-primary-border: #b8d6ed;
+  --ui-on-primary: #ffffff;
+
+  /* A-Share Market Colors (Red Up, Green Down) */
+  --ui-market-up: #cf3843;
+  --ui-market-up-soft: #fcf1f2;
+  --ui-market-up-border: #f5c4c8;
+  --ui-market-down: #1c8874;
+  --ui-market-down-soft: #ecf7f4;
+  --ui-market-down-border: #bfe5dc;
+
+  /* Semantic Feedback Colors */
+  --ui-success: #1c8874;
+  --ui-success-soft: #ecf7f4;
+  --ui-success-border: #bfe5dc;
+  --ui-warning: #a36822;
+  --ui-warning-soft: #fbf5eb;
+  --ui-warning-border: #edd8be;
+  --ui-danger: #cf3843;
+  --ui-danger-soft: #fcf1f2;
+  --ui-danger-border: #f5c4c8;
+
+  /* Sidebar Tokens */
+  --ui-sidebar: #f8fafc;
+  --ui-sidebar-border: #e2e8f0;
+  --ui-sidebar-text: #334b63;
+  --ui-sidebar-muted: #647d96;
+  --ui-sidebar-hover: #edf4fa;
+  --ui-sidebar-active: #e2effa;
+
+  /* Corner Radii */
+  --ui-radius-xs: 4px;
+  --ui-radius-sm: 6px;
+  --ui-radius-md: 10px;
+  --ui-radius-lg: 14px;
+  --ui-radius-pill: 999px;
+
+  /* Shadows */
+  --ui-shadow-sm: 0 1px 2px rgba(18, 38, 63, 0.05);
+  --ui-shadow-panel: 0 1px 3px rgba(18, 38, 63, 0.04), 0 4px 14px rgba(18, 38, 63, 0.03);
+  --ui-shadow-raised: 0 6px 20px rgba(18, 38, 63, 0.08);
+  --ui-shadow-overlay: 0 16px 48px rgba(18, 38, 63, 0.16);
+
+  /* Focus & Controls */
+  --ui-focus-outline: rgba(23, 79, 120, 0.45);
+  --ui-focus-shadow: 0 0 0 3px rgba(23, 79, 120, 0.14);
+  --ui-control-sm: 28px;
+  --ui-control-md: 34px;
+  --ui-control-lg: 40px;
+  --ui-header-height: 48px;
+  --ui-transition: 150ms ease;
+
+  /* Backward Compatibility Aliases */
+  --brand-navy: var(--ui-brand-navy);
+  --brand-blue: var(--ui-primary);
+  --ink: var(--ui-text);
+  --muted: var(--ui-text-muted);
+  --line: var(--ui-border);
+  --panel: var(--ui-surface);
+  --canvas: var(--ui-canvas);
+  --accent: var(--ui-primary);
+  --accent-light: var(--ui-primary-soft);
+  --accent-border: var(--ui-primary-border);
+  --green: var(--ui-success);
+  --green-bg: var(--ui-success-soft);
+  --red: var(--ui-danger);
+  --red-bg: var(--ui-danger-soft);
+  --amber: var(--ui-warning);
+  --amber-bg: var(--ui-warning-soft);
+
+  font-family: var(--ui-font-sans);
+}

@@ -1,0 +1,361 @@
+@import './tokens.css';
+
+/* Workbench Layout */
+.workbench {
+  max-width: 1460px;
+  margin: 0 auto;
+}
+
+.workbench-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.workbench-heading h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ui-text);
+  letter-spacing: -0.2px;
+}
+
+.workbench-help {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ui-text-muted);
+  margin: 6px 0 14px;
+}
+
+/* Intent Layout & Prompting */
+.intent-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 20px;
+  align-items: start;
+}
+
+.intent-main {
+  min-width: 0;
+}
+
+.intent-prompt-card, .intent-result, .library-workspace, .compose-main, .run-setup, .run-results {
+  padding: 20px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+}
+
+.intent-textarea {
+  width: 100%;
+  display: block;
+  margin-top: 14px;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-xs);
+  padding: 12px;
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.intent-textarea::placeholder {
+  color: var(--ui-text-faint);
+}
+
+.prompt-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.prompt-bottom > span {
+  color: var(--ui-text-faint);
+  font-size: 11px;
+}
+
+.prompt-examples {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ui-border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prompt-examples > span {
+  width: 100%;
+  font-size: 11px;
+  color: var(--ui-text-faint);
+  margin-bottom: 2px;
+}
+
+.prompt-examples > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ui-surface-subtle);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-xs);
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  transition: all var(--ui-transition);
+}
+
+.prompt-examples > button:hover {
+  border-color: var(--ui-primary-border);
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary);
+}
+
+.intent-guide > section {
+  margin-bottom: 16px;
+}
+
+.intent-guide > section:first-child {
+  padding: 16px;
+  border: 1px solid var(--ui-primary-border);
+  background: var(--ui-primary-soft);
+  border-radius: var(--ui-radius-sm);
+}
+
+.guide-kicker {
+  color: var(--ui-primary);
+  font-size: 10px;
+  letter-spacing: 1px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.intent-guide h2 {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 8px 0 14px;
+  font-weight: 600;
+  color: var(--ui-brand);
+}
+
+.intent-guide ol {
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.intent-guide li {
+  padding: 0 0 10px 24px;
+  position: relative;
+  counter-increment: step;
+}
+
+.intent-guide li::before {
+  content: counter(step, decimal-leading-zero);
+  color: var(--ui-primary);
+  position: absolute;
+  left: 0;
+  font-size: 11px;
+  font-weight: 600;
+  top: 1px;
+}
+
+.intent-guide li b {
+  font-size: 12px;
+  color: var(--ui-text);
+}
+
+.intent-guide li p {
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ui-text-muted);
+}
+
+/* Condition Reviews */
+.condition-review {
+  display: flex;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--ui-border-subtle);
+}
+
+.condition-number {
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--ui-primary-border);
+  border-radius: var(--ui-radius-xs);
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.condition-card-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.condition-review h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.availability {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ui-warning);
+  background: var(--ui-warning-soft);
+  white-space: nowrap;
+}
+
+.availability.market {
+  color: var(--ui-success);
+  background: var(--ui-success-soft);
+}
+
+.condition-quote {
+  margin: 6px 0;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.logic-sentence {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--ui-surface-subtle);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-xs);
+  margin-top: 14px;
+  color: var(--ui-text);
+}
+
+/* Trial Run */
+.trial-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 0;
+}
+
+.trial-result {
+  padding: 12px;
+  border-radius: var(--ui-radius-xs);
+  background: var(--ui-surface-subtle);
+  border: 1px solid var(--ui-border);
+}
+
+/* Saved Condition Library */
+.condition-library-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.saved-condition-card {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  padding: 16px;
+  background: var(--ui-surface);
+  transition: border-color var(--ui-transition);
+}
+
+.saved-condition-card:hover {
+  border-color: var(--ui-primary-border);
+}
+
+.saved-condition-card h3 {
+  margin: 10px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.saved-condition-card > p {
+  font-size: 12px;
+  color: var(--ui-text-muted);
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+
+/* Strategy Node Editor */
+.compose-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 18px;
+  align-items: start;
+}
+
+.compose-main .strategy-node {
+  border-radius: var(--ui-radius-xs);
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--ui-surface-subtle);
+  border: 1px solid var(--ui-border);
+}
+
+.compose-main .strategy-reference {
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: var(--ui-radius-xs);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+}
+
+/* Formula & Program Trace */
+.formula-audit {
+  border-left: 2px solid var(--ui-primary-border);
+  padding-left: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.formula-trace {
+  margin: 4px 0;
+  color: var(--ui-text-muted);
+  line-height: 1.6;
+}
+
+.formula-trace-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.formula-trace-heading strong {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
+.calculation b {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ui-primary);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .intent-layout, .compose-workspace, .condition-library-grid {
+    grid-template-columns: 1fr;
+  }
+}

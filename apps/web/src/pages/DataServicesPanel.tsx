@@ -1,0 +1,97 @@
+import { useEffect, useRef, useState } from 'react'
+import { api, type DataStatus } from '../api'
+import { useSecurities } from '../components/StockSearch'
+
+type Settings = { text_model: { configured: boolean; model: string | null; api_mode?: string | null }; tushare: { configured: boolean } }
+type UpdateJob = { id: string; state: string; message: string; progress: number; updated_at: string }
+export default function DataServicesPanel({ data, onClose, onRefresh }: { data: DataStatus | null; onClose: () => void; onRefresh: () => void }) {
+  const [settings, setSettings] = useState<Settings | null>(null)
+  const [job, setJob] = useState<UpdateJob | null>(null)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [modelResult, setModelResult] = useState('尚未检查')
+  const [poll, setPoll] = useState(0)
+  const completedJob = useRef('')
+  const closeButton = useRef<HTMLButtonElement>(null)
+  const catalog = useSecurities()
+  const updating = !!job && ['queued', 'running'].includes(job.state)
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    closeButton.current?.focus()
+    api<Settings>('/settings/status').then(setSettings).catch(reason => setError(reason.message))
+    return () => previous?.focus()
+  }, [])
+  useEffect(() => {
+    let active = true, pending = false
+    async function load() {
+      if (pending) return
+      pending = true
+      try {
+        const result = await api<{ job: UpdateJob | null }>('/maintenance/status')
+        if (!active) return
+        setJob(result.job)
+        if (result.job && !['queued', 'running'].includes(result.job.state) && completedJob.current !== result.job.id) {
+          completedJob.current = result.job.id
+          onRefresh(); catalog.refresh()
+        }
+      } catch (reason) { if (active) setError((reason as Error).message) }
+      finally { pending = false }
+    }
+    void load()
+    const timer = setInterval(() => void load(), 2500)
+    return () => { active = false; clearInterval(timer) }
+  }, [poll])
+  async function updateData() {
+    setSubmitting(true); setError(''); setNotice('')
+    try { await api('/maintenance/refresh', { method: 'POST' }); setNotice('更新已开始，可以继续使用其他页面。'); setPoll(value => value + 1) }
+    catch (reason) { setError((reason as Error).message) }
+    finally { setSubmitting(false) }
+  }
+  async function checkConnection() {
+    setChecking(true); setError('')
+    try {
+      const current = await api<Settings>('/settings/status'); setSettings(current)
+      if (!current.text_model.configured) { setModelResult('智能助手尚未配置，请联系维护者完成首次设置。'); return }
+      const result = await api<{ connected: boolean }>('/settings/model-test', { method: 'POST' })
+      setModelResult(result.connected ? '智能助手连接正常，可以整理选股要求。' : '智能助手暂时无法连接，请稍后重试，或保存诊断信息交给维护者。')
+    } catch { setModelResult('暂时无法连接本地服务。请双击项目中的“启动投研工作台”，再重新检查。') }
+    finally { setChecking(false) }
+  }
+  function downloadDiagnostics() {
+    const report = { checked_at: new Date().toISOString(), market_date: data?.last_date ?? null, market_available: !!data?.available,
+      quality_status: data?.quality_status, model_configured: !!settings?.text_model.configured, connection: modelResult,
+      update: job ? { state: job.state, message: job.message, updated_at: job.updated_at } : null }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'text/plain;charset=utf-8' }))
+    const link = document.createElement('a'); link.href = url; link.download = '投研工作台-诊断信息.txt'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  return <div className="drawer-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
+    <aside className="system-drawer" role="dialog" aria-modal="true" aria-label="数据与服务" onKeyDown={event => {
+      if (event.key === 'Escape') onClose()
+      if (event.key === 'Tab') {
+        const elements = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), summary, a[href]')]
+        const first = elements[0], last = elements.at(-1)
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+      }
+    }}>
+      <div className="drawer-header"><h2>数据与服务</h2><button ref={closeButton} className="secondary-button compact" onClick={onClose}>关闭</button></div>
+      {error && <p role="alert" className="library-error">{error}<button className="text-button" onClick={() => { setError(''); setPoll(i => i + 1); onRefresh() }}>重新检查</button></p>}
+      <section className="drawer-section service-summary"><h3>我的数据</h3><strong>{data?.available ? `行情更新至 ${data.last_date}` : '暂时没有可用行情'}</strong>
+        <p>筛选只使用所选日期及之前的数据。更新资料不会改写已保存的历史结果。</p>
+        <p>{data?.quality_status === 'issues_found' ? '部分行情有异常，涉及这些行情的条件会显示“数据不足”。' : data?.available ? '本地行情可供查询。' : '点击更新数据后再开始选股。'}{data?.formal_blockers?.length ? '价格复权及量额口径仍需维护者核实。' : ''}</p>
+        <button className="primary-button" disabled={updating || submitting} onClick={() => void updateData()}>{updating || submitting ? '正在更新…' : '更新股票名称、行情和资讯'}</button>
+        {updating && <progress aria-label="数据更新进度" max={1} value={job!.progress} />}
+        {(job || notice) && <p role="status">{job?.message || notice}</p>}
+        {job && ['failed', 'partial'].includes(job.state) && <p>未更新成功的资料会保留原内容，可点击上方按钮重试。</p>}
+      </section>
+      <section className="drawer-section service-summary"><h3>智能助手</h3><p>{!settings ? (error ? '暂时无法读取连接设置，请点击下方检查。' : '正在读取助手设置…') : settings.text_model.configured ? '已完成连接设置。' : '尚未配置智能助手，请联系维护者完成首次设置。'}</p>
+        <button className="secondary-button" disabled={checking} onClick={() => void checkConnection()}>{checking ? '正在检查…' : '检查助手连接'}</button><p role="status">{modelResult}</p>
+      </section>
+      <section className="drawer-section service-summary"><h3>遇到问题时</h3><p>页面无法连接时，双击项目中的“启动投研工作台”重新打开。问题仍存在时，保存诊断信息交给维护者；其中不包含密钥、研报正文或聊天内容。</p><button className="secondary-button" onClick={downloadDiagnostics}>保存诊断信息</button></section>
+      <details className="drawer-section support-details"><summary>维护者信息</summary><p>模型：{settings?.text_model.model || '未配置'} · {settings?.text_model.api_mode || '未配置'}</p><p>行情记录 {data?.rows?.toLocaleString() || '—'} 条，证券 {data?.securities?.toLocaleString() || '—'} 只。</p>{data?.formal_blockers?.map(item => <p key={item}>{item}</p>)}<p>模型设置由项目 config.ini 提供。连接检查会发送固定的测试提示；研报分析会将选定原文发送给已配置的模型服务。</p></details>
+      <div className="drawer-footer"><button className="secondary-button" onClick={() => { onRefresh(); setPoll(i => i + 1) }}>重新检查状态</button><button className="primary-button" onClick={onClose}>完成</button></div>
+    </aside>
+  </div>
+}

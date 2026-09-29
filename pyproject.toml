@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-research-platform"
+version = "0.1.0"
+description = "Local-first LLM research and stock screening platform"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi==0.136.3",
+  "uvicorn[standard]==0.34.3",
+  "pydantic==2.13.5",
+  "openai-codex==0.159.0",
+  "duckdb==1.4.1",
+  "pyarrow==23.0.1",
+  "pypdf==6.13.1",
+  "pypinyin==0.55.0",
+  "python-multipart==0.0.20",
+  "Pillow==12.2.0",
+  "opencv-python-headless==4.13.0.92",
+  "psutil==6.1.1",
+  "requests==2.32.5",
+  "playwright==1.55.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.4.1", "httpx==0.25.2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["apps.api*"]
+namespaces = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
