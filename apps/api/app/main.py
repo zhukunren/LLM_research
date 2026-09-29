@@ -71,6 +71,8 @@ API_PREFIX = "/api/v1"
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    from .conversation_store import recover_expired_turns
+    recover_expired_turns()
     yield
 
 

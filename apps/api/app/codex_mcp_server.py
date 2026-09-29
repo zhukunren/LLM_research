@@ -23,6 +23,7 @@ from .screening_contracts import ScreeningTaskRevision
 PROTOCOL_VERSION = "2024-11-05"
 _WRITE_TOOLS = frozenset({
     "propose_screening_task",
+    "save_screening_plan",
     "authorize_screening_execution",
     "revoke_screening_execution",
 })

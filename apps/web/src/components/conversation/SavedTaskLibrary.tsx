@@ -3,7 +3,7 @@ import { ArrowUpRight, Bookmark, RefreshCw, Search } from 'lucide-react'
 import { api, type ConversationScope, type SavedScreeningTask } from '../../api'
 import { TaskLogic, taskUniverseLabel } from './TaskBrief'
 
-export default function SavedTaskLibrary({ scope, busy, onReuse, latestDate }: { scope: ConversationScope; busy: boolean; onReuse: (task: SavedScreeningTask, latest?: boolean) => void; latestDate?: string }) {
+export default function SavedTaskLibrary({ scope, busy, onReuse, latestDate, refreshKey }: { scope: ConversationScope; busy: boolean; onReuse: (task: SavedScreeningTask, latest?: boolean) => void; latestDate?: string; refreshKey?: string }) {
   const [items, setItems] = useState<SavedScreeningTask[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -18,7 +18,7 @@ export default function SavedTaskLibrary({ scope, busy, onReuse, latestDate }: {
     }).catch(reason => { if (active) setError((reason as Error).message) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [refresh])
+  }, [refresh, refreshKey])
   const scoped = items.filter(item => scope === 'screening' || item.task.conditions.every(condition => condition.library === scope || condition.library === 'ranking'))
   const filtered = scoped.filter(item => `${item.name} ${item.task.conditions.map(condition => condition.description).join(' ')}`.toLowerCase().includes(query.trim().toLowerCase()))
   return <div className="saved-task-library" aria-label="已保存方案列表" aria-busy={loading}>

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
@@ -55,6 +55,41 @@ function jsonResponse(value: unknown, status = 200) {
 }
 
 describe('ConversationWorkspace', () => {
+  it('reconnects a restored running turn, unlocks the composer, and stops polling on completion', async () => {
+    const id = 'restored-running'
+    const created_at = '2026-09-30T00:00:00+00:00'
+    let stored = conversation(id, {
+      messages: [{ id: 'question', role: 'user', content: '解释行情覆盖', source_refs: [], created_at }],
+      turns: [{ id: 'processing', user_message_id: 'question', base_revision: 0, state: 'running',
+        response_text: null, result: {}, created_at, updated_at: created_at }],
+    })
+    let reads = 0
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), 'http://localhost')
+      calls.push(`${init?.method ?? 'GET'} ${url.pathname}`)
+      if (url.pathname === '/api/v1/conversations') return jsonResponse({ items: [{ ...stored, title: '恢复研究' }] })
+      if (url.pathname === `/api/v1/conversations/${id}`) { reads++; return jsonResponse(stored) }
+      if (url.pathname.endsWith('/codex-events')) return jsonResponse({ items: [], next_after: -1 })
+      return jsonResponse({ items: [] })
+    }))
+    const view = render(<ConversationWorkspace />)
+    await screen.findAllByText('解释行情覆盖')
+    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toBeDisabled())
+    stored = {
+      ...stored,
+      messages: [...stored.messages, { id: 'answer', role: 'assistant', content: '后端已完成行情覆盖检查', source_refs: [], created_at }],
+      turns: stored.turns.map(turn => ({ ...turn, state: 'succeeded', response_text: '后端已完成行情覆盖检查' })),
+    }
+    expect(await screen.findByText('后端已完成行情覆盖检查', {}, { timeout: 3000 })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toBeEnabled())
+    const completedReads = reads
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 1400)) })
+    expect(reads).toBe(completedReads)
+    expect(calls.some(call => call.startsWith('POST '))).toBe(false)
+    view.unmount()
+  })
+
   it('persists a user turn and shows its clarification without creating a run', async () => {
     const user = userEvent.setup()
     const id = 'conversation-1'

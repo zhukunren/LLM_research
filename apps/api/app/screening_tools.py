@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field, ValidationError
 from . import conversation_store, documents, market, screening_artifacts, evidence_sources, news_sources
 from .db import connect, json_dump, json_load, utc_now
 from .model_client import FunctionCall, FunctionTool
+from . import saved_screening_tasks
+from .execution_policy import denies_execution, requests_execution
 from .models import StrictModel
 from .screening_artifacts import ArtifactError, store_artifact
 from .screening_contracts import ScreeningTaskRevision, validate_executable_task
@@ -126,6 +128,15 @@ class ProposeScreeningTaskArgs(ToolArgs):
 
 class TaskRevisionArgs(ToolArgs):
     revision: int = Field(ge=0)
+
+
+class SaveScreeningPlanArgs(ToolArgs):
+    revision: int = Field(ge=1)
+    name: str = Field(min_length=1, max_length=120)
+
+
+class ListSavedTasksArgs(ToolArgs):
+    limit: int = Field(default=50, ge=1, le=100)
 
 
 class EmptyResearchStateArgs(ToolArgs):
@@ -497,6 +508,8 @@ def _read_artifact(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
 def _current_turn_user_message(context: ToolContext) -> dict[str, Any]:
     try:
         turn = conversation_store.get_turn(context.conversation_id, context.turn_id)
+        if turn["state"] != "running":
+            raise ToolDispatchError("conversation_turn_inactive", "此对话回合已结束，不能继续修改任务")
         return conversation_store.get_user_message(
             context.conversation_id,
             turn["user_message_id"],
@@ -622,31 +635,39 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
             })
             ref_by_condition[condition_id] = reference_id
 
-    def normalize_node(node: Any) -> dict[str, Any] | None:
+    def normalize_node(node: Any) -> dict[str, Any]:
         if not isinstance(node, dict):
-            return None
-        op = node.get("op") or node.get("type") or node.get("operator")
+            raise ValueError("组合逻辑节点必须是对象，不能忽略损坏的条件")
+        if set(node) - {"op", "type", "operator", "children", "reference_id", "condition_id"}:
+            raise ValueError("组合逻辑包含无法识别的字段，请使用明确的 all、any、not 结构")
+        aliases = {"all": "all", "and": "all", "any": "any", "or": "any", "not": "not", "condition": "condition"}
+        operators = [node[key] for key in ("op", "type", "operator") if key in node]
+        if any(not isinstance(value, str) or value.lower() not in aliases for value in operators):
+            raise ValueError("无法识别组合逻辑运算符，不能替换为默认关系")
+        mapped = {aliases[value.lower()] for value in operators}
+        if len(mapped) > 1:
+            raise ValueError("组合逻辑中的运算符相互冲突")
+        op = next(iter(mapped), "condition" if "condition_id" in node or "reference_id" in node else None)
         if op == "condition":
+            if "children" in node:
+                raise ValueError("条件引用不能同时包含子逻辑")
             reference_id = node.get("reference_id")
             if not isinstance(reference_id, str):
                 reference_id = ref_by_condition.get(node.get("condition_id"))
-            return {"op": "condition", "reference_id": reference_id} if reference_id else None
+            if not reference_id:
+                raise ValueError("组合逻辑引用了无法识别的条件")
+            return {"op": "condition", "reference_id": reference_id}
         if op in {"all", "any", "not"}:
             raw_children = node.get("children")
-            children = [item for child in (raw_children if isinstance(raw_children, list) else [])
-                        if (item := normalize_node(child)) is not None]
-            return {"op": op, "children": children} if children else None
-        return None
+            if not isinstance(raw_children, list) or not raw_children or {"reference_id", "condition_id"} & set(node):
+                raise ValueError("组合逻辑必须包含完整的子条件")
+            return {"op": op, "children": [normalize_node(child) for child in raw_children]}
+        raise ValueError("缺少明确的组合逻辑运算符")
 
-    tree = normalize_node(candidate.get("logic_tree"))
-    if tree is None and normalized_refs:
-        tree = {
-            "op": "all",
-            "children": [
-                {"op": "condition", "reference_id": item["reference_id"]}
-                for item in normalized_refs
-            ],
-        }
+    raw_tree = candidate.get("logic_tree")
+    if raw_tree is None and normalized_refs:
+        raise ValueError("条件之间的组合关系尚未确定，不能自动设为全部满足")
+    tree = normalize_node(raw_tree) if raw_tree is not None else None
     candidate["references"] = normalized_refs
     candidate["logic_tree"] = tree
     normalized_unresolved: list[dict[str, Any]] = []
@@ -700,6 +721,19 @@ def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, A
                 quote = re.sub(r"\s+", "", str(reference["source_quote"]))
                 if quote not in user_text:
                     reference["source_quote"] = current_user["content"]
+        board_match = re.search(r"科创板|创业板|北交所|主板", current_user["content"])
+        if board_match:
+            unresolved = raw.setdefault("unresolved", [])
+            if not any(
+                isinstance(item, dict) and item.get("kind") == "clarification" and item.get("source_quote") == current_user["content"]
+                for item in unresolved
+            ):
+                unresolved.append({
+                    "kind": "clarification",
+                    "source_quote": current_user["content"],
+                    "question": "当前股票范围合同没有可直接执行的板块字段；请改为指定证券或提供可冻结的股票池。",
+                    "suggestion": "不会把板块要求静默扩大为全部A股。",
+                })
         scope = raw.get("scope") if isinstance(raw.get("scope"), dict) else {}
         explicit_date = re.search(
             r"20\d{2}[-/]\d{1,2}[-/]\d{1,2}|20\d{2}年\d{1,2}月\d{1,2}日|截至|截止|最新",
@@ -737,11 +771,12 @@ def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, A
     except ValueError as exc:
         raise ToolDispatchError("invalid_task_revision", str(exc)[:1000]) from exc
     return {
-        "saved": True,
+        "revision_saved": True,
+        "saved_to_library": False,
         "task_revision": saved["revision"],
         "task": saved["task"],
         "execution_authorized": bool(conversation_store.get_pending_execute_message(context.conversation_id)),
-        "note": "任务已保存为新版本；保存本身不会执行筛选。",
+        "note": "当前对话条件已更新；尚未存入方案库。用户要求保存方案时请调用 save_screening_plan。",
     }
 
 
@@ -752,8 +787,8 @@ def _authorize_screening_execution(args: ToolArgs, context: ToolContext) -> dict
     message = _current_turn_user_message(context)
     # The server checks the user's actual message; the model cannot mint an
     # execution grant from a tool argument alone.
-    if not re.search(r"筛(?:一下|选|选一遍|选一次)|执行|运行|按这个筛|开始筛|再筛", message["content"]):
-        raise ToolDispatchError("execution_not_explicit", "当前用户消息没有明确要求执行筛选")
+    if not requests_execution(message["content"]):
+        raise ToolDispatchError("execution_not_explicit", "当前消息没有明确执行要求，或包含否定执行。请核对要求；用户也可点击确认并开始筛选。")
     task = None
     try:
         task = conversation_store.get_task_revision(context.conversation_id, args.revision)
@@ -784,10 +819,37 @@ def _revoke_screening_execution(args: ToolArgs, context: ToolContext) -> dict[st
     if args.revision != conversation["task_revision"]:
         raise ToolDispatchError("revision_conflict", "撤销授权对应的任务版本不是当前版本")
     message = _current_turn_user_message(context)
-    if not re.search(r"不执行|先不|暂不|取消(?:筛选|执行)?", message["content"]):
+    if not denies_execution(message["content"]):
         raise ToolDispatchError("revoke_not_explicit", "当前用户消息没有明确撤销执行")
     conversation_store.clear_pending_execute_message(context.conversation_id, args.revision)
     return {"execution_authorized": False, "task_revision": args.revision, "note": "本次执行授权已撤销。"}
+
+
+def _save_screening_plan(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
+    _current_turn_user_message(context)
+    task = conversation_store.get_task_revision(context.conversation_id, args.revision)
+    try:
+        with connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            turn = connection.execute(
+                """SELECT t.state,c.task_revision FROM conversation_turns t
+                   JOIN conversations c ON c.id=t.conversation_id WHERE t.id=? AND c.id=? AND c.state='active'""",
+                (context.turn_id, context.conversation_id),
+            ).fetchone()
+            if not turn or turn["state"] != "running" or turn["task_revision"] != args.revision:
+                raise ToolDispatchError("revision_conflict", "对话或条件版本已变化，请重新读取后保存")
+            saved = saved_screening_tasks.save_task(
+                task, name=args.name, request_id=f"codex-save:{context.turn_id}:{args.revision}", _connection=connection,
+            )
+    except saved_screening_tasks.SavedTaskError as exc:
+        raise ToolDispatchError(exc.code, str(exc)) from exc
+    return {"saved_to_library": True, "asset_id": saved["id"], "version": saved["version"],
+            "name": saved["name"], "idempotent_replay": saved["idempotent_replay"],
+            "note": "方案已存入已保存方案列表，可在其他对话或观察池复用；本次保存不会执行筛选。"}
+
+
+def _list_saved_tasks(args: ToolArgs, _: ToolContext) -> dict[str, Any]:
+    return {"items": saved_screening_tasks.list_tasks(limit=args.limit)}
 
 
 class ToolRegistry:
@@ -939,6 +1001,7 @@ class ToolRegistry:
         arguments_sha256: str,
         arguments_json: str,
     ) -> dict[str, Any] | None:
+        conversation_store.recover_expired_turns()
         with connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             conversation = connection.execute(
@@ -1069,10 +1132,14 @@ def _register_default_tools(registry: ToolRegistry) -> None:
     )
     registry.register(
         "propose_screening_task",
-        "Validate and save a complete new screening task revision from the current user request. Saving never executes a run.",
+        "Validate and persist the current conversation's complete task revision. This does not save a reusable plan or execute a run.",
         ProposeScreeningTaskArgs,
         _propose_screening_task,
     )
+    registry.register("save_screening_plan", "Save the current confirmed revision to the reusable plan library when the user asks to save a plan. Returns an asset id and version; never executes screening.",
+                      SaveScreeningPlanArgs, _save_screening_plan)
+    registry.register("list_saved_screening_tasks", "Read reusable plans from the same saved-plan library shown in the Web UI.",
+                      ListSavedTasksArgs, _list_saved_tasks)
     registry.register(
         "authorize_screening_execution",
         "Record an execution grant only when the current user message explicitly requests running the current task.",

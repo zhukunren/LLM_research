@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
+from datetime import UTC, datetime, timedelta
 import sqlite3
+from threading import Event, Thread
 
 from typing import Any
 from uuid import uuid4
 
 from .db import connect, json_dump, json_load, utc_now
+from .execution_policy import denies_execution
 from .screening_contracts import ConversationSourceReference, ScreeningTaskRevision
 
 
@@ -20,6 +23,91 @@ class ConversationConflict(ValueError):
 
 class ConversationStoreError(ValueError):
     pass
+
+
+TURN_LEASE_SECONDS = 90
+
+
+def _lease_cutoff() -> str:
+    return (datetime.now(UTC) - timedelta(seconds=TURN_LEASE_SECONDS)).isoformat(timespec="seconds")
+
+
+def _fail_running_turn(connection, conversation_id: str, turn_id: str, message: str, code: str) -> bool:
+    """Release only this running turn, independently of task revision mutations."""
+    now = utc_now()
+    result = json_dump({"runtime": "codex", "error_code": code, "ready_to_execute": False,
+                        "execution_authorized": False})
+    changed = connection.execute(
+        """UPDATE conversation_turns SET state='failed',response_text=?,result_json=?,updated_at=?
+           WHERE id=? AND conversation_id=? AND state='running'""",
+        (message, result, now, turn_id, conversation_id),
+    ).rowcount
+    if not changed:
+        return False
+    connection.execute(
+        """INSERT INTO conversation_messages(id,conversation_id,role,content,client_message_id,created_at)
+           VALUES(?,?,'assistant',?,?,?)""",
+        (str(uuid4()), conversation_id, message, f"assistant:{turn_id}", now),
+    )
+    connection.execute(
+        "UPDATE conversations SET pending_execute_message_id=NULL,updated_at=? WHERE id=?",
+        (now, conversation_id),
+    )
+    return True
+
+
+def fail_turn(conversation_id: str, turn_id: str, message: str) -> bool:
+    with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        return _fail_running_turn(connection, conversation_id, turn_id,
+                                  message.strip() or "本次处理失败，请重试。", "runtime_failed")
+
+
+def recover_expired_turns() -> int:
+    cutoff = _lease_cutoff()
+    with connect() as connection:
+        # Most reads have nothing to recover and need no write lock.
+        expired = connection.execute(
+            "SELECT 1 FROM conversation_turns WHERE state='running' AND updated_at<=? LIMIT 1", (cutoff,),
+        ).fetchone()
+        if not expired:
+            return 0
+        connection.execute("BEGIN IMMEDIATE")
+        rows = connection.execute(
+            "SELECT id,conversation_id FROM conversation_turns WHERE state='running' AND updated_at<=?", (cutoff,),
+        ).fetchall()
+        return sum(_fail_running_turn(connection, row["conversation_id"], row["id"],
+            "上次处理已中断，已保存的条件仍保留。请重新处理或继续描述要求。", "turn_interrupted") for row in rows)
+
+
+def heartbeat_turn(conversation_id: str, turn_id: str) -> bool:
+    with connect() as connection:
+        return bool(connection.execute(
+            """UPDATE conversation_turns SET updated_at=?
+               WHERE id=? AND conversation_id=? AND state='running' AND updated_at>?""",
+            (utc_now(), turn_id, conversation_id, _lease_cutoff()),
+        ).rowcount)
+
+
+@contextmanager
+def keep_turn_alive(conversation_id: str, turn_id: str):
+    stop = Event()
+
+    def heartbeat():
+        while not stop.wait(15):
+            try:
+                if not heartbeat_turn(conversation_id, turn_id):
+                    return
+            except sqlite3.Error:
+                return  # Expiration prevents a disconnected processor publishing later.
+
+    thread = Thread(target=heartbeat, name="conversation-heartbeat", daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        thread.join(timeout=1)
 
 
 def create_conversation(entry_scope: str) -> dict[str, Any]:
@@ -43,6 +131,7 @@ def create_conversation(entry_scope: str) -> dict[str, Any]:
 
 
 def list_conversations(entry_scope: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    recover_expired_turns()
     limit = max(1, min(int(limit), 100))
     with connect() as connection:
         rows = connection.execute(
@@ -137,6 +226,7 @@ def _freeze_source_refs(
 
 
 def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str, Any]:
+    recover_expired_turns()
     message_limit = max(1, min(int(message_limit), 100))
     with connect() as connection:
         conversation = connection.execute(
@@ -195,6 +285,8 @@ def add_user_message(
     *,
     _connection: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
+    if _connection is None:
+        recover_expired_turns()
     with (nullcontext(_connection) if _connection is not None else connect()) as connection:
         if _connection is None:
             connection.execute("BEGIN IMMEDIATE")
@@ -258,7 +350,9 @@ def add_user_message(
             (turn_id, conversation_id, message_id, base_revision, now, now),
         )
         connection.execute(
-            "UPDATE conversations SET updated_at=? WHERE id=?", (now, conversation_id)
+            """UPDATE conversations SET updated_at=?,
+               pending_execute_message_id=CASE WHEN ? THEN NULL ELSE pending_execute_message_id END WHERE id=?""",
+            (now, denies_execution(content), conversation_id),
         )
         return {
             "message_id": message_id,
@@ -271,6 +365,7 @@ def add_user_message(
 
 
 def get_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
+    recover_expired_turns()
     with connect() as connection:
         row = connection.execute(
             """SELECT id,conversation_id,user_message_id,base_revision,state,response_text,result_json,
@@ -426,7 +521,7 @@ def finish_turn(
         if conversation["task_revision"] != expected_task_revision:
             raise ConversationConflict("处理期间条件版本发生变化，助手结果未发布")
         turn = connection.execute(
-            "SELECT state,response_text,result_json FROM conversation_turns WHERE id=? AND conversation_id=?",
+            "SELECT state,response_text,result_json,updated_at FROM conversation_turns WHERE id=? AND conversation_id=?",
             (turn_id, conversation_id),
         ).fetchone()
         if not turn:
@@ -450,6 +545,8 @@ def finish_turn(
             raise ConversationConflict("对话回合已结束，结果不能覆盖")
         if turn["state"] not in {"awaiting_agent", "running"}:
             raise ConversationConflict("对话回合当前不能完成")
+        if turn["state"] == "running" and turn["updated_at"] <= _lease_cutoff():
+            raise ConversationConflict("对话回合已中断，迟到结果不能发布")
         if pending_execute_message_id is not None:
             source = connection.execute(
                 """SELECT 1 FROM conversation_messages

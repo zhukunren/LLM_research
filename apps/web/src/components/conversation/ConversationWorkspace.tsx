@@ -304,7 +304,7 @@ export default function ConversationWorkspace({
     if (nearLatest) setShowLatest(false)
   }
 
-  async function reloadConversation(conversationId: string) {
+  async function reloadConversation(conversationId: string, accept = () => true) {
     const next = await api<Conversation>(`/conversations/${conversationId}`)
     const [nextTask, runList] = await Promise.all([
       next.task_revision > 0
@@ -312,7 +312,7 @@ export default function ConversationWorkspace({
         : Promise.resolve(null),
       api<{ items: ScreeningTaskRunSummary[] }>(`/conversations/${conversationId}/screening-runs`),
     ])
-    if (selectedIdRef.current !== conversationId) return next
+    if (!accept() || selectedIdRef.current !== conversationId) return next
     setConversation(next)
     setTask(nextTask)
     setRuns(runList.items)
@@ -336,29 +336,8 @@ export default function ConversationWorkspace({
     setBusy(true)
     setError('')
     setCodexProgress('')
-    let polling = false
-    let eventCursor = -1
-    const pollCodexEvents = async () => {
-      try {
-        const events = await api<{ items: CodexEvent[]; next_after: number }>(
-          `/conversations/${conversationId}/turns/${turnId}/codex-events?after=${eventCursor}&limit=100`,
-        )
-        for (const event of events.items) {
-          eventCursor = Math.max(eventCursor, event.sequence)
-          const label = codexEventLabel(event)
-          if (label) setCodexProgress(label)
-        }
-      } catch { /* Legacy turns do not have Codex events. */ }
-    }
-    const progressTimer = globalThis.setInterval(async () => {
-      if (polling) return
-      polling = true
-      try { await Promise.all([reloadConversation(conversationId), pollCodexEvents()]) }
-      catch { /* The original request owns error recovery. */ }
-      finally { polling = false }
-    }, 1200)
-    void pollCodexEvents()
     try {
+      await reloadConversation(conversationId)
       const turn = await api<ConversationTurn>(`/conversations/${conversationId}/turns/${turnId}/process`, { method: 'POST' })
       if (turn.result.ready_to_execute) {
         const queued = await api<{ run_id: string }>(
@@ -373,7 +352,6 @@ export default function ConversationWorkspace({
       setError((reason as Error).message)
       try { await reloadConversation(conversationId) } catch { /* Keep the original request error visible. */ }
     } finally {
-      globalThis.clearInterval(progressTimer)
       setCodexProgress('')
       setBusy(false)
     }
@@ -441,6 +419,42 @@ export default function ConversationWorkspace({
       .finally(() => { if (active) setLoadingConversation(false) })
     return () => { active = false }
   }, [selectedId, sessions.length, refreshIndex])
+
+  const activeTurnId = conversation?.id === selectedId
+    ? conversation.turns.find(turn => ['awaiting_agent', 'running'].includes(turn.state))?.id
+    : undefined
+  useEffect(() => {
+    setCodexProgress('')
+    if (!selectedId || !activeTurnId) return
+    let active = true
+    let polling = false
+    let eventCursor = -1
+    const poll = async () => {
+      if (polling || !active) return
+      polling = true
+      try {
+        await reloadConversation(selectedId, () => active)
+      } catch (reason) {
+        if (active) setError((reason as Error).message)
+      }
+      try {
+        const events = await api<{ items: CodexEvent[]; next_after: number }>(
+          `/conversations/${selectedId}/turns/${activeTurnId}/codex-events?after=${eventCursor}&limit=100`,
+        )
+        if (active && selectedIdRef.current === selectedId) {
+          for (const event of events.items) {
+            const label = codexEventLabel(event)
+            if (label) setCodexProgress(label)
+          }
+          eventCursor = events.next_after
+        }
+      } catch { /* Conversation polling still delivers completion when events are unavailable. */ }
+      finally { polling = false }
+    }
+    void poll()
+    const timer = globalThis.setInterval(() => { void poll() }, 1200)
+    return () => { active = false; globalThis.clearInterval(timer) }
+  }, [selectedId, activeTurnId])
 
   useEffect(() => {
     followLatestRef.current = true
@@ -770,7 +784,7 @@ export default function ConversationWorkspace({
           <button type="button" aria-pressed={libraryTab === 'recent'} onClick={() => setLibraryTab('recent')}>最近对话</button>
           <button type="button" aria-pressed={libraryTab === 'saved'} onClick={() => setLibraryTab('saved')}>已保存方案</button>
         </div>
-        {libraryTab === 'saved' ? <SavedTaskLibrary latestDate={data?.last_date} scope={scope} busy={busy || saving} onReuse={(saved, latest) => void reuseTask(saved, latest)} /> : <>
+        {libraryTab === 'saved' ? <SavedTaskLibrary latestDate={data?.last_date} scope={scope} busy={busy || saving} refreshKey={`${refreshIndex}:${conversation?.turns[0]?.state}`} onReuse={(saved, latest) => void reuseTask(saved, latest)} /> : <>
         {!!sessions.length && <label className="conversation-search"><Search size={14} /><input aria-label="搜索最近对话" placeholder="搜索最近对话" value={sessionQuery} onChange={event => setSessionQuery(event.target.value)} /></label>}
         {loadingSessions ? <p className="conversation-muted">正在载入对话…</p> : sessionError ? <div className="saved-task-empty" role="alert"><p>{sessionError}</p><button className="secondary-button compact" onClick={() => setSessionReload(value => value + 1)}>重新加载对话</button></div> : !sessions.length ? <p className="conversation-muted">开始一次筛选，对话会自动保存在这里。</p> : !filteredSessions.length ? <div className="saved-task-empty"><p>没有找到匹配的对话</p><button className="text-button" onClick={() => setSessionQuery('')}>清除搜索</button></div> : (
           <div className="conversation-session-list">

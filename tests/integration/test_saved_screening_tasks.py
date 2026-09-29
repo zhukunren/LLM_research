@@ -77,6 +77,20 @@ def test_save_is_separate_from_execution_and_replays_identically(client):
     assert len(listed["items"]) == 1 and listed["items"][0]["task"]["logic_tree"]["op"] == "all"
 
 
+def test_lost_save_response_replays_without_an_asset_id_and_rejects_changed_request(client):
+    conversation_id, _ = _conversation(client)
+    url = f"/api/v1/conversations/{conversation_id}/saved-screening-tasks"
+    payload = {"name": "稳定保存", "request_id": "lost-response", "revision": 1}
+    first = client.post(url, json=payload)
+    replay = client.post(url, json=payload)
+    assert first.status_code == replay.status_code == 201
+    assert replay.json()["id"] == first.json()["id"]
+    assert replay.json()["idempotent_replay"] is True
+    changed = client.post(url, json={**payload, "name": "不同内容"})
+    assert changed.status_code == 409
+    assert len(client.get("/api/v1/saved-screening-tasks").json()["items"]) == 1
+
+
 def test_reuse_creates_new_conversation_revision_without_mutating_saved_asset(client):
     conversation_id, _message_id = _conversation(client)
     saved = client.post(f"/api/v1/conversations/{conversation_id}/saved-screening-tasks", json={

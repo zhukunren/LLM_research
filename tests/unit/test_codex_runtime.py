@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from apps.api.app import codex_runtime, codex_store, conversation_store, db
 from apps.api.app.screening_contracts import ScreeningTaskRevision
 
@@ -95,4 +97,59 @@ def test_codex_finish_turn_publishes_structured_execution_state_after_tool_mutat
     assert result["result"]["task_revision"] == 1
     assert result["result"]["execution_authorized"] is True
     assert result["result"]["ready_to_execute"] is True
+
+
+def test_failure_after_task_mutation_finishes_turn_and_allows_followup(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "failure.db")
+    db.init_db()
+    cid = conversation_store.create_conversation("screening")["id"]
+    message = conversation_store.add_user_message(cid, "request", 0, "收盘价高于20日均线，筛一下")
+    conversation_store.start_turn(cid, message["turn_id"])
+
+    def fail_after_mutation(*_):
+        conversation_store.save_task_revision(cid, 0, message["message_id"], _task(cid))
+        conversation_store.set_pending_execute_message(cid, 1, message["message_id"])
+        raise codex_runtime.CodexRuntimeError("模拟传输中断")
+
+    monkeypatch.setattr(codex_runtime, "run_conversation_turn", fail_after_mutation)
+    with pytest.raises(codex_runtime.CodexRuntimeError, match="模拟传输中断"):
+        codex_runtime.process_conversation_turn(cid, message["turn_id"])
+    turn = conversation_store.get_turn(cid, message["turn_id"])
+    assert turn["state"] == "failed"
+    assert turn["result"]["ready_to_execute"] is False
+    assert conversation_store.get_task_revision(cid, 1).revision == 1
+    assert conversation_store.get_pending_execute_message(cid) is None
+    assert conversation_store.fail_turn(cid, message["turn_id"], "迟到异常") is False
+    next_message = conversation_store.add_user_message(cid, "followup", 1, "先解释一下条件")
+    assert next_message["state"] == "awaiting_agent"
+    assert conversation_store.get_turn(cid, message["turn_id"])["response_text"] == "模拟传输中断"
+
+
+def test_expired_turn_recovers_without_overwriting_live_or_completed_turns(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "recovery.db")
+    db.init_db()
+    cid = conversation_store.create_conversation("screening")["id"]
+    message = conversation_store.add_user_message(cid, "interrupted", 0, "筛一下")
+    conversation_store.start_turn(cid, message["turn_id"])
+    conversation_store.save_task_revision(cid, 0, message["message_id"], _task(cid))
+    conversation_store.set_pending_execute_message(cid, 1, message["message_id"])
+    other = conversation_store.create_conversation("screening")["id"]
+    live = conversation_store.add_user_message(other, "live", 0, "解释行情")
+    conversation_store.start_turn(other, live["turn_id"])
+    with db.connect() as connection:
+        connection.execute("UPDATE conversation_turns SET updated_at='2000-01-01' WHERE id=?", (message["turn_id"],))
+    assert conversation_store.heartbeat_turn(cid, message["turn_id"]) is False
+    assert conversation_store.heartbeat_turn(other, live["turn_id"]) is True
+
+    # Read after a restart or page reload reclaims only the expired processor.
+    recovered = conversation_store.get_conversation(cid)
+    assert recovered["turns"][0]["state"] == "failed"
+    assert recovered["turns"][0]["result"]["error_code"] == "turn_interrupted"
+    assert recovered["pending_execution"] is False
+    assert conversation_store.get_turn(other, live["turn_id"])["state"] == "running"
+    with pytest.raises(conversation_store.ConversationConflict):
+        conversation_store.finish_turn(cid, message["turn_id"], 1, "succeeded", "迟到结果", {})
+    assert conversation_store.recover_expired_turns() == 0
+    assert len(conversation_store.get_conversation(cid)["messages"]) == 2
+    assert conversation_store.add_user_message(cid, "resumed", 1, "继续")["state"] == "awaiting_agent"
 

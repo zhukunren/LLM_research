@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
+import sqlite3
 from typing import Any
 from uuid import uuid4
 
@@ -29,26 +31,49 @@ def _row(row) -> dict[str, Any]:
     }
 
 
-def save_task(task: ScreeningTaskRevision, *, name: str, asset_id: str | None = None) -> dict[str, Any]:
+def save_task(task: ScreeningTaskRevision, *, name: str, asset_id: str | None = None,
+              request_id: str | None = None, _connection: sqlite3.Connection | None = None) -> dict[str, Any]:
+    name = name.strip()
+    if not name or len(name) > 120:
+        raise SavedTaskError("invalid_name", "方案名称不能为空且最多120个字符。")
     try:
         validate_executable_task(task)
     except ValueError as exc:
         raise SavedTaskError("task_incomplete", str(exc)) from exc
-    asset_id = asset_id or str(uuid4())
     task_json = json_dump(task.model_dump(mode="json"))
-    with connect() as connection:
-        connection.execute("BEGIN IMMEDIATE")
+    request_json = json_dump({"name": name, "asset_id": asset_id, "task": task.model_dump(mode="json")})
+    with (nullcontext(_connection) if _connection is not None else connect()) as connection:
+        if _connection is None:
+            connection.execute("BEGIN IMMEDIATE")
+        if request_id:
+            previous = connection.execute(
+                "SELECT * FROM saved_screening_task_requests WHERE request_id=?", (request_id,),
+            ).fetchone()
+            if previous:
+                if previous["request_json"] != request_json:
+                    raise SavedTaskError("save_request_conflict", "相同保存请求不能更改名称、条件或资产。", 409)
+                row = connection.execute("SELECT * FROM saved_screening_tasks WHERE id=? AND version=?",
+                                         (previous["asset_id"], previous["asset_version"])).fetchone()
+                return {**_row(row), "idempotent_replay": True}
+        asset_id = asset_id or str(uuid4())
         latest = connection.execute("SELECT * FROM saved_screening_tasks WHERE id=? ORDER BY version DESC LIMIT 1", (asset_id,)).fetchone()
         version = (latest["version"] + 1) if latest else 1
-        if latest and latest["task_json"] == task_json and latest["name"] == name:
-            return {**_row(latest), "idempotent_replay": True}
+        replay = bool(latest and latest["task_json"] == task_json and latest["name"] == name)
         now = utc_now()
-        connection.execute(
-            "INSERT INTO saved_screening_tasks(id,name,version,task_json,created_at) VALUES(?,?,?,?,?)",
-            (asset_id, name.strip(), version, task_json, now),
-        )
-        row = connection.execute("SELECT * FROM saved_screening_tasks WHERE id=? AND version=?", (asset_id, version)).fetchone()
-    return {**_row(row), "idempotent_replay": False}
+        if replay:
+            row = latest
+        else:
+            connection.execute(
+                "INSERT INTO saved_screening_tasks(id,name,version,task_json,created_at) VALUES(?,?,?,?,?)",
+                (asset_id, name, version, task_json, now),
+            )
+            row = connection.execute("SELECT * FROM saved_screening_tasks WHERE id=? AND version=?", (asset_id, version)).fetchone()
+        if request_id:
+            connection.execute(
+                "INSERT INTO saved_screening_task_requests VALUES(?,?,?,?,?)",
+                (request_id, request_json, row["id"], row["version"], now),
+            )
+    return {**_row(row), "idempotent_replay": replay}
 
 
 def get_task(asset_id: str, version: int | None = None) -> dict[str, Any]:

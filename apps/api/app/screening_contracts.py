@@ -377,6 +377,11 @@ def validate_executable_task(task: ScreeningTaskRevision) -> None:
         raise ValueError("执行前必须确定股票范围")
     if task.unresolved:
         raise ValueError("筛选任务仍有待澄清、未支持或相互冲突的要求")
+    for condition in task.conditions:
+        if condition.library == "news":
+            expression = condition.expression
+            if expression.get("lookback_trading_days") is not None or expression.get("time_unit") == "trading_days":
+                raise ValueError("当前资讯条件只支持自然日回溯，不能把交易日窗口直接当作可执行条件")
     ranking = task.scope.ranking
     if ranking is not None:
         universe = task.scope.universe

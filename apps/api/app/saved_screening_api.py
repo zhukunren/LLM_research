@@ -39,7 +39,8 @@ def save_current_task(conversation_id: str, payload: saved_screening_tasks.SaveS
         conversation = conversation_store.get_conversation(conversation_id, message_limit=1)
         revision = payload.revision or conversation["task_revision"]
         task = conversation_store.get_task_revision(conversation_id, revision)
-        return saved_screening_tasks.save_task(task, name=payload.name, asset_id=payload.asset_id)
+        return saved_screening_tasks.save_task(task, name=payload.name, asset_id=payload.asset_id,
+                                               request_id=payload.request_id)
     except (conversation_store.ConversationNotFound, saved_screening_tasks.SavedTaskError) as exc:
         if isinstance(exc, conversation_store.ConversationNotFound):
             raise HTTPException(404, {"code": "conversation_not_found", "message": "找不到对话或任务修订。"}) from exc
