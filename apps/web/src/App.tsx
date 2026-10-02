@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Activity, FileText, MessageCircle, Newspaper, Settings2, Shapes, Star } from 'lucide-react'
+import { Activity, AlertCircle, ChevronRight, Database, FileText, MessageCircle, Newspaper, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, Shapes, Star } from 'lucide-react'
 import { api, type ConversationScope, type ConversationSourceReference, type DataStatus } from './api'
 const ObservationPage = lazy(() => import('./pages/ObservationPage'))
 const WorkbenchPage = lazy(() => import('./pages/WorkbenchPage'))
@@ -34,6 +34,7 @@ export default function App() {
   const [page, setPage] = useSessionState<PageId>('app.page', 'screening', (value): value is PageId => menus.some(item => item.id === value))
   const [data, setData] = useState<DataStatus | null>(null)
   const [systemOpen, setSystemOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useSessionState('app.sidebarCollapsed', false, (value): value is boolean => typeof value === 'boolean')
   const [loadError, setLoadError] = useState('')
   const [screeningSection, setScreeningSection] = useState<ScreeningSection>(storedScreeningSection)
   const [conversationScope, setConversationScope] = useState<ConversationScope>('screening')
@@ -75,19 +76,21 @@ export default function App() {
 
   const active = menus.find((item) => item.id === page)!
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className="sidebar">
         <div className="research-brand"><img src="/brand/soochow-blue.png" alt="东吴证券 SOOCHOW SECURITIES" width="160" height="35" /><img className="sidebar-brand-symbol" src="/brand/soochow-symbol-blue.png" alt="东吴证券" width="90" height="70" /></div>
-        <div className="branch-name">张家港营业部<span>投研工作台</span></div>
-        <div className="workspace-label">研究工作区</div>
+        <div className="branch-name">投研工作台<span>张家港营业部</span></div>
         <nav className="workspace-navigation" aria-label="主菜单">
-          {menus.map(({ id, label, mobileLabel, icon: Icon }) => <button className={'nav-item ' + (page === id ? 'active' : '')} key={id} aria-label={label} title={label} aria-current={page === id ? 'page' : undefined} onClick={() => { if (id === 'screening') openConversation('screening'); else setPage(id) }}><Icon size={18} strokeWidth={1.8} /><span className="nav-label">{label}</span><span className="nav-mobile-label" aria-hidden="true">{mobileLabel}</span></button>)}
+          {['研究', '资料库'].map((group, index) => <div className="navigation-group" key={group}>
+            <div className="workspace-label">{group}</div>
+            {menus.slice(index === 0 ? 0 : 2, index === 0 ? 2 : undefined).map(({ id, label, mobileLabel, icon: Icon }) => <button className={'nav-item ' + (page === id ? 'active' : '')} key={id} aria-label={label} title={label} aria-current={page === id ? 'page' : undefined} onClick={() => { if (id === 'screening') openConversation('screening'); else setPage(id) }}><Icon size={18} strokeWidth={1.8} /><span className="nav-label">{label}</span><span className="nav-mobile-label" aria-hidden="true">{mobileLabel}</span></button>)}
+          </div>)}
         </nav>
-        <div className="sidebar-bottom"><div className="sidebar-mode">探索模式</div><div className="research-data-status"><span className={'status-dot ' + (loadError ? 'warning' : data?.available ? 'good' : 'warning')} />{loadError ? '服务连接异常' : data ? data.available ? '行情可供查询' : '待添加行情数据' : '正在检查数据'}</div>{data?.last_date && <button className="market-watermark" onClick={() => setSystemOpen(true)} aria-label={`行情截至 ${data.last_date}，查看数据状态`}>行情截至 <time>{data.last_date}</time></button>}<button className="research-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务"><Settings2 size={16} /><span>数据与服务</span></button></div>
+        <div className="sidebar-bottom"><div className="research-data-status"><span className={'status-dot ' + (loadError ? 'warning' : data?.available ? 'good' : 'warning')} />{loadError ? '服务连接异常' : data ? data.available ? '行情可供查询' : '待添加行情数据' : '正在检查数据'}</div><button className="research-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务" title="数据与服务"><Settings2 size={17} /><span>数据与服务</span><ChevronRight size={14} className="settings-chevron" /></button></div>
       </aside>
       <main className="main-shell">
-        <header className="research-header"><img className="mobile-header-brand" src="/brand/soochow-symbol-blue.png" alt="东吴证券" width="30" height="26" /><div className="research-breadcrumb"><span>张家港营业部</span><i>/</i><strong>{active.label}</strong></div><div className="research-header-actions"><span className="mode-badge"><span className="status-dot warning" />探索模式</span><button className="research-settings mobile-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务"><Settings2 size={16} /></button></div></header>
-        {loadError && <div className="global-alert">暂时无法连接服务。可双击“启动投研工作台”恢复，或稍后重试。<button onClick={refreshStatus}>重试</button></div>}
+        <header className="research-header"><button className="icon-button sidebar-toggle" onClick={() => setSidebarCollapsed(value => !value)} aria-label={sidebarCollapsed ? '展开导航' : '收起导航'} title={sidebarCollapsed ? '展开导航' : '收起导航'}>{sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}</button><img className="mobile-header-brand" src="/brand/soochow-symbol-blue.png" alt="东吴证券" width="30" height="26" /><div className="research-breadcrumb"><span>研究工作台</span><ChevronRight size={13} /><strong>{active.label}</strong></div><div className="research-header-actions">{data?.last_date && <button className="header-data-status" onClick={() => setSystemOpen(true)} aria-label={`行情截至 ${data.last_date}，查看数据状态`} title="查看数据状态"><Database size={13} /><span>行情 <time>{data.last_date}</time></span></button>}<span className="mode-badge"><span className="status-dot warning" />探索模式</span><button className="research-settings mobile-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务" title="数据与服务"><Settings2 size={17} /></button></div></header>
+        {loadError && <div className="global-alert" role="alert"><AlertCircle size={16} /><span>暂时无法连接服务，请检查本地服务是否已启动。</span><button onClick={refreshStatus}><RefreshCw size={14} />重试</button></div>}
         <section className="page-frame" key={page}>
           <Suspense fallback={<div className="page-content">正在加载页面…</div>}>
           {page === 'watchlist' && <ObservationPage data={data} />}

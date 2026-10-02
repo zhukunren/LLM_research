@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { MessageCircle } from 'lucide-react'
+import { BookOpen, FilePlus2, FolderOpen, ListFilter, MessageCircle, Upload } from 'lucide-react'
 import type { ConversationSourceReference, DataStatus, Filter } from '../api'
 import { libraryCopy, type LibraryScope, type LibrarySeed } from '../libraryContext'
 import WorkbenchPage, { type Section } from './WorkbenchPage'
@@ -17,15 +17,25 @@ export default function LibraryWorkspace({ scope, data, onCompose, onConversatio
   const [evaluationFilter, setEvaluationFilter] = useState<Filter>()
   function describe(value?: Omit<LibrarySeed, 'id'> | LibrarySeed) { onConversation(scope, value?.source_document_id ? { reference: { kind: 'report_page', source_id: value.source_document_id, page_number: value.source_page }, label: `${value.title || '研报'} · 第${value.source_page}页` } : undefined, value?.prompt || '我想基于这页研报整理选股条件，请先说明有哪些可以核对的事实。') }
   function changeView(section: Section) { if (section === 'create' || section === 'library') setTab(section); else onCompose() }
+  const tabs = [
+    { id: 'browse', label: copy.browse, icon: BookOpen },
+    { id: 'library', label: '独立条件库', icon: FolderOpen },
+    { id: 'create', label: '创建条件', icon: FilePlus2 },
+    ...(scope === 'report' ? [{ id: 'assess', label: '研报评估', icon: ListFilter }] : []),
+  ] as const
   return <div className={`page-content library-shell scope-${scope}`}>
-    <div className="library-heading"><div className="library-title"><h1>{copy.title}</h1></div><div className="library-heading-actions">{scope === 'news' && <button className="secondary-button" onClick={() => { setTab('browse'); setNewsImportOpen(true) }}>导入</button>}<button className="quiet-button" onClick={() => onConversation(scope)}><MessageCircle size={14} />对话筛选</button></div></div>
-    <p className="library-intro">{copy.intro}</p>
-    <nav className="library-tabs" aria-label={`${copy.title}功能`}>
-      <button className={tab === 'browse' ? 'active' : ''} onClick={() => setTab('browse')}>{copy.browse}</button>
-      <button onClick={() => onConversation(scope)}>描述需求</button><button className={tab === 'create' ? 'active' : ''} onClick={() => setTab('create')}>创建独立条件（高级）</button>
-      <button className={tab === 'library' ? 'active' : ''} onClick={() => setTab('library')}>独立条件库</button>
-      {scope === 'report' && <button className={tab === 'assess' ? 'active' : ''} onClick={() => setTab('assess')}>独立研报评估</button>}
+    <div className="library-heading"><div className="library-title"><span className="workspace-eyebrow">研究资料</span><h1>{copy.title}</h1></div><div className="library-heading-actions">{scope === 'news' && <button className="secondary-button" onClick={() => { setTab('browse'); setNewsImportOpen(true) }}><Upload size={15} />导入资讯</button>}<button className="primary-button" onClick={() => onConversation(scope)}><MessageCircle size={15} />发起研究</button></div></div>
+    <nav className="library-tabs" role="tablist" aria-label={`${copy.title}功能`} onKeyDown={event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+      event.preventDefault()
+      const current = tabs.findIndex(item => item.id === tab)
+      const index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+      setTab(tabs[index].id)
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index]?.focus()
+    }}>
+      {tabs.map(({ id, label, icon: Icon }) => <button key={id} id={`library-${scope}-${id}`} role="tab" aria-selected={tab === id} aria-controls={`library-${scope}-panel`} tabIndex={tab === id ? 0 : -1} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={15} />{label}</button>)}
     </nav>
+    <div id={`library-${scope}-panel`} role="tabpanel" aria-labelledby={`library-${scope}-${tab}`}>
     <Suspense fallback={<div className="workbench-help">正在加载资料…</div>}>
       {tab === 'browse' && scope === 'technical' && <TechnicalBrowser data={data} onDescribe={describe} />}
       {tab === 'browse' && scope === 'report' && <ReportPage contentOnly onDescribe={describe} />}
@@ -33,5 +43,6 @@ export default function LibraryWorkspace({ scope, data, onCompose, onConversatio
       {(tab === 'create' || tab === 'library') && <WorkbenchPage key={scope} scope={scope} view={tab} seed={seed} onSeedConsumed={() => setSeed(undefined)} onViewChange={changeView} data={data} onCompose={onCompose} onConversation={onConversation} onReports={filter => { setEvaluationFilter(filter); setTab('assess') }} />}
       {tab === 'assess' && scope === 'report' && <ReportEvaluations selected={evaluationFilter} />}
     </Suspense>
+    </div>
   </div>
 }

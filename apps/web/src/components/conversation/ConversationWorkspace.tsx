@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { AlertCircle, ArrowDown, ArrowUpRight, Bookmark, Check, LoaderCircle, MessageCircle, Pencil, Play, Plus, RefreshCw, Search, Send, Square, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, FileSearch, GitCompareArrows, LoaderCircle, MessageCircle, Pencil, Play, Plus, RefreshCw, Search, Square, X } from 'lucide-react'
 import {
   api,
   type Conversation,
@@ -92,6 +92,7 @@ const stateLabels: Record<string, string> = {
   not_evaluated: '未处理',
 }
 const RUN_PAGE_SIZE = 20
+const suggestionIcons = [ChartNoAxesCombined, GitCompareArrows, FileSearch]
 const promptSuggestions: Record<ConversationScope, PromptSuggestion[]> = {
   screening: [
     { label: '市场机会', prompt: '最近哪些股票值得进一步研究？请结合走势、成交和已有资料，列出理由与风险。' },
@@ -877,8 +878,9 @@ export default function ConversationWorkspace({
       <div className="page-heading conversation-header-heading">
         <div className="conversation-heading-title">
           <h1>投研助手</h1>
+          <span className="conversation-session-caption">{sessions.find(item => item.id === selectedId)?.title || '新研究'}</span>
         </div>
-        <button className="session-disclosure secondary-button" aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><MessageCircle size={15} />{sessionsOpen ? '收起对话与方案' : '对话与方案'}</button>
+        <div className="conversation-heading-actions"><button className="session-disclosure secondary-button" aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><MessageCircle size={15} />{sessionsOpen ? '收起对话与方案' : '对话与方案'}</button><button className="secondary-button conversation-new" disabled={busy || saving || loadingSessions} onClick={createConversation}><Plus size={15} />新研究</button></div>
       </div>
       <div className={`conversation-workspace ${showTaskPanel ? '' : 'conversation-workspace-start'} ${!conversation?.messages.length && !task ? 'conversation-workspace-empty' : ''}`}>
       <aside id="screening-sessions" className={`conversation-sessions ${sessionsOpen ? 'sessions-open' : ''}`} aria-label="对话列表">
@@ -930,7 +932,7 @@ export default function ConversationWorkspace({
                 <MessageCircle size={22} />
                 <strong>今天想研究什么？</strong>
                 <div className="conversation-suggestions" aria-label="常用研究问题">
-                  {promptSuggestions[scope].map((item) => <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-title">{item.label}<ArrowUpRight size={16} /></span><span className="suggestion-description">{item.prompt}</span></button>)}
+                  {promptSuggestions[scope].map((item, index) => { const Icon = suggestionIcons[index % suggestionIcons.length]; return <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-icon"><Icon size={20} strokeWidth={1.6} /></span><span className="suggestion-copy"><span className="suggestion-title">{item.label}</span><span className="suggestion-description">{item.prompt}</span></span><ArrowUpRight size={16} className="suggestion-arrow" /></button> })}
                 </div>
               </div>
             )}
@@ -969,12 +971,10 @@ export default function ConversationWorkspace({
             placeholder="告诉我想研究的公司、资料或假设，例如：比较这两家公司的订单兑现质量"
           />
           <div className="conversation-composer-footer">
-            <div className="conversation-mode-control"><select aria-label="研究模式" value={researchMode} disabled={busy || saving || modeSaving || turnInProgress || loadingConversation || loadingSessions} onChange={(event) => void changeResearchMode(event.target.value as ResearchMode)}>
-              {Object.entries(researchModeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>{modeSaving && <LoaderCircle size={14} className="spin" />}</div>
+            <div className="conversation-mode-control" role="group" aria-label="研究模式选择">{Object.entries(researchModeLabels).map(([value, label]) => <button key={value} type="button" aria-label={label} title={label} aria-pressed={researchMode === value} disabled={busy || saving || modeSaving || turnInProgress || loadingConversation || loadingSessions} onClick={() => void changeResearchMode(value as ResearchMode)}>{label.replace('模式', '')}</button>)}{modeSaving && <LoaderCircle size={14} className="spin" />}</div>
             <span>{draft.length >= 7000 ? `${draft.length}/8000` : ''}</span>
             <button className="primary-button" type="submit" disabled={busy || saving || modeSaving || (scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || loadingConversation || loadingSessions || !draft.trim()}>
-              {busy ? <LoaderCircle size={15} className="spin" /> : <Send size={15} />}
+              {busy ? <LoaderCircle size={15} className="spin" /> : <ArrowUp size={16} />}
               {busy ? '处理中…' : '发送'}
             </button>
           </div>

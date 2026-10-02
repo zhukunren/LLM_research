@@ -9,32 +9,32 @@
   color-scheme: light;
 
   /* Surfaces & Canvas */
-  --ui-canvas: #f5f6f8;
+  --ui-canvas: #ffffff;
   --ui-surface: #ffffff;
-  --ui-surface-subtle: #f7f8fa;
-  --ui-surface-hover: #eef1f4;
-  --ui-surface-active: #edf3f7;
+  --ui-surface-subtle: #f6f8f9;
+  --ui-surface-hover: #eef2f3;
+  --ui-surface-active: #eaf3f3;
 
   /* Typography Colors */
-  --ui-text: #252e38;
-  --ui-text-muted: #5d6875;
-  --ui-text-faint: #687482;
+  --ui-text: #222c30;
+  --ui-text-muted: #59666b;
+  --ui-text-faint: #728087;
   --ui-text-disabled: #a0b0c0;
 
   /* Borders & Dividers */
-  --ui-border: #dfe3e8;
-  --ui-border-subtle: #eceef1;
+  --ui-border: #dfe5e7;
+  --ui-border-subtle: #edf0f1;
   --ui-border-strong: #bdc6d0;
 
   /* Primary Brand: Soochow Blue (东吴蓝) */
   --ui-brand: #174f78;
   --ui-brand-navy: #0f3957;
-  --ui-accent: #087e8b;
-  --ui-primary: var(--ui-brand);
-  --ui-primary-hover: #095679;
-  --ui-primary-active: #074762;
-  --ui-primary-soft: #eaf2fa;
-  --ui-primary-border: #afd0df;
+  --ui-accent: #16786b;
+  --ui-primary: #236773;
+  --ui-primary-hover: #19545f;
+  --ui-primary-active: #13434c;
+  --ui-primary-soft: #edf5f5;
+  --ui-primary-border: #bbd7d9;
   --ui-on-primary: #ffffff;
   --ui-chart-line: #32839b;
   --ui-chart-area: rgba(50, 131, 155, 0.09);
@@ -59,12 +59,12 @@
   --ui-danger-border: #efc3c5;
 
   /* Sidebar Tokens */
-  --ui-sidebar: #ffffff;
-  --ui-sidebar-border: #e0e4e9;
+  --ui-sidebar: #f7f9fa;
+  --ui-sidebar-border: #e4e9eb;
   --ui-sidebar-text: #505d6a;
   --ui-sidebar-muted: #687482;
-  --ui-sidebar-hover: #f2f4f6;
-  --ui-sidebar-active: #edf3f7;
+  --ui-sidebar-hover: #edf1f3;
+  --ui-sidebar-active: #e7eff0;
 
   /* Corner Radii */
   --ui-radius-xs: 6px;
