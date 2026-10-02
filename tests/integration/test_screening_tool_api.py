@@ -5,7 +5,7 @@ import pytest
 
 from apps.api.app import db, main, market
 from apps.api.app.screening_artifacts import ArtifactError
-from apps.api.app.model_client import FunctionCall
+from apps.api.app.tool_protocol import ToolCall
 from apps.api.app.screening_artifacts import read_artifact_chunk
 from apps.api.app.screening_tools import ToolContext, ToolRegistry, registry
 
@@ -48,13 +48,13 @@ def test_dispatch_is_scope_checked_and_idempotent(client, monkeypatch):
     )
     monkeypatch.setattr(market, "source_fingerprint", lambda: ("sample", 100, 1))
 
-    request = FunctionCall(
+    request = ToolCall(
         "call-1", "read_market_window", {"stock_code": "600000.SH", "limit": 20}
     )
     result = registry.dispatch(request, context)
     replay = registry.dispatch(request, context)
     denied = registry.dispatch(
-        FunctionCall("call-2", "read_market_window", {"stock_code": "600001.SH", "limit": 20}),
+        ToolCall("call-2", "read_market_window", {"stock_code": "600001.SH", "limit": 20}),
         context,
     )
 
@@ -86,7 +86,7 @@ def test_dispatch_rejects_stale_revisions_and_unregistered_tool_names(client):
         )
 
     stale = registry.dispatch(
-        FunctionCall("call-stale", "read_market_window", {"stock_code": "600000.SH", "limit": 5}),
+        ToolCall("call-stale", "read_market_window", {"stock_code": "600000.SH", "limit": 5}),
         context,
     )
     assert stale["ok"] is False
@@ -98,7 +98,7 @@ def test_dispatch_rejects_stale_revisions_and_unregistered_tool_names(client):
             (context.conversation_id,),
         )
     unknown = registry.dispatch(
-        FunctionCall("call-unknown", "exec_host_command", {}),
+        ToolCall("call-unknown", "exec_host_command", {}),
         context,
     )
     assert unknown["ok"] is False
@@ -115,7 +115,7 @@ def test_large_tool_result_uses_conversation_scoped_content_hashed_artifact(clie
         registry._registrations["get_market_coverage"].argument_model,
         lambda _args, _context: {"value": "x" * 40000},
     )
-    result = local_registry.dispatch(FunctionCall("call-large", "large_test_result", {}), context)
+    result = local_registry.dispatch(ToolCall("call-large", "large_test_result", {}), context)
 
     artifact = result["result"]
     content = []

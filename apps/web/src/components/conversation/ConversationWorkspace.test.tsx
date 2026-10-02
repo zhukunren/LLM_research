@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
-import type { Conversation, ConversationSourceReference, ScreeningTaskRevision } from '../../api'
+import type { Conversation, ConversationSourceReference, ScreeningTaskRevision, DataStatus } from '../../api'
 
 function conversation(id: string, overrides: Partial<Conversation> = {}): Conversation {
   return {
@@ -55,6 +55,51 @@ function jsonResponse(value: unknown, status = 200) {
 }
 
 describe('ConversationWorkspace', () => {
+  it('accepts an asynchronous research job, preserves the user request and can stop it after acknowledgement', async () => {
+    const user = userEvent.setup()
+    const id = 'async-research'
+    const created_at = '2026-09-30T00:00:00Z'
+    let stored = conversation(id)
+    let received = ''
+    const writes: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), 'http://localhost')
+      const method = init?.method || 'GET'
+      if (method === 'POST') writes.push(url.pathname)
+      if (url.pathname === '/api/v1/conversations') return jsonResponse(method === 'POST' ? stored : { items: [] })
+      if (url.pathname === `/api/v1/conversations/${id}`) return jsonResponse(stored)
+      if (url.pathname.endsWith('/messages')) {
+        received = JSON.parse(String(init?.body)).content
+        stored = { ...stored, messages: [{ id: 'question', role: 'user', content: received, source_refs: [], created_at }],
+          turns: [{ id: 'turn', user_message_id: 'question', base_revision: 0, state: 'awaiting_agent', response_text: null, result: {}, created_at, updated_at: created_at }] }
+        return jsonResponse({ message_id: 'question', turn_id: 'turn', state: 'awaiting_agent' }, 202)
+      }
+      if (url.pathname.endsWith('/process')) {
+        stored = { ...stored, turns: [{ ...stored.turns[0], job: { id: 'job', state: 'queued', progress: 0, message: '等待研究' } }] }
+        return jsonResponse(stored.turns[0], 202)
+      }
+      if (url.pathname.endsWith('/cancel')) {
+        stored = { ...stored, turns: [{ ...stored.turns[0], state: 'cancelled', response_text: '研究已停止' }],
+          messages: [...stored.messages, { id: 'answer', role: 'assistant', content: '研究已停止', source_refs: [], created_at }] }
+        return jsonResponse(stored.turns[0])
+      }
+      return jsonResponse({ items: [], next_after: -1 })
+    }))
+    const view = render(<ConversationWorkspace data={{ last_date: '2026-09-30' } as DataStatus} />)
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    await user.type(screen.getByLabelText('研究要求'), '独立研究公司的订单与盈利质量')
+    await user.click(screen.getByRole('button', { name: '发送' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '停止当前研究' })).toBeEnabled())
+    expect(received).toBe('独立研究公司的订单与盈利质量')
+    expect(screen.getByLabelText('研究要求')).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '继续处理' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '停止当前研究' }))
+    expect(await screen.findByText('研究已停止')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    expect(writes.some(path => path.endsWith('/execute'))).toBe(false)
+    view.unmount()
+  })
+
   it('reconnects a restored running turn, unlocks the composer, and stops polling on completion', async () => {
     const id = 'restored-running'
     const created_at = '2026-09-30T00:00:00+00:00'
@@ -75,14 +120,14 @@ describe('ConversationWorkspace', () => {
     }))
     const view = render(<ConversationWorkspace />)
     await screen.findAllByText('解释行情覆盖')
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toBeDisabled())
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeDisabled())
     stored = {
       ...stored,
       messages: [...stored.messages, { id: 'answer', role: 'assistant', content: '后端已完成行情覆盖检查', source_refs: [], created_at }],
       turns: stored.turns.map(turn => ({ ...turn, state: 'succeeded', response_text: '后端已完成行情覆盖检查' })),
     }
     expect(await screen.findByText('后端已完成行情覆盖检查', {}, { timeout: 3000 })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toBeEnabled())
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
     const completedReads = reads
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 1400)) })
     expect(reads).toBe(completedReads)
@@ -156,7 +201,7 @@ describe('ConversationWorkspace', () => {
     }))
 
     render(<ConversationWorkspace />)
-    const input = await screen.findByLabelText('筛选要求')
+    const input = await screen.findByLabelText('研究要求')
     await user.type(input, '收盘价高于20日均线，筛一下')
     await user.click(screen.getByRole('button', { name: '发送' }))
 
@@ -216,13 +261,13 @@ describe('ConversationWorkspace', () => {
 
     render(<ConversationWorkspace />)
     await screen.findByText('筛选条件已确认，执行授权已记录。')
-    await user.type(screen.getByLabelText('筛选要求'), '按这个筛')
+    await user.type(screen.getByLabelText('研究要求'), '按这个筛')
     await user.click(screen.getByRole('button', { name: '发送' }))
 
     expect(await screen.findByText('600000.SH')).toBeInTheDocument()
     await user.click(screen.getByText('600000.SH'))
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
-    expect(screen.getByLabelText('筛选要求')).toHaveValue('为什么这次选中了600000.SH？')
+    expect(screen.getByLabelText('研究要求')).toHaveValue('为什么这次选中了600000.SH？')
     expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1)
     expect(screen.getByText('当前运行 · v1 · 2026-09-14')).toBeInTheDocument()
   })
@@ -265,7 +310,7 @@ describe('ConversationWorkspace', () => {
       }}
     />)
     expect(await screen.findByText('订单研究 · 第 2 页')).toBeInTheDocument()
-    await user.type(screen.getByLabelText('筛选要求'), '这页提到了哪些订单证据？')
+    await user.type(screen.getByLabelText('研究要求'), '这页提到了哪些订单证据？')
     await user.click(screen.getByRole('button', { name: '发送' }))
 
     await screen.findByText('我会基于所选研报页回答。')

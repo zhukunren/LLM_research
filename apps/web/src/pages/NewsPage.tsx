@@ -25,6 +25,7 @@ export default function NewsPage({ onDiscuss, importOpen = false, onImportClose 
   const [readRetry, setReadRetry] = useState(0)
   const [selected, setSelected] = useState<NewsRecord | null>(null)
   const [fontSize, setFontSize] = useState(() => { try { const value = Number(localStorage.getItem('news.fontSize')); return value >= 12 && value <= 24 ? value : 14 } catch { return 14 } })
+  const readingFontSize = fontSize - 1
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -123,8 +124,8 @@ export default function NewsPage({ onDiscuss, importOpen = false, onImportClose 
           <button className="secondary-button compact" disabled={loading || invalidRange || list.next_offset === null} onClick={() => setOffset(list.next_offset!)}>下一页</button></div>
       </section>
       <section className="local-news-panel news-reading-panel" ref={reader} aria-label="资讯阅读" aria-busy={reading}>
-        <div className="news-reader-tools"><div><button className="text-button reader-back" onClick={() => catalog.current?.scrollIntoView({ behavior: 'smooth' })}><ArrowLeft size={14} />列表</button></div><div><button className="secondary-button compact" aria-label="缩小资讯字体" disabled={fontSize <= 12} onClick={() => setFontSize(value => value - 1)}>A-</button><span className="font-size-value" aria-label="当前资讯字号">{fontSize}</span><button className="secondary-button compact" aria-label="放大资讯字体" disabled={fontSize >= 24} onClick={() => setFontSize(value => value + 1)}>A+</button></div></div>
-        {reading ? <div className="library-loading" role="status">正在读取正文…</div> : readError ? <div className="library-error" role="alert">{readError}<button className="text-button" onClick={() => setReadRetry(value => value + 1)}>重试读取</button></div> : selected ? <article className="local-news-reader" style={{ fontSize }}>
+        <div className="news-reader-tools"><div><button className="text-button reader-back" onClick={() => catalog.current?.scrollIntoView({ behavior: 'smooth' })}><ArrowLeft size={14} />列表</button></div><div><button className="secondary-button compact" aria-label="缩小资讯字体" disabled={fontSize <= 12} onClick={() => setFontSize(value => value - 1)}>A-</button><span className="font-size-value" aria-label="当前资讯字号">{readingFontSize}</span><button className="secondary-button compact" aria-label="放大资讯字体" disabled={fontSize >= 24} onClick={() => setFontSize(value => value + 1)}>A+</button></div></div>
+        {reading ? <div className="library-loading" role="status">正在读取正文…</div> : readError ? <div className="library-error" role="alert">{readError}<button className="text-button" onClick={() => setReadRetry(value => value + 1)}>重试读取</button></div> : selected ? <article className="local-news-reader" style={{ fontSize: readingFontSize }}>
           <h3>{selected.title}</h3><p className="news-metadata">{sourceLabel(selected.source)} · {chinaTime(selected.published_at ?? selected.available_at)}{selected.stock_codes.length > 0 && ' · ' + selected.stock_codes.join('、')}</p><div className="news-body">{selected.body}</div>
           {onDiscuss && <button className="quiet-button" onClick={() => onDiscuss(selected)}>基于此资讯筛选 →</button>}
         </article> : <div className="library-empty">选择一条资讯阅读。</div>}

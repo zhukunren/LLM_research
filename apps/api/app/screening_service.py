@@ -96,17 +96,43 @@ def _run_response(request_id: str, run_id: str, job_id: str, revision: int) -> d
     }
 
 
-def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None = None) -> dict[str, Any]:
-    idempotency_key = f"conversation-turn:{turn_id}"
-    existing = _existing_request(conversation_id, idempotency_key)
-    if existing:
-        return existing
-
+def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None = None,
+                 agent_active: bool = False, button_authorized: bool = False,
+                 button_revision: int | None = None, button_request_id: str | None = None) -> dict[str, Any]:
+    if agent_active and button_authorized:
+        raise ScreeningServiceError("invalid_execution_action", "执行授权方式无效。", 422)
     conversation = conversation_store.get_conversation(conversation_id, message_limit=1)
     turn = conversation_store.get_turn(conversation_id, turn_id)
-    if turn["state"] != "succeeded":
+    revision = button_revision if button_authorized else conversation["task_revision"] if agent_active else (turn.get("result") or {}).get("task_revision", 0)
+    if button_authorized and (not button_request_id or button_revision is None):
+        raise ScreeningServiceError("invalid_execution_action", "按钮执行必须指定任务版本和请求标识。")
+    idempotency_key = f"button:{button_request_id}" if button_authorized else f"conversation-turn:{turn_id}:revision:{revision}"
+    existing = _existing_request(conversation_id, idempotency_key)
+    if existing:
+        if button_authorized:
+            with connect() as connection:
+                prior = connection.execute("SELECT turn_id,task_revision FROM execution_requests WHERE id=?", (existing["execution_request_id"],)).fetchone()
+            if prior["turn_id"] != turn_id or prior["task_revision"] != revision:
+                raise ScreeningServiceError("request_conflict", "同一执行请求不能用于不同的任务版本。", 409)
+        return existing
+
+    expected_state = "running" if agent_active else "succeeded"
+    if turn["state"] != expected_state:
         raise ScreeningServiceError("turn_not_ready", "对话回合尚未完成，不能创建筛选运行。", 409)
+    if button_authorized and (conversation["task_revision"] != revision or not conversation["turns"] or conversation["turns"][0]["id"] != turn_id):
+        raise ScreeningServiceError("revision_conflict", "筛选条件或对话已有更新，请读取最新版本后再执行。", 409)
     result = turn["result"] or {}
+    if agent_active:
+        from .execution_policy import requests_execution
+        original = conversation_store.get_user_message(conversation_id, turn["user_message_id"])
+        grant = conversation_store.get_pending_execute_message(conversation_id)
+        if grant != original["id"] or not requests_execution(original["content"]):
+            raise ScreeningServiceError("execution_not_authorized", "当前研究回合没有对应用户原话的执行授权。", 409)
+        result = {"ready_to_execute": True, "execution_authorized": True, "task_revision": revision,
+                  "execution_authorization_message_id": grant}
+    elif button_authorized:
+        result = {"ready_to_execute": True, "execution_authorized": True, "task_revision": revision,
+                  "execution_authorization_message_id": turn["user_message_id"]}
     if (
         result.get("ready_to_execute") is not True
         or result.get("execution_authorized") is not True
@@ -118,7 +144,8 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
     if conversation["task_revision"] != task_revision:
         raise ScreeningServiceError("revision_conflict", "筛选条件已有更新，请读取最新版本后再执行。", 409)
     stored_grant = conversation_store.get_pending_execute_message(conversation_id)
-    pending_message_id = stored_grant or result.get("execution_authorization_message_id")
+    pending_message_id = (result.get("execution_authorization_message_id") if button_authorized
+                           else stored_grant or result.get("execution_authorization_message_id"))
     if not pending_message_id:
         raise ScreeningServiceError("execution_grant_missing", "待执行授权已撤回或已经消费。", 409)
     conversation_store.get_user_message(conversation_id, pending_message_id)
@@ -168,7 +195,7 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
         request_id=execution_request_id,
         task_id=conversation_id,
         revision=task_revision,
-        action="explicit_user_message",
+        action="button" if button_authorized else "explicit_user_message",
         source_message_id=pending_message_id,
         idempotency_key=idempotency_key,
     )
@@ -179,7 +206,7 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
             "SELECT result_json,state FROM conversation_turns WHERE id=? AND conversation_id=?",
             (turn_id, conversation_id),
         ).fetchone()
-        if turn_row and turn_row["state"] == "succeeded":
+        if turn_row and turn_row["state"] == expected_state:
             with_id = connection.execute(
                 "SELECT call_id FROM tool_calls WHERE turn_id=? ORDER BY created_at,call_id",
                 (turn_id,),
@@ -212,13 +239,20 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
 
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
+        if agent_active:
+            try:
+                conversation_store.require_running_turn(connection, conversation_id, turn_id)
+            except conversation_store.ConversationConflict as exc:
+                raise ScreeningServiceError("execution_state_changed", str(exc), 409) from exc
         existing = connection.execute(
-            """SELECT r.id,s.id AS run_id,s.job_id,s.status,s.task_revision
+            """SELECT r.id,r.turn_id,s.id AS run_id,s.job_id,s.status,s.task_revision
                FROM execution_requests r JOIN screening_task_runs s ON s.execution_request_id=r.id
                WHERE r.conversation_id=? AND r.idempotency_key=?""",
             (conversation_id, idempotency_key),
         ).fetchone()
         if existing:
+            if button_authorized and (existing["turn_id"] != turn_id or existing["task_revision"] != task_revision):
+                raise ScreeningServiceError("request_conflict", "同一执行请求不能用于不同的任务版本。", 409)
             return {
                 "execution_request_id": existing["id"],
                 "run_id": existing["run_id"],
@@ -235,15 +269,19 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
             "SELECT state,result_json FROM conversation_turns WHERE id=? AND conversation_id=?",
             (turn_id, conversation_id),
         ).fetchone()
+        latest_turn = connection.execute("SELECT id FROM conversation_turns WHERE conversation_id=? ORDER BY rowid DESC LIMIT 1", (conversation_id,)).fetchone()
         if (
             not current or current["state"] != "active"
             or current["task_revision"] != task_revision
-            or current["pending_execute_message_id"] != pending_message_id
-            or not current_turn or current_turn["state"] != "succeeded"
-            or json_load(current_turn["result_json"]).get("ready_to_execute") is not True
-            or json_load(current_turn["result_json"]).get("execution_authorized") is not True
-            or json_load(current_turn["result_json"]).get("task_revision") != task_revision
-            or json_load(current_turn["result_json"]).get("execution_authorization_message_id") != pending_message_id
+            or ((not button_authorized) and current["pending_execute_message_id"] != pending_message_id)
+            or not current_turn or current_turn["state"] != expected_state
+            or (button_authorized and (not latest_turn or latest_turn["id"] != turn_id))
+            or (not agent_active and not button_authorized and (
+                json_load(current_turn["result_json"]).get("ready_to_execute") is not True
+                or json_load(current_turn["result_json"]).get("execution_authorized") is not True
+                or json_load(current_turn["result_json"]).get("task_revision") != task_revision
+                or json_load(current_turn["result_json"]).get("execution_authorization_message_id") != pending_message_id
+            ))
             or market.source_fingerprint() != source_fingerprint
         ):
             raise ScreeningServiceError("execution_state_changed", "对话条件或执行授权已经变化，请重新读取。", 409)

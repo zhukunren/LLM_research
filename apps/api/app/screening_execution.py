@@ -222,13 +222,13 @@ def execute_snapshot(
                 }
                 for code in codes
             }
-        except Exception:
+        except Exception as exc:
             program_results[reference["reference_id"]] = {
                 code: {
                     "state": "unknown",
                     "evaluation_status": "failed",
                     "reason_code": "execution_failed",
-                    "explanation": "自定义计算程序运行失败；没有将失败解释为不符合。",
+                    "explanation": f"自定义计算程序运行失败：{type(exc).__name__}: {str(exc)[:1500]}",
                     "metrics": {},
                     "units": {},
                     "thresholds": {},

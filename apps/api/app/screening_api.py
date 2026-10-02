@@ -1,10 +1,25 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import Field, model_validator
+from typing import Literal
 
 from . import screening_service
+from .screening_contracts import ContractModel
 
 router = APIRouter(prefix="/api/v1", tags=["对话筛选运行"])
+
+
+class ExecuteTurnRequest(ContractModel):
+    action: Literal["message", "button"] = "message"
+    revision: int | None = Field(default=None, ge=1)
+    request_id: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def button_requires_snapshot(self):
+        if self.action == "button" and (self.revision is None or self.request_id is None):
+            raise ValueError("按钮执行必须指定任务版本和请求标识")
+        return self
 
 
 def _service_error(exc: screening_service.ScreeningServiceError) -> None:
@@ -15,9 +30,12 @@ def _service_error(exc: screening_service.ScreeningServiceError) -> None:
 
 
 @router.post("/conversations/{conversation_id}/turns/{turn_id}/execute", status_code=202)
-def enqueue_screening_turn(conversation_id: str, turn_id: str):
+def enqueue_screening_turn(conversation_id: str, turn_id: str, payload: ExecuteTurnRequest | None = None):
     try:
-        return screening_service.enqueue_turn(conversation_id, turn_id)
+        action = payload.action if payload else "message"
+        return screening_service.enqueue_turn(conversation_id, turn_id, button_authorized=action == "button",
+                                              button_revision=payload.revision if payload else None,
+                                              button_request_id=payload.request_id if payload else None)
     except screening_service.ScreeningServiceError as exc:
         _service_error(exc)
 

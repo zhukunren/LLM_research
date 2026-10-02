@@ -1,8 +1,8 @@
 from apps.api.app import screening_tools
-from apps.api.app.model_client import _validate_strict_schema
+from apps.api.app.research_tools import TushareQueryArgs
 
 
-def test_registered_tools_have_strict_schemas_and_no_process_or_network_tool():
+def test_registered_tools_expose_codex_mcp_schemas():
     registry = screening_tools.registry
     names = registry.registered_tool_names()
     assert {
@@ -17,19 +17,32 @@ def test_registered_tools_have_strict_schemas_and_no_process_or_network_tool():
     } <= names
     assert "compute_builtin_indicator" not in names
     assert not any(name in {"shell", "sql", "python", "http_get"} for name in names)
-    for registration in registry._registrations.values():
-        _validate_strict_schema(registration.tool.parameters)
+    tushare = registry._registrations["query_tushare"].tool.input_schema
+    assert tushare["properties"]["params"]["type"] == "object"
+    assert TushareQueryArgs.model_validate({"api_name": "daily", "params": {"ts_code": "000001.SZ"}}).limit == 100
 
 
 def test_tool_definitions_do_not_accept_extra_arguments():
     market = screening_tools.registry._registrations["read_market_window"]
-    schema = market.tool.parameters
+    schema = market.tool.input_schema
 
     assert schema["additionalProperties"] is False
     assert set(schema["required"]) == set(schema["properties"])
 
 
-def test_model_only_receives_tools_whose_service_capability_is_available(monkeypatch):
+def test_codex_mcp_keeps_optional_objects_and_tool_annotations():
+    from apps.api.app.codex_mcp_server import _tools
+
+    definitions = {tool["name"]: tool for tool in _tools()}
+    tushare = definitions["query_tushare"]
+    assert "limit" not in tushare["inputSchema"]["required"]
+    assert tushare["inputSchema"]["properties"]["params"]["additionalProperties"]["anyOf"]
+    assert tushare["annotations"]["readOnlyHint"]
+    assert tushare["annotations"]["openWorldHint"]
+    assert not definitions["execute_screening_task"]["annotations"]["readOnlyHint"]
+
+
+def test_codex_only_receives_tools_whose_service_capability_is_available(monkeypatch):
     from apps.api.app import main
 
     monkeypatch.setattr(
@@ -46,7 +59,7 @@ def test_model_only_receives_tools_whose_service_capability_is_available(monkeyp
             ]
         },
     )
-    names = {tool.name for tool in screening_tools.registry.functions_for_model()}
+    names = {tool.name for tool in screening_tools.registry.tools_for_codex()}
 
     assert "read_market_window" in names
     assert "inspect_saved_conditions" in names

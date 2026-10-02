@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 try {
     & (Join-Path $PSScriptRoot 'start.ps1')
     $Records = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\runtime\processes.json') -Raw | ConvertFrom-Json

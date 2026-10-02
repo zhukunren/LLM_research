@@ -93,6 +93,7 @@ export type Strategy = {
 }
 
 export type ConversationScope = 'technical' | 'news' | 'report' | 'pattern' | 'screening'
+export type ResearchMode = 'research' | 'screening' | 'advanced'
 export type ConversationSourceReference = {
   kind: 'report_page' | 'news_item' | 'security' | 'screening_run' | 'pattern' | 'condition'
   source_id: string
@@ -112,6 +113,7 @@ export type ConversationTurn = {
   base_revision: number
   state: 'awaiting_agent' | 'running' | 'awaiting_user' | 'succeeded' | 'failed' | 'cancelled'
   response_text: string | null
+  job?: { id: string; state: string; progress: number; message: string } | null
   result: {
     intent?: string
     task_revision?: number
@@ -127,6 +129,7 @@ export type Conversation = {
   id: string
   task_id: string
   entry_scope: ConversationScope
+  research_mode?: ResearchMode
   task_revision: number
   active_run_id: string | null
   pending_execution: boolean

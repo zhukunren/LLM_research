@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.app import conversation_store, db, main, screening_tools
-from apps.api.app.model_client import FunctionCall
+from apps.api.app.tool_protocol import ToolCall
 from apps.api.app.screening_contracts import ScreeningTaskRevision, combine_logic_tree
 from apps.api.app.screening_contracts import ScreeningTaskRevision, validate_executable_task
 
@@ -57,7 +57,7 @@ def test_codex_task_tools_save_revision_and_authorize_only_current_explicit_requ
         task_revision=0,
     )
     proposed = screening_tools.registry.dispatch(
-        FunctionCall("proposal-1", "propose_screening_task", {"task": _task(conversation["id"])}),
+        ToolCall("proposal-1", "propose_screening_task", {"task": _task(conversation["id"])}),
         context,
     )
     assert proposed["ok"] is True
@@ -74,7 +74,7 @@ def test_codex_task_tools_save_revision_and_authorize_only_current_explicit_requ
         stock_codes=frozenset({"600000.SH"}),
     )
     authorized = screening_tools.registry.dispatch(
-        FunctionCall("authorize-1", "authorize_screening_execution", {"revision": 1}),
+        ToolCall("authorize-1", "authorize_screening_execution", {"revision": 1}),
         current,
     )
     assert authorized["ok"] is True
@@ -92,7 +92,7 @@ def test_codex_task_tool_repairs_structural_aliases_but_keeps_missing_scope_unre
     conversation_store.start_turn(conversation["id"], message["turn_id"])
     context = screening_tools.ToolContext(conversation["id"], message["turn_id"], 0)
     result = screening_tools.registry.dispatch(
-        FunctionCall("proposal-repair", "propose_screening_task", {"task": {
+        ToolCall("proposal-repair", "propose_screening_task", {"task": {
             "task_id": "model-draft",
             "revision": 1,
             "original_user_messages": ["请保存筛选草稿：收盘价高于20日均线。"],
@@ -153,7 +153,7 @@ def test_logic_aliases_preserve_or_and_nested_not(turn_context, operator):
         {"condition_id": "ma"},
         {"operator": "NOT", "children": [{"reference_id": "r2"}]},
     ]}
-    result = screening_tools.registry.dispatch(FunctionCall("logic", "propose_screening_task", {"task": task}), context)
+    result = screening_tools.registry.dispatch(ToolCall("logic", "propose_screening_task", {"task": task}), context)
     assert result["ok"], result
     saved = conversation_store.get_task_revision(context.conversation_id, 1)
     assert saved.logic_tree["op"] == "any"
@@ -174,7 +174,7 @@ def test_invalid_logic_is_rejected_without_saving_a_replacement(turn_context, tr
     context = turn_context()
     task = _two_conditions(context.conversation_id)
     task["logic_tree"] = tree
-    result = screening_tools.registry.dispatch(FunctionCall("bad-logic", "propose_screening_task", {"task": task}), context)
+    result = screening_tools.registry.dispatch(ToolCall("bad-logic", "propose_screening_task", {"task": task}), context)
     assert result["ok"] is False
     assert result["error"]["code"] == "invalid_task_revision"
     assert conversation_store.get_conversation(context.conversation_id)["task_revision"] == 0
@@ -187,7 +187,7 @@ def test_invalid_logic_is_rejected_without_saving_a_replacement(turn_context, tr
 ])
 def test_authorization_rejects_negation_discussion_and_quoted_commands(turn_context, message):
     context = turn_context(message, ready=True)
-    result = screening_tools.registry.dispatch(FunctionCall("auth", "authorize_screening_execution", {"revision": 1}), context)
+    result = screening_tools.registry.dispatch(ToolCall("auth", "authorize_screening_execution", {"revision": 1}), context)
     assert result["ok"] is False, message
     assert result["error"]["code"] == "execution_not_explicit"
     assert conversation_store.get_pending_execute_message(context.conversation_id) is None
@@ -199,7 +199,7 @@ def test_authorization_rejects_negation_discussion_and_quoted_commands(turn_cont
 ])
 def test_explicit_execution_requests_still_authorize(turn_context, message):
     context = turn_context(message, ready=True)
-    result = screening_tools.registry.dispatch(FunctionCall("auth", "authorize_screening_execution", {"revision": 1}), context)
+    result = screening_tools.registry.dispatch(ToolCall("auth", "authorize_screening_execution", {"revision": 1}), context)
     assert result["ok"], (message, result)
     assert result["result"]["ready_to_execute"] is True
 
@@ -212,7 +212,7 @@ def test_save_only_message_revokes_a_previous_pending_grant_before_processing(tu
     message = conversation_store.add_user_message(context.conversation_id, "save-only", 1, "先不要执行，只保存方案")
     assert conversation_store.get_pending_execute_message(context.conversation_id) is None
     conversation_store.start_turn(context.conversation_id, message["turn_id"])
-    result = screening_tools.registry.dispatch(FunctionCall("late-auth", "authorize_screening_execution", {"revision": 1}),
+    result = screening_tools.registry.dispatch(ToolCall("late-auth", "authorize_screening_execution", {"revision": 1}),
         screening_tools.ToolContext(context.conversation_id, message["turn_id"], 1))
     assert result["ok"] is False
 
@@ -220,15 +220,15 @@ def test_save_only_message_revokes_a_previous_pending_grant_before_processing(tu
 def test_codex_save_is_visible_reusable_and_idempotent_without_execution(turn_context):
     context = turn_context("只保存当前方案", ready=True)
     args = {"revision": 1, "name": "可复用趋势方案"}
-    first = screening_tools.registry.dispatch(FunctionCall("save-1", "save_screening_plan", args), context)
-    second = screening_tools.registry.dispatch(FunctionCall("save-2", "save_screening_plan", args), context)
+    first = screening_tools.registry.dispatch(ToolCall("save-1", "save_screening_plan", args), context)
+    second = screening_tools.registry.dispatch(ToolCall("save-2", "save_screening_plan", args), context)
     assert first["ok"] and second["ok"], (first, second)
     asset_id = first["result"]["asset_id"]
     assert second["result"]["asset_id"] == asset_id
     assert second["result"]["idempotent_replay"] is True
-    conflict = screening_tools.registry.dispatch(FunctionCall("save-3", "save_screening_plan", {**args, "name": "不同名称"}), context)
+    conflict = screening_tools.registry.dispatch(ToolCall("save-3", "save_screening_plan", {**args, "name": "不同名称"}), context)
     assert conflict["error"]["code"] == "save_request_conflict"
-    listed = screening_tools.registry.dispatch(FunctionCall("list", "list_saved_screening_tasks", {"limit": 10}), context)
+    listed = screening_tools.registry.dispatch(ToolCall("list", "list_saved_screening_tasks", {"limit": 10}), context)
     assert [item["id"] for item in listed["result"]["items"]] == [asset_id]
     with TestClient(main.app) as client:
         assets = client.get("/api/v1/saved-screening-tasks").json()["items"]

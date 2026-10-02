@@ -36,12 +36,116 @@ def test_codex_overrides_keep_credentials_out_of_runtime_configuration(monkeypat
         "base_url": "https://proxy.example/v1",
         "model": "gpt-6-luna",
         "api_key": "private-test-key",
+        "reasoning_effort": "max",
     }
     overrides = codex_runtime._provider_overrides(settings)
     assert any(item.startswith("model_provider=") for item in overrides)
     assert any("proxy.example/v1" in item for item in overrides)
     assert all("private-test-key" not in item for item in overrides)
+    assert 'model_reasoning_effort="max"' in overrides
     assert "mcp_servers.llm_research" in " ".join(codex_runtime._mcp_overrides())
+    workspace_overrides = codex_runtime._workspace_overrides(tmp_path)
+    assert 'sandbox_workspace_write.network_access=true' in workspace_overrides
+    assert all("private-test-key" not in item for item in workspace_overrides)
+
+
+def test_tushare_research_query_is_scoped_and_bounded(monkeypatch):
+    from apps.api.app import research_tools
+    from apps.api.app.screening_tools import ToolDispatchError
+
+    observed = {}
+    monkeypatch.setattr(research_tools.tushare_sync, "create_client", lambda: object())
+    def query(client, api_name, **params):
+        observed.update({"api_name": api_name, "params": params})
+        return [{"ts_code": "000001.SZ", "close": index} for index in range(250)]
+    monkeypatch.setattr(research_tools.tushare_sync, "_query", query)
+    result = research_tools.query_tushare(research_tools.TushareQueryArgs(
+        api_name="daily", params={"ts_code": "000001.SZ", "start_date": "20260901"}, limit=10, save_to_file=False), None)
+    assert observed == {"api_name": "daily", "params": {"ts_code": "000001.SZ", "start_date": "20260901"}}
+    assert result["returned"] == 10 and result["received"] == 250 and result["truncated"]
+    assert "api_key" not in str(result)
+    with pytest.raises(ToolDispatchError, match="接口未开放"):
+        research_tools.query_tushare(research_tools.TushareQueryArgs(
+            api_name="unknown", params={"ts_code": "000001.SZ"}), None)
+    with pytest.raises(ToolDispatchError, match="证券代码或查询日期"):
+        research_tools.query_tushare(research_tools.TushareQueryArgs(
+            api_name="daily", params={}), None)
+
+
+def test_research_program_error_can_be_repaired_in_the_same_turn(tmp_path, monkeypatch):
+    from apps.api.app import market
+    from apps.api.app.screening_tools import ToolContext, registry
+    from apps.api.app.tool_protocol import ToolCall
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "preview.db")
+    db.init_db()
+    cid = conversation_store.create_conversation("screening")["id"]
+    msg = conversation_store.add_user_message(cid, "preview", 0, "验证收盘价高于20日均线的程序")
+    conversation_store.start_turn(cid, msg["turn_id"])
+    task = _task(cid)
+    task.conditions[0].program.source_code = "def screen(context, frames, params):\n    return missing_variable"
+    conversation_store.save_task_revision(cid, 0, msg["message_id"], task, turn_id=msg["turn_id"])
+    monkeypatch.setattr(market, "get_bars", lambda *_: [
+        {"trade_date": "2026-09-13", "close": 10., "quality_valid": True},
+        {"trade_date": "2026-09-14", "close": 12., "quality_valid": True},
+    ])
+    monkeypatch.setattr(market, "latest_market_date", lambda *_: "2026-09-14")
+    context = ToolContext(cid, msg["turn_id"], 1, as_of="2026-09-14", universe_kind="explicit", stock_codes=frozenset({"600000.SH"}))
+    args = {"revision": 1, "reference_id": "r1", "stock_codes": ["600000.SH"]}
+    failed = registry.dispatch(ToolCall("broken", "preview_screening_program", args), context)
+    assert failed["error"]["code"] == "program_preview_failed"
+    assert "missing_variable" in failed["error"]["message"]
+    task.revision = 2
+    task.conditions[0].program.source_code = "def screen(context, frames, params):\n    return {'decisions': {code: True for code in context['stock_codes']}}"
+    conversation_store.save_task_revision(cid, 1, msg["message_id"], task, turn_id=msg["turn_id"])
+    from dataclasses import replace
+    repaired = registry.dispatch(ToolCall("fixed", "preview_screening_program", {**args, "revision": 2}), replace(context, task_revision=2))
+    assert repaired["ok"], repaired
+    assert repaired["result"]["results"]["600000.SH"]["state"] == "true"
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM screening_task_runs").fetchone()[0] == 0
+
+
+def test_resumed_codex_gets_workspace_model_effort_and_only_final_answer(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from apps.api.app import market
+    import openai_codex
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "runtime.db")
+    monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
+    db.init_db()
+    cid = conversation_store.create_conversation("screening")["id"]
+    msg = conversation_store.add_user_message(cid, "run", 0, "读取资料")
+    conversation_store.start_turn(cid, msg["turn_id"])
+    codex_store.bind_thread(cid, "previous-thread", "old-model", "test")
+    observed = {}
+
+    class FakeCodex:
+        def __init__(self, config):
+            observed["config"] = config
+            self._client = SimpleNamespace()
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def thread_resume(self, thread_id, **kwargs):
+            observed["resume"] = kwargs
+            return SimpleNamespace(id=thread_id, turn=self.turn)
+        def turn(self, inputs, **kwargs):
+            observed["turn"] = kwargs
+            events = [
+                SimpleNamespace(method="item/completed", payload={"item": {"type": "agentMessage", "phase": "commentary", "text": "读取中"}}),
+                SimpleNamespace(method="item/completed", payload={"item": {"type": "agentMessage", "phase": "final_answer", "text": "已核对原文"}}),
+                SimpleNamespace(method="turn/completed", payload={"turn": {"status": "completed"}}),
+            ]
+            return SimpleNamespace(id="native-turn", stream=lambda: iter(events))
+
+    monkeypatch.setattr(codex_runtime, "availability", lambda: {"available": True})
+    monkeypatch.setattr(codex_runtime, "llm_settings", lambda: {"model": "configured-model", "base_url": "https://example.invalid", "api_key": "secret", "reasoning_effort": "max"})
+    monkeypatch.setattr(codex_runtime, "_sdk", lambda: (openai_codex.ApprovalMode, FakeCodex, openai_codex.CodexConfig, openai_codex.Sandbox, openai_codex.SkillInput, openai_codex.TextInput))
+    result = codex_runtime.run_conversation_turn(cid, msg["turn_id"])
+    assert result["response"] == "已核对原文"
+    assert observed["resume"]["model"] == "configured-model"
+    assert observed["resume"]["sandbox"] == openai_codex.Sandbox.workspace_write
+    assert observed["turn"]["effort"] == "max"
+    assert observed["turn"]["cwd"] == str(tmp_path / "research" / cid / "work")
+    assert "sandbox" not in observed["turn"]  # Preserve the configured writable roots on turn/start.
 
 
 def test_codex_events_are_append_only_and_cursor_paginates(tmp_path, monkeypatch):
@@ -157,4 +261,3 @@ def test_expired_turn_recovers_without_overwriting_live_or_completed_turns(tmp_p
     assert conversation_store.recover_expired_turns() == 0
     assert len(conversation_store.get_conversation(cid)["messages"]) == 2
     assert conversation_store.add_user_message(cid, "resumed", 1, "继续")["state"] == "awaiting_agent"
-

@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import codex_runtime, documents, jobs, market, runtime_executor
 from .conversation_api import router as conversation_router
+from .research_scan_api import router as research_scan_router
 from .screening_api import router as screening_router
 from .news_api import router as news_router
 from .saved_screening_api import router as saved_screening_router
@@ -79,6 +80,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="LLM 投研工作平台", version="0.1.0", lifespan=lifespan)
 app.include_router(condition_router)
 app.include_router(conversation_router)
+app.include_router(research_scan_router)
 app.include_router(screening_router)
 app.include_router(news_router)
 app.include_router(saved_screening_router)

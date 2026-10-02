@@ -26,7 +26,7 @@ type Run = { id: string; strategy_id: string; strategy_version: number; as_of: s
 type RunSummary = Pick<Run, 'id' | 'strategy_id' | 'strategy_version' | 'as_of' | 'status' | 'created_at'> & { kind?: string; name?: string; conversation_id?: string; entry_scope?: ConversationScope }
 type Preview = { state: string; stock_code: string; actual_date: string | null; details: Detail[] }
 
-const sections: { id: Section; title: string; icon: typeof Sparkles }[] = [{ id: 'conversation', title: '对话筛选', icon: MessageCircle }, { id: 'create', title: '描述条件', icon: Sparkles }, { id: 'library', title: '我的条件', icon: Library }, { id: 'compose', title: '高级组合', icon: GitBranch }, { id: 'history', title: '筛选记录', icon: Clock3 }]
+const sections: { id: Section; title: string; icon: typeof Sparkles }[] = [{ id: 'conversation', title: '研究对话', icon: MessageCircle }, { id: 'create', title: '描述条件', icon: Sparkles }, { id: 'library', title: '我的条件', icon: Library }, { id: 'compose', title: '高级组合', icon: GitBranch }, { id: 'history', title: '筛选记录', icon: Clock3 }]
 
 const stateLabels: Record<string, string> = { true: '符合', false: '不符合', unknown: '数据不足', queued: '等待执行', running: '正在筛选', succeeded: '已完成', partial: '已完成 · 有数据不足', failed: '执行失败', cancelled: '已取消', blocked_dependency: '缺少所需数据' }
 const libraryNames = { technical: '行情条件', report: '研报条件', news: '资讯条件' }
@@ -264,7 +264,7 @@ export default function WorkbenchPage({ conversationPrompt, onPromptConsumed, da
   }
 
   const screeningHeading = section === 'conversation' ? '对话筛选' : section === 'history' ? '筛选记录' : '组合选股'
-  return <div className="page-content workbench">
+  return <div className={`page-content workbench ${section === 'conversation' ? 'workbench-conversation' : ''}`}>
     {!scope && section !== 'conversation' && <div className="workbench-heading"><div><p className="eyebrow">把选股想法，变成可以反复使用的条件</p><h1>{screeningOnly ? screeningHeading : '选股工作台'}</h1></div><span className="workbench-data-status">{data?.last_date ? <>行情截至 <time>{data.last_date}</time></> : data ? '待添加行情数据' : '正在读取数据状态…'}</span></div>}
     {!scope && <nav className="workbench-tabs" aria-label="选股流程">{sections.filter(item => !screeningOnly || ['conversation', 'compose', 'history'].includes(item.id)).map(({ id, title, icon: Icon }) => <button key={id} className={section === id ? 'active' : ''} aria-current={section === id ? 'page' : undefined} onClick={() => { setSection(id); setError(''); setNotice(''); if (id === 'history') void refresh().catch(e => setError(e.message)) }}><Icon size={17} />{title}{id === 'library' && latest.length > 0 && <span>{latest.length}</span>}{id === 'compose' && countRefs(tree) > 0 && <span>{countRefs(tree)}</span>}</button>)}</nav>}
     {error && <div className="workbench-alert" role="alert">{error}<button className="icon-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={14} /></button></div>}

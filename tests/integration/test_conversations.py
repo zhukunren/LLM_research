@@ -75,6 +75,20 @@ def test_migration_010_is_applied_once_and_conversation_survives_reload(client):
         ).fetchone()[0] == 1
 
 
+def test_research_mode_persists_and_cannot_change_during_an_active_turn(client, monkeypatch):
+    monkeypatch.setenv("LLMR_RESEARCH_MODE", "advanced")
+    created = create_conversation(client)
+    cid = created["id"]
+    assert created["research_mode"] == "advanced"
+    url = f"/api/v1/conversations/{cid}/mode"
+    assert client.patch(url, json={"research_mode": "screening"}).status_code == 200
+    assert client.get(f"/api/v1/conversations/{cid}").json()["research_mode"] == "screening"
+    assert client.get("/api/v1/conversations").json()["items"][0]["research_mode"] == "screening"
+    assert client.patch(url, json={"research_mode": "invalid"}).status_code == 422
+    assert post_user_message(client, cid).status_code == 202
+    assert client.patch(url, json={"research_mode": "research"}).status_code == 409
+
+
 def test_existing_v009_database_keeps_conditions_when_migration_010_runs(tmp_path, monkeypatch):
     migration_source = Path(db.MIGRATIONS_DIR)
     legacy_migrations = tmp_path / "legacy-migrations"

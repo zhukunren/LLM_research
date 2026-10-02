@@ -94,7 +94,7 @@ def test_new_revision_with_unknown_date_does_not_silently_reuse_old_text(client)
 
 
 def test_conversation_news_tools_enforce_security_and_lookback(client):
-    from apps.api.app.model_client import FunctionCall
+    from apps.api.app.tool_protocol import ToolCall
     from apps.api.app.screening_tools import ToolContext, registry
     imported = client.post("/api/v1/news/import", json=dict(request_id="tool-data", items=[
         item(), item(title="过期资讯", published_at="2026-09-01T09:00:00+08:00", available_at="2026-09-01T10:00:00+08:00")
@@ -104,12 +104,12 @@ def test_conversation_news_tools_enforce_security_and_lookback(client):
         client_message_id="news-tools", base_revision=0, content="查看近期资讯")).json()
     context = ToolContext(conversation_id=conversation["id"], turn_id=message["turn_id"], task_revision=0,
                           as_of="2026-09-14", universe_kind="explicit", stock_codes=frozenset({"600000.SH"}), news_lookback_calendar_days=1)
-    listed = registry.dispatch(FunctionCall("list-news", "list_news_sources", dict(stock_code="600000.SH", offset=0, limit=20)), context)
+    listed = registry.dispatch(ToolCall("list-news", "list_news_sources", dict(stock_code="600000.SH", offset=0, limit=20)), context)
     assert listed["ok"] and listed["result"]["total"] == 1
     assert listed["result"]["items"][0]["source_id"] == imported[0]["id"]
-    outside = registry.dispatch(FunctionCall("outside", "read_news_chunk", dict(
+    outside = registry.dispatch(ToolCall("outside", "read_news_chunk", dict(
         source_id=imported[0]["id"], page_number=1, stock_code="600001.SH", offset=0, limit=100)), context)
-    old = registry.dispatch(FunctionCall("old", "read_news_chunk", dict(
+    old = registry.dispatch(ToolCall("old", "read_news_chunk", dict(
         source_id=imported[1]["id"], page_number=1, stock_code="600000.SH", offset=0, limit=100)), context)
     assert outside["error"]["code"] == "security_outside_universe"
     assert old["error"]["code"] == "source_ineligible"

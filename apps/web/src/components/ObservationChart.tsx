@@ -17,16 +17,17 @@ export function chartOption(chart: Chart) {
   const markerDays = [...new Set(chart.markers.map(marker => marker.date))]
   return {
     animation: false,
-    tooltip: { trigger: 'axis', renderMode: 'richText', axisPointer: { type: 'cross' } },
-    axisPointer: { link: [{ xAxisIndex: 'all' }] },
+    textStyle: { fontSize: 11 },
+    tooltip: { trigger: 'axis', renderMode: 'richText', textStyle: { fontSize: 13 }, axisPointer: { type: 'cross' } },
+    axisPointer: { link: [{ xAxisIndex: 'all' }], label: { fontSize: 11 } },
     grid: [{ left: 58, right: 20, top: 38, height: '57%' }, { left: 58, right: 20, top: '73%', height: '13%' }],
-    xAxis: [0, 1].map(index => ({ type: 'category', data: dates, gridIndex: index, boundaryGap: true, axisLine: { lineStyle: { color: '#b5c7d8' } }, axisLabel: { show: index === 1, color: '#53677d' } })),
-    yAxis: [{ scale: true, splitLine: { lineStyle: { color: '#edf2f7' } } }, { gridIndex: 1, scale: true, splitNumber: 2, axisLabel: { show: false }, splitLine: { show: false } }],
-    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], startValue: Math.max(0, signalIndex - 45), endValue: Math.min(dates.length - 1, Math.max(signalIndex + 90, 100)) }, { type: 'slider', xAxisIndex: [0, 1], bottom: 0, height: 20 }],
+    xAxis: [0, 1].map(index => ({ type: 'category', data: dates, gridIndex: index, boundaryGap: true, axisLine: { lineStyle: { color: '#b5c7d8' } }, axisLabel: { show: index === 1, color: '#53677d', fontSize: 11 } })),
+    yAxis: [{ scale: true, axisLabel: { fontSize: 11 }, splitLine: { lineStyle: { color: '#edf2f7' } } }, { gridIndex: 1, scale: true, splitNumber: 2, axisLabel: { show: false }, splitLine: { show: false } }],
+    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], startValue: Math.max(0, signalIndex - 45), endValue: Math.min(dates.length - 1, Math.max(signalIndex + 90, 100)) }, { type: 'slider', xAxisIndex: [0, 1], bottom: 0, height: 20, textStyle: { fontSize: 11 } }],
     series: [{ name: '日线', type: 'candlestick', data: chart.bars.map(bar => bar.quality_valid ? [bar.open, bar.close, bar.low, bar.high] : ['-', '-', '-', '-']), itemStyle: { color: '#cf3843', color0: '#1c8874', borderColor: '#cf3843', borderColor0: '#1c8874' },
-      markLine: { symbol: 'none', silent: true, lineStyle: { color: '#174f78', type: 'dashed' }, data: signalIndex >= 0 ? [{ xAxis: chart.signal_date, label: { formatter: '选股日', position: 'insideEndTop' } }] : [] },
+      markLine: { symbol: 'none', silent: true, lineStyle: { color: '#174f78', type: 'dashed' }, data: signalIndex >= 0 ? [{ xAxis: chart.signal_date, label: { formatter: '选股日', position: 'insideEndTop', fontSize: 11 } }] : [] },
       markArea: { silent: true, itemStyle: { color: 'rgba(23,79,120,0.045)' }, data: signalIndex >= 0 && chart.cutoff > chart.signal_date ? [[{ xAxis: chart.signal_date }, { xAxis: dates.at(-1) }]] : [] },
-      markPoint: { symbol: 'pin', symbolSize: 32, label: { formatter: '选', fontSize: 11 }, data: markerDays.flatMap(day => {
+      markPoint: { symbol: 'pin', symbolSize: 32, label: { formatter: '选', fontSize: 10 }, data: markerDays.flatMap(day => {
         const bar = chart.bars.find(item => item.trade_date === day)
         if (!bar?.quality_valid || bar.high == null) return []
         const marks = chart.markers.filter(marker => marker.date === day)

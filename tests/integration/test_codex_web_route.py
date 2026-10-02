@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from apps.api.app import codex_runtime, conversation_store, db, main
+from apps.api.app import codex_runtime, conversation_store, db, main, worker
 
 
 def test_process_route_selects_codex_when_runtime_is_ready(tmp_path, monkeypatch):
@@ -36,6 +36,13 @@ def test_process_route_selects_codex_when_runtime_is_ready(tmp_path, monkeypatch
             f"/api/v1/conversations/{conversation['id']}/turns/{message['turn_id']}/process"
         )
 
-    assert response.status_code == 200
-    assert response.json()["result"]["runtime"] == "codex"
-    assert response.json()["response_text"] == "Codex 已完成这次研究回合。"
+        assert response.status_code == 202
+        assert response.json()["state"] == "awaiting_agent"
+        job_id = response.json()["job"]["id"]
+        replay = client.post(f"/api/v1/conversations/{conversation['id']}/turns/{message['turn_id']}/process")
+        assert replay.json()["job"]["id"] == job_id
+        assert worker.execute_job(job_id)
+        completed = client.get(f"/api/v1/conversations/{conversation['id']}/turns/{message['turn_id']}")
+        assert completed.json()["result"]["runtime"] == "codex"
+        assert completed.json()["response_text"] == "Codex 已完成这次研究回合。"
+        assert completed.json()["job"]["state"] == "succeeded"

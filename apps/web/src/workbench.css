@@ -16,14 +16,14 @@
 
 .workbench-heading h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 600;
   color: var(--ui-text);
   letter-spacing: -0.2px;
 }
 
 .workbench-help {
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.7;
   color: var(--ui-text-muted);
   margin: 6px 0 14px;
@@ -59,7 +59,7 @@
   padding: 12px;
   background: var(--ui-surface-subtle);
   color: var(--ui-text);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.8;
 }
 
@@ -77,7 +77,7 @@
 
 .prompt-bottom > span {
   color: var(--ui-text-faint);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .prompt-examples {
@@ -91,7 +91,7 @@
 
 .prompt-examples > span {
   width: 100%;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ui-text-faint);
   margin-bottom: 2px;
 }
@@ -104,7 +104,7 @@
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-xs);
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ui-text-muted);
   cursor: pointer;
   transition: all var(--ui-transition);
@@ -129,14 +129,14 @@
 
 .guide-kicker {
   color: var(--ui-primary);
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 1px;
   font-weight: 600;
   text-transform: uppercase;
 }
 
 .intent-guide h2 {
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.5;
   margin: 8px 0 14px;
   font-weight: 600;
@@ -160,19 +160,19 @@
   color: var(--ui-primary);
   position: absolute;
   left: 0;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   top: 1px;
 }
 
 .intent-guide li b {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ui-text);
 }
 
 .intent-guide li p {
   margin: 3px 0 0;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.6;
   color: var(--ui-text-muted);
 }
@@ -186,7 +186,7 @@
 }
 
 .condition-number {
-  font-size: 11px;
+  font-size: 10px;
   display: grid;
   place-items: center;
   width: 24px;
@@ -209,7 +209,7 @@
 
 .condition-review h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -217,7 +217,7 @@
   display: inline-block;
   padding: 2px 6px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 500;
   color: var(--ui-warning);
   background: var(--ui-warning-soft);
@@ -232,7 +232,7 @@
 .condition-quote {
   margin: 6px 0;
   color: var(--ui-text-faint);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.6;
 }
 
@@ -285,12 +285,12 @@
 
 .saved-condition-card h3 {
   margin: 10px 0 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .saved-condition-card > p {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ui-text-muted);
   line-height: 1.6;
   margin: 0 0 12px;
@@ -325,7 +325,7 @@
   border-left: 2px solid var(--ui-primary-border);
   padding-left: 10px;
   margin-top: 8px;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .formula-trace {
@@ -342,14 +342,14 @@
 }
 
 .formula-trace-heading strong {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--ui-text);
 }
 
 .calculation b {
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ui-primary);
   font-weight: 600;
 }

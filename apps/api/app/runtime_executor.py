@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from typing import Any, Callable
+from uuid import uuid4
 
 import psutil
 
@@ -34,6 +36,20 @@ class ProgramExecutionError(RuntimeError):
 
 class RuntimeCancelled(RuntimeError):
     pass
+
+
+@contextmanager
+def _program_directory():
+    work = WORK_ROOT / f"screen-{uuid4().hex}"
+    try:
+        # Windows tempfile retries PermissionError repeatedly; fail once here.
+        work.mkdir(parents=True, exist_ok=False)
+    except OSError as exc:
+        raise RuntimeUnavailable("无法写入本地计算工作目录，请检查目录权限") from exc
+    try:
+        yield str(work)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def _environment(work_dir: str | None = None) -> dict[str, str]:
@@ -122,8 +138,7 @@ def execute_program(
     payload = payload_json(dict(source_code=source_code, context=context, frames=frames, params=params))
     if len(payload) > MAX_INPUT_BYTES:
         raise ProgramExecutionError("自定义程序输入超过64 MiB运行上限")
-    WORK_ROOT.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="screen-", dir=WORK_ROOT, ignore_cleanup_errors=True) as work_dir:
+    with _program_directory() as work_dir:
         try:
             process = subprocess.Popen(
                 _command(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

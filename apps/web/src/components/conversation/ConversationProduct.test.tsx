@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
@@ -15,8 +15,10 @@ const task: ScreeningTaskRevision = {
 }
 const saved: SavedScreeningTask = { id: 'saved-1', name: '趋势跟踪', version: 2, task, created_at: '2026-09-28T08:00:00Z' }
 const makeConversation = (id: string, revision = 1): Conversation => ({
-  id, task_id: id, entry_scope: 'screening', task_revision: revision, active_run_id: null, pending_execution: false, state: 'active',
-  messages: [{ id: `${id}-message`, role: 'user', content: `需求${id}`, source_refs: [], created_at: saved.created_at }], turns: [], created_at: saved.created_at, updated_at: saved.created_at,
+  id, task_id: id, entry_scope: 'screening', research_mode: 'research', task_revision: revision, active_run_id: null, pending_execution: false, state: 'active',
+  messages: [{ id: `${id}-message`, role: 'user', content: `需求${id}`, source_refs: [], created_at: saved.created_at }],
+  turns: revision ? [{ id: `${id}-turn`, user_message_id: `${id}-message`, base_revision: 0, state: 'succeeded', response_text: '方案已整理', result: { task_revision: revision }, created_at: saved.created_at, updated_at: saved.created_at }] : [],
+  created_at: saved.created_at, updated_at: saved.created_at,
 })
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
@@ -30,6 +32,7 @@ function mockApi(intercept?: (url: URL, method: string, body: Record<string, unk
     if (url.pathname === '/api/v1/conversations' && method === 'GET') return json({ items: conversations.map(item => ({ ...item, title: `需求${item.id}` })) })
     if (url.pathname.endsWith('/revisions/1')) return json(task)
     if (url.pathname.endsWith('/screening-runs')) return json({ items: [] })
+    if (/\/research-(files|scans)$/.test(url.pathname)) return json({ items: [] })
     if (url.pathname === '/api/v1/saved-screening-tasks') return json({ items: [saved] })
     const current = conversations.find(item => url.pathname === `/api/v1/conversations/${item.id}`)
     if (current) return json(current)
@@ -42,17 +45,157 @@ function mockApi(intercept?: (url: URL, method: string, body: Record<string, unk
 }
 
 describe('screening product flow', () => {
+  it('does not auto-save default scope on loading an incomplete task and still allows a follow-up', async () => {
+    const fetcher = mockApi(url => url.pathname.endsWith('/revisions/1') ? json({ ...task, scope: { ...task.scope, universe: null, as_of: null } }) : undefined)
+    const user = userEvent.setup()
+    render(<ConversationWorkspace data={{ available: true, last_date: '2026-09-30' }} />)
+    await screen.findByRole('heading', { name: '筛选方案' })
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    await user.type(screen.getByLabelText('研究要求'), '请继续完善条件')
+    await new Promise(resolve => globalThis.setTimeout(resolve, 500))
+    expect(fetcher.mock.calls.some(([url, init]) => String(url).endsWith('/scope') && init?.method === 'POST')).toBe(false)
+    expect(screen.getByLabelText('研究要求')).toHaveValue('请继续完善条件')
+    expect(screen.getByRole('button', { name: '发送' })).toBeEnabled()
+  })
+
+  it('executes from the button, preserves the retry request and creates a new request for another run', async () => {
+    const requests: Record<string, unknown>[] = []
+    let queued = false
+    const fetcher = mockApi((url, method, body) => {
+      if (url.pathname.endsWith('/execute') && method === 'POST') {
+        requests.push(body)
+        if (requests.length === 1) return json({ message: '启动暂时中断' }, 503)
+        queued = true
+        return json({ run_id: 'button-run' })
+      }
+      if (url.pathname.endsWith('/one/screening-runs')) return json({ items: queued ? [{ id: 'button-run', task_revision: 1, as_of: task.scope.as_of, status: 'succeeded', job_id: 'button-job', created_at: saved.created_at, finished_at: saved.created_at }] : [] })
+      if (url.pathname.endsWith('/screening-runs/button-run')) return json({ id: 'button-run', task_revision: 1, as_of: task.scope.as_of, status: 'succeeded', task, result: {}, job: { state: 'succeeded', progress: 1, message: '' } })
+      if (url.pathname.endsWith('/decisions')) return json({ items: [], total: 0 })
+    })
+    const user = userEvent.setup()
+    render(<ConversationWorkspace />)
+    await user.click(await screen.findByRole('button', { name: '确认并开始筛选' }))
+    await screen.findByText('启动暂时中断')
+    await user.click(screen.getByRole('button', { name: '确认并开始筛选' }))
+    await waitFor(() => expect(requests).toHaveLength(2))
+    expect(requests[0]).toEqual(requests[1])
+    expect(requests[0]).toMatchObject({ action: 'button', revision: 1, request_id: expect.any(String) })
+    await waitFor(() => expect(screen.getByRole('button', { name: '按当前条件再筛一次' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '按当前条件再筛一次' }))
+    await waitFor(() => expect(requests).toHaveLength(3))
+    expect(requests[2].request_id).not.toBe(requests[1].request_id)
+    expect(fetcher.mock.calls.some(([url]) => /\/(messages|process)$/.test(String(url)))).toBe(false)
+  })
+
+  it('automatically saves scope with an unsent draft and retries a failure without changing the request', async () => {
+    const requests: Record<string, unknown>[] = []
+    let revision = 1
+    mockApi((url, method, body) => {
+      if (url.pathname.endsWith('/one/scope') && method === 'POST') {
+        requests.push(body)
+        if (requests.length === 1) return json({ message: '范围保存中断' }, 503)
+        revision = 2
+        return json({ revision })
+      }
+      if (url.pathname === '/api/v1/conversations/one') return json(makeConversation('one', revision))
+      if (url.pathname.endsWith('/revisions/2')) return json({ ...task, revision: 2, scope: { ...task.scope, as_of: '2026-09-13' } })
+    })
+    const user = userEvent.setup()
+    render(<ConversationWorkspace />)
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    expect(screen.queryByRole('button', { name: '应用范围与日期' })).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('研究要求'), '稍后比较估值')
+    fireEvent.change(screen.getByLabelText('调整行情日期'), { target: { value: '2026-09-13' } })
+    await screen.findByText('范围保存中断')
+    await user.click(screen.getByRole('button', { name: '重试保存范围和日期' }))
+    await screen.findByText('范围和日期已自动保存')
+    expect(requests).toHaveLength(2)
+    expect(requests[0]).toEqual(requests[1])
+    expect(requests[0]).toMatchObject({ base_revision: 1, as_of: '2026-09-13' })
+    expect(screen.getByLabelText('研究要求')).toHaveValue('稍后比较估值')
+    expect(screen.getByLabelText('研究要求')).toBeEnabled()
+  })
+
+  it('persists the selected research mode, restores it, and keeps it on save failure', async () => {
+    let mode = 'research'
+    mockApi((url, method, body) => {
+      if (url.pathname.endsWith('/one/mode') && method === 'PATCH') {
+        if (body.research_mode === 'screening') return json({ message: '模式保存中断' }, 503)
+        mode = String(body.research_mode)
+        return json({ research_mode: mode })
+      }
+      if (url.pathname.endsWith('/conversations/one')) return json({ ...makeConversation('one'), research_mode: mode })
+    })
+    const user = userEvent.setup()
+    const view = render(<ConversationWorkspace />)
+    await waitFor(() => expect(screen.getByLabelText('研究模式')).toBeEnabled())
+    await user.selectOptions(screen.getByLabelText('研究模式'), 'advanced')
+    await screen.findByText('已切换为深度研究。')
+    view.unmount()
+    render(<ConversationWorkspace />)
+    await waitFor(() => expect(screen.getByLabelText('研究模式')).toHaveValue('advanced'))
+    await user.selectOptions(screen.getByLabelText('研究模式'), 'screening')
+    await screen.findByText('模式保存中断')
+    expect(screen.getByLabelText('研究模式')).toHaveValue('advanced')
+  })
+
+  it('saves with an automatic name in one click and retries the same request without executing', async () => {
+    const requests: Record<string, unknown>[] = []
+    const fetcher = mockApi((url, method, body) => {
+      if (url.pathname.endsWith('/one/saved-screening-tasks') && method === 'POST') {
+        requests.push(body)
+        return requests.length === 1 ? json({ message: '连接暂时中断' }, 503) : json({ ...saved, name: body.name })
+      }
+    })
+    const user = userEvent.setup()
+    render(<ConversationWorkspace />)
+    await user.click(await screen.findByRole('button', { name: '保存方案' }))
+    await screen.findByText('连接暂时中断')
+    expect(screen.queryByLabelText('方案名称')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '保存方案' }))
+    await screen.findByText('已保存“收盘价高于20日均线”，可在左侧“已保存方案”中复用。')
+    expect(requests).toHaveLength(2)
+    expect(requests[0]).toEqual(requests[1])
+    expect(requests[0]).toMatchObject({ name: '收盘价高于20日均线', revision: 1 })
+    expect(fetcher.mock.calls.some(([url]) => /\/(execute|process)$/.test(String(url)))).toBe(false)
+  })
+
+  it('keeps open research focused on the answer and reveals only actual artifacts', async () => {
+    let hasOutput = false
+    mockApi(url => {
+      if (url.pathname === '/api/v1/conversations/one' || url.pathname === '/api/v1/conversations/two') {
+        const id = url.pathname.endsWith('/one') ? 'one' : 'two'
+        return json({ ...makeConversation(id, 0), messages: [{ id: `${id}-answer`, role: 'assistant', content: id === 'one' ? '## 订单研究结论\n\n订单已落地。' : '## 另一段研究', source_refs: [], created_at: saved.created_at }] })
+      }
+      if (url.pathname === '/api/v1/conversations/one/research-files') {
+        hasOutput = true
+        return json({ items: [{ name: '研究笔记.md', bytes: 100, url: '/api/v1/conversations/one/research-files/note.md' }] })
+      }
+    })
+    const user = userEvent.setup()
+    render(<ConversationWorkspace />)
+    await screen.findByRole('heading', { name: '订单研究结论' })
+    await screen.findByRole('link', { name: /研究笔记.md/ })
+    expect(hasOutput).toBe(true)
+    expect(screen.queryByRole('heading', { name: '筛选方案' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '筛选结果' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /需求two/ }))
+    await screen.findByRole('heading', { name: '另一段研究' })
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: '当前筛选任务和结果' })).not.toBeInTheDocument())
+    expect(screen.queryByRole('link', { name: /研究笔记.md/ })).not.toBeInTheDocument()
+  })
+
   it('lets beginners preview and edit an example without creating a conversation or executing a run', async () => {
     const fetcher = mockApi((url, method) => {
       if (url.pathname === '/api/v1/conversations' && method === 'GET') return json({ items: [] })
     })
     const user = userEvent.setup()
     render(<ConversationWorkspace />)
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toBeEnabled())
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
     expect(screen.queryByRole('complementary', { name: '当前筛选任务和结果' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '趋势向上' }))
-    expect(screen.getByLabelText('筛选要求')).toHaveValue('筛选收盘价高于20日均线，且近5个交易日涨幅大于3%的股票。')
-    expect(screen.getByLabelText('筛选要求')).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: '市场机会' }))
+    expect(screen.getByLabelText('研究要求')).toHaveValue('最近哪些股票值得进一步研究？请结合走势、成交和已有资料，列出理由与风险。')
+    expect(screen.getByLabelText('研究要求')).toHaveFocus()
     expect(screen.getByRole('button', { name: '发送' })).toBeEnabled()
     expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true)
   })
@@ -62,23 +205,23 @@ describe('screening product flow', () => {
     const user = userEvent.setup()
     const view = render(<ConversationWorkspace />)
     await screen.findByText('收盘价高于20日均线')
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toBeEnabled())
-    await user.type(screen.getByLabelText('筛选要求'), '把周期改成30日')
-    expect(screen.getByLabelText('筛选要求')).toHaveValue('把周期改成30日')
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    await user.type(screen.getByLabelText('研究要求'), '把周期改成30日')
+    expect(screen.getByLabelText('研究要求')).toHaveValue('把周期改成30日')
     expect(screen.getByRole('button', { name: '确认并开始筛选' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: /需求one/ }))
-    expect(screen.getByLabelText('筛选要求')).toHaveValue('把周期改成30日')
+    expect(screen.getByLabelText('研究要求')).toHaveValue('把周期改成30日')
     await user.click(screen.getByRole('button', { name: /需求two/ }))
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toBeEnabled())
-    expect(screen.getByLabelText('筛选要求')).toHaveValue('')
-    await user.type(screen.getByLabelText('筛选要求'), '只看观察池')
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    expect(screen.getByLabelText('研究要求')).toHaveValue('')
+    await user.type(screen.getByLabelText('研究要求'), '只看观察池')
     await user.click(screen.getByRole('button', { name: /需求one/ }))
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toHaveValue('把周期改成30日'))
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('把周期改成30日'))
     view.unmount()
     render(<ConversationWorkspace />)
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toHaveValue('把周期改成30日'))
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('把周期改成30日'))
     await user.click(screen.getByRole('button', { name: /需求two/ }))
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toHaveValue('只看观察池'))
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('只看观察池'))
   })
 
   it('saves a fixed revision and safely retries without executing or creating another asset', async () => {
@@ -91,7 +234,7 @@ describe('screening product flow', () => {
     })
     const user = userEvent.setup()
     render(<ConversationWorkspace />)
-    await user.click(await screen.findByRole('button', { name: '保存方案' }))
+    await user.click(await screen.findByRole('button', { name: '设置方案名称' }))
     await user.clear(screen.getByLabelText('方案名称'))
     await user.type(screen.getByLabelText('方案名称'), '趋势跟踪')
     await user.click(screen.getByRole('button', { name: '确认保存' }))
@@ -114,7 +257,7 @@ describe('screening product flow', () => {
       if (url.pathname.endsWith('/reused/messages')) return json({ message_id: 'reuse-message' })
       if (url.pathname.endsWith('/saved-1/reuse')) { reused = true; return json({ revision: 1 }) }
       if (url.pathname === '/api/v1/conversations' && method === 'GET' && reused) return json({ items: [{ ...fresh, task_revision: 1, title: '复用趋势跟踪' }] })
-      if (url.pathname.endsWith('/conversations/reused')) return json({ ...fresh, task_revision: 1, messages: [{ id: 'assistant-reuse', role: 'assistant', content: '已复用趋势跟踪，请核对截止日。', source_refs: [], created_at: saved.created_at }] })
+      if (url.pathname.endsWith('/conversations/reused')) return json({ ...makeConversation('reused'), messages: [{ id: 'assistant-reuse', role: 'assistant', content: '已复用趋势跟踪，请核对截止日。', source_refs: [], created_at: saved.created_at }] })
     })
     const user = userEvent.setup()
     render(<ConversationWorkspace />)
@@ -122,7 +265,7 @@ describe('screening product flow', () => {
     await user.click(await screen.findByText('趋势跟踪'))
     await user.click(screen.getByRole('button', { name: '按原日期复用' }))
     await screen.findByText('已复用趋势跟踪，请核对截止日。')
-    await waitFor(() => expect(screen.getByLabelText('筛选要求')).toBeEnabled())
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
     expect(screen.getByText('2026-09-14')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '确认并开始筛选' })).toBeEnabled()
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST').map(([url]) => String(url))).toEqual([
@@ -182,7 +325,7 @@ describe('screening product flow', () => {
     await user.click(await screen.findByText('000001.SZ'))
     expect(screen.getByText('原运行的趋势条件 · 数据不足')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
-    expect(screen.getByLabelText('筛选要求')).toHaveValue('这次为什么无法判断000001.SZ是否符合条件？')
+    expect(screen.getByLabelText('研究要求')).toHaveValue('这次为什么无法判断000001.SZ是否符合条件？')
     expect(onSourceChange).toHaveBeenLastCalledWith({ reference: { kind: 'screening_run', source_id: 'historic' }, label: '筛选结果 · 2026-09-14 · v1' })
     expect(offsetRequests).toContain('latest:20')
     expect(offsetRequests).toContain('historic:0')

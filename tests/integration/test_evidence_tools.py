@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.app import db, main, evidence_sources
-from apps.api.app.model_client import FunctionCall
+from apps.api.app.tool_protocol import ToolCall
 from apps.api.app.screening_tools import ToolContext, registry
 
 
@@ -36,7 +36,7 @@ def context(tmp_path, monkeypatch):
 
 
 def read(context, call_id, source="long", offset=0, page=1, stock="600000.SH"):
-    return registry.dispatch(FunctionCall(call_id, "read_evidence_chunk", dict(
+    return registry.dispatch(ToolCall(call_id, "read_evidence_chunk", dict(
         source_id=source, page_number=page, stock_code=stock, offset=offset, limit=12000,
     )), context)
 
@@ -54,7 +54,7 @@ def test_long_page_can_be_read_to_the_end_without_claiming_full_corpus(context):
 
 def test_source_listing_is_scoped_paginated_and_does_not_count_as_reading(context):
     def listing(call_id, offset, selected_context=context):
-        return registry.dispatch(FunctionCall(call_id, "list_report_sources", dict(
+        return registry.dispatch(ToolCall(call_id, "list_report_sources", dict(
             stock_code="600000.SH", offset=offset, limit=1)), selected_context)["result"]
     first = listing("list-1", 0)
     second = listing("list-2", first["next_offset"])
@@ -91,7 +91,7 @@ def test_changed_text_does_not_validate_a_quote_that_is_no_longer_present(contex
 
 
 def test_existing_page_tool_also_respects_lookback(context):
-    result = registry.dispatch(FunctionCall("legacy-lookback", "read_report_page", dict(
+    result = registry.dispatch(ToolCall("legacy-lookback", "read_report_page", dict(
         document_id="old", page_number=1, stock_code="600000.SH")), context)
     assert result["ok"] is True
     assert result["result"]["text"] is None

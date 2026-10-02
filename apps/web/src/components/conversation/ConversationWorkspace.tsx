@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { AlertCircle, ArrowDown, ArrowUpRight, Bookmark, Check, LoaderCircle, MessageCircle, Play, Plus, Search, Send, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUpRight, Bookmark, Check, LoaderCircle, MessageCircle, Pencil, Play, Plus, RefreshCw, Search, Send, Square, X } from 'lucide-react'
 import {
   api,
   type Conversation,
   type ConversationMessage,
   type ConversationScope,
+  type ResearchMode,
   type ConversationSourceReference,
   type ConversationTurn,
   type ScreeningTaskDecision,
@@ -15,6 +16,8 @@ import {
 import { useSessionState } from '../../useSessionState'
 import { TaskLogic, taskUniverseLabel } from './TaskBrief'
 import SavedTaskLibrary from './SavedTaskLibrary'
+import ResearchPanel from './ResearchPanel'
+import ResearchAnswer from './ResearchAnswer'
 import StockChartDialog from '../StockChartDialog'
 import type { DataStatus } from '../../api'
 import ScreeningResultView, { type UnifiedDecisionItem } from '../ScreeningResultView'
@@ -22,6 +25,7 @@ import ScreeningResultView, { type UnifiedDecisionItem } from '../ScreeningResul
 type SessionSummary = {
   id: string
   entry_scope: ConversationScope
+  research_mode?: ResearchMode
   task_revision: number
   active_run_id: string | null
   state: 'active' | 'archived'
@@ -63,10 +67,15 @@ type PromptSuggestion = { label: string; prompt: string }
 
 const scopeLabels: Record<ConversationScope, string> = {
   screening: '所有资料',
-  technical: '行情条件',
-  report: '研报条件',
-  news: '资讯条件',
-  pattern: '形态条件',
+  technical: '行情',
+  report: '研报',
+  news: '资讯',
+  pattern: '形态',
+}
+const researchModeLabels: Record<ResearchMode, string> = {
+  research: '研究模式',
+  screening: '筛选模式',
+  advanced: '深度研究',
 }
 const stateLabels: Record<string, string> = {
   awaiting_agent: '等待处理',
@@ -85,9 +94,9 @@ const stateLabels: Record<string, string> = {
 const RUN_PAGE_SIZE = 20
 const promptSuggestions: Record<ConversationScope, PromptSuggestion[]> = {
   screening: [
-    { label: '趋势向上', prompt: '筛选收盘价高于20日均线，且近5个交易日涨幅大于3%的股票。' },
-    { label: '近期回调', prompt: '筛选近5个交易日下跌超过5%，但收盘价仍高于60日均线的股票。' },
-    { label: '研报兑现', prompt: '找出研报中有订单增长实际证据的公司，并区分已实现与未来预测。' },
+    { label: '市场机会', prompt: '最近哪些股票值得进一步研究？请结合走势、成交和已有资料，列出理由与风险。' },
+    { label: '公司比较', prompt: '比较贵州茅台和五粮液最近的经营表现、估值与风险，标明数据日期和来源。' },
+    { label: '研报证据', prompt: '从已有研报中找出有订单增长实际证据的公司，区分已实现与预测，并列出原文。' },
   ],
   technical: [
     { label: '强势突破', prompt: '筛选收盘价高于20日均线，且近5个交易日涨幅大于3%的股票。' },
@@ -128,14 +137,16 @@ function stateClass(state: string) {
 
 function codexEventLabel(event: CodexEvent): string | null {
   const item = event.payload.item as Record<string, unknown> | undefined
-  if (event.method === 'turn/started') return 'Codex 已开始研究'
+  if (event.method === 'turn/started') return '已开始研究'
   if (event.method === 'item/started' && item?.type === 'mcpToolCall') {
-    return `正在调用投研工具：${String(item.tool ?? '资料工具')}`
+    return '正在查询资料与数据'
   }
   if (event.method === 'item/completed' && item?.type === 'mcpToolCall') {
     return item.status === 'failed' ? '投研工具返回错误，正在调整步骤' : '投研工具已返回结果'
   }
   if (event.method === 'item/started' && item?.type === 'reasoning') return '正在整理研究步骤'
+  if (event.method === 'item/started' && item?.type === 'commandExecution') return '正在计算与核对数据'
+  if (event.method === 'item/started' && item?.type === 'fileChange') return '正在整理研究成果'
   if (event.method === 'item/agentMessage/delta') return '正在生成研究答复'
   return null
 }
@@ -159,6 +170,8 @@ export default function ConversationWorkspace({
   onSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void
 }) {
   const [scope, setScope] = useState<ConversationScope>(initialScope)
+  const [researchMode, setResearchMode] = useState<ResearchMode>('research')
+  const [modeSaving, setModeSaving] = useState(false)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [conversation, setConversation] = useState<Conversation | null>(null)
@@ -206,7 +219,9 @@ export default function ConversationWorkspace({
   const [decisionReload, setDecisionReload] = useState(0)
   const [pendingSource, setPendingSource] = useState(initialSource ?? null)
   const [busy, setBusy] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [codexProgress, setCodexProgress] = useState('')
+  const [hasResearchResults, setHasResearchResults] = useState(false)
   const [loadingSessions, setLoadingSessions] = useState(true)
   const [loadingConversation, setLoadingConversation] = useState(false)
   const [loadingRun, setLoadingRun] = useState(false)
@@ -217,8 +232,15 @@ export default function ConversationWorkspace({
   const [watchlists, setWatchlists] = useState<{ id: string; name: string }[]>([])
   const [scopePool, setScopePool] = useState('all')
   const [scopeDate, setScopeDate] = useState(data?.last_date ?? '')
+  const [scopeCustomized, setScopeCustomized] = useState(false)
+  const [scopeEdited, setScopeEdited] = useState(false)
+  const [scopeSaveState, setScopeSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [chart, setChart] = useState<{ code: string; date: string } | null>(null)
   const scopeAttempt = useRef<{ key: string; id: string } | null>(null)
+  const buttonAttempt = useRef<{ key: string; id: string } | null>(null)
+  const scopeReadyKey = useRef('')
+  const scopeSavingRef = useRef(false)
+  const modeChosenRef = useRef(false)
   const selectedIdRef = useRef('')
   const messageListRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLFormElement>(null)
@@ -229,12 +251,21 @@ export default function ConversationWorkspace({
   const executionAttempts = useRef(new Map<string, Promise<{ run_id: string }>>())
 
   useEffect(() => {
+    let active = true
+    api<{ default_mode: ResearchMode }>('/conversations/research-modes').then(result => {
+      if (active && !modeChosenRef.current && !selectedIdRef.current && result.default_mode in researchModeLabels) setResearchMode(result.default_mode)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
     api<{ items: { id: string; name: string }[] }>('/watchlists')
       .then((res) => setWatchlists(res.items || []))
       .catch(() => {})
   }, [refreshIndex])
 
   useEffect(() => { if (!scopeDate && data?.last_date) setScopeDate(data.last_date) }, [data?.last_date, scopeDate])
+  useEffect(() => { setHasResearchResults(false) }, [selectedId])
   useEffect(() => {
     if (!loadingSessions && initialPrompt) { createConversation(); setDrafts(current => ({ ...current, [`${scope}:new`]: initialPrompt })); setSource(initialSource ?? null); onPromptConsumed?.() }
   }, [loadingSessions, initialPrompt])
@@ -242,20 +273,30 @@ export default function ConversationWorkspace({
     if (!task) return
     setScopeDate(task.scope.as_of || data?.last_date || '')
     setScopePool(task.scope.universe?.kind === 'watchlist' ? task.scope.universe.watchlist_id || 'all' : task.scope.universe?.kind === 'explicit' ? 'explicit' : 'all')
-  }, [task?.revision, task?.task_id])
+    const nextKey = `${conversation?.id || ''}:${task.revision}`
+    if (!scopeReadyKey.current.startsWith(`${conversation?.id || ''}:`)) setScopeSaveState('idle')
+    scopeReadyKey.current = nextKey
+    setScopeEdited(false)
+  }, [task?.revision, task?.task_id, conversation?.id])
 
   async function applyScope() {
-    if (!conversation || !task || !scopeDate) return
+    if (!conversation || !task || !scopeDate || scopeSavingRef.current || busy || saving || turnInProgress) return
     const universe = scopePool === 'all' ? { kind: 'all_a_shares', stock_codes: [] } : scopePool === 'explicit' ? task.scope.universe : { kind: 'watchlist', watchlist_id: scopePool, stock_codes: [] }
     const key = JSON.stringify([conversation.id, task.revision, universe, scopeDate])
     if (scopeAttempt.current?.key !== key) scopeAttempt.current = { key, id: crypto.randomUUID() }
-    setBusy(true); setError('')
+    scopeSavingRef.current = true
+    setScopeSaveState('saving'); setError('')
     try {
       await api(`/conversations/${conversation.id}/scope`, { method: 'POST', body: JSON.stringify({ base_revision: task.revision, client_message_id: scopeAttempt.current.id, universe, as_of: scopeDate }) })
       await reloadConversation(conversation.id)
-      scopeAttempt.current = null
-    } catch (reason) { setError((reason as Error).message) }
-    finally { setBusy(false) }
+      if (selectedIdRef.current === conversation.id) {
+        scopeAttempt.current = null
+        setScopeSaveState('saved')
+      }
+    } catch (reason) {
+      if (selectedIdRef.current === conversation.id) { setScopeSaveState('error'); setError((reason as Error).message) }
+    }
+    finally { scopeSavingRef.current = false }
   }
 
   async function copyAllMatching() {
@@ -271,6 +312,9 @@ export default function ConversationWorkspace({
 
   function selectConversation(id: string) {
     selectedIdRef.current = id
+    setScopeEdited(false)
+    setScopeSaveState('idle')
+    scopeAttempt.current = null
     setSelectedId(id)
   }
 
@@ -315,6 +359,7 @@ export default function ConversationWorkspace({
     ])
     if (!accept() || selectedIdRef.current !== conversationId) return next
     setConversation(next)
+    setResearchMode(next.research_mode || 'research')
     setTask(nextTask)
     setRuns(runList.items)
     setViewingRunId((current) => (
@@ -333,11 +378,15 @@ export default function ConversationWorkspace({
     return next
   }
 
-  async function enqueueAuthorizedTurn(conversationId: string, turnId: string) {
-    const key = `${conversationId}:${turnId}`
+  async function enqueueAuthorizedTurn(conversationId: string, turnId: string, action: 'message' | 'button' = 'message') {
+    const key = `${conversationId}:${turnId}:${action}`
     let request = executionAttempts.current.get(key)
     if (!request) {
-      request = api<{ run_id: string }>(`/conversations/${conversationId}/turns/${turnId}/execute`, { method: 'POST' })
+      const requestId = buttonAttempt.current?.id
+      request = api<{ run_id: string }>(`/conversations/${conversationId}/turns/${turnId}/execute`, {
+        method: 'POST',
+        body: JSON.stringify({ action, ...(action === 'button' && task ? { revision: task.revision, request_id: requestId } : {}) }),
+      })
       executionAttempts.current.set(key, request)
     }
     const queued = await request
@@ -363,6 +412,17 @@ export default function ConversationWorkspace({
       setCodexProgress('')
       setBusy(false)
     }
+  }
+
+  async function stopTurn() {
+    if (!selectedId || !activeTurnId) return
+    setStopping(true)
+    try {
+      await api(`/conversations/${selectedId}/turns/${activeTurnId}/cancel`, { method: 'POST' })
+      await reloadConversation(selectedId)
+      setRefreshIndex(value => value + 1)
+    } catch (reason) { setError((reason as Error).message) }
+    finally { setStopping(false) }
   }
 
   useEffect(() => {
@@ -472,7 +532,7 @@ export default function ConversationWorkspace({
     if (!selectedId || !readyTurnId) return
     let active = true
     // Resume the already-authorized action after a reload or lost process response.
-    enqueueAuthorizedTurn(selectedId, readyTurnId)
+    enqueueAuthorizedTurn(selectedId, readyTurnId, 'message')
       .then(() => { if (active) return reloadConversation(selectedId, () => active) })
       .catch(reason => { if (active) setError((reason as Error).message) })
     return () => { active = false }
@@ -563,7 +623,7 @@ export default function ConversationWorkspace({
   }, [conversation?.id, messageCount])
 
   function changeScope(next: ConversationScope) {
-    if (busy || next === scope) return
+    if (busy || modeSaving || scopeSavingRef.current || next === scope) return
     setScope(next)
     setSelectedId('')
     setConversation(null)
@@ -577,9 +637,26 @@ export default function ConversationWorkspace({
     onScopeChange?.(next)
   }
 
+  async function changeResearchMode(next: ResearchMode) {
+    if (busy || saving || modeSaving || turnInProgress || next === researchMode) return
+    modeChosenRef.current = true
+    if (!conversation) { setResearchMode(next); return }
+    setModeSaving(true)
+    try {
+      await api(`/conversations/${conversation.id}/mode`, { method: 'PATCH', body: JSON.stringify({ research_mode: next }) })
+      if (selectedIdRef.current === conversation.id) {
+        setResearchMode(next)
+        setConversation(current => current?.id === conversation.id ? { ...current, research_mode: next } : current)
+        setNotice(`已切换为${researchModeLabels[next]}。`)
+      }
+    } catch (reason) {
+      setError((reason as Error).message)
+    } finally { setModeSaving(false) }
+  }
+
   function createConversation() {
-    if (busy) return
-    setScopePool('all'); setScopeDate(data?.last_date ?? '')
+    if (busy || modeSaving || scopeSavingRef.current) return
+    setScopePool('all'); setScopeDate(data?.last_date ?? ''); setScopeCustomized(false)
     selectConversation('')
     setError('')
     setConversation(null)
@@ -593,15 +670,15 @@ export default function ConversationWorkspace({
     focusComposer()
   }
 
-  async function saveTask() {
-    if (!task || !conversation || !saveName.trim() || busy || saving) return
-    const taskKey = `${conversation.id}:${task.revision}`
+  async function saveTask(name = saveName) {
+    if (!task || !conversation || !name.trim() || busy || saving || scopeSavingRef.current || scopeDirty) return
+    const taskKey = `${conversation.id}:${task.revision}:${name.trim()}`
     if (saveAttemptRef.current?.taskKey !== taskKey) saveAttemptRef.current = { taskKey, assetId: crypto.randomUUID(), requestId: crypto.randomUUID() }
     setSaving(true)
     setError('')
     try {
       const saved = await api<SavedScreeningTask>(`/conversations/${conversation.id}/saved-screening-tasks`, {
-        method: 'POST', body: JSON.stringify({ name: saveName.trim(), revision: task.revision, asset_id: saveAttemptRef.current.assetId, request_id: saveAttemptRef.current.requestId }),
+        method: 'POST', body: JSON.stringify({ name: name.trim(), revision: task.revision, asset_id: saveAttemptRef.current.assetId, request_id: saveAttemptRef.current.requestId }),
       })
       setSaveOpen(false)
       setNotice(`已保存“${saved.name}”，可在左侧“已保存方案”中复用。`)
@@ -611,7 +688,7 @@ export default function ConversationWorkspace({
   }
 
   async function reuseTask(saved: SavedScreeningTask, useLatest = false) {
-    if (busy || saving) return
+    if (busy || saving || modeSaving || scopeSavingRef.current) return
     const reuseDate = useLatest ? data?.last_date : undefined
     const key = `${scope}:${saved.id}:${saved.version}:${reuseDate || 'original'}`
     if (reuseAttemptRef.current?.key !== key) reuseAttemptRef.current = { key, clientId: crypto.randomUUID() }
@@ -619,7 +696,7 @@ export default function ConversationWorkspace({
     setBusy(true)
     setError('')
     try {
-      if (!attempt.conversation) attempt.conversation = await api<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ entry_scope: scope }) })
+      if (!attempt.conversation) attempt.conversation = await api<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ entry_scope: scope, research_mode: researchMode }) })
       const current = attempt.conversation
       if (!attempt.messageId) {
         const message = await api<{ message_id: string }>(`/conversations/${current.id}/messages`, {
@@ -650,14 +727,13 @@ export default function ConversationWorkspace({
   async function submitMessage(value = draft) {
     let content = value.trim()
     if (!content) return
-    if (!task && data?.last_date && !/^按这个筛$/.test(content)) {
+    if (!task && scopeCustomized) {
       const additions = []
       if (!/全[部市场]*A股|全市场|股票池|自选|观察池|\d{6}|范围/.test(content)) additions.push(scopePool === 'all' ? '范围为全部A股' : `范围为自选分组“${watchlists.find(item => item.id === scopePool)?.name || ''}”`)
       if (!/20\d{2}[-年/]\d{1,2}|截至|截止/.test(content) && scopeDate) additions.push(`截止日期为${scopeDate}`)
       if (additions.length) content += '\n' + additions.join('，') + '。'
-      if (!/先整理条件|先不执行/.test(content)) content += '\n先整理条件，先不执行。'
     }
-    if (!content || busy || saving || turnInProgress || loadingConversation || loadingSessions) return
+    if (!content || busy || saving || modeSaving || scopeSavingRef.current || (scopeEdited && scopeDirty) || turnInProgress || loadingConversation || loadingSessions) return
     setBusy(true)
     setError('')
     followLatestRef.current = true
@@ -667,7 +743,7 @@ export default function ConversationWorkspace({
       if (!current) {
         current = await api<Conversation>('/conversations', {
           method: 'POST',
-          body: JSON.stringify({ entry_scope: scope }),
+          body: JSON.stringify({ entry_scope: scope, research_mode: researchMode }),
         })
         conversationId = current.id
         setSessions((items) => [{
@@ -739,7 +815,7 @@ export default function ConversationWorkspace({
     setBusy(true)
     setError('')
     try {
-      executionAttempts.current.delete(`${conversation.id}:${turnId}`)
+      executionAttempts.current.delete(`${conversation.id}:${turnId}:message`)
       await enqueueAuthorizedTurn(conversation.id, turnId)
       setRefreshIndex((value) => value + 1)
     } catch (reason) {
@@ -766,38 +842,54 @@ export default function ConversationWorkspace({
   const canExecute = canSave && !!task?.scope.as_of && !scopeDirty
   const runInProgress = runs.some(item => ['queued', 'running'].includes(item.status))
   const taskHasRun = !!run && run.task_revision === task?.revision
-  const flowStep = taskHasRun ? 2 : task ? 1 : 0
   const filteredSessions = sessions.filter(item => (item.title ?? '').toLowerCase().includes(sessionQuery.trim().toLowerCase()))
   const missingTaskInfo = task ? [!task.conditions.length || !task.logic_tree ? '筛选条件' : '', !task.scope.universe ? '股票范围' : '', !task.scope.as_of ? '截止日' : ''].filter(Boolean).join('、') : ''
-  const showTaskPanel = !!task || !!run || !!conversation?.messages.length
+  const showTaskPanel = !!task || !!runs.length || !!pendingTurn || hasResearchResults
+  const suggestedName = task?.conditions.map(item => item.description).join('；').slice(0, 120) || '研究方案'
+
+  useEffect(() => {
+    if (!conversation || !task || !scopeEdited || !scopeDate || !scopeDirty || turnInProgress || loadingConversation || busy || saving || scopeSaveState === 'error' || scopeSaveState === 'saving') return
+    if (scopeReadyKey.current !== `${conversation.id}:${task.revision}`) return
+    const timer = globalThis.setTimeout(() => { void applyScope() }, 400)
+    return () => globalThis.clearTimeout(timer)
+  }, [conversation?.id, task?.revision, scopeDate, scopePool, scopeEdited, scopeDirty, turnInProgress, loadingConversation, busy, saving, scopeSaveState])
+
+  const executableTurn = canExecute && conversation
+    ? conversation.turns[0]?.state === 'succeeded' ? conversation.turns[0] : undefined
+    : undefined
+  async function startScreening() {
+    if (busy || saving || !conversation || !executableTurn) return
+    setBusy(true); setError('')
+    try {
+      const attemptKey = `${conversation.id}:${task?.revision || 0}:${executableTurn.id}`
+      if (buttonAttempt.current?.key !== attemptKey) buttonAttempt.current = { key: attemptKey, id: crypto.randomUUID() }
+      executionAttempts.current.delete(`${conversation.id}:${executableTurn.id}:button`)
+      await enqueueAuthorizedTurn(conversation.id, executableTurn.id, 'button')
+      buttonAttempt.current = null
+      await reloadConversation(conversation.id)
+      setRefreshIndex(value => value + 1)
+    } catch (reason) { setError((reason as Error).message) }
+    finally { setBusy(false) }
+  }
 
   return (
     <div className="conversation-product">
       <div className="page-heading conversation-header-heading">
         <div className="conversation-heading-title">
-          <h1>对话选股</h1>
-          <p className="conversation-subheading">说出想找的股票，核对规则后开始筛选；入选结果可在观察池持续跟踪</p>
+          <h1>投研助手</h1>
         </div>
-        <ol className="conversation-flow" aria-label="筛选步骤">
-          {['描述需求', '核对条件', '查看结果'].map((label, index) => <li key={label} className={index === flowStep ? 'current' : index < flowStep ? 'complete' : ''} aria-current={index === flowStep ? 'step' : undefined}><span>{index < flowStep ? <Check size={13} /> : index + 1}</span>{label}</li>)}
-        </ol>
+        <button className="session-disclosure secondary-button" aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><MessageCircle size={15} />{sessionsOpen ? '收起对话与方案' : '对话与方案'}</button>
       </div>
-      <details className="quick-start-guide">
-        <summary>第一次使用？一分钟了解怎么选股</summary>
-        <ol><li><strong>说出想法</strong><span>直接输入你的要求，或点下方示例。无需填写公式。</span></li><li><strong>核对后筛选</strong><span>助手整理好条件后，检查范围和日期，再点“确认并开始筛选”。</span></li><li><strong>保存并观察</strong><span>入选结果会自动保留在观察池，可查看走势、记录备注；保存方案后，下次可直接复用。</span></li></ol>
-        <p>“符合”表示满足本次条件；“数据不足”表示暂时无法判断。筛选结果不是收益承诺。</p>
-      </details>
-      <button className="session-disclosure secondary-button" aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}>{sessionsOpen ? '收起我的选股' : '查看最近对话与已保存方案'}</button>
-      <div className={`conversation-workspace ${showTaskPanel ? '' : 'conversation-workspace-start'}`}>
+      <div className={`conversation-workspace ${showTaskPanel ? '' : 'conversation-workspace-start'} ${!conversation?.messages.length && !task ? 'conversation-workspace-empty' : ''}`}>
       <aside id="screening-sessions" className={`conversation-sessions ${sessionsOpen ? 'sessions-open' : ''}`} aria-label="对话列表">
         <div className="conversation-panel-heading">
-          <h2>我的选股</h2>
-          <button className="secondary-button compact" aria-label="开始新对话" disabled={busy || saving || loadingSessions} onClick={createConversation}>
-            <Plus size={14} />新建
+          <h2>对话与方案</h2>
+          <button className="secondary-button compact" aria-label="开始新对话" title="开始新对话" disabled={busy || saving || loadingSessions} onClick={createConversation}>
+            <Plus size={14} /><span className="session-new-label">新建</span>
           </button>
         </div>
         <label className="conversation-scope-select">
-          <span>资料范围</span>
+          <span>对话分类</span>
           <select aria-label="对话范围" value={scope} disabled={busy || saving || loadingSessions} onChange={(event) => changeScope(event.target.value as ConversationScope)}>
             {Object.entries(scopeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
@@ -808,7 +900,7 @@ export default function ConversationWorkspace({
         </div>
         {libraryTab === 'saved' ? <SavedTaskLibrary latestDate={data?.last_date} scope={scope} busy={busy || saving} refreshKey={`${refreshIndex}:${conversation?.turns[0]?.state}`} onReuse={(saved, latest) => void reuseTask(saved, latest)} /> : <>
         {!!sessions.length && <label className="conversation-search"><Search size={14} /><input aria-label="搜索最近对话" placeholder="搜索最近对话" value={sessionQuery} onChange={event => setSessionQuery(event.target.value)} /></label>}
-        {loadingSessions ? <p className="conversation-muted">正在载入对话…</p> : sessionError ? <div className="saved-task-empty" role="alert"><p>{sessionError}</p><button className="secondary-button compact" onClick={() => setSessionReload(value => value + 1)}>重新加载对话</button></div> : !sessions.length ? <p className="conversation-muted">开始一次筛选，对话会自动保存在这里。</p> : !filteredSessions.length ? <div className="saved-task-empty"><p>没有找到匹配的对话</p><button className="text-button" onClick={() => setSessionQuery('')}>清除搜索</button></div> : (
+        {loadingSessions ? <p className="conversation-muted">正在载入对话…</p> : sessionError ? <div className="saved-task-empty" role="alert"><p>{sessionError}</p><button className="secondary-button compact" onClick={() => setSessionReload(value => value + 1)}>重新加载对话</button></div> : !sessions.length ? <p className="conversation-muted">暂无对话</p> : !filteredSessions.length ? <div className="saved-task-empty"><p>没有找到匹配的对话</p><button className="text-button" onClick={() => setSessionQuery('')}>清除搜索</button></div> : (
           <div className="conversation-session-list">
             {filteredSessions.map((item) => (
               <button
@@ -819,7 +911,7 @@ export default function ConversationWorkspace({
                 onClick={() => { if (item.id === selectedId && conversation) return; selectConversation(item.id); setConversation(null); setTask(null); setRuns([]); setRun(null); setError(''); setRefreshIndex(value => value + 1) }}
               >
                 <strong>{item.title?.trim() || '新对话'}</strong>
-                <span>{item.last_turn_state === 'failed' ? '整理失败，可重试' : item.last_turn_state === 'running' ? '正在整理' : item.task_revision ? `方案第${item.task_revision}版` : '待整理需求'} · {shortTime(item.updated_at)}</span>
+                <span>{item.last_turn_state === 'failed' ? '研究中断' : item.last_turn_state === 'running' ? '正在研究' : item.task_revision ? `方案第${item.task_revision}版` : '研究对话'} · {shortTime(item.updated_at)}</span>
               </button>
             ))}
           </div>
@@ -836,10 +928,9 @@ export default function ConversationWorkspace({
             {!conversation?.messages.length && !task && !loadingConversation && (
               <div className="conversation-empty">
                 <MessageCircle size={22} />
-                <strong>今天想找什么样的股票？</strong>
-                <p>像聊天一样说出你的想法，助手帮你整理选股条件。<br />也可以从下面的例子开始，填入后还能修改。</p>
-                <div className="conversation-suggestions" aria-label="常用筛选要求">
-                  {promptSuggestions[scope].map((item) => <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-title">{item.label}<ArrowUpRight size={16} /></span><span className="suggestion-description">{item.prompt}</span><span className="suggestion-action">填入这个示例</span></button>)}
+                <strong>今天想研究什么？</strong>
+                <div className="conversation-suggestions" aria-label="常用研究问题">
+                  {promptSuggestions[scope].map((item) => <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-title">{item.label}<ArrowUpRight size={16} /></span><span className="suggestion-description">{item.prompt}</span></button>)}
                 </div>
               </div>
             )}
@@ -848,37 +939,41 @@ export default function ConversationWorkspace({
             return (
               <article className={`conversation-message ${message.role}`} key={message.id}>
                 <div className="conversation-message-meta">
-                  <strong>{message.role === 'user' ? '你' : message.role === 'assistant' ? '筛选助手' : '工具'}</strong>
+                  <strong>{message.role === 'user' ? '你' : message.role === 'assistant' ? '投研助手' : '工具'}</strong>
                   <time>{shortTime(message.created_at)}</time>
                   {turn && <span className={`conversation-turn-state ${stateClass(turn.state)}`}>{stateLabels[turn.state] ?? turn.state}</span>}
                 </div>
-                <p>{message.content}</p>
+                {message.role === 'assistant' ? <ResearchAnswer content={message.content} conversationId={conversation.id} /> : <p className="conversation-plain-message">{message.content}</p>}
                 {!!message.source_refs.length && <div className="conversation-source-refs">{message.source_refs.map((ref, index) => <span key={`${String(ref.source_id)}-${index}`}>{ref.kind === 'report_page' ? `${String(ref.title ?? '研报')} · 第 ${String(ref.page_number ?? '?')} 页` : String(ref.title ?? ref.source_id)}</span>)}</div>}
-                {turn?.state === 'failed' && conversation.messages.filter(item => item.role === 'user').at(-1)?.id === message.id && <button className="secondary-button compact" disabled={busy || turnInProgress} onClick={() => void submitMessage(message.content)}>重新处理</button>}{turn?.state === 'awaiting_agent' && <button className="secondary-button compact" disabled={busy} onClick={() => void processTurn(conversation.id, turn.id)}><Play size={14} />继续处理</button>}
+                {turn?.state === 'failed' && conversation.messages.filter(item => item.role === 'user').at(-1)?.id === message.id && <button className="secondary-button compact" disabled={busy || turnInProgress} onClick={() => void submitMessage(message.content)}>重新处理</button>}{turn?.state === 'awaiting_agent' && !turn.job && <button className="secondary-button compact" disabled={busy} onClick={() => void processTurn(conversation.id, turn.id)}><Play size={14} />继续处理</button>}
               </article>
             )
             })}
-            {conversation?.turns.some((turn) => turn.state === 'running') && <div className="conversation-loading"><LoaderCircle size={16} className="spin" />{codexProgress || '正在整理条件并检查完整性，通常需要数十秒…'}</div>}
+            {turnInProgress && <div className="conversation-loading"><LoaderCircle size={16} className="spin" />{codexProgress || (conversation?.turns.some(turn => turn.state === 'running') ? '正在研究' : '等待开始研究')}<button type="button" className="icon-button" aria-label="停止当前研究" title="停止当前研究" disabled={stopping} onClick={() => void stopTurn()}><Square size={14} /></button></div>}
           </div>
           {showLatest && <button type="button" className="conversation-latest-button" onClick={() => scrollToLatest()}><ArrowDown size={14} />查看最新</button>}
         </div>
         <form className="conversation-composer" ref={composerRef} onSubmit={(event) => { event.preventDefault(); void submitMessage() }}>
-          {!task && data?.last_date && <details className="default-scope-details"><summary>筛选范围：{scopePool === 'all' ? '全部A股' : watchlists.find(item => item.id === scopePool)?.name || '所选观察池'} · 行情截至 {scopeDate || data.last_date}<span>修改</span></summary><div className="scope-picker"><label>描述未指定时，默认范围<select aria-label="默认股票范围" disabled={busy || loadingConversation || loadingSessions} value={scopePool} onChange={event => setScopePool(event.target.value)}><option value="all">全部A股</option>{watchlists.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>行情日期<input aria-label="默认行情日期" disabled={busy || loadingConversation || loadingSessions} type="date" max={data.last_date} value={scopeDate} onChange={event => setScopeDate(event.target.value)} /></label></div></details>}
-          <label htmlFor="conversation-input">筛选要求</label>
+          {!task && data?.last_date && <details className="default-scope-details"><summary>研究范围：{scopePool === 'all' ? '全部A股' : watchlists.find(item => item.id === scopePool)?.name || '所选观察池'} · 行情截至 {scopeDate || data.last_date}<span>修改</span></summary><div className="scope-picker"><label>股票范围<select aria-label="默认股票范围" disabled={busy || loadingConversation || loadingSessions} value={scopePool} onChange={event => { setScopePool(event.target.value); setScopeCustomized(true) }}><option value="all">全部A股</option>{watchlists.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>行情日期<input aria-label="默认行情日期" disabled={busy || loadingConversation || loadingSessions} type="date" max={data.last_date} value={scopeDate} onChange={event => { setScopeDate(event.target.value); setScopeCustomized(true) }} /></label></div></details>}
+          <label htmlFor="conversation-input">研究要求</label>
           {pendingSource && <div className="conversation-pending-source"><span>{pendingSource.label}</span><button type="button" className="icon-button" aria-label="移除来源页" onClick={() => setSource(null)}><X size={14} /></button></div>}
             <textarea
             id="conversation-input"
+            aria-label="研究要求"
             ref={textareaRef}
             value={draft}
             maxLength={8000}
             disabled={busy || saving || turnInProgress || loadingConversation || loadingSessions}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onComposerKeyDown}
-            placeholder="告诉我你想找什么股票，例如：最近一周上涨超过3%的股票"
+            placeholder="告诉我想研究的公司、资料或假设，例如：比较这两家公司的订单兑现质量"
           />
           <div className="conversation-composer-footer">
-            <span><span className="composer-keyboard-hint">Enter 发送 · Shift + Enter 换行</span><span>{draft.length}/8000</span></span>
-            <button className="primary-button" type="submit" disabled={busy || saving || turnInProgress || loadingConversation || loadingSessions || !draft.trim()}>
+            <div className="conversation-mode-control"><select aria-label="研究模式" value={researchMode} disabled={busy || saving || modeSaving || turnInProgress || loadingConversation || loadingSessions} onChange={(event) => void changeResearchMode(event.target.value as ResearchMode)}>
+              {Object.entries(researchModeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>{modeSaving && <LoaderCircle size={14} className="spin" />}</div>
+            <span>{draft.length >= 7000 ? `${draft.length}/8000` : ''}</span>
+            <button className="primary-button" type="submit" disabled={busy || saving || modeSaving || (scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || loadingConversation || loadingSessions || !draft.trim()}>
               {busy ? <LoaderCircle size={15} className="spin" /> : <Send size={15} />}
               {busy ? '处理中…' : '发送'}
             </button>
@@ -886,13 +981,14 @@ export default function ConversationWorkspace({
         </form>
       </section>
 
-      {showTaskPanel && <aside className="conversation-task-panel" aria-label="当前筛选任务和结果">
-        <section className="conversation-task-section">
+      <aside className="conversation-task-panel" aria-label="当前筛选任务和结果" hidden={!showTaskPanel}>
+        {conversation?.id === selectedId && <ResearchPanel key={conversation.id} conversationId={conversation.id} turnActive={turnInProgress} refreshKey={refreshIndex + conversation.messages.length} onContentChange={setHasResearchResults} />}
+        {task && <section className="conversation-task-section">
           <div className="conversation-panel-heading">
-            <h2>条件确认</h2>
+            <h2>筛选方案</h2>
             <span>{conversation ? `v${conversation.task_revision}` : '未建立'}</span>
           </div>
-          {!task ? <div className="task-empty"><span>{conversation?.turns.some(item => item.state === 'failed') ? '这次整理未完成' : '等待你的第一个想法'}</span><p>条件会在这里整理。核对股票范围与截止日后，再开始筛选。</p></div> : <>
+          <>
             <div className="conversation-task-conditions"><TaskLogic task={task} /></div>
             <div className="conversation-task-scope">
               <span>范围</span><strong>{taskUniverseLabel(task)}</strong>
@@ -907,13 +1003,19 @@ export default function ConversationWorkspace({
               </>}
             </div>
             {task.unresolved.map((item, index) => <p className="conversation-unresolved" key={`${item.source_quote}-${index}`}>{item.question}</p>)}
-            <div className="scope-picker"><label>股票范围<select aria-label="调整股票范围" value={scopePool} disabled={busy} onChange={event => setScopePool(event.target.value)}><option value="all">全部A股</option>{task.scope.universe?.kind === 'explicit' && <option value="explicit">当前指定股票</option>}{watchlists.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>行情日期<input aria-label="调整行情日期" type="date" value={scopeDate} max={data?.last_date} disabled={busy} onChange={event => setScopeDate(event.target.value)} /></label><button className="secondary-button compact" disabled={busy || turnInProgress || !scopeDate || !scopeDirty || !!draft.trim()} onClick={() => void applyScope()}>应用范围与日期</button>{data?.last_date && <button className="text-button" disabled={busy} onClick={() => setScopeDate(data.last_date!)}>选用最新行情日</button>}</div>
+            <div className="scope-picker">
+              <label>股票范围<select aria-label="调整股票范围" value={scopePool} disabled={busy || turnInProgress || scopeSaveState === 'saving'} onChange={event => { setScopePool(event.target.value); setScopeEdited(true); setScopeSaveState('idle') }}><option value="all">全部A股</option>{task.scope.universe?.kind === 'explicit' && <option value="explicit">当前指定股票</option>}{watchlists.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+              <label>行情日期<input aria-label="调整行情日期" type="date" value={scopeDate} max={data?.last_date} disabled={busy || turnInProgress || scopeSaveState === 'saving'} onChange={event => { setScopeDate(event.target.value); setScopeEdited(true); setScopeSaveState('idle') }} /></label>
+              {data?.last_date && <button className="text-button" disabled={busy || turnInProgress || scopeSaveState === 'saving'} onClick={() => { setScopeDate(data.last_date!); setScopeEdited(true); setScopeSaveState('idle') }}>选用最新行情日</button>}
+              {(scopeDirty && scopeEdited || scopeSaveState !== 'idle') && <span className="scope-save-status conversation-muted" role="status">{scopeSaveState === 'saving' ? '正在自动保存…' : scopeSaveState === 'saved' ? '范围和日期已自动保存' : scopeSaveState === 'error' ? '自动保存失败' : '等待自动保存'}{scopeSaveState === 'error' && <button className="icon-button" title="重试保存范围和日期" aria-label="重试保存范围和日期" onClick={() => void applyScope()}><RefreshCw size={14} /></button>}</span>}
+            </div>
             <p className="conversation-muted">使用本地日线。价格复权口径尚待核实；符合筛选条件不代表未来会上涨。</p>
             <div className="conversation-task-actions">
-              {canExecute ? <button className="primary-button" disabled={busy || saving || turnInProgress || loadingConversation || runInProgress || !!pendingTurn || !!draft.trim()} onClick={() => void submitMessage('按这个筛')}><Play size={15} />{runInProgress ? '正在筛选…' : taskHasRun ? '按当前条件再筛一次' : '确认并开始筛选'}</button> : <button className="secondary-button" disabled={busy || saving || turnInProgress} onClick={focusComposer}>补充筛选要求</button>}
-              <button className="secondary-button" disabled={!canSave || busy || saving || turnInProgress} title={!canSave ? '请先补充完整条件和股票范围' : undefined} onClick={() => { setSaveName(task.conditions.map(item => item.description).join('；').slice(0, 120)); setSaveOpen(value => !value) }}><Bookmark size={14} />保存方案</button>
+              {canExecute ? <button className="primary-button" disabled={busy || saving || turnInProgress || loadingConversation || runInProgress || !!pendingTurn || !!draft.trim() || !executableTurn} onClick={() => void startScreening()}><Play size={15} />{runInProgress ? '正在筛选…' : taskHasRun ? '按当前条件再筛一次' : '确认并开始筛选'}</button> : <button className="secondary-button" disabled={busy || saving || turnInProgress} onClick={focusComposer}>补充筛选要求</button>}
+              <button className="secondary-button" disabled={!canSave || busy || saving || turnInProgress || scopeDirty || scopeSaveState === 'saving'} title={!canSave ? '请先补充完整条件和股票范围' : undefined} onClick={() => void saveTask(suggestedName)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Bookmark size={14} />}{saving ? '保存中…' : '保存方案'}</button>
+              <button className="icon-button" disabled={!canSave || busy || saving || turnInProgress} title="设置方案名称" aria-label="设置方案名称" aria-expanded={saveOpen} onClick={() => { setSaveName(suggestedName); setSaveOpen(value => !value) }}><Pencil size={15} /></button>
             </div>
-            {!canExecute && !task.unresolved.length && <p className="conversation-muted">请先{scopeDirty ? '应用上方选定的范围与日期' : missingTaskInfo || '完整条件'}。</p>}
+            {!canExecute && !task.unresolved.length && <p className="conversation-muted">请先{scopeDirty && scopeEdited ? '等待范围与日期自动保存' : missingTaskInfo || '完整条件'}。</p>}
             {canExecute && !!draft.trim() && <p className="conversation-muted">输入框中还有未发送的内容，请先发送或清空，再确认筛选。</p>}
             {saveOpen && <form className="conversation-save-form" onSubmit={event => { event.preventDefault(); void saveTask() }}>
               <label htmlFor="saved-task-name">方案名称</label>
@@ -921,10 +1023,10 @@ export default function ConversationWorkspace({
               <small>保存条件、股票范围和截止日，供下次复用。</small>
               <div><button className="primary-button compact" disabled={saving || !saveName.trim()} type="submit">{saving ? '保存中…' : '确认保存'}</button><button className="text-button" type="button" disabled={saving} onClick={() => setSaveOpen(false)}>取消</button></div>
             </form>}
-          </>}
-        </section>
+          </>
+        </section>}
 
-        <section className="conversation-run-section">
+        {(!!runs.length || !!pendingTurn) && <section className="conversation-run-section">
           <div className="conversation-panel-heading">
             <h2>筛选结果</h2>
             {runs.length > 0 && <select aria-label="查看筛选运行" value={viewingRunId} onChange={(event) => setViewingRunId(event.target.value)}>
@@ -971,8 +1073,8 @@ export default function ConversationWorkspace({
               onReload={() => setDecisionReload(v => v + 1)}
             /></>
           )}
-        </section>
-      </aside>}
+        </section>}
+      </aside>
       </div>
       {chart && <StockChartDialog code={chart.code} asOf={chart.date} onClose={() => setChart(null)} />}
     </div>

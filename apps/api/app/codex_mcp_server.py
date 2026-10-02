@@ -16,17 +16,11 @@ from typing import Any
 
 from . import conversation_store, screening_tools
 from .codex_context import task_tool_context
-from .model_client import FunctionCall
+from .tool_protocol import ToolCall
 from .screening_contracts import ScreeningTaskRevision
 
 
 PROTOCOL_VERSION = "2024-11-05"
-_WRITE_TOOLS = frozenset({
-    "propose_screening_task",
-    "save_screening_plan",
-    "authorize_screening_execution",
-    "revoke_screening_execution",
-})
 
 
 def _debug(message: str) -> None:
@@ -86,19 +80,7 @@ def _context() -> screening_tools.ToolContext:
 
 
 def _tools() -> list[dict[str, Any]]:
-    return [
-        {
-            "name": tool.name,
-            "description": tool.description,
-            "inputSchema": tool.parameters,
-            "annotations": {
-                "readOnlyHint": tool.name not in _WRITE_TOOLS,
-                "destructiveHint": False,
-                "openWorldHint": False,
-            },
-        }
-        for tool in screening_tools.registry.functions_for_model()
-    ]
+    return [tool.as_mcp() for tool in screening_tools.registry.tools_for_codex()]
 
 
 def _call(arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -112,7 +94,7 @@ def _call(arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     if not isinstance(call_arguments, dict):
         return {"ok": False, "error": {"code": "invalid_tool_arguments", "message": "工具参数必须是对象"}}, True
     result = screening_tools.registry.dispatch(
-        FunctionCall(call_id=call_id, name=name, arguments=call_arguments),
+        ToolCall(call_id=call_id, name=name, arguments=call_arguments),
         _context(),
     )
     return result, not bool(result.get("ok"))

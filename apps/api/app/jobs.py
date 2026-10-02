@@ -56,6 +56,31 @@ class JobLease:
                 (_expiry(), utc_now(), self.id, self.owner, utc_now()),
             )
 
+    def checkpoint_research_scan(self, decisions: list[dict], result: dict, progress: float) -> bool:
+        with connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT state,lease_owner,lease_expires_at FROM jobs WHERE id=?", (self.id,)
+            ).fetchone()
+            if self.kind != "research_scan" or not row or row[0] != "running" or row[1] != self.owner or row[2] <= utc_now():
+                return False
+            connection.executemany(
+                """INSERT INTO research_scan_decisions(
+                       scan_id,stock_code,state,evaluation_status,reason_code,decision_json
+                   ) VALUES(?,?,?,?,?,?)""",
+                [(self.payload["scan_id"], item["stock_code"], item["state"],
+                  item["evaluation_status"], item["reason_code"], json_dump(item)) for item in decisions],
+            )
+            connection.execute(
+                "UPDATE research_scans SET result_json=? WHERE id=?",
+                (json_dump(result), self.payload["scan_id"]),
+            )
+            connection.execute(
+                "UPDATE jobs SET progress=?,message=?,updated_at=? WHERE id=?",
+                (progress, f"研究扫描已处理 {result['processed_total']}/{result['coverage']['target_total']} 只证券", utc_now(), self.id),
+            )
+            return True
+
     def finish(self, state: str, message: str, result: dict | None = None, coverage: dict | None = None, decisions: list[dict] | None = None) -> bool:
         # Finalization and cancellation serialize under the same SQLite write lock.
         with connect() as connection:
@@ -83,6 +108,24 @@ class JobLease:
                 connection.execute(
                     "UPDATE screening_task_runs SET result_json=? WHERE id=?",
                     (json_dump(result), self.payload["run_id"]),
+                )
+            if self.kind == "research_scan" and decisions is not None:
+                connection.executemany(
+                    """INSERT INTO research_scan_decisions(
+                           scan_id,stock_code,state,evaluation_status,reason_code,decision_json
+                       ) VALUES(?,?,?,?,?,?)""",
+                    [
+                        (
+                            self.payload["scan_id"], item["stock_code"], item["state"],
+                            item["evaluation_status"], item["reason_code"], json_dump(item),
+                        )
+                        for item in decisions
+                    ],
+                )
+            if self.kind == "research_scan" and result is not None:
+                connection.execute(
+                    "UPDATE research_scans SET result_json=? WHERE id=?",
+                    (json_dump(result), self.payload["scan_id"]),
                 )
             connection.execute(
                 "UPDATE jobs SET state=?,message=?,progress=CASE WHEN ? IN ('succeeded','partial') THEN 1 ELSE progress END,updated_at=?,lease_owner=NULL,lease_expires_at=NULL WHERE id=?",
@@ -119,7 +162,7 @@ class JobLease:
         self._thread.join(timeout=1)
 
 
-def claim(job_id: str | None = None) -> JobLease | None:
+def claim(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, exclude_kinds: tuple[str, ...] = ()) -> JobLease | None:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         now = utc_now()
@@ -127,21 +170,39 @@ def claim(job_id: str | None = None) -> JobLease | None:
             "SELECT id,kind,payload_json,attempts FROM jobs WHERE state='running' AND (lease_expires_at IS NULL OR lease_expires_at<=?)", (now,)
         ).fetchall()
         for row in expired:
-            state = "failed" if row[3] >= MAX_ATTEMPTS else "queued"
+            state = "failed" if row[1] == "research_turn" or row[3] >= MAX_ATTEMPTS else "queued"
             message = "工作进程多次中断，请检查后重试" if state == "failed" else "工作进程中断，任务已重新排队"
+            if row[1] == "research_turn":
+                from . import conversation_store
+                message = "研究工作进程已中断，线程和工作文件已保留；请继续追问以恢复研究。"
+                payload = json_load(row[2])
+                conversation_store._fail_running_turn(
+                    connection, payload["conversation_id"], payload["turn_id"], message,
+                    "turn_interrupted", include_queued=True,
+                )
             connection.execute(
                 "UPDATE jobs SET state=?,message=?,updated_at=?,lease_owner=NULL,lease_expires_at=NULL WHERE id=?", (state, message, now, row[0])
             )
             _set_run_state(connection, row[1], json_load(row[2]), state, now if state == "failed" else None)
+        predicates = ["state='queued'", "required_protocol IN ('legacy','condition-decisions-v1','screening-task-v1','research-scan-v1','research-turn-v1')", "(? IS NULL OR id=?)"]
+        params: list[Any] = [job_id, job_id]
+        if kinds is not None:
+            if not kinds:
+                return None
+            predicates.append(f"kind IN ({','.join('?' for _ in kinds)})")
+            params.extend(kinds)
+        if exclude_kinds:
+            predicates.append(f"kind NOT IN ({','.join('?' for _ in exclude_kinds)})")
+            params.extend(exclude_kinds)
         row = connection.execute(
-            "SELECT id,kind,payload_json FROM jobs WHERE state='queued' AND required_protocol IN ('legacy','condition-decisions-v1','screening-task-v1') AND (? IS NULL OR id=?) ORDER BY created_at,id LIMIT 1", (job_id, job_id)
+            f"SELECT id,kind,payload_json FROM jobs WHERE {' AND '.join(predicates)} ORDER BY created_at,id LIMIT 1", params
         ).fetchone()
         if not row:
             return None
         protocol = connection.execute("SELECT required_protocol FROM jobs WHERE id=?", (row[0],)).fetchone()[0]
         owner = f"{protocol}:{uuid4()}"
         connection.execute(
-            "UPDATE jobs SET state='running',attempts=attempts+1,lease_owner=?,lease_expires_at=?,progress=0,message='任务正在执行',updated_at=? WHERE id=?",
+            "UPDATE jobs SET state='running',attempts=attempts+1,lease_owner=?,lease_expires_at=?,message='任务正在执行',updated_at=? WHERE id=?",
             (owner, _expiry(), now, row[0]),
         )
         payload = json_load(row[2])
@@ -158,6 +219,22 @@ def cancel(job_id: str) -> dict:
         if row[0] not in {"queued", "running"}:
             return {"id": job_id, "state": row[0], "message": "任务已结束"}
         now = utc_now()
+        if row[1] == "research_turn":
+            from . import conversation_store
+            payload = json_load(row[2])
+            turn = connection.execute(
+                "SELECT state FROM conversation_turns WHERE id=? AND conversation_id=?",
+                (payload["turn_id"], payload["conversation_id"]),
+            ).fetchone()
+            if turn and turn["state"] in {"awaiting_agent", "running"}:
+                revision = connection.execute(
+                    "SELECT task_revision FROM conversations WHERE id=?", (payload["conversation_id"],)
+                ).fetchone()[0]
+                conversation_store.finish_turn(
+                    payload["conversation_id"], payload["turn_id"], revision, "cancelled",
+                    "研究已停止，已生成的工作文件和成果已保留。可以继续追问。",
+                    {"runtime": "codex", "ready_to_execute": False}, _connection=connection,
+                )
         connection.execute(
             "UPDATE jobs SET state='cancelled',message='用户已取消',updated_at=?,lease_owner=NULL,lease_expires_at=NULL WHERE id=?", (now, job_id)
         )

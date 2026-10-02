@@ -18,6 +18,7 @@ DecisionState = Literal["true", "false", "unknown"]
 EvaluationStatus = Literal["completed", "failed", "not_evaluated"]
 ConditionLibrary = Literal["technical", "news", "report", "pattern", "ranking"]
 ConversationScope = Literal["technical", "news", "report", "pattern", "screening"]
+ResearchMode = Literal["research", "screening", "advanced"]
 MAX_MESSAGE_CHARS = 8000
 MAX_LOGIC_NODES = 1000
 MAX_LOGIC_CHILDREN = 200
@@ -30,6 +31,11 @@ def _normalized_quote(value: str) -> str:
 
 class CreateConversationRequest(ContractModel):
     entry_scope: ConversationScope
+    research_mode: ResearchMode | None = None
+
+
+class UpdateResearchModeRequest(ContractModel):
+    research_mode: ResearchMode
 
 
 class ConversationSourceReference(ContractModel):

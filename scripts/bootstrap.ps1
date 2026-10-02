@@ -1,4 +1,4 @@
-param([switch]$SkipFrontend)
+﻿param([switch]$SkipFrontend)
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path

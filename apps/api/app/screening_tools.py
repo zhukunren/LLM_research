@@ -13,15 +13,14 @@ from pydantic import BaseModel, Field, ValidationError
 
 from . import conversation_store, documents, market, screening_artifacts, evidence_sources, news_sources
 from .db import connect, json_dump, json_load, utc_now
-from .model_client import FunctionCall, FunctionTool
+from .tool_protocol import ToolCall, ToolDefinition
 from . import saved_screening_tasks
 from .execution_policy import denies_execution, requests_execution
 from .models import StrictModel
 from .screening_artifacts import ArtifactError, store_artifact
 from .screening_contracts import ScreeningTaskRevision, validate_executable_task
-from .settings import ALLOWED_MARKETS
+from .settings import ALLOWED_MARKETS, research_settings
 
-MAX_TOOL_CALLS_PER_TURN = 12
 MAX_TOOL_ARGUMENT_BYTES = 64 * 1024
 MAX_INLINE_TOOL_RESULT_BYTES = 32 * 1024
 MAX_STOCK_SEARCH_RESULTS = 50
@@ -159,7 +158,7 @@ class ToolContext:
 
 @dataclass(frozen=True)
 class _Registration:
-    tool: FunctionTool
+    tool: ToolDefinition
     argument_model: type[ToolArgs]
     handler: Callable[[ToolArgs, ToolContext], dict[str, Any]]
     capability_id: str | None
@@ -175,7 +174,6 @@ def _schema_for(model: type[ToolArgs]) -> dict[str, Any]:
     schema = model.model_json_schema()
     schema.setdefault("additionalProperties", False)
     schema.setdefault("properties", {})
-    schema.setdefault("required", list(schema["properties"]))
     return schema
 
 
@@ -736,10 +734,17 @@ def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, A
                 })
         scope = raw.get("scope") if isinstance(raw.get("scope"), dict) else {}
         explicit_date = re.search(
-            r"20\d{2}[-/]\d{1,2}[-/]\d{1,2}|20\d{2}年\d{1,2}月\d{1,2}日|截至|截止|最新",
+            r"20\d{2}[-/]\d{1,2}[-/]\d{1,2}|20\d{2}年\d{1,2}月\d{1,2}日",
             current_user["content"],
         )
-        if not explicit_date:
+        relative_date = re.search(
+            r"最近|近期|近(?:\d+|[一二三四五六七八九十]+)?(?:个)?(?:交易日|工作日|日|周|月|季度|年)|最新|当前|今天|现在|截至目前|至今",
+            current_user["content"],
+        )
+        if relative_date:
+            local_today = datetime.now(news_sources.LOCAL_ZONE).date().isoformat()
+            scope["as_of"] = market.latest_market_date(local_today)
+        elif not explicit_date:
             if base_revision:
                 try:
                     previous = conversation_store.get_task_revision(context.conversation_id, base_revision)
@@ -867,12 +872,16 @@ class ToolRegistry:
         argument_model: type[ToolArgs],
         handler: Callable[[ToolArgs, ToolContext], dict[str, Any]],
         capability_id: str | None = None,
+        *,
+        read_only: bool = True,
+        open_world: bool = False,
     ) -> None:
         if name in self._registrations:
             raise ValueError(f"重复注册筛选工具：{name}")
         schema = _schema_for(argument_model)
         self._registrations[name] = _Registration(
-            tool=FunctionTool(name=name, description=description, parameters=schema),
+            tool=ToolDefinition(name=name, description=description, input_schema=schema,
+                                read_only=read_only, open_world=open_world),
             argument_model=argument_model,
             handler=handler,
             capability_id=capability_id,
@@ -881,7 +890,7 @@ class ToolRegistry:
     def registered_tool_names(self) -> set[str]:
         return set(self._registrations)
 
-    def functions_for_model(self) -> list[FunctionTool]:
+    def tools_for_codex(self) -> list[ToolDefinition]:
         from .main import screening_capability_manifest
 
         manifest = screening_capability_manifest()
@@ -893,7 +902,7 @@ class ToolRegistry:
             or availability.get(registration.capability_id, "unavailable") != "unavailable"
         ]
 
-    def dispatch(self, call: FunctionCall, context: ToolContext) -> dict[str, Any]:
+    def dispatch(self, call: ToolCall, context: ToolContext) -> dict[str, Any]:
         if not call.call_id or len(call.call_id) > 200 or not call.name or len(call.name) > 100:
             return self._error("invalid_tool_call", "工具调用ID或名称格式无效")
         try:
@@ -999,7 +1008,7 @@ class ToolRegistry:
 
     def _begin_call(
         self,
-        call: FunctionCall,
+        call: ToolCall,
         context: ToolContext,
         arguments_sha256: str,
         arguments_json: str,
@@ -1019,6 +1028,13 @@ class ToolRegistry:
                 raise ToolDispatchError("conversation_turn_not_found", "找不到此对话回合")
             if conversation["state"] != "active" or turn["state"] not in {"awaiting_agent", "running"}:
                 raise ToolDispatchError("conversation_turn_inactive", "此对话回合已结束")
+            if turn["state"] == "running":
+                try:
+                    conversation_store.require_running_turn(connection, context.conversation_id, context.turn_id)
+                except conversation_store.ConversationConflict as exc:
+                    raise ToolDispatchError("conversation_turn_inactive", str(exc)) from exc
+            elif connection.execute("SELECT 1 FROM research_turn_jobs WHERE turn_id=?", (context.turn_id,)).fetchone():
+                raise ToolDispatchError("conversation_turn_inactive", "后台研究尚未开始，不能提前调用工具")
             if conversation["task_revision"] != context.task_revision:
                 raise ToolDispatchError("revision_conflict", "对话条件已更新，请重新读取当前版本")
 
@@ -1043,8 +1059,9 @@ class ToolRegistry:
             call_count = connection.execute(
                 "SELECT COUNT(*) FROM tool_calls WHERE turn_id=?", (context.turn_id,)
             ).fetchone()[0]
-            if call_count >= MAX_TOOL_CALLS_PER_TURN:
-                raise ToolDispatchError("tool_call_limit", "本回合工具调用达到12次上限")
+            call_limit = research_settings()["max_tool_calls"]
+            if call_limit and call_count >= call_limit:
+                raise ToolDispatchError("tool_call_limit", f"本回合达到配置的 {call_limit} 次工具预算；可以在下一回合继续研究")
             connection.execute(
                 """INSERT INTO tool_calls(
                        id,conversation_id,turn_id,call_id,tool_name,task_revision,as_of,
@@ -1065,7 +1082,7 @@ class ToolRegistry:
 
     def _finish_call(
         self,
-        call: FunctionCall,
+        call: ToolCall,
         context: ToolContext,
         result: dict[str, Any],
         *,
@@ -1088,10 +1105,18 @@ class ToolRegistry:
                     and turn["task_revision"] == context.task_revision + 1
                 )
             )
+            lease_active = False
+            if turn and turn["state"] == "running":
+                try:
+                    conversation_store.require_running_turn(connection, context.conversation_id, context.turn_id)
+                    lease_active = True
+                except conversation_store.ConversationConflict:
+                    pass
             if (
                 not turn or turn["state"] != "running"
                 or turn["conversation_state"] != "active"
                 or not revision_is_current
+                or not lease_active
             ):
                 stale = {
                     "ok": False,
@@ -1111,6 +1136,8 @@ class ToolRegistry:
 def _make_registry() -> ToolRegistry:
     result = ToolRegistry()
     _register_default_tools(result)
+    from .research_tools import register_tools
+    register_tools(result)
     return result
 
 
@@ -1129,7 +1156,7 @@ def _register_default_tools(registry: ToolRegistry) -> None:
     registry.register("read_artifact_chunk", "Read a bounded JSON artifact chunk by id and character offset.", ReadArtifactChunkArgs, _read_artifact, "runtime.artifact_read")
     registry.register(
         "get_research_state",
-        "MANDATORY FIRST ACTION for every stock-screening request: read the current conversation task revision, user requirements, and execution grant before answering or changing a plan.",
+        "Read the current task revision, user requirements and execution grant before changing a saved screening plan. Open research can use native workspace tools first.",
         EmptyResearchStateArgs,
         _research_state,
     )
@@ -1138,9 +1165,10 @@ def _register_default_tools(registry: ToolRegistry) -> None:
         "Validate and persist the current conversation's complete task revision. This does not save a reusable plan or execute a run.",
         ProposeScreeningTaskArgs,
         _propose_screening_task,
+        read_only=False,
     )
     registry.register("save_screening_plan", "Save the current confirmed revision to the reusable plan library when the user asks to save a plan. Returns an asset id and version; never executes screening.",
-                      SaveScreeningPlanArgs, _save_screening_plan)
+                      SaveScreeningPlanArgs, _save_screening_plan, read_only=False)
     registry.register("list_saved_screening_tasks", "Read reusable plans from the same saved-plan library shown in the Web UI.",
                       ListSavedTasksArgs, _list_saved_tasks)
     registry.register(
@@ -1148,12 +1176,14 @@ def _register_default_tools(registry: ToolRegistry) -> None:
         "Record an execution grant only when the current user message explicitly requests running the current task.",
         TaskRevisionArgs,
         _authorize_screening_execution,
+        read_only=False,
     )
     registry.register(
         "revoke_screening_execution",
         "Revoke a pending execution grant when the current user explicitly says not to run.",
         TaskRevisionArgs,
         _revoke_screening_execution,
+        read_only=False,
     )
 
 

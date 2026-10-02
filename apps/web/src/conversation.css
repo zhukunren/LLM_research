@@ -18,7 +18,7 @@
 
 .conversation-heading-title h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 600;
   color: var(--ui-text);
   letter-spacing: -0.2px;
@@ -26,7 +26,7 @@
 
 .conversation-subheading {
   margin: 2px 0 0;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ui-text-faint);
 }
 
@@ -44,7 +44,7 @@
   align-items: center;
   gap: 8px;
   color: var(--ui-text-faint);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .conversation-flow li > span {
@@ -54,7 +54,7 @@
   height: 22px;
   border: 1px solid var(--ui-border-strong);
   border-radius: 50%;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .conversation-flow li.current {
@@ -104,7 +104,7 @@
 
 .conversation-panel-heading h2 {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--ui-text);
 }
@@ -112,13 +112,13 @@
 .conversation-scope-select {
   display: grid;
   gap: 4px;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .conversation-scope-select select {
   width: 100%;
   min-height: 28px;
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .conversation-session-list {
@@ -152,7 +152,7 @@
 }
 
 .conversation-session-row strong {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ui-text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -160,7 +160,7 @@
 }
 
 .conversation-session-row span {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--ui-text-faint);
   line-height: 1.4;
 }
@@ -216,13 +216,13 @@
 }
 
 .conversation-empty strong {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--ui-text);
 }
 
 .conversation-empty p {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.7;
   color: var(--ui-text-faint);
 }
@@ -245,7 +245,7 @@
   border-radius: var(--ui-radius-pill);
   background: var(--ui-surface);
   color: var(--ui-text-muted);
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
   transition: all var(--ui-transition);
 }
@@ -277,13 +277,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ui-text-faint);
 }
 
 .conversation-message p {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.6;
   color: var(--ui-text);
   overflow-wrap: anywhere;
@@ -301,7 +301,7 @@
   border-radius: 3px;
   background: var(--ui-surface);
   border: 1px solid var(--ui-border);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--ui-text-muted);
 }
 
@@ -315,7 +315,7 @@
 }
 
 .conversation-composer label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--ui-text-muted);
 }
@@ -326,7 +326,7 @@
   max-height: 140px;
   resize: vertical;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.5;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-xs);
@@ -336,7 +336,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ui-text-faint);
 }
 
@@ -348,7 +348,7 @@
   background: var(--ui-primary-soft);
   border: 1px solid var(--ui-primary-border);
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ui-primary);
   width: fit-content;
 }
@@ -377,7 +377,7 @@
   gap: 4px;
   padding: 10px 0;
   color: var(--ui-text-faint);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .task-logic-group {
@@ -390,7 +390,7 @@
   border-radius: 3px;
   background: var(--ui-primary-soft);
   color: var(--ui-primary);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
 }
 
@@ -417,7 +417,7 @@
 }
 
 .task-logic-condition > strong {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ui-text);
   font-weight: 500;
   line-height: 1.5;
@@ -425,7 +425,7 @@
 
 .task-library-label {
   width: fit-content;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--ui-text-faint);
 }
 
@@ -433,7 +433,7 @@
   display: grid;
   grid-template-columns: 60px 1fr;
   gap: 6px 8px;
-  font-size: 11px;
+  font-size: 10px;
   padding: 8px 0;
   border-block: 1px solid var(--ui-border-subtle);
 }
@@ -491,8 +491,36 @@
 
 .saved-task-card > summary {
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
 }
+
+.conversation-research-section {
+  min-width: 0;
+  padding: 14px;
+  border-bottom: 1px solid var(--ui-border);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.conversation-research-section h2 { font-size: 14px; }
+.research-scan-select { width: 100%; min-width: 0; margin: 8px 0; }
+.research-scan-status, .research-pagination { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.research-scan-status > span, .research-pagination > span { flex: 1; min-width: 0; }
+.conversation-research-section progress { width: 100%; height: 6px; accent-color: var(--ui-accent); }
+.research-coverage { line-height: 1.7; font-variant-numeric: tabular-nums; }
+.research-scan-error { color: var(--ui-danger); }
+.research-decision-filters { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 6px; margin: 10px 0; }
+.research-decision-filters input, .research-decision-filters select { min-width: 0; width: 100%; }
+.research-decision-table { width: 100%; overflow-x: auto; max-height: 320px; overflow-y: auto; }
+.research-decision-table table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.research-decision-table th, .research-decision-table td { text-align: left; vertical-align: top; padding: 7px 4px; border-bottom: 1px solid var(--ui-border-subtle); line-height: 1.6; }
+.research-decision-table th:first-child { width: 82px; }
+.research-decision-table th:nth-child(2) { width: 44px; }
+.research-decision-table td span { color: var(--ui-text-muted); }
+.research-output-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.research-output-list a { display: flex; align-items: start; gap: 7px; padding: 7px 0; }
+.research-output-list a > span { flex: 1; min-width: 0; }
+.research-output-list svg, .research-output-list small { flex-shrink: 0; }
+.research-output-list small { color: var(--ui-text-muted); }
 
 /* Responsive */
 @media (max-width: 1050px) {
@@ -504,3 +532,6 @@
     height: 60vh;
   }
 }
+.conversation-mode-control { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.conversation-mode-control select { max-width: 100%; width: auto; font-size: 13px; }
+.scope-save-status { display: inline-flex; align-items: center; gap: 6px; width: 100%; min-height: 28px; }

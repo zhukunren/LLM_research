@@ -12,6 +12,16 @@ def test_missing_local_dependencies_do_not_execute_in_api_process(monkeypatch):
         runtime_executor.execute_program(source_code="raise RuntimeError('not executed')", context={}, frames={}, params={})
 
 
+def test_unwritable_work_directory_fails_before_launching_a_program(monkeypatch, tmp_path):
+    monkeypatch.setattr(runtime_executor, "readiness", lambda: {"ready": True})
+    blocked = tmp_path / "not-a-directory"
+    blocked.write_text("blocked")
+    monkeypatch.setattr(runtime_executor, "WORK_ROOT", blocked)
+    monkeypatch.setattr(runtime_executor.subprocess, "Popen", lambda *a, **k: pytest.fail("must not launch"))
+    with pytest.raises(runtime_executor.RuntimeUnavailable, match="目录权限"):
+        runtime_executor.execute_program(source_code="", context={}, frames={}, params={})
+
+
 @pytest.mark.parametrize("raw", [
     b'{"ok":true,"result":{"decisions":{"A":true,"A":false}}}',
     b'{"ok":true,"result":{"value":NaN}}',

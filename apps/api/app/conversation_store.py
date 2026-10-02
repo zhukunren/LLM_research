@@ -32,15 +32,15 @@ def _lease_cutoff() -> str:
     return (datetime.now(UTC) - timedelta(seconds=TURN_LEASE_SECONDS)).isoformat(timespec="seconds")
 
 
-def _fail_running_turn(connection, conversation_id: str, turn_id: str, message: str, code: str) -> bool:
+def _fail_running_turn(connection, conversation_id: str, turn_id: str, message: str, code: str, *, include_queued: bool = False) -> bool:
     """Release only this running turn, independently of task revision mutations."""
     now = utc_now()
     result = json_dump({"runtime": "codex", "error_code": code, "ready_to_execute": False,
                         "execution_authorized": False})
     changed = connection.execute(
         """UPDATE conversation_turns SET state='failed',response_text=?,result_json=?,updated_at=?
-           WHERE id=? AND conversation_id=? AND state='running'""",
-        (message, result, now, turn_id, conversation_id),
+           WHERE id=? AND conversation_id=? AND (state='running' OR (? AND state='awaiting_agent'))""",
+        (message, result, now, turn_id, conversation_id, include_queued),
     ).rowcount
     if not changed:
         return False
@@ -53,14 +53,20 @@ def _fail_running_turn(connection, conversation_id: str, turn_id: str, message: 
         "UPDATE conversations SET pending_execute_message_id=NULL,updated_at=? WHERE id=?",
         (now, conversation_id),
     )
+    connection.execute(
+        """UPDATE jobs SET state='failed',message=?,updated_at=?,lease_owner=NULL,lease_expires_at=NULL
+           WHERE id=(SELECT job_id FROM research_turn_jobs WHERE turn_id=? AND conversation_id=?)
+             AND state IN ('queued','running')""",
+        (message, now, turn_id, conversation_id),
+    )
     return True
 
 
-def fail_turn(conversation_id: str, turn_id: str, message: str) -> bool:
+def fail_turn(conversation_id: str, turn_id: str, message: str, *, include_queued: bool = False) -> bool:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         return _fail_running_turn(connection, conversation_id, turn_id,
-                                  message.strip() or "本次处理失败，请重试。", "runtime_failed")
+                                  message.strip() or "本次处理失败，请重试。", "runtime_failed", include_queued=include_queued)
 
 
 def recover_expired_turns() -> int:
@@ -97,6 +103,12 @@ def require_running_turn(connection, conversation_id: str, turn_id: str) -> None
     ).fetchone()
     if not row:
         raise ConversationConflict("对话回合已结束或中断，迟到动作不能修改任务")
+    job = connection.execute(
+        """SELECT j.state,j.lease_expires_at FROM research_turn_jobs r JOIN jobs j ON j.id=r.job_id
+           WHERE r.turn_id=? AND r.conversation_id=?""", (turn_id, conversation_id),
+    ).fetchone()
+    if job and (job["state"] != "running" or not job["lease_expires_at"] or job["lease_expires_at"] <= utc_now()):
+        raise ConversationConflict("研究工作进程已中断，迟到动作不能发布")
 
 
 @contextmanager
@@ -120,18 +132,19 @@ def keep_turn_alive(conversation_id: str, turn_id: str):
         thread.join(timeout=1)
 
 
-def create_conversation(entry_scope: str) -> dict[str, Any]:
+def create_conversation(entry_scope: str, research_mode: str = "research") -> dict[str, Any]:
     conversation_id = str(uuid4())
     now = utc_now()
     with connect() as connection:
         connection.execute(
-            "INSERT INTO conversations(id, entry_scope, created_at, updated_at) VALUES(?,?,?,?)",
-            (conversation_id, entry_scope, now, now),
+            "INSERT INTO conversations(id, entry_scope, research_mode, created_at, updated_at) VALUES(?,?,?,?,?)",
+            (conversation_id, entry_scope, research_mode, now, now),
         )
     return {
         "id": conversation_id,
         "task_id": conversation_id,
         "entry_scope": entry_scope,
+        "research_mode": research_mode,
         "task_revision": 0,
         "active_run_id": None,
         "state": "active",
@@ -145,7 +158,7 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50) -> list[
     limit = max(1, min(int(limit), 100))
     with connect() as connection:
         rows = connection.execute(
-            """SELECT c.id,c.entry_scope,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
+            """SELECT c.id,c.entry_scope,c.research_mode,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
                       (SELECT substr(m.content,1,120) FROM conversation_messages m
                        WHERE m.conversation_id=c.id AND m.role='user'
                        ORDER BY m.rowid LIMIT 1) AS title,
@@ -156,6 +169,23 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50) -> list[
             (entry_scope, entry_scope, limit),
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def update_research_mode(conversation_id: str, research_mode: str) -> dict[str, Any]:
+    if research_mode not in {"research", "screening", "advanced"}:
+        raise ConversationStoreError("研究模式无效")
+    with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute("SELECT state FROM conversations WHERE id=?", (conversation_id,)).fetchone()
+        if not row:
+            raise ConversationNotFound(conversation_id)
+        if row["state"] != "active":
+            raise ConversationConflict("此对话已归档，不能修改研究模式")
+        if connection.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? AND state IN ('awaiting_agent','running')", (conversation_id,)).fetchone():
+            raise ConversationConflict("请等待当前研究结束后再切换模式")
+        now = utc_now()
+        connection.execute("UPDATE conversations SET research_mode=?,updated_at=? WHERE id=?", (research_mode, now, conversation_id))
+    return {"conversation_id": conversation_id, "research_mode": research_mode}
 
 
 def _message_payload(row) -> dict[str, Any]:
@@ -258,11 +288,16 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
                ORDER BY rowid DESC LIMIT 20""",
             (conversation_id,),
         ).fetchall()
+        turn_jobs = {row["turn_id"]: {key: row[key] for key in ("id", "state", "progress", "message")}
+                     for row in connection.execute(
+                         """SELECT r.turn_id,j.id,j.state,j.progress,j.message FROM research_turn_jobs r
+                            JOIN jobs j ON j.id=r.job_id WHERE r.conversation_id=?""", (conversation_id,))}
 
     return {
         "id": conversation["id"],
         "task_id": conversation["id"],
         "entry_scope": conversation["entry_scope"],
+        "research_mode": conversation["research_mode"],
         "task_revision": conversation["task_revision"],
         "active_run_id": conversation["active_run_id"],
         "pending_execution": conversation["pending_execute_message_id"] is not None,
@@ -280,6 +315,7 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
                 "result": json_load(row["result_json"]),
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
+                "job": turn_jobs.get(row["id"]),
             }
             for row in turns
         ],
@@ -383,6 +419,10 @@ def get_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                FROM conversation_turns WHERE id=? AND conversation_id=?""",
             (turn_id, conversation_id),
         ).fetchone()
+        job = connection.execute(
+            """SELECT j.id,j.state,j.progress,j.message FROM research_turn_jobs r JOIN jobs j ON j.id=r.job_id
+               WHERE r.turn_id=? AND r.conversation_id=?""", (turn_id, conversation_id),
+        ).fetchone()
     if not row:
         raise ConversationNotFound(turn_id)
     return {
@@ -395,6 +435,7 @@ def get_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
         "result": json_load(row["result_json"]),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
+        "job": dict(job) if job else None,
     }
 
 
@@ -516,7 +557,7 @@ def finish_turn(
     *,
     _connection: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
-    if state not in {"awaiting_user", "succeeded", "failed"}:
+    if state not in {"awaiting_user", "succeeded", "failed", "cancelled"}:
         raise ConversationStoreError("对话回合终态无效")
     if not response_text.strip():
         raise ConversationStoreError("助手回合必须生成可见回复")
@@ -562,6 +603,8 @@ def finish_turn(
             raise ConversationConflict("对话回合当前不能完成")
         if turn["state"] == "running" and turn["updated_at"] <= _lease_cutoff():
             raise ConversationConflict("对话回合已中断，迟到结果不能发布")
+        if turn["state"] == "running" and state != "cancelled":
+            require_running_turn(connection, conversation_id, turn_id)
         if pending_execute_message_id is not None:
             source = connection.execute(
                 """SELECT 1 FROM conversation_messages

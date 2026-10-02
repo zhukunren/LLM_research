@@ -1,4 +1,4 @@
-param([switch]$Restart)
+﻿param([switch]$Restart)
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path

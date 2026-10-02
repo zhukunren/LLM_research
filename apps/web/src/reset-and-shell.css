@@ -53,8 +53,8 @@ button:disabled {
   position: sticky;
   top: 0;
   align-self: flex-start;
-  width: 200px;
-  flex: 0 0 200px;
+  width: 216px;
+  flex: 0 0 216px;
   height: 100dvh;
   padding: 20px 12px 16px;
   background: var(--ui-sidebar);
@@ -73,7 +73,7 @@ button:disabled {
 
 .sidebar .research-brand img {
   display: block;
-  width: 146px;
+  width: 156px;
   height: auto;
   max-width: 100%;
   object-fit: contain;
@@ -90,21 +90,21 @@ button:disabled {
   padding: 10px 0;
   border-block: 1px solid var(--ui-border-subtle);
   color: var(--ui-brand);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .branch-name span {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 400;
   color: var(--ui-text-faint);
 }
 
 .workspace-label {
   margin: 18px 8px 8px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--ui-sidebar-muted);
 }
@@ -127,7 +127,7 @@ button:disabled {
   border-radius: var(--ui-radius-xs);
   color: var(--ui-sidebar-text);
   background: transparent;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 400;
   cursor: pointer;
   text-align: left;
@@ -161,7 +161,7 @@ button:disabled {
 }
 
 .sidebar-mode {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--ui-text-faint);
   padding: 0 4px;
 }
@@ -170,7 +170,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ui-text-faint);
   white-space: nowrap;
   padding: 0 4px;
@@ -182,7 +182,7 @@ button:disabled {
   background: transparent;
   padding: 0 4px;
   color: var(--ui-text-muted);
-  font-size: 10px;
+  font-size: 9px;
   cursor: pointer;
   text-align: left;
 }
@@ -205,7 +205,7 @@ button:disabled {
   border-radius: var(--ui-radius-xs);
   color: var(--ui-text-muted);
   background: transparent;
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--ui-transition), background var(--ui-transition);
@@ -244,7 +244,7 @@ button:disabled {
   align-items: center;
   gap: 8px;
   color: var(--ui-text-faint);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .research-breadcrumb i {
@@ -270,7 +270,7 @@ button:disabled {
   gap: 6px;
   padding: 3px 8px;
   border-radius: var(--ui-radius-pill);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ui-warning);
   background: var(--ui-warning-soft);
   border: 1px solid var(--ui-warning-border);
@@ -283,7 +283,7 @@ button:disabled {
 /* Page Frame & Spacing */
 .page-frame {
   flex: 1;
-  max-width: 1600px;
+  max-width: 1640px;
   width: 100%;
   margin: 0 auto;
 }
@@ -305,10 +305,10 @@ button:disabled {
 
 .page-heading h1, .library-title h1, .workbench-heading h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 19px;
   line-height: 1.4;
   font-weight: 600;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
   color: var(--ui-text);
 }
 
@@ -369,46 +369,6 @@ button:disabled {
 }
 
 @media (max-width: 560px) {
-  .sidebar {
-    position: fixed;
-    z-index: 30;
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    height: 56px;
-    padding: 4px 6px;
-    border: 0;
-    border-top: 1px solid var(--ui-sidebar-border);
-    overflow: visible;
-  }
-  .sidebar .research-brand,
-  .sidebar .sidebar-bottom {
-    display: none;
-  }
-  .sidebar .workspace-navigation {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 2px;
-  }
-  .sidebar .nav-item {
-    flex-direction: column;
-    justify-content: center;
-    gap: 3px;
-    min-height: 48px;
-    padding: 2px 0;
-    font-size: 9px;
-  }
-  .sidebar .nav-item span {
-    display: inline;
-  }
-  .sidebar .nav-item.active {
-    box-shadow: inset 0 2px var(--ui-primary);
-  }
-  .main-shell {
-    padding-bottom: 56px;
-  }
   .mobile-settings {
     display: inline-flex;
   }

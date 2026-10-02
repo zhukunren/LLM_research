@@ -9,6 +9,54 @@ import pytest
 from apps.api.app import conversation_store, db, jobs, main, market, runtime_executor, screening_execution, screening_service, worker
 
 
+def test_codex_executes_and_reads_results_in_same_active_turn(client, monkeypatch):
+    from apps.api.app.screening_contracts import ScreeningTaskRevision
+    from apps.api.app.screening_tools import ToolContext, registry
+    from apps.api.app.tool_protocol import ToolCall
+    cid = conversation_store.create_conversation("screening")["id"]
+    prompt = "收盘价高于20日均线，筛一下"
+    msg = conversation_store.add_user_message(cid, "research-execute", 0, prompt)
+    conversation_store.start_turn(cid, msg["turn_id"])
+    task = ScreeningTaskRevision.model_validate(task_payload(cid, prompt))
+    conversation_store.save_task_revision(cid, 0, msg["message_id"], task, turn_id=msg["turn_id"])
+    context = ToolContext(cid, msg["turn_id"], 1, as_of="2026-09-14", universe_kind="all_a_shares")
+    call = registry.dispatch(ToolCall("execute", "execute_screening_task", {"revision": 1}), context)
+    assert call["ok"], call
+    run_id = call["result"]["run_id"]
+    replay = registry.dispatch(ToolCall("execute-again", "execute_screening_task", {"revision": 1}), context)
+    assert replay["result"]["run_id"] == run_id
+    assert conversation_store.get_pending_execute_message(cid) is None
+    assert conversation_store.get_turn(cid, msg["turn_id"])["state"] == "running"
+    read = registry.dispatch(ToolCall("results", "read_screening_run", {
+        "run_id": run_id, "wait_seconds": 0, "state": "", "query": "", "offset": 0, "limit": 20,
+    }), context)
+    assert read["ok"] and read["result"]["run"]["status"] == "queued"
+    assert len(screening_service.list_task_runs(cid)) == 1
+    # The same original execution request can repair the program in a new revision.
+    task.revision = 2
+    conversation_store.save_task_revision(cid, 1, msg["message_id"], task, turn_id=msg["turn_id"])
+    from dataclasses import replace
+    updated_context = replace(context, task_revision=2)
+    second = registry.dispatch(ToolCall("execute-repaired", "execute_screening_task", {"revision": 2}), updated_context)
+    assert second["ok"] and second["result"]["run_id"] != run_id
+    assert len(screening_service.list_task_runs(cid)) == 2
+
+
+def test_active_research_cannot_execute_from_discussion_only(client):
+    from apps.api.app.screening_contracts import ScreeningTaskRevision
+    from apps.api.app.screening_tools import ToolContext, registry
+    from apps.api.app.tool_protocol import ToolCall
+    cid = conversation_store.create_conversation("screening")["id"]
+    prompt = "只讨论收盘价高于20日均线，不要执行"
+    msg = conversation_store.add_user_message(cid, "discussion", 0, prompt)
+    conversation_store.start_turn(cid, msg["turn_id"])
+    conversation_store.save_task_revision(cid, 0, msg["message_id"], ScreeningTaskRevision.model_validate(task_payload(cid, prompt)))
+    context = ToolContext(cid, msg["turn_id"], 1)
+    result = registry.dispatch(ToolCall("execute", "execute_screening_task", {"revision": 1}), context)
+    assert result["error"]["code"] == "execution_not_explicit"
+    assert screening_service.list_task_runs(cid) == []
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "screening-v2.db")
@@ -196,6 +244,69 @@ def test_enqueue_is_concurrent_idempotent_and_old_worker_cannot_claim_protocol(c
     lease = jobs.claim(job_id)
     assert lease is not None
     assert lease.owner.startswith("screening-task-v1:")
+
+
+def create_button_turn(client, *, incomplete=False):
+    from apps.api.app.screening_contracts import ScreeningTaskRevision
+    cid = conversation_store.create_conversation("screening")["id"]
+    prompt = "帮我整理收盘价高于20日均线的条件，先不执行"
+    message = conversation_store.add_user_message(cid, "draft", 0, prompt)
+    raw = task_payload(cid, prompt)
+    if incomplete:
+        raw["unresolved"] = [{"kind": "clarification", "source_quote": "条件", "question": "需补充条件"}]
+    conversation_store.save_task_revision(cid, 0, message["message_id"], ScreeningTaskRevision.model_validate(raw))
+    conversation_store.finish_turn(cid, message["turn_id"], 1, "succeeded", "方案已整理。",
+                                   {"task_revision": 1, "ready_to_execute": False, "execution_authorized": False})
+    return cid, message["turn_id"]
+
+
+def test_button_executes_without_language_authorization_and_retries_same_run(client):
+    cid, tid = create_button_turn(client)
+    url = f"/api/v1/conversations/{cid}/turns/{tid}/execute"
+    before = client.get(f"/api/v1/conversations/{cid}").json()["messages"]
+    assert client.post(url).status_code == 409
+    payload = {"action": "button", "revision": 1, "request_id": "click-one"}
+    first = client.post(url, json=payload)
+    assert first.status_code == 202, first.text
+    repeated = client.post(url, json=payload).json()
+    assert repeated["run_id"] == first.json()["run_id"]
+    assert repeated["idempotent_replay"] is True
+    second_click = client.post(url, json={**payload, "request_id": "click-two"})
+    assert second_click.status_code == 202
+    assert second_click.json()["run_id"] != repeated["run_id"]
+    after = client.get(f"/api/v1/conversations/{cid}").json()["messages"]
+    assert after == before
+    with db.connect() as connection:
+        record = connection.execute("SELECT request_json FROM execution_requests WHERE id=?", (first.json()["execution_request_id"],)).fetchone()
+    assert db.json_load(record[0])["action"] == "button"
+
+
+def test_button_requires_current_revision_completed_turn_and_complete_task(client):
+    cid, tid = create_button_turn(client)
+    url = f"/api/v1/conversations/{cid}/turns/{tid}/execute"
+    payload = {"action": "button", "revision": 1, "request_id": "click"}
+    assert client.post(url, json={"action": "button"}).status_code == 422
+    assert client.post(url, json={**payload, "revision": 2}).json()["code"] == "revision_conflict"
+    conversation_store.add_user_message(cid, "new-message", 1, "修改条件")
+    assert client.post(url, json=payload).json()["code"] == "revision_conflict"
+    assert screening_service.list_task_runs(cid) == []
+    incomplete_cid, incomplete_tid = create_button_turn(client, incomplete=True)
+    response = client.post(f"/api/v1/conversations/{incomplete_cid}/turns/{incomplete_tid}/execute", json=payload)
+    assert response.status_code == 422
+    assert response.json()["code"] == "task_incomplete"
+
+
+def test_button_preserves_market_fingerprint_check(client, monkeypatch):
+    cid, tid = create_button_turn(client)
+    def changed_source(_as_of):
+        monkeypatch.setattr(market, "source_fingerprint", lambda: ("changed", 12000, 456))
+        return ["600000.SH"]
+    monkeypatch.setattr(market, "security_codes", changed_source)
+    response = client.post(f"/api/v1/conversations/{cid}/turns/{tid}/execute",
+                           json={"action": "button", "revision": 1, "request_id": "click"})
+    assert response.status_code == 409
+    assert response.json()["code"] == "source_changed"
+    assert screening_service.list_task_runs(cid) == []
 
 
 def test_watchlist_membership_is_frozen_when_the_run_is_queued(client, monkeypatch):

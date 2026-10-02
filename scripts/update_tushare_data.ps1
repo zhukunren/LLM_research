@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$AsOf,
     [ValidateRange(1, 365)][int]$Days = 30,
     [switch]$SkipMarket,
