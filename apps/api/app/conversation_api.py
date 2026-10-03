@@ -80,7 +80,10 @@ def _store_error(exc: Exception) -> None:
 
 @router.post("")
 def create_conversation(payload: CreateConversationRequest):
-    return conversation_store.create_conversation(payload.entry_scope, payload.research_mode or default_research_mode())
+    try:
+        return conversation_store.create_conversation(payload.entry_scope, payload.research_mode or default_research_mode(), payload.project_id)
+    except conversation_store.ConversationStoreError as exc:
+        _store_error(exc)
 
 
 @router.get("")

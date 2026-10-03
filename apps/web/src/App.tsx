@@ -1,15 +1,17 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Activity, AlertCircle, ChevronRight, Database, FileText, MessageCircle, Newspaper, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, Shapes, Star } from 'lucide-react'
+import { Activity, AlertCircle, ChevronRight, Database, FileText, FolderOpen, MessageCircle, Newspaper, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, Shapes, Star } from 'lucide-react'
 import { api, type ConversationScope, type ConversationSourceReference, type DataStatus } from './api'
 const ObservationPage = lazy(() => import('./pages/ObservationPage'))
 const WorkbenchPage = lazy(() => import('./pages/WorkbenchPage'))
 const PatternPage = lazy(() => import('./pages/PatternPage'))
 const LibraryWorkspace = lazy(() => import('./pages/LibraryWorkspace'))
+const ResearchProjectsPage = lazy(() => import('./pages/ResearchProjectsPage'))
 import SystemDrawer from './pages/DataServicesPanel'
 import type { Section } from './pages/WorkbenchPage'
 import { useSessionState } from './useSessionState'
 
 const menus = [
+  { id: 'research', label: '研究中心', mobileLabel: '研究', icon: FolderOpen },
   { id: 'screening', label: '投研助手', mobileLabel: '助手', icon: MessageCircle },
   { id: 'watchlist', label: '观察池', mobileLabel: '观察池', icon: Star },
   { id: 'news', label: '资讯库', mobileLabel: '资讯', icon: Newspaper },
@@ -31,7 +33,7 @@ function storedScreeningSection(): ScreeningSection {
 }
 
 export default function App() {
-  const [page, setPage] = useSessionState<PageId>('app.page', 'screening', (value): value is PageId => menus.some(item => item.id === value))
+  const [page, setPage] = useSessionState<PageId>('app.page', 'research', (value): value is PageId => menus.some(item => item.id === value))
   const [data, setData] = useState<DataStatus | null>(null)
   const [systemOpen, setSystemOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useSessionState('app.sidebarCollapsed', false, (value): value is boolean => typeof value === 'boolean')
@@ -39,6 +41,8 @@ export default function App() {
   const [screeningSection, setScreeningSection] = useState<ScreeningSection>(storedScreeningSection)
   const [conversationScope, setConversationScope] = useState<ConversationScope>('screening')
   const [conversationPrompt, setConversationPrompt] = useState<string | undefined>()
+  const [conversationId, setConversationId] = useState<string | undefined>()
+  const [projectId, setProjectId] = useState<string | undefined>()
   const [conversationSource, setConversationSource] = useState<{ reference: ConversationSourceReference; label: string } | null>(null)
 
   function changeScreeningSection(section: ScreeningSection) {
@@ -47,11 +51,13 @@ export default function App() {
   }
 
   function handleConversationScopeChange(scope: ConversationScope) {
+    setConversationId(undefined)
     setConversationScope(scope)
     setConversationSource(null)
   }
 
   function openConversation(scope: ConversationScope, source?: { reference: ConversationSourceReference; label: string }, prompt?: string) {
+    setConversationId(undefined)
     setConversationPrompt(prompt)
     setConversationScope(scope)
     setConversationSource(source ?? null)
@@ -64,6 +70,20 @@ export default function App() {
     setConversationSource(null)
     changeScreeningSection('compose')
     setPage('screening')
+  }
+
+  function resumeResearch(id: string, scope: ConversationScope) {
+    setConversationId(id)
+    setConversationScope(scope)
+    setConversationPrompt(undefined)
+    setConversationSource(null)
+    changeScreeningSection('conversation')
+    setPage('screening')
+  }
+
+  function openProject(id: string) {
+    setProjectId(id || undefined)
+    setPage('research')
   }
 
   const refreshStatus = () => {
@@ -83,7 +103,7 @@ export default function App() {
         <nav className="workspace-navigation" aria-label="主菜单">
           {['研究', '资料库'].map((group, index) => <div className="navigation-group" key={group}>
             <div className="workspace-label">{group}</div>
-            {menus.slice(index === 0 ? 0 : 2, index === 0 ? 2 : undefined).map(({ id, label, mobileLabel, icon: Icon }) => <button className={'nav-item ' + (page === id ? 'active' : '')} key={id} aria-label={label} title={label} aria-current={page === id ? 'page' : undefined} onClick={() => { if (id === 'screening') openConversation('screening'); else setPage(id) }}><Icon size={18} strokeWidth={1.8} /><span className="nav-label">{label}</span><span className="nav-mobile-label" aria-hidden="true">{mobileLabel}</span></button>)}
+            {menus.slice(index === 0 ? 0 : 3, index === 0 ? 3 : undefined).map(({ id, label, mobileLabel, icon: Icon }) => <button className={'nav-item ' + (page === id ? 'active' : '')} key={id} aria-label={label} title={label} aria-current={page === id ? 'page' : undefined} onClick={() => { if (id === 'screening') openConversation('screening'); else setPage(id) }}><Icon size={18} strokeWidth={1.8} /><span className="nav-label">{label}</span><span className="nav-mobile-label" aria-hidden="true">{mobileLabel}</span></button>)}
           </div>)}
         </nav>
         <div className="sidebar-bottom"><div className="research-data-status"><span className={'status-dot ' + (loadError ? 'warning' : data?.available ? 'good' : 'warning')} />{loadError ? '服务连接异常' : data ? data.available ? '行情可供查询' : '待添加行情数据' : '正在检查数据'}</div><button className="research-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务" title="数据与服务"><Settings2 size={17} /><span>数据与服务</span><ChevronRight size={14} className="settings-chevron" /></button></div>
@@ -93,8 +113,9 @@ export default function App() {
         {loadError && <div className="global-alert" role="alert"><AlertCircle size={16} /><span>暂时无法连接服务，请检查本地服务是否已启动。</span><button onClick={refreshStatus}><RefreshCw size={14} />重试</button></div>}
         <section className="page-frame" key={page}>
           <Suspense fallback={<div className="page-content">正在加载页面…</div>}>
+          {page === 'research' && <ResearchProjectsPage initialProjectId={projectId} onOpenConversation={resumeResearch} />}
           {page === 'watchlist' && <ObservationPage data={data} />}
-          {page === 'screening' && <WorkbenchPage data={data} conversationPrompt={conversationPrompt} onPromptConsumed={() => setConversationPrompt(undefined)} screeningOnly view={screeningSection} onViewChange={(section) => { if (section === 'conversation' || section === 'compose' || section === 'history') { setScreeningSection(section); if (section !== 'conversation') setConversationSource(null) } }} conversationScope={conversationScope} onConversationScopeChange={handleConversationScopeChange} conversationSource={conversationSource} onConversationSourceChange={setConversationSource} onReports={() => setPage('reports')} onCreateCondition={() => setPage('technical')} />}
+          {page === 'screening' && <WorkbenchPage data={data} conversationId={conversationId} onOpenProject={openProject} conversationPrompt={conversationPrompt} onPromptConsumed={() => setConversationPrompt(undefined)} screeningOnly view={screeningSection} onViewChange={(section) => { if (section === 'conversation' || section === 'compose' || section === 'history') { setScreeningSection(section); if (section !== 'conversation') setConversationSource(null) } }} conversationScope={conversationScope} onConversationScopeChange={handleConversationScopeChange} conversationSource={conversationSource} onConversationSourceChange={setConversationSource} onReports={() => setPage('reports')} onCreateCondition={() => setPage('technical')} />}
           {page === 'patterns' && <PatternPage onCompose={openComposition} onDiscuss={(id, version, name) => openConversation('pattern', { reference: { kind: 'pattern', source_id: id, version }, label: name })} />}
           {(page === 'technical' || page === 'news' || page === 'reports') && <LibraryWorkspace key={page} scope={page === 'reports' ? 'report' : page} data={data} onCompose={openComposition} onConversation={openConversation} onSettings={() => setSystemOpen(true)} />}
           </Suspense>

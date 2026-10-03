@@ -28,6 +28,7 @@ from .condition_api import router as condition_router
 from .pattern_language import router as pattern_language_router
 from .product_api import router as product_router
 from .observation_api import router as observation_router
+from .research_project_api import router as research_project_router
 from .condition_contract import filter_object
 from .db import connect, init_db, json_dump, json_load, utc_now
 from .indicators import INDICATORS, chart_display, values
@@ -87,6 +88,7 @@ app.include_router(saved_screening_router)
 app.include_router(pattern_language_router)
 app.include_router(product_router)
 app.include_router(observation_router)
+app.include_router(research_project_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

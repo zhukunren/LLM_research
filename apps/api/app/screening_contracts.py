@@ -32,6 +32,7 @@ def _normalized_quote(value: str) -> str:
 class CreateConversationRequest(ContractModel):
     entry_scope: ConversationScope
     research_mode: ResearchMode | None = None
+    project_id: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class UpdateResearchModeRequest(ContractModel):

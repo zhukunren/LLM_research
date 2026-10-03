@@ -12,10 +12,10 @@ import './usability.css'
 import './news.css'
 import './observation.css'
 import './visual-polish.css'
+import './research-projects.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <SecuritiesProvider><App /></SecuritiesProvider>
   </React.StrictMode>,
 )
-

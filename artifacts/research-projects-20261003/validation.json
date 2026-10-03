@@ -1,0 +1,41 @@
+{
+  "data": "isolated synthetic fixtures; no model calls; production database unchanged",
+  "checks": [
+    "project-create",
+    "company-association",
+    "note-write-and-reload",
+    "scoped-conversation-start",
+    "source-conversation-resume",
+    "answer-save-idempotent",
+    "source-artifact-link",
+    "manual-thesis-state-update",
+    "immutable-note-history"
+  ],
+  "layouts": [
+    {
+      "device": "desktop",
+      "viewport": 1440,
+      "document": 1440,
+      "clippedButtons": []
+    },
+    {
+      "device": "tablet",
+      "viewport": 820,
+      "document": 820,
+      "clippedButtons": []
+    },
+    {
+      "device": "mobile",
+      "viewport": 390,
+      "document": 390,
+      "clippedButtons": []
+    },
+    {
+      "device": "narrow",
+      "viewport": 320,
+      "document": 320,
+      "clippedButtons": []
+    }
+  ],
+  "page_errors": []
+}

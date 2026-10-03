@@ -432,7 +432,7 @@ label { font-size: 11px; }
   .sidebar-collapsed .sidebar { width: 100%; padding: 0 8px env(safe-area-inset-bottom); }
   .sidebar .navigation-group, .sidebar-collapsed .navigation-group + .navigation-group { display: contents; padding: 0; border: 0; }
   .mobile-header-brand { display: block; width: 30px; height: 26px; flex-shrink: 0; object-fit: contain; }
-  .sidebar .workspace-navigation { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; height: 64px; }
+  .sidebar .workspace-navigation { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; height: 64px; }
   .sidebar .nav-item { min-width: 0; min-height: 0; height: 64px; padding: 8px 0; flex-direction: column; gap: 4px; border-radius: 0; }
   .sidebar .nav-item .nav-label { display: none; }
   .sidebar .nav-item .nav-mobile-label { display: block; font-size: 10px; line-height: 1.4; white-space: nowrap; }

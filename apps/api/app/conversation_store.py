@@ -132,19 +132,28 @@ def keep_turn_alive(conversation_id: str, turn_id: str):
         thread.join(timeout=1)
 
 
-def create_conversation(entry_scope: str, research_mode: str = "research") -> dict[str, Any]:
+def create_conversation(entry_scope: str, research_mode: str = "research", project_id: str | None = None) -> dict[str, Any]:
     conversation_id = str(uuid4())
     now = utc_now()
     with connect() as connection:
+        if project_id:
+            from .research_projects import ProjectError, _require_project, _touch
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                _require_project(connection, project_id, writable=True)
+            except ProjectError as exc:
+                raise ConversationStoreError(str(exc)) from exc
+            _touch(connection, project_id)
         connection.execute(
-            "INSERT INTO conversations(id, entry_scope, research_mode, created_at, updated_at) VALUES(?,?,?,?,?)",
-            (conversation_id, entry_scope, research_mode, now, now),
+            "INSERT INTO conversations(id, entry_scope, research_mode, project_id, created_at, updated_at) VALUES(?,?,?,?,?,?)",
+            (conversation_id, entry_scope, research_mode, project_id, now, now),
         )
     return {
         "id": conversation_id,
         "task_id": conversation_id,
         "entry_scope": entry_scope,
         "research_mode": research_mode,
+        "project_id": project_id,
         "task_revision": 0,
         "active_run_id": None,
         "state": "active",
@@ -158,7 +167,7 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50) -> list[
     limit = max(1, min(int(limit), 100))
     with connect() as connection:
         rows = connection.execute(
-            """SELECT c.id,c.entry_scope,c.research_mode,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
+            """SELECT c.id,c.entry_scope,c.research_mode,c.project_id,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
                       (SELECT substr(m.content,1,120) FROM conversation_messages m
                        WHERE m.conversation_id=c.id AND m.role='user'
                        ORDER BY m.rowid LIMIT 1) AS title,
@@ -298,6 +307,7 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
         "task_id": conversation["id"],
         "entry_scope": conversation["entry_scope"],
         "research_mode": conversation["research_mode"],
+        "project_id": conversation["project_id"],
         "task_revision": conversation["task_revision"],
         "active_run_id": conversation["active_run_id"],
         "pending_execution": conversation["pending_execute_message_id"] is not None,

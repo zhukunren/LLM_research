@@ -18,6 +18,7 @@ import { TaskLogic, taskUniverseLabel } from './TaskBrief'
 import SavedTaskLibrary from './SavedTaskLibrary'
 import ResearchPanel from './ResearchPanel'
 import ResearchAnswer from './ResearchAnswer'
+import ProjectMembership from './ProjectMembership'
 import StockChartDialog from '../StockChartDialog'
 import type { DataStatus } from '../../api'
 import ScreeningResultView, { type UnifiedDecisionItem } from '../ScreeningResultView'
@@ -160,6 +161,7 @@ export default function ConversationWorkspace({
   onScopeChange,
   initialSource,
   onSourceChange,
+  onOpenProject,
 }: {
   data?: DataStatus | null
   initialConversationId?: string
@@ -169,6 +171,7 @@ export default function ConversationWorkspace({
   onScopeChange?: (scope: ConversationScope) => void
   initialSource?: { reference: ConversationSourceReference; label: string } | null
   onSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void
+  onOpenProject?: (id: string) => void
 }) {
   const [scope, setScope] = useState<ConversationScope>(initialScope)
   const [researchMode, setResearchMode] = useState<ResearchMode>('research')
@@ -215,6 +218,7 @@ export default function ConversationWorkspace({
   const [notice, setNotice] = useState('')
   const [saveName, setSaveName] = useState('')
   const [saving, setSaving] = useState(false)
+  const [savingNote, setSavingNote] = useState('')
   const [saveOpen, setSaveOpen] = useState(false)
   const [decisionError, setDecisionError] = useState('')
   const [decisionReload, setDecisionReload] = useState(0)
@@ -873,6 +877,18 @@ export default function ConversationWorkspace({
     finally { setBusy(false) }
   }
 
+  async function saveResearchAnswer(messageId: string) {
+    if (!conversation?.project_id || savingNote) return
+    setSavingNote(messageId); setError('')
+    try {
+      await api(`/research-projects/${conversation.project_id}/notes/from-message`, {
+        method: 'POST', body: JSON.stringify({ message_id: messageId }),
+      })
+      setNotice('答复已保存为研究笔记，可在研究中心补充验证事项和失效条件。')
+    } catch (reason) { setError((reason as Error).message) }
+    finally { setSavingNote('') }
+  }
+
   return (
     <div className="conversation-product">
       <div className="page-heading conversation-header-heading">
@@ -882,6 +898,7 @@ export default function ConversationWorkspace({
         </div>
         <div className="conversation-heading-actions"><button className="session-disclosure secondary-button" aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><MessageCircle size={15} />{sessionsOpen ? '收起对话与方案' : '对话与方案'}</button><button className="secondary-button conversation-new" aria-label="新研究" title="新研究" disabled={busy || saving || loadingSessions} onClick={createConversation}><Plus size={15} /><span>新研究</span></button></div>
       </div>
+      {conversation && <ProjectMembership conversationId={conversation.id} projectId={conversation.project_id} disabled={busy || saving || turnInProgress} onChange={projectId => setConversation(current => current?.id === conversation.id ? { ...current, project_id: projectId } : current)} onError={setError} onOpenProject={onOpenProject} />}
       <div className={`conversation-workspace ${showTaskPanel ? '' : 'conversation-workspace-start'} ${!conversation?.messages.length && !task ? 'conversation-workspace-empty' : ''}`}>
       <aside id="screening-sessions" className={`conversation-sessions ${sessionsOpen ? 'sessions-open' : ''}`} aria-label="对话列表">
         <div className="conversation-panel-heading">
@@ -946,6 +963,7 @@ export default function ConversationWorkspace({
                   {turn && <span className={`conversation-turn-state ${stateClass(turn.state)}`}>{stateLabels[turn.state] ?? turn.state}</span>}
                 </div>
                 {message.role === 'assistant' ? <ResearchAnswer content={message.content} conversationId={conversation.id} /> : <p className="conversation-plain-message">{message.content}</p>}
+                {message.role === 'assistant' && conversation.project_id && <button type="button" className="text-button research-save-answer" disabled={!!savingNote} onClick={() => void saveResearchAnswer(message.id)}><Bookmark size={14} />{savingNote === message.id ? '正在保存…' : '保存为研究笔记'}</button>}
                 {!!message.source_refs.length && <div className="conversation-source-refs">{message.source_refs.map((ref, index) => <span key={`${String(ref.source_id)}-${index}`}>{ref.kind === 'report_page' ? `${String(ref.title ?? '研报')} · 第 ${String(ref.page_number ?? '?')} 页` : String(ref.title ?? ref.source_id)}</span>)}</div>}
                 {turn?.state === 'failed' && conversation.messages.filter(item => item.role === 'user').at(-1)?.id === message.id && <button className="secondary-button compact" disabled={busy || turnInProgress} onClick={() => void submitMessage(message.content)}>重新处理</button>}{turn?.state === 'awaiting_agent' && !turn.job && <button className="secondary-button compact" disabled={busy} onClick={() => void processTurn(conversation.id, turn.id)}><Play size={14} />继续处理</button>}
               </article>

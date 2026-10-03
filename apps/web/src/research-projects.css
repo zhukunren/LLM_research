@@ -1,0 +1,69 @@
+.research-project-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: start; }
+.research-project-list { min-width: 0; padding: 12px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); }
+.research-project-list > input { width: 100%; }
+.research-archive-toggle { display: flex; gap: 8px; align-items: center; margin: 12px 0; font-size: 12px; color: var(--ui-text-muted); }
+.research-archive-toggle input { width: auto; }
+.research-project-row, .research-conversation-row, .research-file-row { display: flex; align-items: center; width: 100%; min-width: 0; gap: 10px; padding: 12px; text-align: left; border: 0; background: transparent; color: var(--ui-text); text-decoration: none; }
+.research-project-row { border-radius: var(--ui-radius-sm); }
+.research-project-row:hover, .research-conversation-row:hover, .research-file-row:hover { background: var(--ui-surface-hover); }
+.research-project-row.selected { background: var(--ui-primary-soft); color: var(--ui-primary); }
+.research-project-row > span, .research-conversation-row > span, .research-file-row > span { display: grid; gap: 5px; min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.research-project-row small, .research-conversation-row small, .research-file-row small, .research-secondary { color: var(--ui-text-muted); font-size: 12px; }
+.research-project-detail { background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); padding: 24px; min-width: 0; }
+.research-project-heading, .research-section-heading, .research-note-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.research-project-heading h2 { margin: 6px 0; font-size: 22px; overflow-wrap: anywhere; }
+.research-project-objective { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ui-text-muted); margin: 16px 0 24px; }
+.research-project-companies { padding: 12px 0 18px; }
+.research-section-heading h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 0; }
+.research-add-company { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.research-add-company .stock-search-control { width: 210px; max-width: 100%; }
+.research-company-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.research-company { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--ui-surface-subtle); border-radius: var(--ui-radius-xs); }
+.research-company.selected { background: var(--ui-primary-soft); }
+.research-company .stock-identity { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.research-project-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--ui-border); margin: 12px 0 18px; }
+.research-project-tabs button { display: flex; align-items: center; gap: 6px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ui-text-muted); padding: 12px 0; white-space: nowrap; }
+.research-project-tabs button[aria-selected="true"] { color: var(--ui-primary); border-bottom-color: var(--ui-primary); }
+.research-project-tabs button span { color: var(--ui-text-faint); font-size: 12px; }
+.research-note { padding: 20px 0; border-bottom: 1px solid var(--ui-border-subtle); }
+.research-note:last-child { border-bottom: 0; }
+.research-note-heading h3 { font-size: 16px; margin: 0; min-width: 0; overflow-wrap: anywhere; flex: 1; }
+.research-note-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; color: var(--ui-text-muted); font-size: 12px; margin: 10px 0 14px; }
+.research-note-status { font-size: 12px; padding: 4px 8px; border-radius: var(--ui-radius-xs); background: var(--ui-surface-subtle); color: var(--ui-text-muted); }
+.research-note-status.supported { color: var(--ui-success); background: var(--ui-success-soft); }
+.research-note-status.challenged, .research-note-status.invalidated { color: var(--ui-warning); background: var(--ui-warning-soft); }
+.research-note-checks { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; background: var(--ui-surface-subtle); padding: 14px; font-size: 13px; }
+.research-note-checks dt { color: var(--ui-text-muted); }
+.research-note-checks dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.research-project-form, .research-note-editor { display: grid; gap: 18px; }
+.research-project-form h2 { margin: 0; font-size: 18px; }
+.research-project-form label, .research-note-editor label { display: grid; gap: 8px; font-size: 13px; min-width: 0; }
+.research-project-form input, .research-project-form textarea, .research-note-editor input, .research-note-editor textarea, .research-note-editor select { width: 100%; }
+.research-note-editor textarea { resize: vertical; }
+.research-editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.research-note-conflict { padding: 16px; background: var(--ui-warning-soft); }
+.research-note-history { margin-top: 14px; color: var(--ui-text-muted); font-size: 12px; }
+.research-note-history > details { margin: 12px 0 0; padding: 12px; background: var(--ui-surface-subtle); }
+.research-note-history summary { overflow-wrap: anywhere; }
+.research-empty { text-align: center; padding: 40px 12px; color: var(--ui-text-muted); }
+.research-empty svg { color: var(--ui-primary); }
+.research-empty h2 { font-size: 18px; color: var(--ui-text); }
+.research-conversation-row, .research-file-row { border-bottom: 1px solid var(--ui-border-subtle); }
+.research-error { color: var(--ui-danger); padding: 12px 0; }
+.research-notice { color: var(--ui-success); font-size: 13px; }
+.project-membership { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ui-text-muted); flex-wrap: wrap; }
+.project-membership select { width: auto; max-width: min(420px, 100%); font-size: 12px; }
+.research-save-answer { margin-top: 12px; }
+@media (max-width: 1000px) { .research-project-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 16px; } .research-project-detail { padding: 18px; } }
+@media (max-width: 720px) {
+  .research-project-layout { grid-template-columns: minmax(0, 1fr); }
+  .research-project-heading h2 { font-size: 19px; }
+  .research-project-list { max-height: 240px; overflow-y: auto; }
+  .research-editor-fields { grid-template-columns: minmax(0, 1fr); }
+  .research-add-company { width: 100%; }
+  .research-add-company .stock-search-control { width: auto; flex: 1; min-width: 0; }
+  .research-project-tabs { gap: 14px; }
+  .research-project-tabs button { font-size: 13px; }
+  .research-project-tabs button svg { display: none; }
+  .research-note-checks { grid-template-columns: minmax(0, 1fr); }
+}

@@ -126,6 +126,7 @@ export type ConversationTurn = {
   updated_at: string
 }
 export type Conversation = {
+  project_id?: string | null
   id: string
   task_id: string
   entry_scope: ConversationScope

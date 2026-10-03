@@ -218,6 +218,7 @@ def _text_from_event(method: str, payload: dict[str, Any]) -> str:
 
 
 def _prompt(conversation_id: str, turn_id: str, workspace: dict | None = None) -> str:
+    from .research_projects import conversation_context
     turn = conversation_store.get_turn(conversation_id, turn_id)
     message = conversation_store.get_user_message(conversation_id, turn["user_message_id"])
     conversation = conversation_store.get_conversation(conversation_id, message_limit=20)
@@ -247,6 +248,7 @@ def _prompt(conversation_id: str, turn_id: str, workspace: dict | None = None) -
             "task_revision": revision,
             "source_references": message["source_refs"],
             "research_workspace": workspace,
+            "research_project": conversation_context(conversation_id),
             "research_mode": research_mode,
             "research_budget": research_mode_settings(research_mode),
             "mode_instructions": mode_instructions[research_mode],
