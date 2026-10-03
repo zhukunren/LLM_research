@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, CalendarRange, RefreshCw, Search, X } from 'lucide-react'
+import { ArrowLeft, CalendarRange, MessageCircle, RefreshCw, Search, X } from 'lucide-react'
 import { api } from '../api'
 import { isPageOffset, isText, useSessionState } from '../useSessionState'
 import '../news.css'
@@ -127,7 +127,7 @@ export default function NewsPage({ onDiscuss, importOpen = false, onImportClose 
         <div className="news-reader-tools"><div><button className="text-button reader-back" onClick={() => catalog.current?.scrollIntoView({ behavior: 'smooth' })}><ArrowLeft size={14} />列表</button></div><div><button className="secondary-button compact" aria-label="缩小资讯字体" disabled={fontSize <= 12} onClick={() => setFontSize(value => value - 1)}>A-</button><span className="font-size-value" aria-label="当前资讯字号">{readingFontSize}</span><button className="secondary-button compact" aria-label="放大资讯字体" disabled={fontSize >= 24} onClick={() => setFontSize(value => value + 1)}>A+</button></div></div>
         {reading ? <div className="library-loading" role="status">正在读取正文…</div> : readError ? <div className="library-error" role="alert">{readError}<button className="text-button" onClick={() => setReadRetry(value => value + 1)}>重试读取</button></div> : selected ? <article className="local-news-reader" style={{ fontSize: readingFontSize }}>
           <h3>{selected.title}</h3><p className="news-metadata">{sourceLabel(selected.source)} · {chinaTime(selected.published_at ?? selected.available_at)}{selected.stock_codes.length > 0 && ' · ' + selected.stock_codes.join('、')}</p><div className="news-body">{selected.body}</div>
-          {onDiscuss && <button className="quiet-button" onClick={() => onDiscuss(selected)}>基于此资讯筛选 →</button>}
+          {onDiscuss && <button className="quiet-button" onClick={() => onDiscuss(selected)}><MessageCircle size={15} />基于此资讯研究</button>}
         </article> : <div className="library-empty">选择一条资讯阅读。</div>}
       </section>
     </div>

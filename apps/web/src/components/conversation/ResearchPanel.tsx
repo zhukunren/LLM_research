@@ -143,6 +143,6 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
         <div className="research-pagination"><span>{total ? `${offset + 1}-${Math.min(offset + PAGE_SIZE, total)} / ${total}` : '0 / 0'}</span><button className="icon-button" title="上一页研究结果" aria-label="上一页研究结果" disabled={offset === 0} onClick={() => setOffset(value => Math.max(0, value - PAGE_SIZE))}><ChevronLeft size={16} /></button><button className="icon-button" title="下一页研究结果" aria-label="下一页研究结果" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(value => value + PAGE_SIZE)}><ChevronRight size={16} /></button></div>
       </>}
     </>}
-    {!!outputs.length && <ul className="research-output-list">{outputs.map(item => <li key={item.name}><a href={item.url} download><Download size={14} /><span>{item.name}</span><small>{item.bytes < 1024 ? `${item.bytes} B` : `${Math.ceil(item.bytes / 1024)} KB`}</small></a></li>)}</ul>}
+    {!!outputs.length && <ul className="research-output-list">{outputs.map(item => <li key={item.name}><a href={item.url} download title={item.name}><Download size={14} /><span>{item.name}</span><small>{item.bytes < 1024 ? `${item.bytes} B` : `${Math.ceil(item.bytes / 1024)} KB`}</small></a></li>)}</ul>}
   </section>
 }

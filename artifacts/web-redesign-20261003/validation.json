@@ -1,0 +1,383 @@
+{
+  "date": "2026-10-03",
+  "previewUrl": "http://127.0.0.1:5173/",
+  "referenceProject": "D:/项目/急速回测_重构版/web/frontend",
+  "checks": {
+    "productionBuild": "passed",
+    "frontendSuite": {
+      "files": 11,
+      "passed": 45
+    },
+    "finalTargetedRegression": {
+      "files": 2,
+      "passed": 4
+    }
+  },
+  "mainViews": [
+    {
+      "device": "desktop",
+      "page": "assistant",
+      "clipped": [],
+      "document": 1430,
+      "width": 1440
+    },
+    {
+      "device": "desktop",
+      "page": "observation",
+      "clipped": [],
+      "document": 1440,
+      "width": 1440
+    },
+    {
+      "device": "desktop",
+      "page": "news",
+      "clipped": [],
+      "document": 1430,
+      "width": 1440
+    },
+    {
+      "device": "desktop",
+      "page": "technical",
+      "clipped": [],
+      "document": 1430,
+      "width": 1440
+    },
+    {
+      "device": "desktop",
+      "page": "patterns",
+      "clipped": [],
+      "document": 1430,
+      "width": 1440
+    },
+    {
+      "device": "desktop",
+      "page": "reports",
+      "clipped": [],
+      "document": 1430,
+      "width": 1440
+    },
+    {
+      "device": "laptop",
+      "page": "assistant",
+      "clipped": [],
+      "document": 1090,
+      "width": 1100
+    },
+    {
+      "device": "laptop",
+      "page": "observation",
+      "clipped": [],
+      "document": 1100,
+      "width": 1100
+    },
+    {
+      "device": "laptop",
+      "page": "news",
+      "clipped": [],
+      "document": 1090,
+      "width": 1100
+    },
+    {
+      "device": "laptop",
+      "page": "technical",
+      "clipped": [],
+      "document": 1090,
+      "width": 1100
+    },
+    {
+      "device": "laptop",
+      "page": "patterns",
+      "clipped": [],
+      "document": 1100,
+      "width": 1100
+    },
+    {
+      "device": "laptop",
+      "page": "reports",
+      "clipped": [],
+      "document": 1090,
+      "width": 1100
+    },
+    {
+      "device": "tablet",
+      "page": "assistant",
+      "clipped": [],
+      "document": 810,
+      "width": 820
+    },
+    {
+      "device": "tablet",
+      "page": "observation",
+      "clipped": [],
+      "document": 820,
+      "width": 820
+    },
+    {
+      "device": "tablet",
+      "page": "news",
+      "clipped": [],
+      "document": 810,
+      "width": 820
+    },
+    {
+      "device": "tablet",
+      "page": "technical",
+      "clipped": [],
+      "document": 810,
+      "width": 820
+    },
+    {
+      "device": "tablet",
+      "page": "patterns",
+      "clipped": [],
+      "document": 810,
+      "width": 820
+    },
+    {
+      "device": "tablet",
+      "page": "reports",
+      "clipped": [],
+      "document": 810,
+      "width": 820
+    },
+    {
+      "device": "mobile",
+      "page": "assistant",
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    },
+    {
+      "device": "mobile",
+      "page": "observation",
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    },
+    {
+      "device": "mobile",
+      "page": "news",
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    },
+    {
+      "device": "mobile",
+      "page": "technical",
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    },
+    {
+      "device": "mobile",
+      "page": "patterns",
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    },
+    {
+      "device": "mobile",
+      "page": "reports",
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    },
+    {
+      "device": "narrow",
+      "page": "assistant",
+      "clipped": [],
+      "document": 320,
+      "width": 320
+    },
+    {
+      "device": "narrow",
+      "page": "observation",
+      "clipped": [],
+      "document": 320,
+      "width": 320
+    },
+    {
+      "device": "narrow",
+      "page": "news",
+      "clipped": [],
+      "document": 320,
+      "width": 320
+    },
+    {
+      "device": "narrow",
+      "page": "technical",
+      "clipped": [],
+      "document": 320,
+      "width": 320
+    },
+    {
+      "device": "narrow",
+      "page": "patterns",
+      "clipped": [],
+      "document": 320,
+      "width": 320
+    },
+    {
+      "device": "narrow",
+      "page": "reports",
+      "clipped": [],
+      "document": 320,
+      "width": 320
+    }
+  ],
+  "libraryViews": [
+    {
+      "device": "desktop",
+      "page": "news",
+      "keyboard": true,
+      "clipped": [],
+      "document": 1440,
+      "width": 1440
+    },
+    {
+      "device": "desktop",
+      "page": "technical",
+      "keyboard": true,
+      "clipped": [],
+      "document": 1430,
+      "width": 1440
+    },
+    {
+      "device": "desktop",
+      "page": "reports",
+      "keyboard": true,
+      "clipped": [],
+      "document": 1440,
+      "width": 1440
+    },
+    {
+      "device": "mobile",
+      "page": "news",
+      "keyboard": true,
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    },
+    {
+      "device": "mobile",
+      "page": "technical",
+      "keyboard": true,
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    },
+    {
+      "device": "mobile",
+      "page": "reports",
+      "keyboard": true,
+      "clipped": [],
+      "document": 380,
+      "width": 390
+    }
+  ],
+  "pdf": [
+    {
+      "device": "desktop",
+      "pageChange": true,
+      "zoomCustom": true,
+      "wholePage": true,
+      "focusExited": true,
+      "canvas": {
+        "displayHeight": 618,
+        "displayWidth": 436.984375,
+        "height": 618,
+        "width": 436
+      }
+    },
+    {
+      "device": "laptop",
+      "pageChange": true,
+      "zoomCustom": true,
+      "wholePage": true,
+      "focusExited": true,
+      "canvas": {
+        "displayHeight": 546,
+        "displayWidth": 386.0703125,
+        "height": 546,
+        "width": 386
+      }
+    },
+    {
+      "device": "tablet",
+      "pageChange": true,
+      "zoomCustom": true,
+      "wholePage": true,
+      "focusExited": true,
+      "canvas": {
+        "displayHeight": 690,
+        "displayWidth": 487.890625,
+        "height": 690,
+        "width": 487
+      }
+    },
+    {
+      "device": "mobile",
+      "pageChange": true,
+      "zoomCustom": true,
+      "wholePage": true,
+      "focusExited": true,
+      "canvas": {
+        "displayHeight": 458.203125,
+        "displayWidth": 324,
+        "height": 458,
+        "width": 324
+      }
+    },
+    {
+      "device": "narrow",
+      "pageChange": true,
+      "zoomCustom": true,
+      "wholePage": true,
+      "focusExited": true,
+      "canvas": {
+        "displayHeight": 373.3515625,
+        "displayWidth": 264,
+        "height": 373,
+        "width": 264
+      }
+    }
+  ],
+  "shell": {
+    "collapsedPersisted": true,
+    "mobileNavigation": [
+      {
+        "label": "投研助手",
+        "text": "助手",
+        "width": 50.6640625
+      },
+      {
+        "label": "观察池",
+        "text": "观察池",
+        "width": 50.6640625
+      },
+      {
+        "label": "资讯库",
+        "text": "资讯",
+        "width": 50.671875
+      },
+      {
+        "label": "技术指标库",
+        "text": "指标",
+        "width": 50.6640625
+      },
+      {
+        "label": "形态库",
+        "text": "形态",
+        "width": 50.6640625
+      },
+      {
+        "label": "研报库",
+        "text": "研报",
+        "width": 50.671875
+      }
+    ],
+    "suggestionFilled": true,
+    "emptyTaskPanel": 0
+  },
+  "browserErrors": []
+}

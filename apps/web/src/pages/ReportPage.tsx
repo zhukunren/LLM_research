@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUpRight, RefreshCw, Search, Upload, X } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, MessageCircle, RefreshCw, Search, Upload, X } from 'lucide-react'
 import { api } from '../api'
 import PdfReader from '../components/PdfReader'
 import { isText, useSessionState } from '../useSessionState'
@@ -149,7 +149,7 @@ export default function ReportPage({ onDescribe }: { contentOnly?: boolean; onDe
           {!!selectedHits.length && <details className="report-search-hits"><summary>正文命中 {selectedHits.length} 页</summary>{selectedHits.map(hit => <button key={hit.page_number} onClick={() => setPage(hit.page_number)}><strong>第 {hit.page_number} 页</strong><span>{hit.snippet}</span></button>)}</details>}
           <PdfReader key={selected.id} url={'/api/v1/documents/' + selected.id + '/pdf'} page={page} onPageChange={setPage}
             pageControls={<label className="pdf-page-jump"><input aria-label="研报页码" type="number" min={1} max={selected.pages} value={pageInput} onBlur={commitPage} onKeyDown={event => { if (event.key === 'Enter') commitPage() }} onChange={event => { setPageInput(event.target.value); const next = Number(event.target.value); if (Number.isInteger(next) && next >= 1 && next <= selected.pages) setPage(next) }} /><span>/ {selected.pages}</span></label>}
-            actions={onDescribe && <button className="quiet-button" onClick={() => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title })}>基于此页描述需求</button>} />
+            actions={onDescribe && <button className="quiet-button" onClick={() => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title })}><MessageCircle size={15} />研究此页</button>} />
         </> : <div className="library-empty">{loading ? '正在加载…' : '选择一份研报阅读。'}</div>}
       </section>
     </div>

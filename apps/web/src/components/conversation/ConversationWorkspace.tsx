@@ -880,7 +880,7 @@ export default function ConversationWorkspace({
           <h1>投研助手</h1>
           <span className="conversation-session-caption">{sessions.find(item => item.id === selectedId)?.title || '新研究'}</span>
         </div>
-        <div className="conversation-heading-actions"><button className="session-disclosure secondary-button" aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><MessageCircle size={15} />{sessionsOpen ? '收起对话与方案' : '对话与方案'}</button><button className="secondary-button conversation-new" disabled={busy || saving || loadingSessions} onClick={createConversation}><Plus size={15} />新研究</button></div>
+        <div className="conversation-heading-actions"><button className="session-disclosure secondary-button" aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><MessageCircle size={15} />{sessionsOpen ? '收起对话与方案' : '对话与方案'}</button><button className="secondary-button conversation-new" aria-label="新研究" title="新研究" disabled={busy || saving || loadingSessions} onClick={createConversation}><Plus size={15} /><span>新研究</span></button></div>
       </div>
       <div className={`conversation-workspace ${showTaskPanel ? '' : 'conversation-workspace-start'} ${!conversation?.messages.length && !task ? 'conversation-workspace-empty' : ''}`}>
       <aside id="screening-sessions" className={`conversation-sessions ${sessionsOpen ? 'sessions-open' : ''}`} aria-label="对话列表">

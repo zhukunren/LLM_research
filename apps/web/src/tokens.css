@@ -3,38 +3,38 @@
  * Shared visual tokens aligned with the quantitative research workspace.
  */
 :root {
-  --ui-font-sans: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --ui-font-sans: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
   --ui-font-mono: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
 
   color-scheme: light;
 
   /* Surfaces & Canvas */
-  --ui-canvas: #ffffff;
+  --ui-canvas: #f3f6fa;
   --ui-surface: #ffffff;
-  --ui-surface-subtle: #f6f8f9;
-  --ui-surface-hover: #eef2f3;
-  --ui-surface-active: #eaf3f3;
+  --ui-surface-subtle: #f8fafc;
+  --ui-surface-hover: #f1f6fb;
+  --ui-surface-active: #edf4fa;
 
   /* Typography Colors */
-  --ui-text: #222c30;
-  --ui-text-muted: #59666b;
-  --ui-text-faint: #728087;
+  --ui-text: #203249;
+  --ui-text-muted: #566b82;
+  --ui-text-faint: #6b7d90;
   --ui-text-disabled: #a0b0c0;
 
   /* Borders & Dividers */
-  --ui-border: #dfe5e7;
-  --ui-border-subtle: #edf0f1;
-  --ui-border-strong: #bdc6d0;
+  --ui-border: #dfe7ef;
+  --ui-border-subtle: #e9eef3;
+  --ui-border-strong: #b9c9d8;
 
-  /* Primary Brand: Soochow Blue (东吴蓝) */
+  /* Palette shared with the reference quantitative research workspace. */
   --ui-brand: #174f78;
-  --ui-brand-navy: #0f3957;
-  --ui-accent: #16786b;
-  --ui-primary: #236773;
-  --ui-primary-hover: #19545f;
-  --ui-primary-active: #13434c;
-  --ui-primary-soft: #edf5f5;
-  --ui-primary-border: #bbd7d9;
+  --ui-brand-navy: var(--ui-brand);
+  --ui-accent: #087e8b;
+  --ui-primary: var(--ui-brand);
+  --ui-primary-hover: #095679;
+  --ui-primary-active: #074762;
+  --ui-primary-soft: #eaf2fa;
+  --ui-primary-border: #afd0df;
   --ui-on-primary: #ffffff;
   --ui-chart-line: #32839b;
   --ui-chart-area: rgba(50, 131, 155, 0.09);
@@ -59,12 +59,12 @@
   --ui-danger-border: #efc3c5;
 
   /* Sidebar Tokens */
-  --ui-sidebar: #f7f9fa;
-  --ui-sidebar-border: #e4e9eb;
-  --ui-sidebar-text: #505d6a;
-  --ui-sidebar-muted: #687482;
-  --ui-sidebar-hover: #edf1f3;
-  --ui-sidebar-active: #e7eff0;
+  --ui-sidebar: #ffffff;
+  --ui-sidebar-border: #dce5ee;
+  --ui-sidebar-text: #3e5a73;
+  --ui-sidebar-muted: #718599;
+  --ui-sidebar-hover: #f0f5fa;
+  --ui-sidebar-active: #edf4fa;
 
   /* Corner Radii */
   --ui-radius-xs: 6px;
@@ -85,7 +85,7 @@
   --ui-control-sm: 30px;
   --ui-control-md: 36px;
   --ui-control-lg: 40px;
-  --ui-header-height: 56px;
+  --ui-header-height: 64px;
   --ui-transition: 150ms ease;
 
   /* Backward Compatibility Aliases */

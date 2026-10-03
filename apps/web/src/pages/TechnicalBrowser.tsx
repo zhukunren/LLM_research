@@ -77,7 +77,7 @@ function IndicatorLine({ series }: { series: Preview['series'] }) {
   const min = Math.min(...known), max = Math.max(...known), span = max - min || 1
   let open = false
   const path = series.map((item, index) => { if (item.value === null) { open = false; return '' } const point = `${15 + index * 670 / Math.max(1, series.length - 1)},${180 - (item.value - min) / span * 150}`; const result = `${open ? 'L' : 'M'}${point}`; open = true; return result }).join(' ')
-  return <div className="indicator-chart"><svg viewBox="0 0 700 210" role="img" aria-label="所选指标的真实历史走势"><line x1="15" x2="685" y1="180" y2="180" stroke="#dce6dd" /><line x1="15" x2="685" y1="105" y2="105" stroke="#ecf1ec" /><path d={path} stroke="#357552" fill="none" strokeWidth="2.3" /><text x="15" y="205">{series[0]?.date}</text><text x="685" y="205" textAnchor="end">{series.at(-1)?.date}</text></svg><small>范围 {fmt(min)} — {fmt(max)}；缺失值留空。</small></div>
+  return <div className="indicator-chart"><svg viewBox="0 0 700 210" role="img" aria-label="所选指标的真实历史走势"><line x1="15" x2="685" y1="180" y2="180" stroke="var(--ui-border)" /><line x1="15" x2="685" y1="105" y2="105" stroke="var(--ui-border-subtle)" /><path d={path} stroke="var(--ui-chart-line)" fill="none" strokeWidth="2.3" /><text x="15" y="205">{series[0]?.date}</text><text x="685" y="205" textAnchor="end">{series.at(-1)?.date}</text></svg><small>范围 {fmt(min)} — {fmt(max)}；缺失值留空。</small></div>
 }
 
 export function MarketIndicatorChart({ chart }: { chart: IndicatorChart }) {

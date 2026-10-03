@@ -154,7 +154,7 @@ export default function ObservationPage({ data }: { data: DataStatus | null }) {
   const selectedTasks = saved.filter(item => `${item.name} ${item.task.conditions.map(c => c.description).join(' ')}`.toLowerCase().includes(assetQuery.toLowerCase().trim()) || `${item.id}@${item.version}` === asset)
 
   return <div className="page-content observation-page">
-    <div className="page-heading"><div><p className="eyebrow">保存一次判断，持续观察后续表现</p><h1>观察池</h1></div><button className="secondary-button" onClick={() => { setError(''); setRefresh(value => value + 1) }}><RefreshCw size={15} />刷新</button></div>
+    <div className="page-heading"><div><span className="workspace-eyebrow">研究跟踪</span><h1>观察池</h1></div><button className="secondary-button" onClick={() => { setError(''); setRefresh(value => value + 1) }}><RefreshCw size={15} />刷新</button></div>
     <div className="observation-tabs" role="tablist" aria-label="观察池页面"><button role="tab" id="screening-tab" aria-controls="observation-panel" aria-selected={tab === 'screening'} onClick={() => switchTab('screening')}>选股</button><button role="tab" id="observation-tab" aria-controls="observation-panel" aria-selected={tab === 'observation'} onClick={() => switchTab('observation')}>观察池</button></div>
     {error && <div className="library-error" role="alert">{error}</div>}{notice && <div className="inline-notice" role="status">{notice}</div>}
     <section id="observation-panel" role="tabpanel" aria-labelledby={`${tab}-tab`}>

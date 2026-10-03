@@ -26,7 +26,7 @@ export function chartOption(chart: Chart) {
     dataZoom: [{ type: 'inside', xAxisIndex: [0, 1], startValue: Math.max(0, signalIndex - 45), endValue: Math.min(dates.length - 1, Math.max(signalIndex + 90, 100)) }, { type: 'slider', xAxisIndex: [0, 1], bottom: 0, height: 20, textStyle: { fontSize: 11 } }],
     series: [{ name: '日线', type: 'candlestick', data: chart.bars.map(bar => bar.quality_valid ? [bar.open, bar.close, bar.low, bar.high] : ['-', '-', '-', '-']), itemStyle: { color: '#cf3843', color0: '#1c8874', borderColor: '#cf3843', borderColor0: '#1c8874' },
       markLine: { symbol: 'none', silent: true, lineStyle: { color: '#174f78', type: 'dashed' }, data: signalIndex >= 0 ? [{ xAxis: chart.signal_date, label: { formatter: '选股日', position: 'insideEndTop', fontSize: 11 } }] : [] },
-      markArea: { silent: true, itemStyle: { color: 'rgba(23,79,120,0.045)' }, data: signalIndex >= 0 && chart.cutoff > chart.signal_date ? [[{ xAxis: chart.signal_date }, { xAxis: dates.at(-1) }]] : [] },
+      markArea: { silent: true, itemStyle: { color: 'rgba(50,131,155,0.045)' }, data: signalIndex >= 0 && chart.cutoff > chart.signal_date ? [[{ xAxis: chart.signal_date }, { xAxis: dates.at(-1) }]] : [] },
       markPoint: { symbol: 'pin', symbolSize: 32, label: { formatter: '选', fontSize: 10 }, data: markerDays.flatMap(day => {
         const bar = chart.bars.find(item => item.trade_date === day)
         if (!bar?.quality_valid || bar.high == null) return []
