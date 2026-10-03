@@ -50,27 +50,32 @@ export default function ResearchNoteEvidence({ project, note, asOf }: { project:
   const [snapshot, setSnapshot] = useState<SourceChunk | null>(null)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const snapshotRequest = useRef(0)
   useEffect(() => {
     if (!open) return
     const controller = new AbortController()
-    setError('')
+    setError(''); setLoading(true)
     api<{ items: ResearchClaim[]; next_offset: number | null }>(`/research-projects/${project.id}/notes/${note.id}/claims?offset=${offset}`, { signal: controller.signal })
-      .then(result => { setClaims(result.items); setNext(result.next_offset) }).catch(reason => { if (!controller.signal.aborted) setError((reason as Error).message) })
+      .then(result => { if (!controller.signal.aborted) { setClaims(result.items); setNext(result.next_offset) } }).catch(reason => { if (!controller.signal.aborted) setError((reason as Error).message) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [open, project.id, note.id, offset, reload])
   async function readSnapshot(claimId: string, index: number) {
+    const request = ++snapshotRequest.current
     setError(''); setSnapshot(null)
-    try { setSnapshot(await api<SourceChunk>(`/research-projects/${project.id}/claims/${claimId}/evidence/${index}`)) }
-    catch (reason) { setError((reason as Error).message) }
+    try { const result = await api<SourceChunk>(`/research-projects/${project.id}/claims/${claimId}/evidence/${index}`); if (request === snapshotRequest.current) setSnapshot(result) }
+    catch (reason) { if (request === snapshotRequest.current) setError((reason as Error).message) }
   }
   return <details className="research-note-evidence" onToggle={event => { if (event.currentTarget === event.target) setOpen(event.currentTarget.open) }}><summary>判断与原文依据</summary>
     {open && <><div className="research-section-heading"><p className="research-secondary">引用已定位到原文，不代表判断已被证实。</p>{project.status === 'active' && !editing && <button className="secondary-button" onClick={() => setEditing(true)}>添加判断与依据</button>}</div>
       {editing && <ClaimBuilder project={project} note={note} asOf={asOf} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); setOffset(0); setReload(value => value + 1) }} />}
       {error && <p className="research-error" role="alert">{error}<button className="text-button" onClick={() => setReload(value => value + 1)}>重试依据加载</button></p>}
       {claims.map(claim => <article className="research-claim" key={claim.id}><div className="research-note-meta"><span>{claimKinds[claim.kind]}</span><span>关联第 {claim.note_revision} 版笔记</span><span>研究截至 {claim.as_of}</span></div><h4>{claim.statement}</h4>{claim.evidence.map((evidence, index) => <div className="research-citation" key={`${evidence.source_id}:${index}`}><span className="research-secondary">{evidenceStances[evidence.stance]} · {evidence.title}{evidence.source_type === 'report' ? ` · 第 ${evidence.page_number} 页` : ` · 第 ${evidence.source_version} 版`}</span><blockquote>{evidence.quote}</blockquote><button className="text-button" onClick={() => void readSnapshot(claim.id, index)}>定位原文</button></div>)}</article>)}
-      {!claims.length && !editing && !error && <p className="research-secondary">还没有保存原文依据。可选择公司的资讯或研报，将判断关联到具体段落。</p>}
+      {loading && <p className="research-secondary" role="status">正在读取已保存的依据…</p>}
+      {!loading && !claims.length && !editing && !error && <p className="research-secondary">还没有保存原文依据。可选择公司的资讯或研报，将判断关联到具体段落。</p>}
       {(offset > 0 || next !== null) && <div className="heading-actions"><button className="text-button" disabled={!offset} onClick={() => setOffset(value => Math.max(0, value - 20))}>上一页判断</button><button className="text-button" disabled={next === null} onClick={() => setOffset(next!)}>下一页判断</button></div>}
-      {snapshot && <><button className="text-button" onClick={() => setSnapshot(null)}>收起原文</button><ResearchSourceReader projectId={project.id} snapshot={snapshot} /></>}
+      {snapshot && <><button className="text-button" onClick={() => { snapshotRequest.current++; setSnapshot(null) }}>收起原文</button><ResearchSourceReader projectId={project.id} snapshot={snapshot} /></>}
     </>}
   </details>
 }

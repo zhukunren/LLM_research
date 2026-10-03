@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type DataStatus } from '../api'
 import { useSecurities } from '../components/StockSearch'
+import { trapDialogTab } from '../keyboard'
 
-type Settings = { text_model: { configured: boolean; model: string | null; api_mode?: string | null }; tushare: { configured: boolean } }
+type Settings = { text_model: { configured: boolean; model: string | null; api_mode?: string | null }; tushare: { configured: boolean }; codex_runtime?: { available: boolean; reason?: string } }
 type UpdateJob = { id: string; state: string; message: string; progress: number; updated_at: string }
 export default function DataServicesPanel({ data, onClose, onRefresh }: { data: DataStatus | null; onClose: () => void; onRefresh: () => void }) {
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -19,9 +20,12 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
   const updating = !!job && ['queued', 'running'].includes(job.state)
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
+    const controller = new AbortController()
+    document.body.style.overflow = 'hidden'
     closeButton.current?.focus()
-    api<Settings>('/settings/status').then(setSettings).catch(reason => setError(reason.message))
-    return () => previous?.focus()
+    api<Settings>('/settings/status', { signal: controller.signal }).then(value => { if (!controller.signal.aborted) setSettings(value) }).catch(reason => { if (!controller.signal.aborted) setError(reason.message) })
+    return () => { controller.abort(); document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus() }
   }, [])
   useEffect(() => {
     let active = true, pending = false
@@ -55,13 +59,13 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
       const current = await api<Settings>('/settings/status'); setSettings(current)
       if (!current.text_model.configured) { setModelResult('智能助手尚未配置，请联系维护者完成首次设置。'); return }
       const result = await api<{ connected: boolean }>('/settings/model-test', { method: 'POST' })
-      setModelResult(result.connected ? '智能助手连接正常，可以整理选股要求。' : '智能助手暂时无法连接，请稍后重试，或保存诊断信息交给维护者。')
-    } catch { setModelResult('暂时无法连接本地服务。请双击项目中的“启动投研工作台”，再重新检查。') }
+      setModelResult(result.connected ? current.codex_runtime?.available === false ? '模型接口已连通，研究环境尚未就绪。请保存诊断信息交给维护者。' : current.codex_runtime?.available ? '模型接口连接正常，研究环境已就绪。' : '模型接口已连通，研究环境状态尚待确认。' : '模型接口暂时无法连接，请稍后重试，或保存诊断信息交给维护者。')
+    } catch (reason) { setModelResult((reason as Error).message || '连接检查失败，请稍后重试。') }
     finally { setChecking(false) }
   }
   function downloadDiagnostics() {
     const report = { checked_at: new Date().toISOString(), market_date: data?.last_date ?? null, market_available: !!data?.available,
-      quality_status: data?.quality_status, model_configured: !!settings?.text_model.configured, connection: modelResult,
+      quality_status: data?.quality_status, model_configured: !!settings?.text_model.configured, research_runtime_available: settings?.codex_runtime?.available ?? null, research_runtime_reason: settings?.codex_runtime?.reason ?? null, connection: modelResult,
       update: job ? { state: job.state, message: job.message, updated_at: job.updated_at } : null }
     const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'text/plain;charset=utf-8' }))
     const link = document.createElement('a'); link.href = url; link.download = '投研工作台-诊断信息.txt'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -69,12 +73,7 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
   return <div className="drawer-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
     <aside className="system-drawer" role="dialog" aria-modal="true" aria-label="数据与服务" onKeyDown={event => {
       if (event.key === 'Escape') onClose()
-      if (event.key === 'Tab') {
-        const elements = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), summary, a[href]')]
-        const first = elements[0], last = elements.at(-1)
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
-        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
-      }
+      trapDialogTab(event)
     }}>
       <div className="drawer-header"><h2>数据与服务</h2><button ref={closeButton} className="secondary-button compact" onClick={onClose}>关闭</button></div>
       {error && <p role="alert" className="library-error">{error}<button className="text-button" onClick={() => { setError(''); setPoll(i => i + 1); onRefresh() }}>重新检查</button></p>}

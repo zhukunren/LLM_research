@@ -2,46 +2,70 @@ import { PointerEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, BookOpen, ImageUp, RefreshCw, Library, MessageCircle, Plus, Save, Search, Sparkles, Trash2 } from 'lucide-react'
 import { api, type Pattern } from '../api'
 import { appendCombination } from '../libraryContext'
-import { MarketIndicatorChart, type ChartBar } from './TechnicalBrowser'
+import { ResponsiveMarketIndicatorChart as MarketIndicatorChart, type ChartBar } from './TechnicalBrowser'
+import { navigateTabs } from '../keyboard'
 
 type Point = { x: number; y: number }
 type Candle = { open: number; high: number; low: number; close: number }
 type Extraction = { points: number[]; target_bars: number; quality: { confidence: number; horizontal_coverage: number; requires_manual_review: boolean; limitations: string[] } }
 type ShapeDraft = { id: string; prompt: string; status: string; name: string; points: number[]; target_bars: number; min_similarity: number; assumptions: string[]; issues: string[]; description: string }
+type EditorSnapshot = { activeId: string; version: number; name: string; mode: 'price_path' | 'ohlc_sequence'; source: 'drawing' | 'screenshot' | 'natural_language'; panel: 'browse' | 'create' | 'saved'; draft: ShapeDraft | null; sourceDraftId: string; minSimilarity: number; matchMode: 'current' | 'recent'; recentBars: number; dirty: boolean; targetBars: number; rawPoints: Point[]; candles: Candle[]; selectedCandle: number; imageData: string; savedImageUrl: string; imageMime: 'image/png' | 'image/jpeg' | 'image/webp'; imageName: string; crop: { x: number; y: number; width: number; height: number }; quality: Extraction['quality'] | null }
+function validShapeDraft(value: unknown): value is ShapeDraft {
+  if (!value || typeof value !== 'object') return false
+  const draft = value as ShapeDraft
+  return ['id', 'prompt', 'name', 'status', 'description'].every(key => typeof (draft as unknown as Record<string, unknown>)[key] === 'string')
+    && Array.isArray(draft.points) && draft.points.every(Number.isFinite) && Number.isInteger(draft.target_bars) && draft.target_bars >= 10 && draft.target_bars <= 250
+    && Number.isFinite(draft.min_similarity) && Array.isArray(draft.assumptions) && draft.assumptions.every(value => typeof value === 'string') && Array.isArray(draft.issues) && draft.issues.every(value => typeof value === 'string')
+}
+function readEditor(): EditorSnapshot | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem('pattern.editor') || 'null') as EditorSnapshot | null
+    if (!value || !['price_path', 'ohlc_sequence'].includes(value.mode) || !['drawing', 'screenshot', 'natural_language'].includes(value.source) || !['browse', 'create', 'saved'].includes(value.panel)) return null
+    if (!['activeId', 'name', 'sourceDraftId', 'imageData', 'savedImageUrl', 'imageName'].every(key => typeof (value as unknown as Record<string, unknown>)[key] === 'string')) return null
+    if (!Number.isInteger(value.version) || value.version < 0 || !Number.isInteger(value.targetBars) || value.targetBars < 10 || value.targetBars > 250 || !Number.isFinite(value.minSimilarity) || !['current', 'recent'].includes(value.matchMode) || !Number.isInteger(value.recentBars) || typeof value.dirty !== 'boolean') return null
+    if (!Array.isArray(value.rawPoints) || value.rawPoints.length > 10000 || !value.rawPoints.every(point => Number.isFinite(point.x) && Number.isFinite(point.y))) return null
+    if (!Array.isArray(value.candles) || value.candles.length > 250 || !value.candles.every(candle => [candle.open, candle.high, candle.low, candle.close].every(Number.isFinite))) return null
+    if (!Number.isInteger(value.selectedCandle) || !['image/png', 'image/jpeg', 'image/webp'].includes(value.imageMime) || !value.crop || !Object.values(value.crop).every(Number.isFinite) || (value.draft && !validShapeDraft(value.draft))) return null
+    return value
+  } catch { return null }
+}
 
 export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () => void; onDiscuss?: (id: string, version: number, name: string) => void }) {
+  const [restored] = useState(readEditor)
   const [items, setItems] = useState<Pattern[]>([])
-  const [activeId, setActiveId] = useState('')
-  const [version, setVersion] = useState(0)
-  const [name, setName] = useState('新形态')
-  const [mode, setMode] = useState<'price_path' | 'ohlc_sequence'>('price_path')
-  const [source, setSource] = useState<'drawing' | 'screenshot' | 'natural_language'>('drawing')
-  const [panel, setPanel] = useState<'browse' | 'create' | 'saved'>('browse')
+  const [activeId, setActiveId] = useState(restored?.activeId || '')
+  const [version, setVersion] = useState(restored?.version || 0)
+  const [name, setName] = useState(restored?.name || '新形态')
+  const [mode, setMode] = useState<'price_path' | 'ohlc_sequence'>(restored?.mode || 'price_path')
+  const [source, setSource] = useState<'drawing' | 'screenshot' | 'natural_language'>(restored?.source || 'drawing')
+  const [panel, setPanel] = useState<'browse' | 'create' | 'saved'>(restored?.panel || 'browse')
   const [prompt, setPrompt] = useState(() => { try { return localStorage.getItem('library.pattern.prompt') ?? '' } catch { return '' } })
-  const [draft, setDraft] = useState<ShapeDraft | null>(null)
-  const [sourceDraftId, setSourceDraftId] = useState('')
-  const [minSimilarity, setMinSimilarity] = useState(80)
-  const [matchMode, setMatchMode] = useState<'current' | 'recent'>('current')
-  const [recentBars, setRecentBars] = useState(20)
-  const [dirty, setDirty] = useState(false)
-  const [targetBars, setTargetBars] = useState(40)
-  const [rawPoints, setRawPoints] = useState<Point[]>([])
-  const [candles, setCandles] = useState<Candle[]>([])
-  const [selectedCandle, setSelectedCandle] = useState(0)
-  const [imageData, setImageData] = useState('')
-  const [savedImageUrl, setSavedImageUrl] = useState('')
-  const [imageMime, setImageMime] = useState<'image/png' | 'image/jpeg' | 'image/webp'>('image/png')
-  const [imageName, setImageName] = useState('')
-  const [crop, setCrop] = useState({ x: 0, y: 0, width: 100, height: 100 })
-  const [quality, setQuality] = useState<Extraction['quality'] | null>(null)
-  const [recentDescriptions, setRecentDescriptions] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('library.pattern.recent') ?? '[]') } catch { return [] } })
+  const [draft, setDraft] = useState<ShapeDraft | null>(restored?.draft || null)
+  const [sourceDraftId, setSourceDraftId] = useState(restored?.sourceDraftId || '')
+  const [minSimilarity, setMinSimilarity] = useState(restored?.minSimilarity ?? 80)
+  const [matchMode, setMatchMode] = useState<'current' | 'recent'>(restored?.matchMode || 'current')
+  const [recentBars, setRecentBars] = useState(restored?.recentBars ?? 20)
+  const [dirty, setDirty] = useState(restored?.dirty || false)
+  const [targetBars, setTargetBars] = useState(restored?.targetBars ?? 40)
+  const [rawPoints, setRawPoints] = useState<Point[]>(restored?.rawPoints || [])
+  const [candles, setCandles] = useState<Candle[]>(restored?.candles || [])
+  const [selectedCandle, setSelectedCandle] = useState(restored?.selectedCandle || 0)
+  const [imageData, setImageData] = useState(restored?.imageData || '')
+  const [savedImageUrl, setSavedImageUrl] = useState(restored?.savedImageUrl || '')
+  const [imageMime, setImageMime] = useState<'image/png' | 'image/jpeg' | 'image/webp'>(restored?.imageMime || 'image/png')
+  const [imageName, setImageName] = useState(restored?.imageName || '')
+  const [crop, setCrop] = useState(restored?.crop || { x: 0, y: 0, width: 100, height: 100 })
+  const [quality, setQuality] = useState<Extraction['quality'] | null>(restored?.quality || null)
+  const [recentDescriptions, setRecentDescriptions] = useState<string[]>(() => { try { const value = JSON.parse(localStorage.getItem('library.pattern.recent') ?? '[]'); return Array.isArray(value) ? value.filter(item => typeof item === 'string') : [] } catch { return [] } })
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [inputMatch, setInputMatch] = useState<PatternMatch | null>(null)
   const pointerRef = useRef(false)
+  const panelRef = useRef(panel)
+  panelRef.current = panel
 
   const refresh = () => api<{ items: Pattern[] }>('/patterns').then(({ items }) => setItems(items)).catch((error) => setNotice(error.message))
-  useEffect(() => { refresh(); try { const raw = localStorage.getItem('library.pattern.draft'); if (raw) { acceptDraft(JSON.parse(raw) as ShapeDraft); setPanel('browse') } } catch { /* Keep the editor available if the browser draft is invalid. */ } }, [])
+  useEffect(() => { refresh(); if (!restored) { try { const raw = JSON.parse(localStorage.getItem('library.pattern.draft') || 'null'); if (validShapeDraft(raw)) { acceptDraft(raw); setPanel('browse') } } catch { /* Invalid saved data must not break the editor. */ } } }, [])
   useEffect(() => { try { localStorage.setItem('library.pattern.prompt', prompt) } catch { /* Storage failure should not block drafting. */ } }, [prompt])
 
   const pointValues = useMemo(() => resample(rawPoints, targetBars), [rawPoints, targetBars])
@@ -49,6 +73,18 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   const displayedPattern = items.find(item => item.id === activeId) ?? items[0]
   const geometry = JSON.stringify([mode, targetBars, pointValues, candles])
   const geometryRef = useRef(geometry)
+  const editorRef = useRef<EditorSnapshot | null>(null)
+  editorRef.current = { activeId, version, name, mode, source, panel, draft, sourceDraftId, minSimilarity, matchMode, recentBars, dirty, targetBars, rawPoints, candles, selectedCandle, imageData, savedImageUrl, imageMime, imageName, crop, quality }
+  useEffect(() => {
+    const save = () => { try { sessionStorage.setItem('pattern.editor', JSON.stringify(editorRef.current)) } catch { /* Editing and explicit template saving remain available. */ } }
+    const timer = setTimeout(save, 300)
+    return () => clearTimeout(timer)
+  }, [activeId, version, name, mode, source, panel, draft, sourceDraftId, minSimilarity, matchMode, recentBars, dirty, targetBars, rawPoints, candles, selectedCandle, imageData, savedImageUrl, imageMime, imageName, crop, quality])
+  useEffect(() => {
+    const save = () => { try { sessionStorage.setItem('pattern.editor', JSON.stringify(editorRef.current)) } catch { /* Explicit saved templates are independent of browser storage. */ } }
+    window.addEventListener('pagehide', save)
+    return () => { window.removeEventListener('pagehide', save); save() }
+  }, [])
   geometryRef.current = geometry
   useEffect(() => setInputMatch(null), [rawPoints, candles, targetBars, mode])
 
@@ -198,7 +234,7 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
         source_image_filename: source === 'screenshot' ? imageName : undefined,
       }) })
       setActiveId(saved.id); setVersion(saved.version); await refresh(); setNotice(`已保存 ${saved.name} v${saved.version}`)
-      setDirty(false); setPanel('browse'); localStorage.removeItem('library.pattern.draft')
+      setDirty(false); if (panelRef.current === 'create') setPanel('browse'); localStorage.removeItem('library.pattern.draft')
     } catch (error) { setNotice((error as Error).message) }
     finally { setBusy(false) }
   }
@@ -217,8 +253,9 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   return (
     <div className="page-content library-shell pattern-library">
       <div className="page-heading"><div className="library-title"><span className="workspace-eyebrow">研究资料</span><h1>形态库</h1></div><div className="library-heading-actions">{onDiscuss && <button className="primary-button" disabled={!displayedPattern || (panel === 'create' && dirty) || busy} onClick={() => displayedPattern && onDiscuss(displayedPattern.id, displayedPattern.version, displayedPattern.name)}><MessageCircle size={15} />研究当前形态</button>}<button className="secondary-button" onClick={reset} disabled={busy}><Plus size={15} />新建形态</button></div></div>
-      <nav className="library-tabs" aria-label="形态库功能"><button className={panel === 'browse' ? 'active' : ''} onClick={() => setPanel('browse')}><BookOpen size={16} />浏览形态</button><button className={panel === 'create' ? 'active' : ''} onClick={() => setPanel('create')}><Sparkles size={16} />描述需求</button><button className={panel === 'saved' ? 'active' : ''} onClick={() => setPanel('saved')}><Library size={16} />我的形态</button></nav>
+      <nav className="library-tabs" role="tablist" aria-label="形态库功能" onKeyDown={event => navigateTabs(event, ['browse', 'create', 'saved'] as const, panel, setPanel)}><button role="tab" id="pattern-browse-tab" aria-controls="pattern-content" aria-selected={panel === 'browse'} tabIndex={panel === 'browse' ? 0 : -1} className={panel === 'browse' ? 'active' : ''} onClick={() => setPanel('browse')}><BookOpen size={16} />浏览形态</button><button role="tab" id="pattern-create-tab" aria-controls="pattern-content" aria-selected={panel === 'create'} tabIndex={panel === 'create' ? 0 : -1} className={panel === 'create' ? 'active' : ''} onClick={() => setPanel('create')}><Sparkles size={16} />描述需求</button><button role="tab" id="pattern-saved-tab" aria-controls="pattern-content" aria-selected={panel === 'saved'} tabIndex={panel === 'saved' ? 0 : -1} className={panel === 'saved' ? 'active' : ''} onClick={() => setPanel('saved')}><Library size={16} />我的形态</button></nav>
       {notice && <div className="inline-notice" role="status">{notice}</div>}
+      <section id="pattern-content" role="tabpanel" aria-labelledby={`pattern-${panel}-tab`}>
       {panel === 'create' && <div className="intent-layout"><section className="pattern-language-panel"><div className="section-title-row"><h2>描述目标走势</h2></div><textarea aria-label="形态需求描述" value={prompt} disabled={busy} maxLength={2000} onChange={e => setPrompt(e.target.value)} placeholder="例如：近30个交易日的双底形态，相似度不低于85%" /><div className="prompt-bottom"><span>{prompt.length}/2000</span><button className="primary-button" disabled={busy || !prompt.trim()} onClick={describePattern}><Sparkles size={15} />{busy ? '正在生成…' : '生成形态草稿'}</button></div>{draft?.issues.map(item => <div className="clarification-card" key={item}>{item}</div>)}</section><aside className="intent-guide"><section className="draft-history"><h3>最近的描述</h3>{recentDescriptions.map(text => <button key={text} disabled={busy} onClick={() => setPrompt(text)}>{text}</button>)}</section></aside></div>}
       {panel === 'browse' && <div className="pattern-layout"><aside className="asset-rail pattern-rail"><div className="rail-heading"><strong>形态</strong><span>{items.length}</span></div>{items.map(item => <button className={'asset-row ' + ((activeId || items[0]?.id) === item.id ? 'selected' : '')} key={item.id} onClick={() => load(item)}><span className="asset-row-title">{item.name}</span><span className="asset-row-meta">{item.target_bars} 根 · v{item.version}</span></button>)}</aside><section className="pattern-browse-detail">{(() => { const item = items.find(item => item.id === activeId) ?? items[0]; return item ? <><div className="section-title-row"><h2>{item.name}</h2><button className="secondary-button" onClick={() => { load(item); setPanel('create') }}>编辑形态</button></div><PatternExample key={item.id + '@' + item.version} item={item} /><button className="primary-button" onClick={() => usePattern(item)}>加入组合<ArrowRight size={14} /></button></> : <p className="workbench-help">暂无已保存形态。到“描述需求”中用文字、绘图或截图创建。</p> })()}</section></div>}
       {panel === 'saved' && <div className="shape-gallery">{items.map(item => <article className="saved-condition-card" key={item.id}><div className="condition-card-title"><h3>{item.name}</h3><span className="condition-category">v{item.version} · {item.target_bars} 个交易日</span></div><PatternExample key={item.id + '@' + item.version} item={item} allowCurve /><p>最低相似度 {String(item.params.min_similarity ?? 80)} 分</p><div className="card-actions"><button className="secondary-button" onClick={() => { load(item); setPanel('create') }}>查看与调整</button><button className="primary-button" onClick={() => usePattern(item)}>加入组合<ArrowRight size={14} /></button></div></article>)}{!items.length && <div className="workbench-empty">还没有形态条件。</div>}</div>}
@@ -280,6 +317,7 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
           {sourceDraftId && <details className="provenance"><summary>查看形态来源</summary><p>原始描述：{draft?.prompt ?? prompt}</p><p>草稿编号：{sourceDraftId} · 已保存版本：{version || '尚未保存'}</p></details>}{dirty && activeId && <p className="notice-amber">当前有未保存修改，保存后才能试算或加入组合。</p>}
         </div>
       </div>}
+      </section>
     </div>
   )
 }

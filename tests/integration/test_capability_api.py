@@ -59,6 +59,7 @@ def test_capability_routes_report_runtime_state_without_breaking_existing_contra
     manifest = client.get("/api/v1/screening-capabilities")
     assert legacy.status_code == 200
     assert legacy.json()["menus"][-1] == "screening"
+    assert legacy.json()["workspace_menus"] == ["research", "screening", "watchlist", "news", "technical", "patterns", "reports"]
     assert legacy.json()["news_data"] == "local_import_and_tushare_sync"
     assert legacy.json()["news_external_sync"] is True
     assert len(legacy.json()["screening_capabilities"]["capabilities"]) >= 10

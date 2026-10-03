@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react'
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { trapDialogTab } from '../keyboard'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -16,6 +17,7 @@ export default function PdfReader({ url, page, onPageChange, pageControls, actio
   const [retry, setRetry] = useState(0)
   const container = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const renderedScale = useRef(1)
   useEffect(() => {
     let active = true
     setDocument(null); setError(''); setRendering(true)
@@ -50,7 +52,7 @@ export default function PdfReader({ url, page, onPageChange, pageControls, actio
       if (!active || !canvas.current) return
       const viewport = pdfPage.getViewport({ scale: 1 })
       const fitWidth = frame.width / viewport.width
-      const scale = fit === 'page' ? Math.min(fitWidth, frame.height / viewport.height) : fitWidth * (fit === 'custom' ? zoom : 1)
+      const scale = fit === 'custom' ? zoom : fit === 'page' ? Math.min(fitWidth, frame.height / viewport.height) : fitWidth
       const display = pdfPage.getViewport({ scale })
       const pixelRatio = Math.min(globalThis.devicePixelRatio || 1, 2, Math.sqrt(8_000_000 / (display.width * display.height)))
       // Each render owns its canvas so a cancelled zoom/page render cannot overwrite the new page.
@@ -68,19 +70,15 @@ export default function PdfReader({ url, page, onPageChange, pageControls, actio
       canvas.current.style.width = display.width + 'px'
       canvas.current.style.height = display.height + 'px'
       canvas.current.getContext('2d')?.drawImage(buffer, 0, 0)
+      renderedScale.current = scale
       setRendering(false)
     }).catch(error => { if (active && error.name !== 'RenderingCancelledException') { setError('PDF 页面显示失败：' + error.message); setRendering(false) } })
     return () => { active = false; cancel?.() }
   }, [document, page, frame, fit, zoom])
-  function changeZoom(delta: number) { setFit('custom'); setZoom(value => Math.max(.5, Math.min(3, (fit === 'custom' ? value : 1) + delta))) }
+  function changeZoom(delta: number) { setZoom(Math.max(.1, Math.min(6, (fit === 'custom' ? zoom : renderedScale.current) + delta))); setFit('custom') }
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape' && expanded) { setExpanded(false); event.preventDefault() }
-    if (event.key === 'Tab' && expanded) {
-      const controls = event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select')
-      const first = controls[0], last = controls[controls.length - 1]
-      if (event.shiftKey && event.target === first) { last?.focus(); event.preventDefault() }
-      else if (!event.shiftKey && event.target === last) { first?.focus(); event.preventDefault() }
-    }
+    if (expanded) trapDialogTab(event)
     if ((event.target as HTMLElement).matches('input,select,textarea')) return
     if (event.key === 'ArrowLeft' && page > 1) { onPageChange(page - 1); event.preventDefault() }
     if (event.key === 'ArrowRight' && document && page < document.numPages) { onPageChange(page + 1); event.preventDefault() }
@@ -89,7 +87,7 @@ export default function PdfReader({ url, page, onPageChange, pageControls, actio
     <div className="pdf-toolbar">
       <div><button className="icon-button" aria-label="上一页" title="上一页" disabled={page <= 1 || !document} onClick={() => onPageChange(page - 1)}><ChevronLeft size={16} /></button>{pageControls ?? <span className="pdf-page-count">{page} / {document?.numPages ?? '…'}</span>}<button className="icon-button" aria-label="下一页" title="下一页" disabled={!document || page >= document.numPages} onClick={() => onPageChange(page + 1)}><ChevronRight size={16} /></button></div>
       {actions && <div className="pdf-source-action">{actions}</div>}
-      <div className="pdf-zoom-controls"><button className="icon-button" aria-label="缩小 PDF" title="缩小" disabled={fit === 'custom' && zoom <= .5} onClick={() => changeZoom(-.25)}><ZoomOut size={16} /></button><select aria-label="PDF 显示比例" value={fit} onChange={event => { setFit(event.target.value as typeof fit); setZoom(1) }}><option value="width">适合宽度</option><option value="page">整页显示</option>{fit === 'custom' && <option value="custom">{Math.round(zoom * 100)}%</option>}</select><button className="icon-button" aria-label="放大 PDF" title="放大" disabled={fit === 'custom' && zoom >= 3} onClick={() => changeZoom(.25)}><ZoomIn size={16} /></button><button className="icon-button" aria-label={expanded ? '退出专注阅读' : '专注阅读'} title={expanded ? '退出专注阅读（Esc）' : '专注阅读'} onClick={() => setExpanded(value => !value)}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button></div>
+      <div className="pdf-zoom-controls"><button className="icon-button" aria-label="缩小 PDF" title="缩小" disabled={rendering || !document || (fit === 'custom' ? zoom : renderedScale.current) <= .1} onClick={() => changeZoom(-.25)}><ZoomOut size={16} /></button><select aria-label="PDF 显示比例" value={fit} onChange={event => { setFit(event.target.value as typeof fit); setZoom(1) }}><option value="width">适合宽度</option><option value="page">整页显示</option>{fit === 'custom' && <option value="custom">{Math.round(zoom * 100)}%</option>}</select><button className="icon-button" aria-label="放大 PDF" title="放大" disabled={rendering || !document || (fit === 'custom' ? zoom : renderedScale.current) >= 6} onClick={() => changeZoom(.25)}><ZoomIn size={16} /></button><button className="icon-button" aria-label={expanded ? '退出专注阅读' : '专注阅读'} title={expanded ? '退出专注阅读（Esc）' : '专注阅读'} onClick={() => setExpanded(value => !value)}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button></div>
     </div>
     {error && <div role="alert" className="library-error">{error}<button className="text-button" onClick={() => setRetry(value => value + 1)}>重试</button></div>}
     <div className="pdf-canvas-container" ref={container} aria-busy={rendering}>{rendering && !error && <div className="pdf-loading" role="status">正在显示 PDF…</div>}<canvas ref={canvas} role="img" aria-label={'研报 PDF 第 ' + page + ' 页'} style={{ visibility: rendering || error ? 'hidden' : 'visible' }} /></div>

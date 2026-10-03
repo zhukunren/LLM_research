@@ -7,6 +7,10 @@ input::placeholder, textarea::placeholder { color: var(--ui-text-faint); }
 * { scrollbar-width: thin; scrollbar-color: var(--ui-border-strong) transparent; }
 .sidebar { width: 208px; flex-basis: 208px; padding: 24px 14px 18px; }
 .nav-mobile-label { display: none; }
+
+@media (max-width: 560px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px; }
+}
 .mobile-header-brand { display: none; }
 .sidebar .research-brand { padding-bottom: 6px; }
 .branch-name { margin-top: 20px; padding-block: 16px; font-size: 14px; border-block: 0; color: var(--ui-brand); }

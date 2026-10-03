@@ -2,17 +2,20 @@ import { createContext, useContext, useEffect, useId, useMemo, useState, type Re
 import { api } from '../api'
 
 export type Security = { stock_code: string; name: string; market: string; pinyin?: string; initials?: string }
-const Context = createContext<{ items: Security[]; refresh: () => void }>({ items: [], refresh: () => {} })
+const Context = createContext<{ items: Security[]; refresh: () => void; loading: boolean; error: string }>({ items: [], refresh: () => {}, loading: false, error: '' })
 
 export function SecuritiesProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Security[]>([])
   const [revision, setRevision] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   useEffect(() => {
     let active = true
-    api<{ items: Security[] }>('/security-catalog').then(result => { if (active) setItems(result.items) }).catch(() => {})
+    setLoading(true); setError('')
+    api<{ items: Security[] }>('/security-catalog').then(result => { if (active) setItems(result.items) }).catch(reason => { if (active) setError((reason as Error).message) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [revision])
-  return <Context.Provider value={{ items, refresh: () => setRevision(value => value + 1) }}>{children}</Context.Provider>
+  return <Context.Provider value={{ items, loading, error, refresh: () => setRevision(value => value + 1) }}>{children}</Context.Provider>
 }
 
 export const useSecurities = () => useContext(Context)
@@ -26,7 +29,7 @@ export function StockName({ code }: { code: string }) {
 export default function StockSearch({ value, onChange, label = '搜索股票', includeIndices = false, disabled = false }: {
   value: string; onChange: (code: string) => void; label?: string; includeIndices?: boolean; disabled?: boolean
 }) {
-  const { items } = useSecurities()
+  const { items, loading, error, refresh } = useSecurities()
   const id = useId()
   const [query, setQuery] = useState(value)
   const [open, setOpen] = useState(false)
@@ -46,14 +49,16 @@ export default function StockSearch({ value, onChange, label = '搜索股票', i
       onChange={event => { const text = event.target.value; setQuery(text); setOpen(true); setCursor(0); if (/^\d{6}\.(SH|SZ|BJ)$/i.test(text.trim())) onChange(text.trim().toUpperCase()) }}
       onKeyDown={event => {
         if (event.key === 'Escape') setOpen(false)
-        if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setCursor(i => Math.min(matches.length - 1, i + 1)) }
+        if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setCursor(i => Math.max(0, Math.min(matches.length - 1, i + 1))) }
         if (event.key === 'ArrowUp') { event.preventDefault(); setCursor(i => Math.max(0, i - 1)) }
         if (event.key === 'Enter' && open && matches[cursor]) { event.preventDefault(); choose(matches[cursor]) }
       }} />
     {open && <div role="listbox" id={`${id}-choices`} className="stock-search-options">
       {matches.map((item, index) => <button type="button" role="option" aria-selected={index === cursor} id={`${id}-${index}`} key={item.stock_code}
         onMouseDown={event => event.preventDefault()} onClick={() => choose(item)}><strong>{item.name || item.stock_code}</strong><span>{item.stock_code} · {({ SH: '沪市', SZ: '深市', BJ: '北交所' } as Record<string, string>)[item.market] || item.market}</span></button>)}
-      {!matches.length && <p>没有匹配股票。可输入完整代码，或在“数据与服务”更新股票名称。</p>}
+      {loading && <p role="status">正在读取股票名称…</p>}
+      {error && <p role="alert">股票名称暂时无法读取。<button type="button" className="text-button" onMouseDown={event => event.preventDefault()} onClick={refresh}>重试</button></p>}
+      {!matches.length && !loading && !error && <p>没有匹配股票。可输入完整代码，或在“数据与服务”更新股票名称。</p>}
     </div>}
   </div>
 }

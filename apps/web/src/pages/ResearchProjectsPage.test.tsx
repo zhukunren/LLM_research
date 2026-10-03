@@ -14,6 +14,27 @@ function existing(): ResearchProject {
 const summary = (project: ResearchProject) => ({ ...project, company_count: project.companies.length, note_count: project.notes.length, conversation_count: project.conversations.length })
 
 describe('ResearchProjectsPage', () => {
+  it('keeps an edit targeted at the original project when the center is refreshed', async () => {
+    const user = userEvent.setup()
+    let project = existing()
+    const writes: { path: string; method?: string }[] = []
+    vi.mocked(api).mockImplementation(async (path, init) => {
+      if (path === '/research-projects') return { items: [summary(project)] } as never
+      if (path.endsWith('/files')) return { items: [] } as never
+      if (init?.method === 'PATCH') { writes.push({ path, method: init.method }); project = { ...project, ...JSON.parse(String(init.body)) }; return project as never }
+      return project as never
+    })
+    render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+    await screen.findByRole('heading', { name: '白酒盈利改善' })
+    await user.click(screen.getByRole('button', { name: '编辑项目' }))
+    await user.clear(screen.getByRole('textbox', { name: '项目名称' }))
+    await user.type(screen.getByRole('textbox', { name: '项目名称' }), '刷新保留的名称')
+    await user.click(screen.getByRole('button', { name: '刷新研究中心' }))
+    expect(screen.getByRole('textbox', { name: '项目名称' })).toHaveValue('刷新保留的名称')
+    await user.click(screen.getByRole('button', { name: '保存项目' }))
+    await waitFor(() => expect(writes).toEqual([{ path: '/research-projects/p1', method: 'PATCH' }]))
+    await screen.findByRole('heading', { name: '刷新保留的名称' })
+  })
   it('creates a persistent project, associates a company and starts a conversation in that project', async () => {
     const user = userEvent.setup()
     let project: ResearchProject | null = null

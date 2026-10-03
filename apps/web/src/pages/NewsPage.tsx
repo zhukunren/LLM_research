@@ -25,7 +25,7 @@ export default function NewsPage({ onDiscuss, importOpen = false, onImportClose 
   const [readRetry, setReadRetry] = useState(0)
   const [selected, setSelected] = useState<NewsRecord | null>(null)
   const [fontSize, setFontSize] = useState(() => { try { const value = Number(localStorage.getItem('news.fontSize')); return value >= 12 && value <= 24 ? value : 14 } catch { return 14 } })
-  const readingFontSize = fontSize - 1
+  const readingFontSize = fontSize
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)

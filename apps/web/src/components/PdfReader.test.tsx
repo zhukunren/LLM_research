@@ -50,3 +50,14 @@ it('fits a full page, provides keyboard paging and closes focused reading with E
   fireEvent.keyDown(reader, { key: 'Escape' })
   expect(reader).not.toHaveClass('expanded')
 })
+
+it('decreases the actual page size when shrinking from page fit and displays the document scale', async () => {
+  const user = userEvent.setup()
+  render(<PdfReader url="/report.pdf" page={1} onPageChange={vi.fn()} />)
+  await waitFor(() => expect(draw).toHaveBeenCalledOnce())
+  await user.selectOptions(screen.getByLabelText('PDF 显示比例'), 'page')
+  await waitFor(() => expect(renderPage.mock.calls.at(-1)![0].viewport.height).toBe(650))
+  await user.click(screen.getByRole('button', { name: '缩小 PDF' }))
+  await waitFor(() => expect(renderPage.mock.calls.at(-1)![0].viewport.height).toBe(450))
+  expect(screen.getByLabelText('PDF 显示比例')).toHaveTextContent('56%')
+})

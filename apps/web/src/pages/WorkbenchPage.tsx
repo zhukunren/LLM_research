@@ -270,7 +270,7 @@ export default function WorkbenchPage({ conversationId, onOpenProject, conversat
     {error && <div className="workbench-alert" role="alert">{error}<button className="icon-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={14} /></button></div>}
     {notice && <div className="workbench-notice" role="status"><Check size={16} />{notice}</div>}
 
-    {section === 'conversation' && screeningOnly && <ConversationWorkspace initialPrompt={conversationPrompt} onPromptConsumed={onPromptConsumed} data={data} initialConversationId={conversationId ?? resumeConversation?.conversation_id} initialScope={resumeConversation?.entry_scope ?? conversationScope} initialSource={conversationSource} onScopeChange={onConversationScopeChange} onSourceChange={onConversationSourceChange} onOpenProject={onOpenProject} />}
+    {section === 'conversation' && screeningOnly && <ConversationWorkspace initialPrompt={conversationPrompt} onPromptConsumed={onPromptConsumed} data={data} initialConversationId={resumeConversation?.conversation_id ?? conversationId} initialScope={resumeConversation?.entry_scope ?? conversationScope} initialSource={conversationSource} onScopeChange={onConversationScopeChange} onSourceChange={onConversationSourceChange} onOpenProject={onOpenProject} />}
 
     {section === 'create' && <div className="intent-layout"><div className="intent-main">
       <section className="intent-prompt-card"><div className="section-title-row"><h2><Sparkles size={18} />{copy?.promptTitle ?? '你想找什么样的股票？'}</h2></div>

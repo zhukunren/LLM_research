@@ -220,6 +220,9 @@
   font-size: 9px;
 }
 
+.responsive-market-chart .indicator-market-chart text { font-size: 12px; }
+.responsive-market-chart .indicator-chart-legend { font-size: 12px; }
+
 .indicator-chart-legend {
   display: flex;
   flex-wrap: wrap;

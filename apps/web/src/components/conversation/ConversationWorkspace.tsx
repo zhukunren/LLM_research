@@ -247,6 +247,8 @@ export default function ConversationWorkspace({
   const scopeSavingRef = useRef(false)
   const modeChosenRef = useRef(false)
   const selectedIdRef = useRef('')
+  const initialSelectionRef = useRef<{ loaded: boolean; id?: string }>({ loaded: false })
+  const freshConversationRef = useRef(false)
   const messageListRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLFormElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -316,6 +318,7 @@ export default function ConversationWorkspace({
   }
 
   function selectConversation(id: string) {
+    freshConversationRef.current = !id
     selectedIdRef.current = id
     setScopeEdited(false)
     setScopeSaveState('idle')
@@ -449,6 +452,9 @@ export default function ConversationWorkspace({
 
   useEffect(() => {
     let active = true
+    const requested = !initialSelectionRef.current.loaded || initialSelectionRef.current.id !== initialConversationId ? initialConversationId : undefined
+    const remainFresh = freshConversationRef.current && !requested
+    const stored = requested || selectedIdRef.current || localStorage.getItem(sessionStorageKey(scope))
     setLoadingSessions(true)
     setSessionError('')
     setSessions([])
@@ -458,17 +464,17 @@ export default function ConversationWorkspace({
     setRun(null)
     setViewingRunId('')
     selectedIdRef.current = ''
-    const stored = initialConversationId || localStorage.getItem(sessionStorageKey(scope))
     api<{ items: SessionSummary[] }>(`/conversations?scope=${scope}&limit=50`)
       .then(async ({ items }) => {
         if (!active) return
-        if (initialConversationId && !items.some(item => item.id === initialConversationId)) {
-          const historical = await api<Conversation>(`/conversations/${initialConversationId}`)
+        if (requested && !items.some(item => item.id === requested)) {
+          const historical = await api<Conversation>(`/conversations/${requested}`)
           if (!active) return
           items = [{ ...historical, title: historical.messages.find(item => item.role === 'user')?.content.slice(0, 120) }, ...items]
         }
         setSessions(items)
-        const preferred = items.some((item) => item.id === stored)
+        initialSelectionRef.current = { loaded: true, id: initialConversationId }
+        const preferred = remainFresh ? '' : items.some((item) => item.id === stored)
           ? stored!
           : items[0]?.id ?? ''
         selectConversation(preferred)

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Activity, ArrowRight } from 'lucide-react'
 import { api, type DataStatus } from '../api'
 import StockSearch from '../components/StockSearch'
@@ -7,8 +7,8 @@ import { isText, useSessionState } from '../useSessionState'
 
 type Indicator = { id: string; name: string; min_window?: number; max_window?: number; default_window?: number; signal_window?: number }
 type ChartLine = { id: string; label: string; color: string; values: (number | null)[] }
-export type ChartBar = { trade_date: string; open: number; high: number; low: number; close: number; volume?: number }
-type IndicatorChart = { placement: 'overlay' | 'pane'; lines: ChartLine[]; histogram: ChartLine | null; reference_lines: number[]; bars: ChartBar[] }
+export type ChartBar = { trade_date: string; open: number; high: number; low: number; close: number; volume?: number; quality_valid?: boolean }
+export type IndicatorChart = { placement: 'overlay' | 'pane'; lines: ChartLine[]; histogram: ChartLine | null; reference_lines: number[]; bars: ChartBar[] }
 type Preview = { indicator: string; window: number; stock_code: string; as_of: string; current: number | null; previous: number | null; state: string; warning: string; series: { date: string; value: number | null }[]; chart?: IndicatorChart }
 const guides: Record<string, { explanation: string; example: string; window: number }> = {
   sma: { explanation: '一段时间内的平均收盘价，用于观察价格相对近期均价的位置。', example: '收盘价高于20日均线', window: 20 },
@@ -66,7 +66,7 @@ export default function TechnicalBrowser({ data, onDescribe }: { data: DataStatu
     <section className="indicator-detail"><div className="section-title-row"><h2>{indicator?.name ?? '简单移动平均线'}</h2><button className="quiet-button" disabled={busy || !!invalidInput} onClick={describe}>描述条件<ArrowRight size={13} /></button></div><p className="indicator-explanation">{guide?.explanation}</p>
       <div className="indicator-controls"><label>股票或指数<StockSearch label="股票或指数" value={stock} onChange={setStock} includeIndices /></label><label>指标周期<input type="number" value={window} min={indicator?.min_window ?? 2} max={indicator?.max_window ?? 100} disabled={selected.startsWith('macd_')} onChange={e => { setWindow(Number(e.target.value)) }} /></label><label>截止日期<input type="date" value={asOf} max={data?.last_date} onInput={e => setAsOf(e.currentTarget.value)} onChange={e => { setAsOf(e.target.value) }} /></label></div>
       {error && <div className="library-error" role="alert">{error}<button className="text-button" onClick={() => setRetry(value => value + 1)}>重新加载指标</button></div>}{invalidInput && <p className="library-error" role="alert">{invalidInput}</p>}
-      {result ? <div className="indicator-result"><div className="indicator-numbers"><div><span>当日数值</span><strong>{fmt(result.current)}</strong></div><div><span>上一交易日</span><strong>{fmt(result.previous)}</strong></div><div><span>实际行情日</span><strong>{result.as_of}</strong></div></div>{result.chart ? <MarketIndicatorChart chart={result.chart} /> : <IndicatorLine series={result.series.slice(-120)} />}<p className="workbench-help">{result.stock_code} · {result.window} 日周期 · {result.warning}</p></div> : <div className="indicator-placeholder"><Activity size={28} /><p>{busy ? '正在加载 K 线和指标…' : invalidInput ? '调整上方参数后自动更新。' : error ? '暂时无法读取行情，请重试。' : '此证券暂无可用行情。'}</p><small>只使用截止日期及之前的行情数据。</small></div>}
+      {result ? <div className="indicator-result"><div className="indicator-numbers"><div><span>当日数值</span><strong>{fmt(result.current)}</strong></div><div><span>上一交易日</span><strong>{fmt(result.previous)}</strong></div><div><span>实际行情日</span><strong>{result.as_of}</strong></div></div>{result.chart ? <ResponsiveMarketIndicatorChart chart={result.chart} /> : <IndicatorLine series={result.series.slice(-120)} />}<p className="workbench-help">{result.stock_code} · {result.window} 日周期 · {result.warning}</p></div> : <div className="indicator-placeholder"><Activity size={28} /><p>{busy ? '正在加载 K 线和指标…' : invalidInput ? '调整上方参数后自动更新。' : error ? '暂时无法读取行情，请重试。' : '此证券暂无可用行情。'}</p><small>只使用截止日期及之前的行情数据。</small></div>}
 
     </section></div>
 }
@@ -80,10 +80,22 @@ function IndicatorLine({ series }: { series: Preview['series'] }) {
   return <div className="indicator-chart"><svg viewBox="0 0 700 210" role="img" aria-label="所选指标的真实历史走势"><line x1="15" x2="685" y1="180" y2="180" stroke="var(--ui-border)" /><line x1="15" x2="685" y1="105" y2="105" stroke="var(--ui-border-subtle)" /><path d={path} stroke="var(--ui-chart-line)" fill="none" strokeWidth="2.3" /><text x="15" y="205">{series[0]?.date}</text><text x="685" y="205" textAnchor="end">{series.at(-1)?.date}</text></svg><small>范围 {fmt(min)} — {fmt(max)}；缺失值留空。</small></div>
 }
 
+export function ResponsiveMarketIndicatorChart({ chart }: { chart: IndicatorChart }) {
+  const frame = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    if (!frame.current || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(entries => setWidth(Math.floor(entries[0].contentRect.width)))
+    observer.observe(frame.current)
+    return () => observer.disconnect()
+  }, [])
+  return <div ref={frame} className="responsive-market-chart"><MarketIndicatorChart chart={chart} containerWidth={width || undefined} /></div>
+}
+
 export function MarketIndicatorChart({ chart, containerWidth }: { chart: IndicatorChart; containerWidth?: number }) {
   const [hover, setHover] = useState<{ index: number; y: number } | null>(null)
   useEffect(() => setHover(null), [chart])
-  const bars = chart.bars
+  const bars = chart.bars.map(bar => bar.quality_valid === false ? { ...bar, open: NaN, high: NaN, low: NaN, close: NaN } : bar)
   if (!bars.length) return <div className="indicator-placeholder">此窗口内没有可显示的 K 线。</div>
   const width = containerWidth && Number.isFinite(containerWidth) ? Math.max(200, containerWidth) : 720
   const pad = { left: containerWidth ? 64 : 44, right: 16, top: 16, bottom: 24 }
