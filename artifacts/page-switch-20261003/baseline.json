@@ -1,0 +1,508 @@
+{
+  "fixtures": "isolated synthetic data, delayed GET requests and page modules; no external model calls",
+  "results": [
+    {
+      "device": "desktop",
+      "page": "投研助手",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10.0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 184,
+      "heading_x_shift": 4,
+      "heading_y_shift": 50.39,
+      "document_heights": [
+        900,
+        908,
+        976,
+        978
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "观察池",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 978
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10.0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 95,
+      "heading_x_shift": 4,
+      "heading_y_shift": 26.59,
+      "document_heights": [
+        900,
+        978
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "资讯库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10.0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 83,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        900,
+        1119
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "技术指标库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1119
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10.0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        900,
+        913
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "形态库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 913
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10.0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 83,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        900,
+        904,
+        913,
+        987
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "研报库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 904
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10.0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        900,
+        904
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "研究中心",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 0,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 23.8,
+      "document_heights": [
+        900
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "资讯库",
+      "scrolled": true,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10.0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 23.8,
+      "document_heights": [
+        900,
+        1119
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "投研助手",
+      "scrolled": true,
+      "before": {
+        "scrollY": 219,
+        "height": 1119
+      },
+      "viewport_width_shift": 0,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0.2,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        8,
+        219
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 237.59,
+      "document_heights": [
+        908,
+        1119
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "研究中心",
+      "scrolled": true,
+      "before": {
+        "scrollY": 8,
+        "height": 908
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0.2,
+      "header_actions_x_shift": 10.0,
+      "scroll_y_values": [
+        0,
+        8
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 42.39,
+      "document_heights": [
+        900,
+        908
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "投研助手",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1240
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 162,
+      "heading_x_shift": 2,
+      "heading_y_shift": 50.25,
+      "document_heights": [
+        900,
+        950,
+        1240,
+        1484,
+        1495,
+        1862
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "观察池",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1862
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 88,
+      "heading_x_shift": 2,
+      "heading_y_shift": 27.2,
+      "document_heights": [
+        900,
+        1191,
+        1862
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "资讯库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1191
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 83,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        900,
+        1191,
+        1220,
+        1357
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "技术指标库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1357
+      },
+      "viewport_width_shift": 0,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        1037,
+        1245,
+        1323,
+        1357,
+        1618
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "形态库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1618
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 82,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        900,
+        939,
+        1042,
+        1120
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "研报库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1120
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        900,
+        1120
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "研究中心",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "document_heights": [
+        900,
+        1240
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "资讯库",
+      "scrolled": true,
+      "before": {
+        "scrollY": 300,
+        "height": 1240
+      },
+      "viewport_width_shift": 0,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        300
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 23.05,
+      "document_heights": [
+        1220,
+        1240,
+        1357
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "投研助手",
+      "scrolled": true,
+      "before": {
+        "scrollY": 300,
+        "height": 1357
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10,
+      "scroll_y_values": [
+        0,
+        50,
+        300
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 327.2,
+      "document_heights": [
+        900,
+        950,
+        1357
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "研究中心",
+      "scrolled": true,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "header_x_shift": 0,
+      "header_width_shift": 10,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 10,
+      "scroll_y_values": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 50.25,
+      "document_heights": [
+        900,
+        1205,
+        1240
+      ]
+    }
+  ],
+  "page_errors": []
+}

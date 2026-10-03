@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react'
 import { Activity, AlertCircle, ChevronRight, Database, FileText, FolderOpen, MessageCircle, Newspaper, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings2, Shapes, Star } from 'lucide-react'
 import { api, type ConversationScope, type ConversationSourceReference, type DataStatus } from './api'
 const ObservationPage = lazy(() => import('./pages/ObservationPage'))
@@ -34,6 +34,8 @@ function storedScreeningSection(): ScreeningSection {
 
 export default function App() {
   const [page, setPage] = useSessionState<PageId>('app.page', 'research', (value): value is PageId => menus.some(item => item.id === value))
+  const [isNavigating, startNavigation] = useTransition()
+  const previousPage = useRef(page)
   const [data, setData] = useState<DataStatus | null>(null)
   const [systemOpen, setSystemOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useSessionState('app.sidebarCollapsed', false, (value): value is boolean => typeof value === 'boolean')
@@ -44,6 +46,17 @@ export default function App() {
   const [conversationId, setConversationId] = useState<string | undefined>()
   const [projectId, setProjectId] = useState<string | undefined>()
   const [conversationSource, setConversationSource] = useState<{ reference: ConversationSourceReference; label: string } | null>(null)
+
+  function navigatePage(nextPage: PageId) {
+    startNavigation(() => setPage(nextPage))
+  }
+
+  useLayoutEffect(() => {
+    if (previousPage.current === page) return
+    previousPage.current = page
+    // Reset before painting the new page, including when its data arrives later.
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [page])
 
   function changeScreeningSection(section: ScreeningSection) {
     setScreeningSection(section)
@@ -62,14 +75,14 @@ export default function App() {
     setConversationScope(scope)
     setConversationSource(source ?? null)
     changeScreeningSection('conversation')
-    setPage('screening')
+    navigatePage('screening')
   }
 
   function openComposition() {
     setConversationScope('screening')
     setConversationSource(null)
     changeScreeningSection('compose')
-    setPage('screening')
+    navigatePage('screening')
   }
 
   function resumeResearch(id: string, scope: ConversationScope) {
@@ -78,12 +91,12 @@ export default function App() {
     setConversationPrompt(undefined)
     setConversationSource(null)
     changeScreeningSection('conversation')
-    setPage('screening')
+    navigatePage('screening')
   }
 
   function openProject(id: string) {
     setProjectId(id || undefined)
-    setPage('research')
+    navigatePage('research')
   }
 
   const refreshStatus = () => {
@@ -103,19 +116,20 @@ export default function App() {
         <nav className="workspace-navigation" aria-label="主菜单">
           {['研究', '资料库'].map((group, index) => <div className="navigation-group" key={group}>
             <div className="workspace-label">{group}</div>
-            {menus.slice(index === 0 ? 0 : 3, index === 0 ? 3 : undefined).map(({ id, label, mobileLabel, icon: Icon }) => <button className={'nav-item ' + (page === id ? 'active' : '')} key={id} aria-label={label} title={label} aria-current={page === id ? 'page' : undefined} onClick={() => { if (id === 'screening') openConversation('screening'); else setPage(id) }}><Icon size={18} strokeWidth={1.8} /><span className="nav-label">{label}</span><span className="nav-mobile-label" aria-hidden="true">{mobileLabel}</span></button>)}
+            {menus.slice(index === 0 ? 0 : 3, index === 0 ? 3 : undefined).map(({ id, label, mobileLabel, icon: Icon }) => <button className={'nav-item ' + (page === id ? 'active' : '')} key={id} aria-label={label} title={label} aria-current={page === id ? 'page' : undefined} onClick={() => { if (id === 'screening') openConversation('screening'); else navigatePage(id) }}><Icon size={18} strokeWidth={1.8} /><span className="nav-label">{label}</span><span className="nav-mobile-label" aria-hidden="true">{mobileLabel}</span></button>)}
           </div>)}
         </nav>
         <div className="sidebar-bottom"><div className="research-data-status"><span className={'status-dot ' + (loadError ? 'warning' : data?.available ? 'good' : 'warning')} />{loadError ? '服务连接异常' : data ? data.available ? '行情可供查询' : '待添加行情数据' : '正在检查数据'}</div><button className="research-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务" title="数据与服务"><Settings2 size={17} /><span>数据与服务</span><ChevronRight size={14} className="settings-chevron" /></button></div>
       </aside>
-      <main className="main-shell">
+      <main className="main-shell" aria-busy={isNavigating}>
+        {isNavigating && <div className="page-navigation-progress" role="status" aria-label="正在切换页面" />}
         <header className="research-header"><button className="icon-button sidebar-toggle" onClick={() => setSidebarCollapsed(value => !value)} aria-label={sidebarCollapsed ? '展开导航' : '收起导航'} title={sidebarCollapsed ? '展开导航' : '收起导航'}>{sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}</button><img className="mobile-header-brand" src="/brand/soochow-symbol-blue.png" alt="东吴证券" width="30" height="26" /><div className="research-breadcrumb"><span>研究工作台</span><ChevronRight size={13} /><strong>{active.label}</strong></div><div className="research-header-actions">{data?.last_date && <button className="header-data-status" onClick={() => setSystemOpen(true)} aria-label={`行情截至 ${data.last_date}，查看数据状态`} title="查看数据状态"><Database size={13} /><span>行情 <time>{data.last_date}</time></span></button>}<span className="mode-badge"><span className="status-dot warning" />探索模式</span><button className="research-settings mobile-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务" title="数据与服务"><Settings2 size={17} /></button></div></header>
         {loadError && <div className="global-alert" role="alert"><AlertCircle size={16} /><span>暂时无法连接服务，请检查本地服务是否已启动。</span><button onClick={refreshStatus}><RefreshCw size={14} />重试</button></div>}
-        <section className="page-frame" key={page}>
-          <Suspense fallback={<div className="page-content">正在加载页面…</div>}>
+        <section className="page-frame">
+          <Suspense fallback={<div className="page-content page-loading" role="status">正在加载页面…<div className="page-loading-placeholder" aria-hidden="true" /></div>}>
           {page === 'research' && <ResearchProjectsPage initialProjectId={projectId} onOpenConversation={resumeResearch} />}
           {page === 'watchlist' && <ObservationPage data={data} />}
-          {page === 'screening' && <WorkbenchPage data={data} conversationId={conversationId} onOpenProject={openProject} conversationPrompt={conversationPrompt} onPromptConsumed={() => setConversationPrompt(undefined)} screeningOnly view={screeningSection} onViewChange={(section) => { if (section === 'conversation' || section === 'compose' || section === 'history') { setScreeningSection(section); if (section !== 'conversation') setConversationSource(null) } }} conversationScope={conversationScope} onConversationScopeChange={handleConversationScopeChange} conversationSource={conversationSource} onConversationSourceChange={setConversationSource} onReports={() => setPage('reports')} onCreateCondition={() => setPage('technical')} />}
+          {page === 'screening' && <WorkbenchPage data={data} conversationId={conversationId} onOpenProject={openProject} conversationPrompt={conversationPrompt} onPromptConsumed={() => setConversationPrompt(undefined)} screeningOnly view={screeningSection} onViewChange={(section) => { if (section === 'conversation' || section === 'compose' || section === 'history') { setScreeningSection(section); if (section !== 'conversation') setConversationSource(null) } }} conversationScope={conversationScope} onConversationScopeChange={handleConversationScopeChange} conversationSource={conversationSource} onConversationSourceChange={setConversationSource} onReports={() => navigatePage('reports')} onCreateCondition={() => navigatePage('technical')} />}
           {page === 'patterns' && <PatternPage onCompose={openComposition} onDiscuss={(id, version, name) => openConversation('pattern', { reference: { kind: 'pattern', source_id: id, version }, label: name })} />}
           {(page === 'technical' || page === 'news' || page === 'reports') && <LibraryWorkspace key={page} scope={page === 'reports' ? 'report' : page} data={data} onCompose={openComposition} onConversation={openConversation} onSettings={() => setSystemOpen(true)} />}
           </Suspense>

@@ -1,0 +1,16 @@
+{
+  "fixtures": "synthetic isolated database, local parsers; no external provider calls",
+  "layouts": [],
+  "checks": [
+    "project-draft-close-refresh-save-and-keyboard-tabs",
+    "assistant-send-markdown-project-note-mode-and-new-research",
+    "observation-keyboard-tab-draft-navigation-and-save",
+    "news-reading-font-search-clear-and-pagination",
+    "technical-indicator-chart-keyboard-condition-generate-preview-save-library",
+    "condition-revision-and-cross-library-composition-save",
+    "pattern-local-draft-navigation-restore-save-and-gallery",
+    "reports-real-pdf-page-fit-relative-zoom-and-focus-reading",
+    "services-connection-state-diagnostics-download-and-escape"
+  ],
+  "page_errors": []
+}

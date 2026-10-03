@@ -37,7 +37,7 @@ export default function LibraryWorkspace({ scope, data, onCompose, onConversatio
       {tabs.map(({ id, label, icon: Icon }) => <button key={id} id={`library-${scope}-${id}`} role="tab" aria-selected={tab === id} aria-controls={`library-${scope}-panel`} tabIndex={tab === id ? 0 : -1} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={15} />{label}</button>)}
     </nav>
     <div id={`library-${scope}-panel`} role="tabpanel" aria-labelledby={`library-${scope}-${tab}`}>
-    <Suspense fallback={<div className="workbench-help">正在加载资料…</div>}>
+    <Suspense fallback={<div className="library-panel-loading" role="status">正在加载资料…</div>}>
       {tab === 'browse' && scope === 'technical' && <TechnicalBrowser data={data} onDescribe={describe} />}
       {tab === 'browse' && scope === 'report' && <ReportPage contentOnly onDescribe={describe} />}
       {tab === 'browse' && scope === 'news' && <NewsPage importOpen={newsImportOpen} onImportClose={() => setNewsImportOpen(false)} onDiscuss={item => onConversation('news', { reference: { kind: 'news_item', source_id: item.id }, label: item.title })} />}

@@ -430,7 +430,7 @@ label { font-size: 11px; }
   .news-reading-panel { padding: 18px 0 0; }
 }
 @media (max-width: 560px) {
-  .app-shell { display: block; padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .app-shell { --ui-bottom-nav-height: calc(64px + env(safe-area-inset-bottom)); display: block; padding-bottom: var(--ui-bottom-nav-height); }
   .sidebar { position: fixed; inset: auto 0 0; width: 100%; height: calc(64px + env(safe-area-inset-bottom)); padding: 0 8px env(safe-area-inset-bottom); border-right: 0; border-top: 1px solid var(--ui-border); overflow: visible; background: var(--ui-surface); }
   .sidebar .research-brand { display: none; }
   .sidebar-collapsed .sidebar { width: 100%; padding: 0 8px env(safe-area-inset-bottom); }

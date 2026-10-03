@@ -6,10 +6,15 @@
 }
 
 html, body, #root {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100%;
   margin: 0;
   padding: 0;
+}
+
+/* Keep page and header widths stable when document scrolling comes and goes. */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -286,6 +291,35 @@ button:disabled {
   max-width: 1640px;
   width: 100%;
   margin: 0 auto;
+  min-height: calc(100dvh - var(--ui-header-height) - var(--ui-bottom-nav-height, 0px));
+}
+
+.page-navigation-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--ui-primary);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.page-loading {
+  color: var(--ui-text-muted);
+}
+
+.page-loading-placeholder, .library-panel-loading {
+  min-height: min(560px, 65dvh);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-subtle);
+}
+
+.page-loading-placeholder {
+  margin-top: 24px;
+}
+
+.library-panel-loading {
+  padding: 24px;
+  color: var(--ui-text-muted);
 }
 
 .page-content {

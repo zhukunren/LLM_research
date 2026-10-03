@@ -1,0 +1,1296 @@
+{
+  "fixtures": "isolated synthetic data, delayed GET requests and page modules; no external model calls",
+  "results": [
+    {
+      "device": "desktop",
+      "page": "投研助手",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 50.39,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        908,
+        976,
+        978
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "观察池",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 978
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 26.59,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        978
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "资讯库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        930,
+        1119
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "技术指标库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1119
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        913,
+        998,
+        1083,
+        1119
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "形态库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 998
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        904,
+        987,
+        998
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "研报库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 904
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        904,
+        1218
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "研究中心",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1218
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 23.8,
+      "heading_y_shift_after_commit": 0,
+      "document_heights": [
+        900,
+        1218
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "资讯库",
+      "scrolled": true,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 23.8,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1119
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "投研助手",
+      "scrolled": true,
+      "before": {
+        "scrollY": 219,
+        "height": 1119
+      },
+      "viewport_width_shift": 0,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0,
+        219
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 245.59,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        908,
+        1119
+      ]
+    },
+    {
+      "device": "desktop",
+      "page": "研究中心",
+      "scrolled": true,
+      "before": {
+        "scrollY": 8,
+        "height": 908
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0.2,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0,
+        8
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 42.39,
+      "heading_y_shift_after_commit": 0,
+      "document_heights": [
+        900,
+        908
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "投研助手",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 916
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 50.39,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        916,
+        930,
+        1402,
+        1414,
+        1671
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "观察池",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1840
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 26.59,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1840
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "资讯库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1181,
+        1251,
+        1327,
+        1593
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "技术指标库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1327
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1067,
+        1077,
+        1327,
+        1372
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "形态库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1372
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        913,
+        1063,
+        1074,
+        1372
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "研报库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1074
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1074,
+        1406
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "研究中心",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1406
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 23.8,
+      "heading_y_shift_after_commit": 0,
+      "document_heights": [
+        900,
+        916,
+        1406
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "资讯库",
+      "scrolled": true,
+      "before": {
+        "scrollY": 16,
+        "height": 916
+      },
+      "viewport_width_shift": 0,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0.08,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0,
+        16
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 39.8,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        916,
+        1181,
+        1327
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "投研助手",
+      "scrolled": true,
+      "before": {
+        "scrollY": 300,
+        "height": 1327
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0,
+        300
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 326.59,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        930,
+        1327
+      ]
+    },
+    {
+      "device": "tablet",
+      "page": "研究中心",
+      "scrolled": true,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0.0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 4,
+      "heading_y_shift": 50.39,
+      "heading_y_shift_after_commit": 0,
+      "document_heights": [
+        900,
+        916
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "投研助手",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1240
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 50.25,
+      "heading_y_shift_after_commit": 0,
+      "document_heights": [
+        900,
+        950,
+        1240,
+        1484,
+        1495,
+        1862
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "观察池",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1862
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 27.2,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1191,
+        1862,
+        2031
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "资讯库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1191
+      },
+      "viewport_width_shift": 0,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        919,
+        1191,
+        1220,
+        1357,
+        1549,
+        1891
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "技术指标库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1357
+      },
+      "viewport_width_shift": 0,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        1037,
+        1245,
+        1323,
+        1357,
+        1618
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "形态库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1618
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        939,
+        1042,
+        1120,
+        1618
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "研报库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1120
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        919,
+        1120,
+        1413
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "研究中心",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1413
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 23.05,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1240,
+        1413
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "资讯库",
+      "scrolled": true,
+      "before": {
+        "scrollY": 300,
+        "height": 1240
+      },
+      "viewport_width_shift": 0,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0,
+        300
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 323.05,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        1220,
+        1240,
+        1357
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "投研助手",
+      "scrolled": true,
+      "before": {
+        "scrollY": 300,
+        "height": 1357
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0,
+        300
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 327.2,
+      "heading_y_shift_after_commit": 0,
+      "document_heights": [
+        900,
+        950,
+        1357
+      ]
+    },
+    {
+      "device": "mobile",
+      "page": "研究中心",
+      "scrolled": true,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 50.25,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1240
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "投研助手",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1280
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 50.25,
+      "heading_y_shift_after_commit": 0,
+      "document_heights": [
+        900,
+        1011,
+        1280,
+        1484,
+        1495,
+        1862
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "观察池",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 2031
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 27.2,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        919,
+        1191,
+        2031
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "资讯库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1191
+      },
+      "viewport_width_shift": 0,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        919,
+        1191,
+        1220,
+        1357,
+        1559,
+        1901
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "技术指标库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1357
+      },
+      "viewport_width_shift": 0,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        1058,
+        1266,
+        1344,
+        1357,
+        1697
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "形态库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1697
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        989,
+        1113,
+        1191,
+        1697
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "研报库",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1191
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 0.0,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        919,
+        1191,
+        1509
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "研究中心",
+      "scrolled": false,
+      "before": {
+        "scrollY": 0,
+        "height": 1509
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 23.05,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1280,
+        1509
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "资讯库",
+      "scrolled": true,
+      "before": {
+        "scrollY": 300,
+        "height": 1280
+      },
+      "viewport_width_shift": 0,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0,
+        300
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 0,
+      "heading_y_shift": 323.05,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        1220,
+        1280,
+        1357
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "投研助手",
+      "scrolled": true,
+      "before": {
+        "scrollY": 300,
+        "height": 1357
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0,
+        300
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 327.2,
+      "heading_y_shift_after_commit": 0,
+      "document_heights": [
+        900,
+        1011,
+        1357
+      ]
+    },
+    {
+      "device": "narrow",
+      "page": "研究中心",
+      "scrolled": true,
+      "before": {
+        "scrollY": 0,
+        "height": 900
+      },
+      "viewport_width_shift": 10,
+      "layout_width_shift": 0,
+      "horizontal_overflow": -10,
+      "header_x_shift": 0,
+      "header_width_shift": 0,
+      "sidebar_y_shift": 0,
+      "header_actions_x_shift": 0,
+      "scroll_y_values": [
+        0
+      ],
+      "scroll_y_values_after_commit": [
+        0
+      ],
+      "blank_heading_frames": 0,
+      "heading_x_shift": 2,
+      "heading_y_shift": 50.25,
+      "heading_y_shift_after_commit": 0.0,
+      "document_heights": [
+        900,
+        1280
+      ]
+    }
+  ],
+  "checks": [
+    "desktop: same-page-navigation-preserves-reading-position",
+    "desktop: pdf-focus-and-services-scroll-lock-preserve-shell-width",
+    "desktop: rapid-cold-navigation-keeps-last-selected-page",
+    "tablet: same-page-navigation-preserves-reading-position",
+    "tablet: pdf-focus-and-services-scroll-lock-preserve-shell-width",
+    "tablet: rapid-cold-navigation-keeps-last-selected-page",
+    "mobile: same-page-navigation-preserves-reading-position",
+    "mobile: pdf-focus-and-services-scroll-lock-preserve-shell-width",
+    "mobile: rapid-cold-navigation-keeps-last-selected-page",
+    "narrow: same-page-navigation-preserves-reading-position",
+    "narrow: pdf-focus-and-services-scroll-lock-preserve-shell-width",
+    "narrow: rapid-cold-navigation-keeps-last-selected-page"
+  ],
+  "page_errors": []
+}
