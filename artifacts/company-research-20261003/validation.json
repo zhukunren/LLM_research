@@ -1,0 +1,33 @@
+{
+  "data": "synthetic isolated fixtures; no model calls; production database unchanged",
+  "checks": [
+    "company-dossier",
+    "market-actual-date-and-unknown-units",
+    "point-in-time-news-version",
+    "indexed-report-and-original-pdf",
+    "selected-quote-unicode-location",
+    "claim-kind-and-source-stance",
+    "immutable-source-snapshot"
+  ],
+  "layouts": [
+    {
+      "device": "tablet",
+      "viewport": 820,
+      "document": 820,
+      "clippedButtons": []
+    },
+    {
+      "device": "mobile",
+      "viewport": 390,
+      "document": 390,
+      "clippedButtons": []
+    },
+    {
+      "device": "narrow",
+      "viewport": 320,
+      "document": 320,
+      "clippedButtons": []
+    }
+  ],
+  "page_errors": []
+}

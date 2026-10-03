@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from datetime import date
+from typing import Literal
+from fastapi import APIRouter, HTTPException, Query
 
 from . import research_projects as projects
+from . import company_research as company
 from .screening_contracts import ContractModel
 from pydantic import Field
 
@@ -79,3 +82,35 @@ def project_files(project_id: str):
 @router.get("/research-projects/{project_id}/notes/{note_id}/history")
 def note_history(project_id: str, note_id: str):
     return {"items": _call(projects.note_history, project_id, note_id)}
+
+
+@router.get("/research-projects/{project_id}/companies/{stock_code}")
+def company_dossier(project_id: str, stock_code: str, as_of: date):
+    return _call(company.dossier, project_id, stock_code, as_of.isoformat())
+
+
+@router.get("/research-projects/{project_id}/companies/{stock_code}/sources")
+def company_sources(project_id: str, stock_code: str, kind: Literal["news", "report"], as_of: date,
+                    offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=50)):
+    return _call(company.sources, project_id, stock_code, kind, as_of.isoformat(), offset, limit)
+
+
+@router.get("/research-projects/{project_id}/companies/{stock_code}/source")
+def company_source(project_id: str, stock_code: str, kind: Literal["news", "report"], source_id: str,
+                   as_of: date, page: int = Query(1, ge=1, le=5000), offset: int = Query(0, ge=0)):
+    return _call(company.source, project_id, stock_code, kind, source_id, page, as_of.isoformat(), offset)
+
+
+@router.get("/research-projects/{project_id}/notes/{note_id}/claims")
+def note_claims(project_id: str, note_id: str, offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=50)):
+    return _call(company.claims, project_id, note_id, offset, limit)
+
+
+@router.post("/research-projects/{project_id}/notes/{note_id}/claims")
+def create_claim(project_id: str, note_id: str, payload: company.CreateClaim):
+    return _call(company.create_claim, project_id, note_id, payload)
+
+
+@router.get("/research-projects/{project_id}/claims/{claim_id}/evidence/{index}")
+def saved_claim_evidence(project_id: str, claim_id: str, index: int):
+    return _call(company.saved_evidence, project_id, claim_id, index)

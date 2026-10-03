@@ -80,12 +80,14 @@ function IndicatorLine({ series }: { series: Preview['series'] }) {
   return <div className="indicator-chart"><svg viewBox="0 0 700 210" role="img" aria-label="所选指标的真实历史走势"><line x1="15" x2="685" y1="180" y2="180" stroke="var(--ui-border)" /><line x1="15" x2="685" y1="105" y2="105" stroke="var(--ui-border-subtle)" /><path d={path} stroke="var(--ui-chart-line)" fill="none" strokeWidth="2.3" /><text x="15" y="205">{series[0]?.date}</text><text x="685" y="205" textAnchor="end">{series.at(-1)?.date}</text></svg><small>范围 {fmt(min)} — {fmt(max)}；缺失值留空。</small></div>
 }
 
-export function MarketIndicatorChart({ chart }: { chart: IndicatorChart }) {
+export function MarketIndicatorChart({ chart, containerWidth }: { chart: IndicatorChart; containerWidth?: number }) {
   const [hover, setHover] = useState<{ index: number; y: number } | null>(null)
   useEffect(() => setHover(null), [chart])
   const bars = chart.bars
   if (!bars.length) return <div className="indicator-placeholder">此窗口内没有可显示的 K 线。</div>
-  const width = 720, pad = { left: 44, right: 16, top: 16, bottom: 24 }
+  const width = containerWidth && Number.isFinite(containerWidth) ? Math.max(200, containerWidth) : 720
+  const pad = { left: containerWidth ? 64 : 44, right: 16, top: 16, bottom: 24 }
+  const axisDate = (date?: string) => containerWidth && width < 400 ? date?.slice(5) : date
   const priceHeight = chart.placement === 'pane' ? 196 : 280
   const paneHeight = chart.placement === 'pane' ? 126 : 0
   const totalHeight = priceHeight + paneHeight + 18
@@ -138,7 +140,7 @@ export function MarketIndicatorChart({ chart }: { chart: IndicatorChart }) {
       {bars.map((bar, index) => ![bar.open, bar.high, bar.low, bar.close].every(Number.isFinite) ? null : <g key={bar.trade_date}><line x1={x(index)} x2={x(index)} y1={priceY(bar.high)} y2={priceY(bar.low)} className={bar.close >= bar.open ? 'candle-wick positive' : 'candle-wick negative'} /><rect x={x(index) - candleWidth / 2} y={Math.min(priceY(bar.open), priceY(bar.close))} width={candleWidth} height={Math.max(1.5, Math.abs(priceY(bar.open) - priceY(bar.close)))} className={bar.close >= bar.open ? 'candle-body positive' : 'candle-body negative'} /></g>)}
       {chart.placement === 'overlay' && chart.lines.map(line => <path key={line.id} d={path(line.values, priceY)} fill="none" stroke={line.color} strokeWidth="1.8" className="indicator-series-line" />)}
       {chart.placement === 'pane' && <><line x1={pad.left} x2={width - pad.right} y1={paneTop - 4} y2={paneTop - 4} className="indicator-pane-divider" />{chart.reference_lines.map(value => <g key={`ref-${value}`}><line x1={pad.left} x2={width - pad.right} y1={paneY(value)} y2={paneY(value)} className="indicator-reference-line" /><text x={width - pad.right} y={paneY(value) - 3} textAnchor="end">{value}</text></g>)}{chart.histogram?.values.map((value, index) => value === null || !Number.isFinite(value) ? null : <rect key={`hist-${index}`} x={x(index) - candleWidth / 2} width={candleWidth} y={Math.min(zeroY, paneY(value))} height={Math.max(1, Math.abs(zeroY - paneY(value)))} className={value >= 0 ? 'indicator-histogram positive' : 'indicator-histogram negative'} />)}{chart.lines.map(line => <path key={line.id} d={path(line.values, paneY)} fill="none" stroke={line.color} strokeWidth="1.7" className="indicator-series-line" />)}</>}
-      <text x={pad.left} y={totalHeight - 4}>{bars[0]?.trade_date}</text><text x={width - pad.right} y={totalHeight - 4} textAnchor="end">{bars.at(-1)?.trade_date}</text><text x="4" y={pad.top + 9}>{fmt(priceMax)}</text><text x="4" y={priceHeight - pad.bottom}>{fmt(priceMin)}</text>
+      <text x={pad.left} y={totalHeight - 4}>{axisDate(bars[0]?.trade_date)}</text><text x={width - pad.right} y={totalHeight - 4} textAnchor="end">{axisDate(bars.at(-1)?.trade_date)}</text><text x="4" y={pad.top + 9}>{fmt(priceMax)}</text><text x="4" y={priceHeight - pad.bottom}>{fmt(priceMin)}</text>
       {hover && <g className="indicator-crosshair" pointerEvents="none"><line x1={x(hover.index)} x2={x(hover.index)} y1={pad.top} y2={totalHeight - 20} /><line x1={pad.left} x2={width - pad.right} y1={hover.y} y2={hover.y} /><rect x={Math.max(44, Math.min(width - 100, x(hover.index) - 42))} y={totalHeight - 19} width="88" height="19" /><text x={Math.max(88, Math.min(width - 56, x(hover.index)))} y={totalHeight - 5} textAnchor="middle">{bars[hover.index]?.trade_date}</text></g>}
     </svg>
   </div>

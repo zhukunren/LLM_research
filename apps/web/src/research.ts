@@ -9,6 +9,7 @@ export type ProjectConversation = {
   research_mode: string; last_turn_state: string | null; updated_at: string
 }
 export type ResearchNote = {
+  claim_stock_codes?: string[]
   id: string; project_id: string; title: string; body: string; stock_code: string | null
   validation_plan: string; invalidation_condition: string
   status: 'watching' | 'supported' | 'challenged' | 'invalidated'; revision: number

@@ -40,6 +40,56 @@ class ReadSourceArgs(ToolArgs):
     as_of: date | None
 
 
+class ReadProjectCompanyArgs(ToolArgs):
+    stock_code: str = Field(pattern=r"^\d{6}\.(SH|SZ|BJ)$")
+    as_of: date
+
+
+class ReadSavedEvidenceArgs(ToolArgs):
+    claim_id: str = Field(min_length=1, max_length=100)
+    evidence_index: int = Field(default=0, ge=0, le=3)
+
+
+def _research_project_id(context) -> str:
+    from .screening_tools import ToolDispatchError
+    project_id = conversation_store.get_conversation(context.conversation_id, message_limit=1).get("project_id")
+    if not project_id:
+        raise ToolDispatchError("project_required", "此对话尚未归入研究项目。可以继续使用普通资料研究工具。")
+    return project_id
+
+
+def read_project_company(args: ReadProjectCompanyArgs, context) -> dict:
+    from . import company_research, research_projects
+    from .screening_tools import ToolDispatchError
+    try:
+        result = company_research.dossier(_research_project_id(context), args.stock_code, args.as_of.isoformat())
+        result["bars_window_total"] = len(result["bars"])
+        result["bars"] = result["bars"][-30:]
+        for key in ("news", "reports"):
+            result[key]["items"] = result[key]["items"][:5]
+            result[key]["next_offset"] = 5 if result[key]["total"] > 5 else None
+            result[key]["preview_limit"] = 5
+        result["preview_only"] = True
+        return result
+    except research_projects.ProjectError as exc:
+        raise ToolDispatchError("company_research_error", str(exc)) from exc
+
+
+def read_saved_research_evidence(args: ReadSavedEvidenceArgs, context) -> dict:
+    from . import company_research, research_projects
+    from .screening_tools import ToolDispatchError
+    try:
+        result = company_research.saved_evidence(_research_project_id(context), args.claim_id, args.evidence_index)
+        relative = result["quote_start"] - result["char_start"]
+        begin = max(0, relative - 500)
+        end = min(len(result["text"]), max(begin + 4000, result["quote_end"] - result["char_start"]))
+        return {**result, "text": result["text"][begin:end], "char_start": result["char_start"] + begin,
+                "char_end": result["char_start"] + end, "original_snapshot_characters": len(result["text"]),
+                "next_offset": None, "snapshot_excerpt": True}
+    except research_projects.ProjectError as exc:
+        raise ToolDispatchError("saved_evidence_error", str(exc)) from exc
+
+
 class PreviewProgramArgs(ToolArgs):
     revision: int = Field(ge=1)
     reference_id: str
@@ -338,6 +388,8 @@ def cancel_research_scan(args: CancelResearchScanArgs, context: ToolContext) -> 
 
 
 def register_tools(registry) -> None:
+    registry.register("read_project_company", "Read this conversation's project company dossier as of an explicit date. Includes actual price dates, unknown units, source counts and bounded previews. No screening task or run is created. Use normal source/data tools for full analysis.", ReadProjectCompanyArgs, read_project_company)
+    registry.register("read_saved_research_evidence", "Read the immutable original-text snapshot attached to a research claim in this conversation's project. Claim IDs are in project context. Quote location is verified; semantic support and claim kind are user annotations, not established facts.", ReadSavedEvidenceArgs, read_saved_research_evidence)
     registry.register("discover_research_data", "Inspect this turn's actual Parquet columns and types, units, date range, SQLite snapshot schemas and source paths. No screening task is required. Use native Python/DuckDB for arbitrary exploratory queries; unknown units must be verified.", DiscoverResearchDataArgs, discover_research_data)
     registry.register("query_tushare", "Read market, calendar, financial or news data through the configured Tushare relay. params is a structured object with endpoint parameters (ts_code, trade_date, start_date, end_date, ann_date, period, exchange, fields, source, offset, limit, is_open, list_status, report_type, type, market, year, month). Query a stock/date scope and inspect pagination; credentials are never returned.", TushareQueryArgs, query_tushare, open_world=True)
     registry.register("search_research_sources", "Discover reports or news across the library before defining any screening task. Optional date filters; return source metadata and pagination.", SearchSourcesArgs, search_sources)

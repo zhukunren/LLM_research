@@ -54,6 +54,26 @@
 .project-membership { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ui-text-muted); flex-wrap: wrap; }
 .project-membership select { width: auto; max-width: min(420px, 100%); font-size: 12px; }
 .research-save-answer { margin-top: 12px; }
+.company-research-panel { padding: 20px 0; border-top: 1px solid var(--ui-border-subtle); border-bottom: 1px solid var(--ui-border-subtle); }
+.company-research-date { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+.company-research-date input { width: 160px; }
+.company-research-chart .indicator-market-chart text { font-size: 12px; }
+.company-source-list { margin: 14px 0; }
+.company-source-row { display: grid; gap: 6px; width: 100%; padding: 12px 0; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--ui-border-subtle); color: var(--ui-text); }
+.company-source-row strong { overflow-wrap: anywhere; font-size: 13px; }
+.company-source-row span { color: var(--ui-text-muted); font-size: 12px; }
+.research-source-reader { margin: 18px 0; min-width: 0; }
+.research-source-reader h4 { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.research-source-text { font-family: var(--ui-font-sans); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; padding: 16px; background: var(--ui-surface-subtle); margin: 12px 0; max-height: 480px; overflow-y: auto; }
+.research-source-text mark { background: var(--ui-warning-soft); color: var(--ui-text); padding: 0; }
+.research-note-evidence { margin-top: 16px; font-size: 13px; }
+.research-note-evidence > summary { color: var(--ui-primary); }
+.research-claim-builder { display: grid; gap: 16px; margin: 16px 0; }
+.research-claim-builder label { display: grid; gap: 8px; font-size: 13px; min-width: 0; }
+.research-claim-builder textarea, .research-claim-builder select, .research-claim-builder input { width: 100%; }
+.research-claim { padding: 16px 0; border-bottom: 1px solid var(--ui-border-subtle); }
+.research-claim h4 { font-size: 14px; margin: 8px 0 12px; overflow-wrap: anywhere; }
+.research-citation blockquote { margin: 10px 0; padding: 10px 12px; border-left: 2px solid var(--ui-border-strong); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--ui-surface-subtle); }
 @media (max-width: 1000px) { .research-project-layout { grid-template-columns: 200px minmax(0, 1fr); gap: 16px; } .research-project-detail { padding: 18px; } }
 @media (max-width: 720px) {
   .research-project-layout { grid-template-columns: minmax(0, 1fr); }
