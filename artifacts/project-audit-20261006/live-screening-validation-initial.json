@@ -1,0 +1,123 @@
+{
+  "status": "failed",
+  "api": "http://127.0.0.1:8066/api/v1",
+  "as_of": "2026-09-14",
+  "stock_codes": [
+    "600000.SH",
+    "600519.SH"
+  ],
+  "started_at": "2026-10-07T00:02:35.055862+08:00",
+  "database": "D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\live\\app.db",
+  "http_calls": [
+    {
+      "method": "GET",
+      "path": "/securities/600000.SH/bars?as_of=2026-09-14&limit=3",
+      "status": 200,
+      "request_id": "995a15ea-c2d5-46c5-bc1f-f7555666632b"
+    },
+    {
+      "method": "GET",
+      "path": "/securities/600519.SH/bars?as_of=2026-09-14&limit=3",
+      "status": 200,
+      "request_id": "9399e7e5-a8c5-479c-b9cb-1bed55d5bd39"
+    },
+    {
+      "method": "POST",
+      "path": "/watchlists",
+      "status": 200,
+      "request_id": "430602c5-3cbe-48fd-a890-069a1ede4867"
+    },
+    {
+      "method": "POST",
+      "path": "/watchlists/a87bcfdb-dfd3-4c90-9fdf-6dd034b7a96f/items",
+      "status": 200,
+      "request_id": "6ff19d4f-184a-4739-b8f5-b9c91b7fa9ed"
+    },
+    {
+      "method": "POST",
+      "path": "/watchlists/a87bcfdb-dfd3-4c90-9fdf-6dd034b7a96f/items",
+      "status": 200,
+      "request_id": "afc691cb-87dc-4332-8824-399647a9d306"
+    },
+    {
+      "method": "GET",
+      "path": "/watchlists/a87bcfdb-dfd3-4c90-9fdf-6dd034b7a96f/export",
+      "status": 200,
+      "request_id": "91e974db-8bc0-4efc-bd3d-41c67cffa6cf"
+    },
+    {
+      "method": "POST",
+      "path": "/filters",
+      "status": 200,
+      "request_id": "9ca50181-3336-4f31-9241-59e86abcbfe5"
+    },
+    {
+      "method": "POST",
+      "path": "/strategies",
+      "status": 200,
+      "request_id": "ca00d045-1a6a-4ef6-a334-9a98c4ac1194"
+    },
+    {
+      "method": "POST",
+      "path": "/screening-runs",
+      "status": 200,
+      "request_id": "e502c564-1e20-4966-84c5-8c405c9751e6"
+    },
+    {
+      "method": "POST",
+      "path": "/screening-runs",
+      "status": 200,
+      "request_id": "9aec0316-0368-40c6-a2f0-c4aec7576600"
+    },
+    {
+      "method": "GET",
+      "path": "/jobs/9ef29504-ada0-426d-8101-8c01dfc0cb73",
+      "status": 200,
+      "request_id": "61d2ae0a-8641-468a-aff5-7ecb56b61070"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/a68e7d94-c09a-4652-affe-0278b32b3a45",
+      "status": 200,
+      "request_id": "2629061a-88dc-4dd5-84f9-df53c547c105"
+    }
+  ],
+  "runs": [],
+  "source_stat_before": {
+    "size": 285999322,
+    "mtime_ns": 1790585228482179800
+  },
+  "latest_bars": {
+    "600000.SH": {
+      "trade_date": "2026-09-14",
+      "open": 9.28,
+      "high": 9.43,
+      "low": 9.24,
+      "close": 9.4,
+      "volume": 771871.0,
+      "amount": 722307.374,
+      "quality_valid": true,
+      "quality_reason": null
+    },
+    "600519.SH": {
+      "trade_date": "2026-09-14",
+      "open": 1277.27,
+      "high": 1285.53,
+      "low": 1270.36,
+      "close": 1277.96,
+      "volume": 16571.0,
+      "amount": 2116621.85,
+      "quality_valid": true,
+      "quality_reason": null
+    }
+  },
+  "threshold": 643.6800000000001,
+  "watchlist": {
+    "id": "a87bcfdb-dfd3-4c90-9fdf-6dd034b7a96f",
+    "name": "审查实机测试：真实两股 d92c38e5",
+    "created_at": "2026-10-06T16:02:35+00:00",
+    "items": []
+  },
+  "error": "Traceback (most recent call last):\n  File \"D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\live_screening_validation.py\", line 155, in <module>\n    main()\n  File \"D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\live_screening_validation.py\", line 138, in main\n    execute_strategy(\"审查实机：价格真假\", condition, group, expected, \"succeeded\")\n  File \"D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\live_screening_validation.py\", line 75, in execute_strategy\n    assert run[\"result\"][\"data_snapshot\"][\"watermark\"] == AS_OF\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+  "finished_at": "2026-10-07T00:02:40.393663+08:00"
+}

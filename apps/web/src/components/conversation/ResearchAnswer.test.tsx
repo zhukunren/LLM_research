@@ -21,4 +21,10 @@ describe('research answer reading', () => {
     expect(container.querySelector('a[href*="secret"]')).toBeNull()
     expect(container.querySelector('img')).toBeNull()
   })
+
+  it('embeds local charts through the image route while their downloads remain PDFs', () => {
+    render(<ResearchAnswer conversationId="one" content={'![实验曲线](outputs/chart.png)\n\n[下载图表 PDF](outputs/chart.png)'} />)
+    expect(screen.getByRole('img', { name: '实验曲线' })).toHaveAttribute('src', '/api/v1/conversations/one/research-assets/chart.png')
+    expect(screen.getByRole('link', { name: '下载图表 PDF' })).toHaveAttribute('href', '/api/v1/conversations/one/research-files/chart.png')
+  })
 })

@@ -1,0 +1,135 @@
+- link "跳到页面内容":
+  - /url: "#workspace-main"
+- complementary:
+  - img "东吴证券 SOOCHOW SECURITIES"
+  - text: 投研工作台
+  - generic: 张家港营业部
+  - button "开始新研究":
+    - generic: 开始新研究
+  - navigation "主菜单":
+    - generic: 工作空间
+    - button "首页":
+      - generic: 首页
+    - button "研究":
+      - generic: 研究
+    - button "条件选股":
+      - generic: 条件选股
+    - button "观察池":
+      - generic: 观察池
+    - generic: 资料资源
+    - button "资讯库":
+      - generic: 资讯库
+    - button "技术指标库":
+      - generic: 技术指标库
+    - button "形态库":
+      - generic: 形态库
+    - button "研报库":
+      - generic: 研报库
+  - generic: 行情可供查询
+  - button "数据与服务":
+    - generic: 数据与服务
+- main:
+  - button "收起导航":
+  - generic: 研究空间
+  - strong: 研报库
+  - button "搜索与快速导航":
+    - generic: 查找项目、对话或页面
+    - generic: Ctrl K
+  - button "运行任务":
+    - generic: 运行任务
+  - button "行情截至 2026-09-28，查看数据状态":
+    - time: 2026-09-28
+  - generic: 探索模式
+  - heading "研报库" [level=1]
+  - button "发起研究":
+    - text: 发起研究
+  - button "选股与条件工具"
+  - tablist "研报库功能":
+    - tab "阅读研报" [selected]:
+      - text: 阅读研报
+  - tabpanel "阅读研报":
+    - button "索引本地研报":
+      - text: 索引本地研报
+    - text: 上传 PDF
+    - button "上传研报 PDF"
+    - complementary "研报列表":
+      - strong: 本地研报
+      - generic: 12 / 12 份
+      - textbox "搜索研报":
+        - /placeholder: 标题、代码、分析师或正文
+      - button "搜索"
+      - group "研报搜索方式":
+        - button "扩展搜索" [pressed]
+        - button "精确匹配"
+      - button "推进园林资产剥离，水业务兑现成长 泉阳泉600189.SH 东吴证券 · 2026-09-23 · 3 页":
+        - strong: 推进园林资产剥离，水业务兑现成长
+        - generic: 泉阳泉600189.SH
+        - generic: 东吴证券 · 2026-09-23 · 3 页
+      - button "穿越周期 SiC 外延龙头：AI 与新能源共振释放业绩弹性 瀚天天成电子科技2726.HK 中泰国际 · 2026-09-23 · 18 页":
+        - strong: 穿越周期 SiC 外延龙头：AI 与新能源共振释放业绩弹性
+        - generic: 瀚天天成电子科技2726.HK
+        - generic: 中泰国际 · 2026-09-23 · 18 页
+      - button "拐点已至，电源 PCB 核心卡位 威尔高301251.SZ 中邮证券 · 2026-09-23 · 5 页":
+        - strong: 拐点已至，电源 PCB 核心卡位
+        - generic: 威尔高301251.SZ
+        - generic: 中邮证券 · 2026-09-23 · 5 页
+      - button "盈利略承压，积极拓展综合能源服务 明星电力600101.SH 中邮证券 · 2026-09-23 · 5 页":
+        - strong: 盈利略承压，积极拓展综合能源服务
+        - generic: 明星电力600101.SH
+        - generic: 中邮证券 · 2026-09-23 · 5 页
+      - button "B7-H3 ADC优异数据闪耀WCLC，新一轮新品上市潮将至；上调目标价 翰森制药3692.HK 交银国际 · 2026-09-23 · 7 页":
+        - strong: B7-H3 ADC优异数据闪耀WCLC，新一轮新品上市潮将至；上调目标价
+        - generic: 翰森制药3692.HK
+        - generic: 交银国际 · 2026-09-23 · 7 页
+      - button "Housing strong, now with nuclear power and shareholder returns DL E&C375500.KS Yuanta Securities · 2026-09-23 · 11 页":
+        - strong: Housing strong, now with nuclear power and shareholder returns
+        - generic: DL E&C375500.KS
+        - generic: Yuanta Securities · 2026-09-23 · 11 页
+      - button "A longer cycle matters more than slowing memory price hikes Samsung Electronics005930.KS Yuanta Securities Korea · 2026-09-23 · 11 页":
+        - strong: A longer cycle matters more than slowing memory price hikes
+        - generic: Samsung Electronics005930.KS
+        - generic: Yuanta Securities Korea · 2026-09-23 · 11 页
+      - button "聚焦光通信前端收发电芯片，单波100G、200G产品进展顺利—优迅股份公司事件点评报告 优迅股份688807.SH 华鑫证券 · 2026-09-23 · 5 页":
+        - strong: 聚焦光通信前端收发电芯片，单波100G、200G产品进展顺利—优迅股份公司事件点评报告
+        - generic: 优迅股份688807.SH
+        - generic: 华鑫证券 · 2026-09-23 · 5 页
+      - button "Proven player in data center construction GS E&C006360.KS Yuanta Securities · 2026-09-22 · 10 页":
+        - strong: Proven player in data center construction
+        - generic: GS E&C006360.KS
+        - generic: Yuanta Securities · 2026-09-22 · 10 页
+      - button "Improving profitability and growing orders Daewoo E&C047040.KS Yuanta Securities · 2026-09-22 · 11 页":
+        - strong: Improving profitability and growing orders
+        - generic: Daewoo E&C047040.KS
+        - generic: Yuanta Securities · 2026-09-22 · 11 页
+      - button "未来关注公司海外新产能爬坡和新客户贡献 申洲国际2313.HK 国元证券经纪（香港） · 2026-09-22 · 7 页":
+        - strong: 未来关注公司海外新产能爬坡和新客户贡献
+        - generic: 申洲国际2313.HK
+        - generic: 国元证券经纪（香港） · 2026-09-22 · 7 页
+      - button "为易缆微第二股东，布局硬科技，继续深化新增长曲线战略布局 安孚科技603031.SH 西南证券 · 2026-09-21 · 5 页":
+        - strong: 为易缆微第二股东，布局硬科技，继续深化新增长曲线战略布局
+        - generic: 安孚科技603031.SH
+        - generic: 西南证券 · 2026-09-21 · 5 页
+    - region "研报阅读":
+      - heading "推进园林资产剥离，水业务兑现成长" [level=2]
+      - link "在浏览器中打开":
+        - /url: /api/v1/documents/1028518e-07fc-4136-811a-3355d78466f9/pdf#page=2
+        - text: 在浏览器中打开
+      - generic: 泉阳泉 600189.SH
+      - generic: 东吴证券
+      - generic: 2026-09-23
+      - generic "研报信息"
+      - generic "PDF 阅读器":
+        - button "上一页":
+        - spinbutton "研报页码": "1"
+        - generic: / 3
+        - button "下一页" [active]:
+        - button "研究此页":
+          - generic: 研究此页
+        - button "据此定义条件"
+        - button "缩小 PDF":
+        - combobox "PDF 显示比例":
+          - option "适合宽度" [selected]
+          - option "整页显示"
+        - button "放大 PDF":
+        - button "专注阅读":
+        - img "研报 PDF 第 2 页"

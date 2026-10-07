@@ -6,6 +6,10 @@ uvicorn[standard]==0.34.3
 duckdb==1.4.1
 pyarrow==23.0.1
 pypdf==6.13.1
+pdfplumber==0.11.10
+pypdfium2==5.14.0
+reportlab==4.4.3
+mistune==3.2.0
 python-multipart==0.0.20
 Pillow==12.2.0
 opencv-python-headless==4.13.0.92
@@ -15,3 +19,4 @@ psutil==6.1.1
 requests==2.32.5
 playwright==1.55.0
 pypinyin==0.55.0
+jieba==0.42.1

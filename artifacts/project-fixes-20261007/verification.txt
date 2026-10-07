@@ -1,0 +1,34 @@
+项目审查修复验证｜2026-10-07（北京时间）
+
+8 项审查问题已修复，所有修改保留原有未提交工作。生产前端已重新构建。
+
+1. 笔记保存后的旧草稿：useSessionState 同步持久化，成功保存关闭编辑器前清除草稿；项目表单使用同一修复。Chrome 实际连续新建两份笔记，第二份标题与正文为空且独立保存；再编辑两次到 revision 3 成功。
+2. 首次消息失败丢草稿：新对话选择前迁移问题、来源与提交记录。持久化原消息完整 payload 和 client_message_id，服务端版本变化不改重试身份；重放已完成回合时界面去重、不再次处理。
+3. 新笔记响应丢失后修改重试：持久化首次创建快照；重放原 POST 恢复 ID，再 PATCH 同一笔记。覆盖服务已保存/未保存、PATCH 响应丢失、重新挂载和并发修改，不使用新创建 ID 导致重复记录。
+4. PDF 排队期间项目成果 500：统一任务/缓存文件字段，排序兼容项目级成果并保持稳定；新版本排队或失败时旧文件继续可读。真实 API 19 次 HTTP 检查均 200，原版/新版各 2 页，新版正文和专题名正确。
+5. 资讯网址读取本机/私网：资讯与研究共享公共来源传输，导航、重定向及 HTTP 子请求均检查公开地址。本机、私网、保留地址、无效端口和网址凭证被拒绝，资讯 API 返回 422 且未入库。
+6. DNS 变化绕过下载校验：实际连接固定到已验证的公网 IP，保留原 Host、SNI 和证书校验，配置代理和 Fake-IP 公共 DNS 支持通过实际 HTTPS 验证。浏览器使用不可连接的独占代理端口阻止原生网络旁路，另阻断真实 WebSocket、service worker、WebRTC 与 QUIC。
+7. 不可信 Origin 可启动资料更新：副作用发生前检查 Origin、Referer、Fetch Metadata。用户版同源、配置的开发端口与本地 CLI/MCP 可正常操作；实际 HTTP 的不可信 Origin 返回 403，data_sync 任务数量保持 0。
+8. 失败答复可存为研究观察来源：必须有成功研究回合且正文匹配。无绑定历史答复必须唯一匹配已完成记录和完成时间；无法核验、失败、取消、进行中和跨会话来源拒绝。复制库现有失败答复真实 HTTP 返回 409，候选数量不变。
+
+自动化结果
+后端：659 个用例，657 通过、2 跳过、0 失败，87.96 秒；383 集成、276 单元。空隔离行情目录即可执行，不依赖用户的实际行情文件。跳过为未挂载真实行情和显式关闭的真实模型测试。
+前端：36 文件、221 测试全部通过，87.94 秒；新增 13 项正式回归，涵盖草稿清理、失败重放、版本与并发恢复。生产构建通过，13.05 秒。
+公开 HTTPS：实际配置代理下安全 HTTP Session 为 200，TLS 验证开启；资讯和研究的真实 Edge 读取均得到 917 字正文。
+API 源码编译及 git diff --check 通过。原业务数据库 hash 验证与进程清理结果见 preservation-validation.json。
+
+验证边界
+Chrome 中连续笔记创建/编辑使用真实 HTTP API 和业务数据库的一致性副本，没有 mock HTTP。
+Chrome 的跨来源表单被浏览器以 ERR_BLOCKED_BY_CLIENT 自身阻断，不能据此声称请求到达服务器；服务端 403 与无副作用由同一 Origin 的真实 HTTP 复测及正式测试确认。
+首次消息故障与笔记响应丢失由正式回归测试注入；本轮没有在 Chrome 制造网络断连，没有调用真实模型，也没有再次验收长时联网研究质量。
+缺乏可核验成功记录的旧助手文字不能新加入研究观察，应使用已完成的研究答复。
+
+证据目录：D:\项目\LLM_research\artifacts\project-fixes-20261007
+backend-tests.xml / backend-tests.log / backend-summary.json
+frontend-focused.log / frontend-test.log / frontend-build.log / frontend-summary.json
+request-security-tests.xml / request-security-tests.log
+network-validation.json / network-regression-summary.json
+live-browser-validation.json / live-notes-validation.json / notes-fixed.jpg
+live-origin-validation.json / live-private-url-validation.json / live-observation-validation.json
+live-pdf-validation.json / live-pdf-original.pdf / live-pdf-replacement.pdf
+preservation-validation.json

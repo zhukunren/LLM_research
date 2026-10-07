@@ -4,6 +4,58 @@ import { describe, expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
 import type { Conversation, ConversationSourceReference, ScreeningTaskRevision, DataStatus } from '../../api'
 
+it.each(['research', 'screening'] as const)('restores a first failed %s message with its draft, source and stable client identity', async workflow => {
+  const user = userEvent.setup()
+  const id = 'first-message-retry'
+  let created = false
+  let stored = conversation(id, { workflow_type: workflow })
+  const writes: Record<string, unknown>[] = []
+  let creations = 0
+  const source = { reference: { kind: 'report_page' as const, source_id: 'document', page_number: 1 }, label: '失败重试的研报来源' }
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    const method = init?.method ?? 'GET'
+    if (path === '/api/v1/conversations' && method === 'GET') return jsonResponse({ items: created ? [stored] : [] })
+    if (path === '/api/v1/conversations' && method === 'POST') { created = true; creations++; return jsonResponse(stored) }
+    if (path === `/api/v1/conversations/${id}/messages`) {
+      const body = JSON.parse(String(init?.body)); writes.push(body)
+      if (writes.length === 1) return jsonResponse({ message: '消息未保存，请重试' }, 503)
+      stored = { ...stored, messages: [{ id: 'question', role: 'user', content: body.content, source_refs: body.source_refs, created_at: stored.created_at }],
+        turns: [{ id: 'turn', user_message_id: 'question', base_revision: 0, state: 'awaiting_agent', response_text: null, result: {}, created_at: stored.created_at, updated_at: stored.updated_at }] }
+      return jsonResponse({ message_id: 'question', turn_id: 'turn', source_refs: body.source_refs })
+    }
+    if (path.endsWith('/process')) {
+      stored = { ...stored, messages: [...stored.messages, { id: 'answer', role: 'assistant', content: '重试已保存并处理', source_refs: [], created_at: stored.created_at }],
+        turns: [{ ...stored.turns[0], state: 'succeeded', response_text: '重试已保存并处理' }] }
+      return jsonResponse(stored.turns[0])
+    }
+    if (path === `/api/v1/conversations/${id}`) return jsonResponse(stored)
+    return jsonResponse({ items: [], next_after: -1 })
+  }))
+  const label = workflow === 'research' ? '研究要求' : '选股要求'
+  const submit = workflow === 'research' ? '发送' : '生成筛选方案'
+  const view = render(<ConversationWorkspace initialWorkflowType={workflow} initialSource={source} />)
+  await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
+  await user.type(screen.getByLabelText(label), '需要保留的首次问题')
+  await user.click(screen.getByRole('button', { name: submit }))
+  await screen.findByText('消息未保存，请重试')
+  await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
+  expect(screen.getByLabelText(label)).toHaveValue('需要保留的首次问题')
+  expect(screen.getByText(source.label)).toBeInTheDocument()
+  view.unmount()
+  render(<ConversationWorkspace initialWorkflowType={workflow} initialConversationId={id} />)
+  await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
+  expect(screen.getByLabelText(label)).toHaveValue('需要保留的首次问题')
+  expect(screen.getByText(source.label)).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: submit }))
+  await screen.findByText('重试已保存并处理')
+  expect(writes).toHaveLength(2)
+  expect(writes[1]).toEqual(writes[0])
+  expect(creations).toBe(1)
+  expect(stored.messages.filter(message => message.role === 'user')).toHaveLength(1)
+  expect(JSON.parse(sessionStorage.getItem('conversation.drafts')!)[`${workflow}:screening:${id}`]).toBe('')
+})
+
 function conversation(id: string, overrides: Partial<Conversation> = {}): Conversation {
   return {
     id,
@@ -54,6 +106,98 @@ function jsonResponse(value: unknown, status = 200) {
   })
 }
 
+it.each(['research', 'screening'] as const)('replays an accepted %s message after a lost response with original revisions and no duplicate UI message', async workflow => {
+  const user = userEvent.setup()
+  const id = 'accepted-message-replay'
+  let stored = conversation(id, { workflow_type: workflow, research_scope_revision: 0 })
+  let created = false
+  const writes: Record<string, unknown>[] = []
+  let processing = 0
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    const method = init?.method ?? 'GET'
+    if (path === '/api/v1/conversations' && method === 'GET') return jsonResponse({ items: created ? [stored] : [] })
+    if (path === '/api/v1/conversations' && method === 'POST') { created = true; return jsonResponse(stored) }
+    if (path === `/api/v1/conversations/${id}/messages`) {
+      const body = JSON.parse(String(init?.body)); writes.push(body)
+      if (writes.length === 1) {
+        stored = { ...stored, task_revision: workflow === 'screening' ? 1 : 0,
+          research_scope_revision: workflow === 'research' ? 3 : 0,
+          research_scope: { as_of: '2026-10-01', stock_codes: [] },
+          messages: [{ id: 'original-question', role: 'user', content: body.content, source_refs: [], created_at: stored.created_at },
+            { id: 'original-answer', role: 'assistant', content: '后台已完成原回合', source_refs: [], created_at: stored.created_at }],
+          turns: [{ id: 'original-turn', user_message_id: 'original-question', base_revision: 0, state: 'succeeded', response_text: '后台已完成原回合', result: {}, created_at: stored.created_at, updated_at: stored.updated_at }] }
+        return jsonResponse({ message: '原消息响应丢失' }, 503)
+      }
+      expect(body).toEqual(writes[0])
+      return jsonResponse({ message_id: 'original-question', turn_id: 'original-turn', state: 'succeeded', idempotent_replay: true })
+    }
+    if (path.endsWith('/process')) { processing++; return jsonResponse(stored.turns[0]) }
+    if (path.endsWith('/revisions/1')) return jsonResponse(revision(id))
+    if (path === `/api/v1/conversations/${id}`) return jsonResponse(stored)
+    return jsonResponse({ items: [] })
+  }))
+  render(<ConversationWorkspace initialWorkflowType={workflow} />)
+  const label = workflow === 'research' ? '研究要求' : '选股要求'
+  await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
+  await user.type(screen.getByLabelText(label), '原始首次问题')
+  await user.click(screen.getByRole('button', { name: workflow === 'research' ? '发送' : '生成筛选方案' }))
+  await screen.findByText('原消息响应丢失')
+  await screen.findByText('后台已完成原回合')
+  await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
+  expect(screen.getByLabelText(label)).toHaveValue('原始首次问题')
+  await user.click(screen.getByRole('button', { name: workflow === 'research' ? '发送' : '发送修改' }))
+  await waitFor(() => expect(screen.getByLabelText(label)).toHaveValue(''))
+  expect(writes).toHaveLength(2)
+  expect(writes[1]).toEqual(writes[0])
+  expect(processing).toBe(0)
+  expect(screen.getByRole('log').querySelectorAll('.conversation-message.user')).toHaveLength(1)
+})
+
+it.each(['succeeded', 'failed'] as const)('keeps a new research conversation renderable after a metadata-only create when processing %s', async (state) => {
+  const user = userEvent.setup()
+  const id = 'metadata-only-create'
+  let stored = conversation(id, { workflow_type: 'research', research_scope_revision: 0 })
+  const writes: string[] = []
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    const method = init?.method ?? 'GET'
+    if (method !== 'GET') writes.push(path)
+    if (path === '/api/v1/conversations' && method === 'GET') return jsonResponse({ items: [] })
+    if (path === '/api/v1/conversations' && method === 'POST') {
+      const { messages: _messages, turns: _turns, ...metadata } = stored
+      return jsonResponse(metadata)
+    }
+    if (path.endsWith('/research-scope') && method === 'PATCH') {
+      stored = { ...stored, research_scope: { as_of: '2026-10-05', stock_codes: [] }, research_scope_revision: 1 }
+      return jsonResponse({ research_scope: stored.research_scope, research_scope_revision: 1 })
+    }
+    if (path.endsWith('/messages') && method === 'POST') {
+      // Let React render the scope update before the full GET response arrives.
+      await new Promise(resolve => setTimeout(resolve, 20))
+      const message = { id: 'question', role: 'user' as const, content: '核验公告来源', source_refs: [], created_at: stored.created_at }
+      stored = { ...stored, messages: [message] }
+      return jsonResponse({ message_id: message.id, turn_id: 'turn', base_revision: 0, state: 'awaiting_agent' }, 202)
+    }
+    if (path.endsWith('/turns/turn/process')) {
+      const answer = { id: 'answer', role: 'assistant' as const, content: state === 'succeeded' ? '已核验公告来源' : 'Codex 状态目录不可写', source_refs: [], created_at: stored.created_at }
+      stored = { ...stored, messages: [...stored.messages, answer], turns: [{ id: 'turn', user_message_id: 'question', base_revision: 0, state, response_text: answer.content, result: {}, created_at: stored.created_at, updated_at: stored.updated_at }] }
+      return jsonResponse(stored.turns[0])
+    }
+    if (path === `/api/v1/conversations/${id}`) return jsonResponse(stored)
+    return jsonResponse({ items: [] })
+  }))
+  render(<ConversationWorkspace data={{ available: true, last_date: '2026-10-05' } as DataStatus} />)
+  const input = await screen.findByLabelText('研究要求')
+  await waitFor(() => expect(input).toBeEnabled())
+  await user.type(input, '核验公告来源')
+  await user.click(screen.getByRole('button', { name: '发送' }))
+  expect(await screen.findByText(state === 'succeeded' ? '已核验公告来源' : 'Codex 状态目录不可写')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: '研究对话' })).toBeInTheDocument()
+  expect(writes.filter(path => path.endsWith('/messages'))).toHaveLength(1)
+  expect(writes.some(path => path.endsWith('/research-scope'))).toBe(true)
+})
+
 describe('ConversationWorkspace', () => {
   it('accepts an asynchronous research job, preserves the user request and can stop it after acknowledgement', async () => {
     const user = userEvent.setup()
@@ -86,21 +230,25 @@ describe('ConversationWorkspace', () => {
       return jsonResponse({ items: [], next_after: -1 })
     }))
     const view = render(<ConversationWorkspace data={{ last_date: '2026-09-30' } as DataStatus} />)
-    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
-    await user.type(screen.getByLabelText('研究要求'), '独立研究公司的订单与盈利质量')
+    await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
+    await user.type(screen.getByLabelText(/研究要求|选股要求/), '独立研究公司的订单与盈利质量')
     await user.click(screen.getByRole('button', { name: '发送' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '停止当前研究' })).toBeEnabled())
     expect(received).toBe('独立研究公司的订单与盈利质量')
-    expect(screen.getByLabelText('研究要求')).toBeDisabled()
+    await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    await user.type(screen.getByLabelText(/研究要求|选股要求/), '下一条问题，先保留草稿')
     expect(screen.queryByRole('button', { name: '继续处理' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '停止当前研究' }))
     expect(await screen.findByText('研究已停止')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
+    expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('下一条问题，先保留草稿')
     expect(writes.some(path => path.endsWith('/execute'))).toBe(false)
     view.unmount()
   })
 
   it('reconnects a restored running turn, unlocks the composer, and stops polling on completion', async () => {
+    const user = userEvent.setup()
     const id = 'restored-running'
     const created_at = '2026-09-30T00:00:00+00:00'
     let stored = conversation(id, {
@@ -120,14 +268,18 @@ describe('ConversationWorkspace', () => {
     }))
     const view = render(<ConversationWorkspace />)
     await screen.findAllByText('解释行情覆盖')
-    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeDisabled())
+    await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
+    await user.type(screen.getByLabelText(/研究要求|选股要求/), '完成后继续核对来源')
     stored = {
       ...stored,
       messages: [...stored.messages, { id: 'answer', role: 'assistant', content: '后端已完成行情覆盖检查', source_refs: [], created_at }],
       turns: stored.turns.map(turn => ({ ...turn, state: 'succeeded', response_text: '后端已完成行情覆盖检查' })),
     }
     expect(await screen.findByText('后端已完成行情覆盖检查', {}, { timeout: 3000 })).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
+    expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('完成后继续核对来源')
+    expect(screen.getByRole('button', { name: '发送' })).toBeEnabled()
     const completedReads = reads
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 1400)) })
     expect(reads).toBe(completedReads)
@@ -201,7 +353,7 @@ describe('ConversationWorkspace', () => {
     }))
 
     render(<ConversationWorkspace />)
-    const input = await screen.findByLabelText('研究要求')
+    const input = await screen.findByLabelText(/研究要求|选股要求/)
     await user.type(input, '收盘价高于20日均线，筛一下')
     await user.click(screen.getByRole('button', { name: '发送' }))
 
@@ -261,13 +413,13 @@ describe('ConversationWorkspace', () => {
 
     render(<ConversationWorkspace />)
     await screen.findByText('筛选条件已确认，执行授权已记录。')
-    await user.type(screen.getByLabelText('研究要求'), '按这个筛')
-    await user.click(screen.getByRole('button', { name: '发送' }))
+    await user.type(screen.getByLabelText(/研究要求|选股要求/), '按这个筛')
+    await user.click(screen.getByRole('button', { name: '发送修改' }))
 
     expect(await screen.findByText('600000.SH')).toBeInTheDocument()
     await user.click(screen.getByText('600000.SH'))
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
-    expect(screen.getByLabelText('研究要求')).toHaveValue('为什么这次选中了600000.SH？')
+    expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('为什么这次选中了600000.SH？')
     expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1)
     expect(screen.getByText('当前运行 · v1 · 2026-09-14')).toBeInTheDocument()
   })
@@ -310,7 +462,7 @@ describe('ConversationWorkspace', () => {
       }}
     />)
     expect(await screen.findByText('订单研究 · 第 2 页')).toBeInTheDocument()
-    await user.type(screen.getByLabelText('研究要求'), '这页提到了哪些订单证据？')
+    await user.type(screen.getByLabelText(/研究要求|选股要求/), '这页提到了哪些订单证据？')
     await user.click(screen.getByRole('button', { name: '发送' }))
 
     await screen.findByText('我会基于所选研报页回答。')

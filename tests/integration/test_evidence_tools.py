@@ -12,7 +12,7 @@ from apps.api.app.screening_tools import ToolContext, registry
 def context(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "evidence.db")
     with TestClient(main.app) as client:
-        conversation = client.post("/api/v1/conversations", json={"entry_scope": "report"}).json()
+        conversation = client.post("/api/v1/conversations", json={"entry_scope": "report", "workflow_type": "screening"}).json()
         message = client.post(f"/api/v1/conversations/{conversation['id']}/messages", json=dict(
             client_message_id="evidence-read", base_revision=0, content="读取公司研报",
         )).json()

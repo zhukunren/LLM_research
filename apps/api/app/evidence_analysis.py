@@ -147,7 +147,7 @@ event_group（同一事件转述使用完全相同的非空标记）、units_mat
         event_requirement=request.event_requirement,
         numeric_requirement=request.numeric_requirement,
         evidence=validated,
-    ), ensure_ascii=False), timeout_seconds=60, max_output_tokens=4000)
+    ), ensure_ascii=False), max_output_tokens=4000)
     assessments = checked.get("assessments") if isinstance(checked, dict) else None
     if not isinstance(assessments, list) or len(assessments) != len(validated):
         raise EvidenceAnalysisError("引用语义核验输出不完整")
@@ -235,7 +235,7 @@ def analyze(request: EvidenceRequest, stock_code: str, as_of: str, provider: Evi
     for _ in range(MAX_ROUNDS):
         if not active():
             raise EvidenceAnalysisCancelled("资料分析已取消")
-        turn = model_client.create_tool_turn(INSTRUCTIONS, conversation, tools(), timeout_seconds=60, max_output_tokens=6000)
+        turn = model_client.create_tool_turn(INSTRUCTIONS, conversation, tools(), max_output_tokens=6000)
         if not active():
             raise EvidenceAnalysisCancelled("资料分析已取消")
         if turn.refusal or not turn.calls:

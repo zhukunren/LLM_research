@@ -500,16 +500,27 @@ def execute_job(job_id: str | None = None, *, kinds: tuple[str, ...] | None = No
             elif lease.kind == "research_scan":
                 from .research_scan_service import execute_scan
                 execute_scan(lease)
+                from .research_pdf_service import enqueue_scan
+                try:
+                    with connect() as connection:
+                        source = connection.execute("SELECT conversation_id FROM research_scans WHERE id=? AND status NOT IN ('queued','running')", (lease.payload["scan_id"],)).fetchone()
+                    if source:
+                        enqueue_scan(source["conversation_id"], lease.payload["scan_id"])
+                except Exception:
+                    logging.getLogger(__name__).exception("Could not queue research scan PDF")
             elif lease.kind == "research_turn":
                 from .research_turn_service import execute_turn
                 execute_turn(lease)
+            elif lease.kind == "research_pdf":
+                from .research_pdf_service import execute_export
+                execute_export(lease)
             elif lease.kind == "report_evaluation":
                 _execute_report_evaluation(lease)
             elif lease.kind == "report_metadata":
                 from .report_catalog import execute
                 execute(lease)
             elif lease.kind == "data_sync":
-                from .product_api import refresh_data
+                from .maintenance_service import refresh_data
                 refresh_data(lease)
             else:
                 lease.finish("failed", "未知任务类型")
@@ -541,12 +552,15 @@ def run_worker(poll_seconds: float = 1.0, *, stop_event: Event | None = None) ->
 
     # A Codex turn can wait for a scan, so its consumer must run independently.
     research = Thread(target=consume, kwargs={"kinds": ("research_turn",)}, name="research-turn-worker", daemon=True)
+    pdf = Thread(target=consume, kwargs={"kinds": ("research_pdf",)}, name="research-pdf-worker", daemon=True)
     research.start()
+    pdf.start()
     try:
-        consume(exclude_kinds=("research_turn",))
+        consume(exclude_kinds=("research_turn", "research_pdf"))
     finally:
         stop.set()
         research.join(timeout=2)
+        pdf.join(timeout=2)
 
 
 if __name__ == "__main__":

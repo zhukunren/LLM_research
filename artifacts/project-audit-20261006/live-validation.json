@@ -1,0 +1,84 @@
+{
+  "started_on": "2026-10-06",
+  "finished_on": "2026-10-07",
+  "browser": "本机Chrome",
+  "url": "http://127.0.0.1:8066",
+  "scope": "真实业务DB一致性副本、真实行情与PDF源件、无HTTP mock，单次最小真实模型请求",
+  "checks": [
+    {
+      "case": "真实模型最小请求",
+      "status": "passed",
+      "evidence": "已完成，答复为模型调用成功"
+    },
+    {
+      "case": "新建项目和第一份笔记",
+      "status": "passed",
+      "evidence": "真实API持久化成功"
+    },
+    {
+      "case": "连续新建笔记",
+      "status": "failed",
+      "evidence": "第二次新建带出旧标题和正文，改名保存返回相同保存请求不能使用不同笔记内容"
+    },
+    {
+      "case": "真实上证指数SMA图表",
+      "status": "passed",
+      "evidence": "SMA20=3920.3145，实际行情日2026-09-28，11种指标可选"
+    },
+    {
+      "case": "资讯阅读及自动公司K线",
+      "status": "passed",
+      "evidence": "四方股份新闻正文、企业行情与资讯当日切换"
+    },
+    {
+      "case": "形态库真实全市场匹配展示",
+      "status": "passed",
+      "evidence": "20日V形模板，12个真实匹配样本，688192.SH相似度96.3"
+    },
+    {
+      "case": "本地研报真实PDF阅读和翻页",
+      "status": "passed",
+      "evidence": "12份研报列表，泉阳泉3页原件，翻至第2页"
+    },
+    {
+      "case": "观察池真实批次与K线",
+      "status": "passed",
+      "evidence": "745只入选记录分页，000002.SZ当时条件、判断实际值和K线显示"
+    },
+    {
+      "case": "选股草稿刷新保留",
+      "status": "passed",
+      "evidence": "刷新后选股要求仍为审查草稿，确认执行被未发送内容阻断"
+    },
+    {
+      "case": "数据与服务状态",
+      "status": "passed",
+      "evidence": "显示真实行情水位2026-09-28及质量异常、助手已配置"
+    },
+    {
+      "case": "390 CSS像素首页布局",
+      "status": "passed",
+      "evidence": "innerWidth390，scrollWidth377，无横向溢出；截图命令超时，DOM检查已完成"
+    },
+    {
+      "case": "390 CSS像素研究结果布局",
+      "status": "passed",
+      "evidence": "真实模型答复与保存/观察/转选股按钮均显示，width390/scrollWidth377"
+    },
+    {
+      "case": "390 CSS像素任务弹窗",
+      "status": "passed",
+      "evidence": "进行中显示0任务，可切换最近任务，width390/scrollWidth377，无横向溢出"
+    },
+    {
+      "case": "浏览器返回",
+      "status": "passed",
+      "evidence": "从继续研究返回原首页，未触发重复发送"
+    }
+  ],
+  "console": [],
+  "limitations": [
+    "没有本轮验证长时联网研究质量或模型生成筛选方案",
+    "移动端按浏览器缩放补偿后实际CSS宽度390，首页截图CDP超时，DOM无溢出检查已完成"
+  ]
+}

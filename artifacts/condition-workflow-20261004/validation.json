@@ -1,0 +1,141 @@
+{
+  "responsive": [
+    {
+      "stage": "描述与核对",
+      "width": 1440,
+      "height": 900,
+      "overflow": [],
+      "scrollWidth": 1430,
+      "workflowPresent": true
+    },
+    {
+      "stage": "组合与执行",
+      "width": 1440,
+      "height": 900,
+      "overflow": [],
+      "scrollWidth": 1430,
+      "workflowPresent": true
+    },
+    {
+      "stage": "筛选结果",
+      "width": 1440,
+      "height": 900,
+      "overflow": [],
+      "scrollWidth": 1430,
+      "workflowPresent": true
+    },
+    {
+      "stage": "条件库",
+      "width": 1440,
+      "height": 900,
+      "overflow": [],
+      "scrollWidth": 1430,
+      "workflowPresent": true
+    },
+    {
+      "stage": "描述与核对",
+      "width": 1024,
+      "height": 800,
+      "overflow": [],
+      "scrollWidth": 1014,
+      "workflowPresent": true
+    },
+    {
+      "stage": "组合与执行",
+      "width": 1024,
+      "height": 800,
+      "overflow": [],
+      "scrollWidth": 1014,
+      "workflowPresent": true
+    },
+    {
+      "stage": "筛选结果",
+      "width": 1024,
+      "height": 800,
+      "overflow": [],
+      "scrollWidth": 1014,
+      "workflowPresent": true
+    },
+    {
+      "stage": "条件库",
+      "width": 1024,
+      "height": 800,
+      "overflow": [],
+      "scrollWidth": 1014,
+      "workflowPresent": true
+    },
+    {
+      "stage": "描述与核对",
+      "width": 390,
+      "height": 844,
+      "overflow": [],
+      "scrollWidth": 380,
+      "workflowPresent": true
+    },
+    {
+      "stage": "组合与执行",
+      "width": 390,
+      "height": 844,
+      "overflow": [],
+      "scrollWidth": 380,
+      "workflowPresent": true
+    },
+    {
+      "stage": "筛选结果",
+      "width": 390,
+      "height": 844,
+      "overflow": [],
+      "scrollWidth": 380,
+      "workflowPresent": true
+    },
+    {
+      "stage": "条件库",
+      "width": 390,
+      "height": 844,
+      "overflow": [],
+      "scrollWidth": 380,
+      "workflowPresent": true
+    },
+    {
+      "stage": "描述与核对",
+      "width": 320,
+      "height": 740,
+      "overflow": [],
+      "scrollWidth": 310,
+      "workflowPresent": true
+    },
+    {
+      "stage": "组合与执行",
+      "width": 320,
+      "height": 740,
+      "overflow": [],
+      "scrollWidth": 310,
+      "workflowPresent": true
+    },
+    {
+      "stage": "筛选结果",
+      "width": 320,
+      "height": 740,
+      "overflow": [],
+      "scrollWidth": 310,
+      "workflowPresent": true
+    },
+    {
+      "stage": "条件库",
+      "width": 320,
+      "height": 740,
+      "overflow": [],
+      "scrollWidth": 310,
+      "workflowPresent": true
+    }
+  ],
+  "frontendTests": 91,
+  "backendTests": 37,
+  "build": "passed",
+  "checks": [
+    "search-empty-state",
+    "explicit-history-versions",
+    "condition-evidence-expansion",
+    "duplicate-submission-protection"
+  ]
+}

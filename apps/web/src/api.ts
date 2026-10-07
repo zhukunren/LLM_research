@@ -94,6 +94,19 @@ export type Strategy = {
 
 export type ConversationScope = 'technical' | 'news' | 'report' | 'pattern' | 'screening'
 export type ResearchMode = 'research' | 'screening' | 'advanced'
+export type WorkflowType = 'research' | 'screening'
+export type ResearchDepth = 'standard' | 'deep'
+export type ResearchScope = {
+  as_of: string | null; stock_codes: string[]; report_lookback_calendar_days?: number | null
+  news_lookback_calendar_days?: number | null; price_basis?: string | null
+}
+export type ScreeningDraftSource = {
+  source_conversation_id: string; source_message_id: string; instructions: string; draft_prompt: string
+  source_text?: string; source_refs?: Record<string, unknown>[]; source_created_at?: string; request_id?: string
+}
+export function conversationWorkflow(value: { workflow_type?: WorkflowType; research_mode?: string; task_revision?: number }, fallback: WorkflowType = 'research'): WorkflowType {
+  return value.workflow_type ?? (value.research_mode === 'screening' || (value.task_revision ?? 0) > 0 ? 'screening' : fallback)
+}
 export type ConversationSourceReference = {
   kind: 'report_page' | 'news_item' | 'security' | 'screening_run' | 'pattern' | 'condition'
   source_id: string
@@ -131,6 +144,12 @@ export type Conversation = {
   task_id: string
   entry_scope: ConversationScope
   research_mode?: ResearchMode
+  workflow_type?: WorkflowType
+  research_depth?: ResearchDepth
+  workflow_revision?: number
+  research_scope?: ResearchScope
+  research_scope_revision?: number
+  screening_draft_source?: ScreeningDraftSource | null
   task_revision: number
   active_run_id: string | null
   pending_execution: boolean

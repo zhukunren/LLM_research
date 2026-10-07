@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse
 
-from . import conversation_store, research_scan_service
+from . import conversation_store, research_scan_service, research_pdf
 from .research_tools import StartResearchScanArgs
 
 
@@ -76,10 +76,12 @@ def cancel_research_scan(conversation_id: str, scan_id: str):
 @router.get("/{conversation_id}/research-scans/{scan_id}/export")
 def export_research_scan(conversation_id: str, scan_id: str):
     try:
-        rows = research_scan_service.export_csv(conversation_id, scan_id)
+        item = research_pdf.export_scan(conversation_id, scan_id)
+        target, name = research_pdf.pdf_path(conversation_id, item["url"].rsplit("/", 1)[-1])
     except research_scan_service.ResearchScanError as exc:
         _error(exc)
-    return StreamingResponse(rows, media_type="text/csv; charset=utf-8", headers={
-        "Content-Disposition": f'attachment; filename="research-scan-{scan_id}.csv"',
+    except research_pdf.PDFError as exc:
+        raise HTTPException(503, {"code": "research_pdf_failed", "message": str(exc)}) from exc
+    return FileResponse(target, filename=name, media_type="application/pdf", headers={
         "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store",
     })

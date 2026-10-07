@@ -5,10 +5,29 @@ import ResearchPanel from './ResearchPanel'
 
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
 const coverage = { target_total: 21, true_count: 20, false_count: 0, unknown_count: 1, failed_count: 1, not_evaluated_count: 0 }
-const output = { name: 'tushare/daily.json', bytes: 4096, url: '/api/v1/conversations/one/research-files/tushare/daily.json' }
+const output = { name: '研究报告.pdf', bytes: 4096, url: '/api/v1/conversations/one/research-pdfs/report.pdf' }
 const decision = (index: number) => ({ stock_code: `${600000 + index}.SH`, state: 'true', evaluation_status: 'completed', metrics: { change: 20 }, units: { change: '%' }, explanation: '实际计算结果' })
 
 describe('persistent research results', () => {
+  it('keeps the failed new report visible beside the previous PDF and retries only its job', async () => {
+    const writes: string[] = []
+    let status = 'failed'
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), 'http://localhost')
+      if (init?.method === 'POST') { writes.push(url.pathname); status = 'queued'; return json({ status }) }
+      if (url.pathname.endsWith('/research-files')) return json({ items: [output, { id: 'report-job', name: '新版报告.pdf', bytes: 0, url: null, modified_at: 0, conversation_id: 'one', status, retry_url: '/api/v1/conversations/one/research-pdf-jobs/report-job/retry' }] })
+      return json({ items: [] })
+    }))
+    const user = userEvent.setup()
+    const view = render(<ResearchPanel conversationId="one" turnActive={false} refreshKey={1} showGenerate />)
+    expect(await screen.findByText(/PDF 生成未完成/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /研究报告.pdf/ })).toHaveAttribute('href', output.url)
+    expect(screen.queryByRole('link', { name: /新版报告.pdf/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '重试报告' }))
+    expect(await screen.findByText(/等待生成 PDF/)).toBeInTheDocument()
+    expect(writes).toEqual(['/api/v1/conversations/one/research-pdf-jobs/report-job/retry'])
+    view.unmount()
+  })
   it('restores scan progress and output downloads and cancels only the selected scan', async () => {
     let status = 'running'
     const writes: string[] = []
@@ -25,9 +44,9 @@ describe('persistent research results', () => {
     const view = render(<ResearchPanel conversationId="one" turnActive={false} refreshKey={0} />)
     expect(await screen.findByText('已处理 10/21')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: '研究扫描进度' })).toHaveAttribute('value', '0.5')
-    expect(screen.getByRole('link', { name: /tushare\/daily.json/ })).toHaveAttribute('href', output.url)
+    expect(screen.getByRole('link', { name: /研究报告.pdf/ })).toHaveAttribute('href', output.url)
     await user.click(screen.getByRole('button', { name: '停止研究扫描' }))
-    expect(await screen.findByRole('link', { name: '下载研究扫描 CSV' })).toHaveAttribute('href', '/scan.csv')
+    expect(await screen.findByRole('link', { name: '下载研究扫描 PDF' })).toHaveAttribute('href', '/scan.csv')
     expect(await screen.findByText('以下为中断前记录，未完成本次范围验证。')).toBeInTheDocument()
     expect(writes).toEqual(['/api/v1/conversations/one/research-scans/scan/cancel'])
     view.unmount()
@@ -57,7 +76,7 @@ describe('persistent research results', () => {
     await user.selectOptions(screen.getByLabelText('研究结果状态'), 'unknown')
     await user.type(screen.getByLabelText('搜索研究证券'), '600000')
     await waitFor(() => expect(reads.some(url => url.pathname.endsWith('/decisions') && url.searchParams.get('state') === 'unknown' && url.searchParams.get('query') === '600000' && url.searchParams.get('offset') === '0')).toBe(true))
-    expect(screen.getByRole('link', { name: '下载研究扫描 CSV' })).toHaveAttribute('href', '/failed.csv')
+    expect(screen.getByRole('link', { name: '下载研究扫描 PDF' })).toHaveAttribute('href', '/failed.csv')
     view.unmount()
   })
 })

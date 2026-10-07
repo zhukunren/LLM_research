@@ -10,8 +10,40 @@ from pydantic import Field
 from . import conversation_store, market, observation_market, screening_service, security_catalog
 from .db import connect, json_dump, json_load, utc_now
 from .screening_contracts import ContractModel, ScreeningTaskRevision, UniverseScope, validate_executable_task
+from . import research_observations
 
 router = APIRouter(prefix="/api/v1/observation", tags=["选股与观察池"])
+
+
+@router.post("/research-candidates")
+def add_research_candidate(payload: research_observations.CandidateInput):
+    try:
+        return research_observations.create(payload)
+    except research_observations.CandidateError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+
+
+@router.get("/research-candidates")
+def list_research_candidates(query: str = "", status: research_observations.WatchStatus | None = None,
+                            offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=100),
+                            sort: Literal["updated", "priority", "name", "verification"] = "updated", needs_verification: bool = False):
+    return research_observations.list_candidates(query, status, offset, limit, sort, needs_verification)
+
+
+@router.get("/research-candidates/{candidate_id}")
+def get_research_candidate(candidate_id: str):
+    try:
+        return research_observations.get(candidate_id)
+    except research_observations.CandidateError as exc:
+        raise HTTPException(exc.status_code, {"code": "research_candidate_error", "message": str(exc)}) from exc
+
+
+@router.patch("/research-candidates/{candidate_id}")
+def update_research_candidate(candidate_id: str, payload: research_observations.CandidatePatch):
+    try:
+        return research_observations.patch(candidate_id, payload)
+    except research_observations.CandidateError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
 
 
 def _task_name(task):
@@ -63,7 +95,7 @@ def execute_saved(asset_id: str, payload: ExecuteSaved):
                     raw["scope"]["universe"] = payload.universe.model_dump(mode="json")
                 task = ScreeningTaskRevision.model_validate(raw)
                 validate_executable_task(task)
-                connection.execute("INSERT INTO conversations(id,entry_scope,created_at,updated_at) VALUES(?,'screening',?,?)", (cid, now, now))
+                connection.execute("INSERT INTO conversations(id,entry_scope,workflow_type,research_mode,created_at,updated_at) VALUES(?,'screening','screening','screening',?,?)", (cid, now, now))
                 message = conversation_store.add_user_message(cid, payload.request_id, 0,
                     f"执行已保存方案“{saved['name']}”第{payload.version}版，行情截止{payload.as_of.isoformat()}。",
                     _connection=connection)

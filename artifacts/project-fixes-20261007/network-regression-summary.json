@@ -1,0 +1,23 @@
+{
+  "scope": "News URL ingestion and research public-source transport",
+  "targeted_tests": {"passed": 80, "warnings": 1},
+  "additional_audit_dns_rebinding_test": {"passed": 1},
+  "native_transport_followup": {"real_browser_tests_passed": 8, "unit_tests_passed": 19},
+  "checks": [
+    "Actual requests socket target remains the validated numeric public IP after a DNS change",
+    "HTTP forwarding proxy gets the public-IP absolute URL and the original Host",
+    "HTTPS proxy CONNECT uses the public IP while preserving original SNI, hostname matching and trusted CA verification",
+    "Cross-origin redirects drop Authorization and the original Cookie",
+    "Private redirects fail before a second HTTP transport call",
+    "Real Edge executes dynamic public HTML and JSON fetch through guarded routes",
+    "Private script, iframe and fetch requests never reach HTTP transport",
+    "Service workers are blocked and intercepted WebSockets never connect to a server",
+    "Native browser networking uses an exclusively reserved non-listening proxy port, disables implicit loopback bypass and QUIC, and releases the port on browser close",
+    "The previous audit DNS-rebinding download now fails before opening a source socket",
+    "Configured-proxy/Fake-IP environment successfully reads public HTTPS through both news and research browsers"
+  ],
+  "real_public_validation": "network-validation.json",
+  "models_called": false,
+  "private_services_contacted": false,
+  "full_suite": "Parent agent coordinates the final full backend regression"
+}

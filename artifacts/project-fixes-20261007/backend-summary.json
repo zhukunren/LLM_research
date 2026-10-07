@@ -1,0 +1,48 @@
+{
+  "tests": 659,
+  "passed": 657,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 2,
+  "duration_seconds": 87.96,
+  "integration_cases": 383,
+  "unit_cases": 276,
+  "environment": {
+    "db_path": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\full-backend-isolated\\guard.db",
+    "codex_home": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\full-backend-isolated\\codex-home",
+    "data_root": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\full-backend-empty-data-395602e094fa448887212d8b9f70a0fa",
+    "live_model_tests": "0"
+  },
+  "skips": [
+    {
+      "test": "tests.integration.test_market_data.test_real_dataset_scanner_yields_typed_as_of_bars",
+      "reason": "Real market data is not mounted; synthetic scanner coverage runs independently"
+    },
+    {
+      "test": "tests.unit.test_verify_conversation.test_live_verifier_has_explicit_unavailable_state_without_credentials",
+      "reason": "live model acceptance is an explicit command"
+    }
+  ],
+  "warnings": [
+    "Starlette TestClient httpx deprecation",
+    "pypdf replace_contents deprecation, emitted twice"
+  ],
+  "live_pdf": {
+    "status": "passed",
+    "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+    "note_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+    "http_calls": 19,
+    "executed_job_count": 2,
+    "model_calls": 0,
+    "original_pages": 2,
+    "replacement_pages": 2,
+    "original_bytes": 45114,
+    "replacement_bytes": 45139,
+    "queued_files_http_200": true,
+    "previous_pdf_readable_while_queued": true,
+    "completed_files_http_200": true,
+    "new_pdf_body_and_name_validated": true,
+    "historical_pdf_url_remains_readable": true,
+    "report": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\live-pdf-validation.json"
+  }
+}

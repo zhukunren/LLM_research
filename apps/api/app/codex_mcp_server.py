@@ -80,7 +80,11 @@ def _context() -> screening_tools.ToolContext:
 
 
 def _tools() -> list[dict[str, Any]]:
-    return [tool.as_mcp() for tool in screening_tools.registry.tools_for_codex()]
+    # Schema inspection is also used before a server is bound to a turn. Only
+    # a bound runtime needs its workflow-specific tool catalogue; calls always
+    # validate their persisted turn and scope before performing any action.
+    context = _context() if os.environ.get("LLMR_CODEX_CONVERSATION_ID") and os.environ.get("LLMR_CODEX_TURN_ID") else None
+    return [tool.as_mcp() for tool in screening_tools.registry.tools_for_codex(context)]
 
 
 def _call(arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:

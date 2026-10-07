@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-05",
+  "backup": "D:\\项目\\LLM_research\\runtime\\pdf-rollout-9e919588a1a645c189a7922b66c11b02\\app-before.db",
+  "template": "soochow-zhangjiagang-research-v1",
+  "conversations": 10,
+  "projects": 0,
+  "deliverables": 15,
+  "raw_files": 76,
+  "errors": [],
+  "business_rows_preserved": true,
+  "raw_files_preserved": true,
+  "passed": true
+}

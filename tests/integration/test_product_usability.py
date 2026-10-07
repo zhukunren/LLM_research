@@ -17,7 +17,7 @@ def client(tmp_path, monkeypatch):
 
 
 def make_task(client):
-    cid = client.post('/api/v1/conversations', json={'entry_scope': 'screening'}).json()['id']
+    cid = client.post('/api/v1/conversations', json={'entry_scope': 'screening', 'workflow_type': 'screening'}).json()['id']
     message = client.post(f'/api/v1/conversations/{cid}/messages', json={'client_message_id': 'first', 'base_revision': 0, 'content': '收盘价高于20日均线'}).json()
     task = ScreeningTaskRevision.model_validate({
         'task_id': cid, 'revision': 1, 'original_user_messages': ['收盘价高于20日均线'],
@@ -109,7 +109,7 @@ def test_data_update_reuses_pending_job_and_reports_partial_failure(client, monk
 def test_reuse_latest_date_changes_only_new_revision(client):
     cid, _, _ = make_task(client)
     saved = client.post(f'/api/v1/conversations/{cid}/saved-screening-tasks', json={'name': '趋势观察', 'request_id': 'save'}).json()
-    new = client.post('/api/v1/conversations', json={'entry_scope': 'screening'}).json()['id']
+    new = client.post('/api/v1/conversations', json={'entry_scope': 'screening', 'workflow_type': 'screening'}).json()['id']
     message = client.post(f'/api/v1/conversations/{new}/messages', json={'client_message_id': 'reuse', 'base_revision': 0, 'content': '按2026-09-28行情复用方案'}).json()
     response = client.post(f'/api/v1/conversations/{new}/saved-screening-tasks/{saved["id"]}/reuse', json={'source_message_id': message['message_id'], 'base_revision': 0, 'version': 1, 'as_of': '2026-09-28'})
     assert response.status_code == 201, response.text

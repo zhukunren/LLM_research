@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-05",
+  "features": {
+    "news": "Article followed by company daily candles; linked companies can be switched; unlinked news allows company selection; latest or China publication-date cutoff.",
+    "pattern": "220px main chart and 12 ranked real candlestick thumbnails; one best interval per security; click or Enter switches the main chart."
+  },
+  "validation": {
+    "frontend": { "command": "npm test", "tests_passed": 128, "test_files_passed": 30 },
+    "backend": { "command": ".\\scripts\\test.ps1 tests/integration/test_library_reading.py tests/integration/test_pattern_matching_v2.py tests/unit/test_patterns.py", "tests_passed": 23 },
+    "build": "npm run build passed",
+    "browser": {
+      "url": "http://127.0.0.1:5173",
+      "data": "Existing local real market and news records; no test records added.",
+      "widths_checked": [1440, 390, 320],
+      "horizontal_overflow": false,
+      "console_errors_or_warnings": 0,
+      "checks": [
+        "12 real pattern samples, unique companies, descending similarity",
+        "Click sample updates main candles, company, score and dates",
+        "Enter switches sample at 320px; main chart stays 220px",
+        "Associated news company (601126.SH) renders below article",
+        "Unlinked article allows manual company selection (002236.SZ)",
+        "Publication-date view ends on 2026-09-03 for the 2026-09-03 article",
+        "End key displays OHLC values in the 320px news chart",
+        "Responsive grids and charts fit desktop and narrow screens"
+      ]
+    }
+  },
+  "screenshots": ["news-desktop.png", "pattern-desktop.png", "news-mobile.png", "pattern-mobile.png", "news-320.png", "pattern-320.png"]
+}

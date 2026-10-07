@@ -1,0 +1,30 @@
+{
+  "frontend_full": {
+    "tests": 208,
+    "passed": 208,
+    "failed": 0
+  },
+  "frontend_final_related": 10,
+  "backend_full": {
+    "tests": 594,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "production_build": "passed",
+  "browser_checks": 9,
+  "widths": [
+    1440,
+    390,
+    320
+  ],
+  "live_service": "http://127.0.0.1:8000",
+  "user_mode_reuse": "passed",
+  "existing_table_preservation": {
+    "integrity": "ok",
+    "compared_tables": 58,
+    "changed_tables": [],
+    "migration_029_applied": true
+  },
+  "scope": "Engineering and browser acceptance; real model quality and human task completion rates were not evaluated"
+}

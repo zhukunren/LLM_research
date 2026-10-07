@@ -130,3 +130,63 @@ def test_index_cache_filters_cutoff_and_stays_separate(tmp_path, monkeypatch):
     assert bars[0]['source'] == 'fixture'
     monkeypatch.setattr(index_market, '_fetch', lambda *a: pytest.fail('cache should be reused'))
     assert index_market.get_bars('2026-09-14', 10) == bars
+
+
+def test_ranked_matches_return_distinct_real_companies_and_share_cache(client, monkeypatch):
+    template = {'target_bars': 10, 'points': list(range(10)), 'representation': 'price_path', 'algorithm_version': 'path-window-v2'}
+    def bars(values, month='09'):
+        return [{'trade_date': f'2026-{month}-{i+1:02}', 'open': n, 'high': n+1, 'low': n-1, 'close': n, 'quality_valid': True} for i, n in enumerate(values)]
+    perfect = bars(list(range(10, 20)) + list(range(20, 10, -1)))
+    recent = bars(list(range(30, 40)), '10')
+    similar = bars([10, 12, 10, 14, 12, 16, 14, 18, 16, 20])
+    bad = bars(list(range(10, 20))); bad[5]['quality_valid'] = False
+    monkeypatch.setattr(pattern_examples.market, 'source_fingerprint', lambda: ('ranked', 1, 1))
+    monkeypatch.setattr(pattern_examples.market, 'latest_market_date', lambda cutoff: '2026-10-10')
+    monkeypatch.setattr(pattern_examples.market, 'iter_recent_bars', lambda *a: iter([('bad', bad), ('600001.SH', perfect), ('600002.SH', similar), ('600003.SH', recent)]))
+    result = pattern_examples.find_example(template, limit=2)
+    assert result['stock_code'] == '600003.SH'
+    assert [item['stock_code'] for item in result['items']] == ['600003.SH', '600001.SH']
+    assert result['items'][1]['bars'] == perfect[1:11]  # Equal shapes prefer the later window.
+    assert result['scanned_securities'] == 4 and result['valid_securities'] == 3
+    monkeypatch.setattr(pattern_examples.market, 'iter_recent_bars', lambda *a: pytest.fail('all limits should share one scan'))
+    full = pattern_examples.find_example(template, limit=12)
+    assert len(full['items']) == 3
+    scores = [item['similarity'] for item in full['items']]
+    assert scores == sorted(scores, reverse=True)
+    assert pattern_examples.find_example(template)['items'] == full['items'][:1]
+
+
+def test_ranked_match_endpoint_checks_version_and_limit(client, monkeypatch):
+    pattern = client.post('/api/v1/patterns', json={'name': '上涨形态', 'input_type': 'drawing', 'representation': 'price_path', 'points': list(range(10)), 'target_bars': 10, 'params': {}}).json()
+    monkeypatch.setattr(pattern_examples.market, 'source_fingerprint', lambda: None)
+    path = f"/api/v1/patterns/{pattern['id']}/best-match"
+    response = client.get(path, params={'version': 1, 'limit': 12})
+    assert response.status_code == 200
+    assert response.json()['items'] == [] and response.json()['bars'] == []
+    assert client.get(path, params={'version': 2, 'limit': 12}).status_code == 404
+    for limit in (0, 25):
+        assert client.get(path, params={'version': 1, 'limit': limit}).status_code == 422
+
+
+def test_ranked_matches_do_not_cache_a_changed_market(client, monkeypatch):
+    fingerprints = iter([('before', 1, 1), ('after', 2, 2)])
+    monkeypatch.setattr(pattern_examples.market, 'source_fingerprint', lambda: next(fingerprints))
+    monkeypatch.setattr(pattern_examples.market, 'latest_market_date', lambda cutoff: '2026-09-14')
+    monkeypatch.setattr(pattern_examples.market, 'iter_recent_bars', lambda *a: iter([]))
+    with pytest.raises(ValueError, match='行情更新中'):
+        pattern_examples.find_example({'target_bars': 10, 'points': list(range(10)), 'representation': 'price_path'}, limit=12)
+    with db.connect() as connection:
+        assert connection.execute('SELECT COUNT(*) FROM pattern_examples').fetchone()[0] == 0
+
+
+def test_ranked_matches_keep_the_best_twenty_four_across_a_larger_market(client, monkeypatch):
+    template = {'target_bars': 10, 'points': list(range(10)), 'representation': 'price_path', 'algorithm_version': 'path-window-v2'}
+    bars = [{'trade_date': f'2026-09-{i+1:02}', 'open': n, 'high': n+1, 'low': n-1, 'close': n, 'quality_valid': True} for i, n in enumerate(range(10, 20))]
+    codes = [f'{600000+i}.SH' for i in range(30)]
+    monkeypatch.setattr(pattern_examples.market, 'source_fingerprint', lambda: ('large-ranked', 1, 1))
+    monkeypatch.setattr(pattern_examples.market, 'latest_market_date', lambda cutoff: '2026-09-14')
+    monkeypatch.setattr(pattern_examples.market, 'iter_recent_bars', lambda *a: iter((code, bars) for code in codes))
+    result = pattern_examples.find_example(template, limit=24)
+    assert len(result['items']) == 24 and result['valid_securities'] == 30
+    assert {item['stock_code'] for item in result['items']} == set(codes[-24:])
+    assert all(item['bars'] == bars and item['similarity'] == 100 for item in result['items'])

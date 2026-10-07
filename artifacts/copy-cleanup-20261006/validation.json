@@ -1,0 +1,14 @@
+{
+  "frontend_tests": 208,
+  "frontend_passed": 208,
+  "frontend_failed": 0,
+  "production_build": "passed",
+  "browser_checks": 30,
+  "widths": [
+    1440,
+    390,
+    320
+  ],
+  "page_errors": [],
+  "scope": "Remove interface descriptions and tutorials; preserve controls, actual content, data status and error feedback. Browser acceptance uses synthetic API responses; no business records written."
+}

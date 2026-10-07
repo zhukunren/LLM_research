@@ -102,7 +102,11 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
     if agent_active and button_authorized:
         raise ScreeningServiceError("invalid_execution_action", "执行授权方式无效。", 422)
     conversation = conversation_store.get_conversation(conversation_id, message_limit=1)
+    if conversation.get("workflow_type", "screening") != "screening":
+        raise ScreeningServiceError("screening_workflow_required", "正式筛选必须在条件选股工作区提交。", 409)
     turn = conversation_store.get_turn(conversation_id, turn_id)
+    if turn.get("workflow_type", "screening") != "screening":
+        raise ScreeningServiceError("screening_workflow_required", "投研回合不能授权正式筛选，请在选股工作区提交当前方案。", 409)
     revision = button_revision if button_authorized else conversation["task_revision"] if agent_active else (turn.get("result") or {}).get("task_revision", 0)
     if button_authorized and (not button_request_id or button_revision is None):
         raise ScreeningServiceError("invalid_execution_action", "按钮执行必须指定任务版本和请求标识。")
@@ -262,19 +266,21 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
                 "idempotent_replay": True,
             }
         current = connection.execute(
-            "SELECT task_revision,pending_execute_message_id,state FROM conversations WHERE id=?",
+            "SELECT task_revision,pending_execute_message_id,state,workflow_type FROM conversations WHERE id=?",
             (conversation_id,),
         ).fetchone()
         current_turn = connection.execute(
-            "SELECT state,result_json FROM conversation_turns WHERE id=? AND conversation_id=?",
+            "SELECT state,result_json,workflow_type FROM conversation_turns WHERE id=? AND conversation_id=?",
             (turn_id, conversation_id),
         ).fetchone()
         latest_turn = connection.execute("SELECT id FROM conversation_turns WHERE conversation_id=? ORDER BY rowid DESC LIMIT 1", (conversation_id,)).fetchone()
         if (
             not current or current["state"] != "active"
+            or current["workflow_type"] != "screening"
             or current["task_revision"] != task_revision
             or ((not button_authorized) and current["pending_execute_message_id"] != pending_message_id)
             or not current_turn or current_turn["state"] != expected_state
+            or current_turn["workflow_type"] != "screening"
             or (button_authorized and (not latest_turn or latest_turn["id"] != turn_id))
             or (not agent_active and not button_authorized and (
                 json_load(current_turn["result_json"]).get("ready_to_execute") is not True

@@ -1,4 +1,4 @@
-﻿param([switch]$Restart)
+﻿param([switch]$Restart, [switch]$UserMode)
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -8,14 +8,19 @@ $ApiPython = Get-SystemPython312
 $PythonDeps = Join-Path $ProjectRoot 'runtime\python-deps'
 $WebRoot = Join-Path $ProjectRoot 'apps\web'
 $ViteScript = Join-Path $WebRoot 'node_modules\vite\bin\vite.js'
+$WebIndex = Join-Path $WebRoot 'dist\index.html'
+$ExpectedServices = if ($UserMode) { @('api','worker') } else { @('api','worker','web') }
 $Runtime = Join-Path $ProjectRoot 'runtime'
 $Logs = Join-Path $Runtime 'logs'
 $ProcessesFile = Join-Path $Runtime 'processes.json'
 $env:PYTHONNOUSERSITE = '1'
 if ($env:PYTHONPATH) { $env:PYTHONPATH = "$PythonDeps;$env:PYTHONPATH" } else { $env:PYTHONPATH = $PythonDeps }
 
-if (-not (Test-Path -LiteralPath $ApiPython) -or -not (Test-Path -LiteralPath $ViteScript) -or -not (Test-Path -LiteralPath $PythonDeps)) {
+if (-not (Test-Path -LiteralPath $ApiPython) -or -not (Test-Path -LiteralPath $PythonDeps) -or (-not $UserMode -and -not (Test-Path -LiteralPath $ViteScript))) {
     throw '系统 Python 或依赖未安装。请先运行 .\scripts\bootstrap.ps1。'
+}
+if ($UserMode -and -not (Test-Path -LiteralPath $WebIndex)) {
+    throw '用户版界面尚未准备好，请维护者在 apps\web 运行 npm run build 后再启动。'
 }
 New-Item -ItemType Directory -Path $Logs -Force | Out-Null
 $LaunchLock = [System.IO.File]::Open((Join-Path $Runtime 'services.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
@@ -24,14 +29,16 @@ try {
 $KeepServices = ''
 if ((Test-Path -LiteralPath $ProcessesFile) -and -not $Restart) {
     $RecordedServices = Get-Content -Raw -LiteralPath $ProcessesFile | ConvertFrom-Json
-    $KeepServices = (@('api','worker','web') | ForEach-Object { $OwnedService = Get-OwnedServiceProcess $RecordedServices $_ $ProjectRoot; if ($OwnedService) { [string]$OwnedService.ProcessId } }) -join ','
+    if (($RecordedServices.web_mode -eq 'bundled') -eq [bool]$UserMode) {
+        $KeepServices = ($ExpectedServices | ForEach-Object { $OwnedService = Get-OwnedServiceProcess $RecordedServices $_ $ProjectRoot; if ($OwnedService) { [string]$OwnedService.ProcessId } }) -join ','
+    }
 }
 & $ApiPython (Join-Path $PSScriptRoot 'service_processes.py') stop "--keep=$KeepServices"
 if ($LASTEXITCODE -ne 0) { throw '服务清理失败。请运行 bootstrap.ps1 补齐依赖并检查进程后重试。' }
 if (Test-Path -LiteralPath $ProcessesFile) {
     $Existing = Get-Content -Raw -LiteralPath $ProcessesFile | ConvertFrom-Json
     $Owned = @(@('api','worker','web') | ForEach-Object { Get-OwnedServiceProcess $Existing $_ $ProjectRoot } | Where-Object { $_ })
-    if ($Owned.Count -eq 3 -and -not $Restart) {
+    if ($Owned.Count -eq $ExpectedServices.Count -and -not $Restart -and (($Existing.web_mode -eq 'bundled') -eq [bool]$UserMode)) {
         try {
             $Health = Invoke-RestMethod -Uri "http://127.0.0.1:$($Existing.api_port)/api/v1/health" -TimeoutSec 3
             Invoke-WebRequest -Uri "http://127.0.0.1:$($Existing.web_port)" -TimeoutSec 3 | Out-Null
@@ -60,7 +67,7 @@ function Get-FreePort([int]$Preferred) {
 $ApiPort = Get-FreePort 8000
 $PreferredWeb = 5173
 if ($env:LLMR_WEB_PORT -match '^\d+$') { $PreferredWeb = [int]$env:LLMR_WEB_PORT }
-$WebPort = Get-FreePort $PreferredWeb
+$WebPort = if ($UserMode) { $ApiPort } else { Get-FreePort $PreferredWeb }
 $env:LLMR_WEB_PORT = [string]$WebPort
 $env:LLMR_API_PROXY_TARGET = "http://127.0.0.1:$ApiPort"
 
@@ -68,14 +75,17 @@ $Api = Start-Process -FilePath $ApiPython -ArgumentList @('-m', 'uvicorn', 'apps
 $Launched += $Api
 $Worker = Start-Process -FilePath $ApiPython -ArgumentList @('-m', 'apps.api.app.worker') -WorkingDirectory $ProjectRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Logs 'worker.log') -RedirectStandardError (Join-Path $Logs 'worker-error.log') -PassThru
 $Launched += $Worker
-$Node = (Get-Command node.exe -ErrorAction Stop).Source
-$Web = Start-Process -FilePath $Node -ArgumentList @("`"$ViteScript`"", '--host', '127.0.0.1', '--port', [string]$WebPort, '--strictPort') -WorkingDirectory $WebRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Logs 'web.log') -RedirectStandardError (Join-Path $Logs 'web-error.log') -PassThru
-$Launched += $Web
+$Web = $null
+if (-not $UserMode) {
+    $Node = (Get-Command node.exe -ErrorAction Stop).Source
+    $Web = Start-Process -FilePath $Node -ArgumentList @("`"$ViteScript`"", '--host', '127.0.0.1', '--port', [string]$WebPort, '--strictPort') -WorkingDirectory $WebRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $Logs 'web.log') -RedirectStandardError (Join-Path $Logs 'web-error.log') -PassThru
+    $Launched += $Web
+}
 
-$ProcessInfo = @{ api = $Api.Id; worker = $Worker.Id; web = $Web.Id; api_port = $ApiPort; web_port = $WebPort; started_at = (Get-Date).ToUniversalTime().ToString('o') }
+$ProcessInfo = @{ api = $Api.Id; worker = $Worker.Id; web = 0; web_mode = 'bundled'; api_port = $ApiPort; web_port = $WebPort; started_at = (Get-Date).ToUniversalTime().ToString('o') }
 $ProcessInfo.api_started_at = $Api.StartTime.ToUniversalTime().ToString('o')
 $ProcessInfo.worker_started_at = $Worker.StartTime.ToUniversalTime().ToString('o')
-$ProcessInfo.web_started_at = $Web.StartTime.ToUniversalTime().ToString('o')
+if ($Web) { $ProcessInfo.web = $Web.Id; $ProcessInfo.web_mode = 'development'; $ProcessInfo.web_started_at = $Web.StartTime.ToUniversalTime().ToString('o') }
 $ProcessInfo | ConvertTo-Json | Set-Content -LiteralPath $ProcessesFile -Encoding utf8
 
 $Healthy = $false

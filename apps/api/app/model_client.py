@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Sequence
 from typing import Any
 
-from .settings import llm_settings
+from .settings import llm_settings, research_settings
 
 
 class ModelRequestError(RuntimeError):
@@ -238,7 +238,7 @@ def complete_json(
     instructions: str,
     user_content: str,
     *,
-    timeout_seconds: int = 60,
+    timeout_seconds: int | None = None,
     max_output_tokens: int = 4000,
 ) -> dict[str, Any]:
     config = llm_settings()
@@ -266,7 +266,7 @@ def complete_json(
         }
     else:
         raise ModelRequestError(f"不支持的模型接口模式：{mode}")
-    payload = _request_json_body(config, body, timeout_seconds)
+    payload = _request_json_body(config, body, timeout_seconds if timeout_seconds is not None else research_settings()["model_request_timeout_seconds"])
     try:
         result = json.loads(_extract_json_text(payload, mode))
     except (TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
@@ -371,7 +371,7 @@ def create_tool_turn(
     conversation: str | list[dict[str, Any]],
     tools: Sequence[FunctionTool],
     *,
-    timeout_seconds: int = 45,
+    timeout_seconds: int | None = None,
     max_output_tokens: int = 4000,
 ) -> ToolTurn:
     """Request one model turn; tool calls remain inert until a server dispatcher validates them."""
@@ -403,7 +403,7 @@ def create_tool_turn(
     else:
         raise ModelRequestError(f"不支持工具调用的模型接口模式：{mode}")
 
-    payload = _request_json_body(config, body, timeout_seconds)
+    payload = _request_json_body(config, body, timeout_seconds if timeout_seconds is not None else research_settings()["model_request_timeout_seconds"])
     refusal = None
     if mode == "responses":
         if payload.get("status") not in (None, "completed"):

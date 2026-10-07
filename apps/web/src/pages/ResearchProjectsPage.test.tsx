@@ -5,7 +5,7 @@ import { api } from '../api'
 import type { ResearchProject, ResearchNote } from '../research'
 import ResearchProjectsPage from './ResearchProjectsPage'
 
-vi.mock('../api', () => ({ api: vi.fn() }))
+vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
 vi.mock('../components/StockSearch', () => ({ default: ({ onChange }: { onChange: (value: string) => void }) => <button onClick={() => onChange('600519.SH')}>选择贵州茅台</button>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
 
 function existing(): ResearchProject {
@@ -14,6 +14,27 @@ function existing(): ResearchProject {
 const summary = (project: ResearchProject) => ({ ...project, company_count: project.companies.length, note_count: project.notes.length, conversation_count: project.conversations.length })
 
 describe('ResearchProjectsPage', () => {
+  it('restores explicit project identity across prop navigation and never substitutes another project for a missing URL object', async () => {
+    const first = existing(), second = { ...existing(), id: 'p2', name: '第二研究项目' }
+    const location = vi.fn()
+    vi.mocked(api).mockImplementation(async path => {
+      if (path === '/research-projects') return { items: [summary(first), summary(second)] } as never
+      if (path.endsWith('/files')) return { items: [] } as never
+      if (path === '/research-projects/missing') throw new Error('找不到研究项目。')
+      return (path.endsWith('/p2') ? second : first) as never
+    })
+    const view = render(<ResearchProjectsPage initialProjectId="p2" onLocationChange={location} onOpenConversation={vi.fn()} />)
+    expect(await screen.findByRole('heading', { name: '第二研究项目' })).toBeInTheDocument()
+    expect(location).toHaveBeenCalledWith('p2')
+    view.rerender(<ResearchProjectsPage initialProjectId="p1" onLocationChange={location} onOpenConversation={vi.fn()} />)
+    expect(await screen.findByRole('heading', { name: '白酒盈利改善' })).toBeInTheDocument()
+    view.rerender(<ResearchProjectsPage initialProjectId="missing" onLocationChange={location} onOpenConversation={vi.fn()} />)
+    expect(await screen.findByText('找不到研究项目。')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '白酒盈利改善' })).not.toBeInTheDocument()
+    expect(location).not.toHaveBeenCalledWith('missing')
+    expect(vi.mocked(api).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true)
+  })
+
   it('keeps an edit targeted at the original project when the center is refreshed', async () => {
     const user = userEvent.setup()
     let project = existing()
@@ -29,7 +50,7 @@ describe('ResearchProjectsPage', () => {
     await user.click(screen.getByRole('button', { name: '编辑项目' }))
     await user.clear(screen.getByRole('textbox', { name: '项目名称' }))
     await user.type(screen.getByRole('textbox', { name: '项目名称' }), '刷新保留的名称')
-    await user.click(screen.getByRole('button', { name: '刷新研究中心' }))
+    await user.click(screen.getByRole('button', { name: '刷新研究项目' }))
     expect(screen.getByRole('textbox', { name: '项目名称' })).toHaveValue('刷新保留的名称')
     await user.click(screen.getByRole('button', { name: '保存项目' }))
     await waitFor(() => expect(writes).toEqual([{ path: '/research-projects/p1', method: 'PATCH' }]))
@@ -49,7 +70,7 @@ describe('ResearchProjectsPage', () => {
       throw new Error(path)
     })
     render(<ResearchProjectsPage onOpenConversation={open} />)
-    await screen.findByText('从一个研究问题开始')
+    await screen.findByRole('button', { name: '创建第一个项目' })
     await user.click(screen.getByRole('button', { name: '创建第一个项目' }))
     await user.type(screen.getByRole('textbox', { name: '项目名称' }), '白酒盈利改善')
     await user.type(screen.getByRole('textbox', { name: '研究目标' }), '核对经营兑现')
@@ -120,4 +141,231 @@ describe('ResearchProjectsPage', () => {
     expect(downloads).toHaveLength(2)
     expect(downloads[0].getAttribute('href')).not.toBe(downloads[1].getAttribute('href'))
   })
+})
+
+it('combines note content and opinion status filters and offers a complete reset', async () => {
+  const user = userEvent.setup()
+  const project = existing()
+  const base: ResearchNote = { id: 'n1', project_id: project.id, title: '订单验证', body: '核对订单兑现', stock_code: null, validation_plan: '联系供应商核对交付', invalidation_condition: '', status: 'watching', revision: 1, source_conversation_id: null, source_message_id: null, updated_at: project.updated_at }
+  project.notes = [base, { ...base, id: 'n2', title: '收入兑现', body: '供应商反馈稳定', status: 'supported' }]
+  vi.mocked(api).mockImplementation(async path => path === '/research-projects' ? { items: [summary(project)] } as never : path.endsWith('/files') ? { items: [] } as never : path.endsWith('/claims') || path.endsWith('/revisions') ? { items: [] } as never : project as never)
+  render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  await screen.findByRole('heading', { name: '订单验证' })
+  await user.type(screen.getByRole('searchbox', { name: '搜索研究笔记' }), '供应商')
+  expect(screen.getByRole('heading', { name: '订单验证' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: '收入兑现' })).toBeInTheDocument()
+  await user.selectOptions(screen.getByLabelText('筛选笔记状态'), 'supported')
+  expect(screen.queryByRole('heading', { name: '订单验证' })).not.toBeInTheDocument()
+  await user.selectOptions(screen.getByLabelText('筛选笔记状态'), 'invalidated')
+  expect(screen.getByRole('button', { name: '查看全部笔记' })).toBeEnabled()
+  await user.click(screen.getByRole('button', { name: '查看全部笔记' }))
+  expect(screen.getByRole('heading', { name: '订单验证' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: '收入兑现' })).toBeInTheDocument()
+})
+
+it('opens pending judgments from the project overview and changes note order without losing reading controls', async () => {
+  const user = userEvent.setup()
+  const project = existing()
+  const base: ResearchNote = { id: 'n1', project_id: project.id, title: 'A 订单', body: '待核对交付', stock_code: null, validation_plan: '', invalidation_condition: '', status: 'watching', revision: 1, source_conversation_id: null, source_message_id: null, updated_at: '2026-10-03T08:00:00Z' }
+  project.notes = [base, { ...base, id: 'n2', title: 'B 收入', body: '已核对毛利', status: 'supported', updated_at: '2026-10-04T08:00:00Z' }]
+  vi.mocked(api).mockImplementation(async path => path === '/research-projects' ? { items: [summary(project)] } as never : path.endsWith('/files') || path.endsWith('/claims') || path.endsWith('/revisions') ? { items: [] } as never : project as never)
+  render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  const recent = await screen.findByRole('button', { name: 'B 收入' })
+  expect(recent).toHaveAttribute('aria-expanded', 'true')
+  await user.click(screen.getByRole('button', { name: '查看待验证判断' }))
+  expect(screen.queryByRole('button', { name: 'B 收入' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'A 订单' })).toHaveAttribute('aria-expanded', 'true')
+  await user.click(screen.getByRole('button', { name: '查看全部研究笔记' }))
+  await user.selectOptions(screen.getByLabelText('笔记排序'), 'title')
+  const titles = screen.getAllByRole('button', { name: /^(A 订单|B 收入)$/ })
+  expect(titles.map(button => button.textContent)).toEqual(['A 订单', 'B 收入'])
+  await user.click(titles[0])
+  expect(titles[0]).toHaveAttribute('aria-expanded', 'false')
+  await user.click(titles[1])
+  expect(titles[1]).toHaveAttribute('aria-expanded', 'true')
+})
+
+it('offers a catalog retry without showing first-project onboarding when the catalog request fails', async () => {
+  vi.mocked(api).mockRejectedValue(new Error('目录服务不可用'))
+  render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  await screen.findByText('目录服务不可用')
+  expect(screen.queryByRole('heading', { name: '从一个研究问题开始' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /重试/ })).toBeInTheDocument()
+})
+
+const savedNote = (project: ResearchProject): ResearchNote => ({ id: 'n1', project_id: project.id, title: '已保存笔记', body: '原文', stock_code: null, validation_plan: '', invalidation_condition: '', status: 'watching', revision: 1, source_conversation_id: null, source_message_id: null, updated_at: project.updated_at })
+
+it('clears successful note drafts before closing so the next edit uses the saved revision', async () => {
+  const user = userEvent.setup()
+  let project = existing()
+  project.notes = [savedNote(project)]
+  const revisions: number[] = []
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path === '/research-projects') return { items: [summary(project)] } as never
+    if (path.endsWith('/files') || path.endsWith('/claims') || path.endsWith('/revisions')) return { items: [] } as never
+    if (path === '/research-projects/p1/notes/n1' && init?.method === 'PATCH') {
+      const payload = JSON.parse(String(init.body)); revisions.push(payload.base_revision)
+      if (payload.base_revision !== project.notes[0].revision) throw new Error('版本已更新')
+      project = { ...project, notes: [{ ...project.notes[0], ...payload, revision: project.notes[0].revision + 1 }] }
+      return project.notes[0] as never
+    }
+    return project as never
+  })
+  render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  await user.click(await screen.findByRole('button', { name: '编辑笔记 已保存笔记' }))
+  await user.clear(screen.getByLabelText('研究内容'))
+  await user.type(screen.getByLabelText('研究内容'), '第一批内容')
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('第一批内容')
+  expect(JSON.parse(sessionStorage.getItem('research.noteDrafts')!)).toEqual({})
+  await user.click(screen.getByRole('button', { name: '编辑笔记 已保存笔记' }))
+  await user.type(screen.getByLabelText('研究内容'), '；第二批内容')
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('第一批内容；第二批内容')
+  expect(revisions).toEqual([1, 2])
+})
+
+it('starts a blank next note and project after successful creation', async () => {
+  const user = userEvent.setup()
+  let project = existing()
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path === '/research-projects' && init?.method === 'POST') { project = { ...project, ...JSON.parse(String(init.body)) }; return project as never }
+    if (path === '/research-projects') return { items: [summary(project)] } as never
+    if (path.endsWith('/notes') && init?.method === 'POST') { const note = { ...savedNote(project), ...JSON.parse(String(init.body)) }; project = { ...project, notes: [note] }; return note as never }
+    if (path.endsWith('/files') || path.endsWith('/claims') || path.endsWith('/revisions')) return { items: [] } as never
+    return project as never
+  })
+  render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  await user.click(await screen.findByRole('button', { name: '写研究笔记' }))
+  await user.type(screen.getByLabelText('笔记标题'), '新笔记')
+  await user.type(screen.getByLabelText('研究内容'), '已保存的正文')
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('已保存的正文')
+  await user.click(screen.getByRole('button', { name: '写研究笔记' }))
+  expect(screen.getByLabelText('笔记标题')).toHaveValue('')
+  expect(screen.getByLabelText('研究内容')).toHaveValue('')
+  await user.click(screen.getByRole('button', { name: '关闭编辑' }))
+  await user.click(screen.getByRole('button', { name: '新建项目' }))
+  await user.type(screen.getByLabelText('项目名称'), '已经保存的新项目')
+  await user.click(screen.getByRole('button', { name: '保存项目' }))
+  await screen.findByRole('heading', { name: '已经保存的新项目' })
+  await user.click(screen.getByRole('button', { name: '新建项目' }))
+  expect(screen.getByLabelText('项目名称')).toHaveValue('')
+  expect(screen.getByLabelText('研究目标')).toHaveValue('')
+  expect(JSON.parse(sessionStorage.getItem('research.projectDrafts')!)).toEqual({})
+})
+
+it.each([true, false])('replays an unknown note creation before patching edited content without duplicates (committed=%s)', async committed => {
+  const user = userEvent.setup()
+  let project = existing()
+  const writes: { method: string; body: Record<string, unknown> }[] = []
+  let original: Record<string, unknown> | undefined
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path === '/research-projects') return { items: [summary(project)] } as never
+    if (path.endsWith('/files') || path.endsWith('/claims') || path.endsWith('/revisions')) return { items: [] } as never
+    if (path === '/research-projects/p1/notes' && init?.method === 'POST') {
+      const body = JSON.parse(String(init.body)); writes.push({ method: 'POST', body })
+      if (!original) {
+        original = body
+        if (committed) project = { ...project, notes: [{ ...savedNote(project), ...body }] }
+        throw new Error('保存响应丢失，当前输入保留')
+      }
+      expect(body).toEqual(original)
+      if (!project.notes.length) project = { ...project, notes: [{ ...savedNote(project), ...body }] }
+      return project.notes[0] as never
+    }
+    if (path === '/research-projects/p1/notes/n1' && init?.method === 'PATCH') {
+      const body = JSON.parse(String(init.body)); writes.push({ method: 'PATCH', body })
+      expect(body.base_revision).toBe(1)
+      project = { ...project, notes: [{ ...project.notes[0], ...body, revision: 2 }] }
+      return project.notes[0] as never
+    }
+    return project as never
+  })
+  const view = render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  await user.click(await screen.findByRole('button', { name: '写研究笔记' }))
+  await user.type(screen.getByLabelText('笔记标题'), '新笔记')
+  await user.type(screen.getByLabelText('研究内容'), '第一次提交')
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('保存响应丢失，当前输入保留')
+  await user.type(screen.getByLabelText('研究内容'), '；后来补充')
+  view.unmount()
+  render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  await user.click(await screen.findByRole('button', { name: '写研究笔记' }))
+  expect(screen.getByLabelText('研究内容')).toHaveValue('第一次提交；后来补充')
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('第一次提交；后来补充')
+  expect(writes.map(item => item.method)).toEqual(['POST', 'POST', 'PATCH'])
+  expect(project.notes).toHaveLength(1)
+  expect(project.notes[0].revision).toBe(2)
+  expect(JSON.parse(sessionStorage.getItem('research.noteDrafts')!)).toEqual({})
+})
+
+it('recognizes a committed note PATCH after its response is lost without overwriting or retrying it', async () => {
+  const user = userEvent.setup()
+  let project = existing()
+  project.notes = [savedNote(project)]
+  let writes = 0
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path === '/research-projects') return { items: [summary(project)] } as never
+    if (path.endsWith('/files') || path.endsWith('/claims') || path.endsWith('/revisions')) return { items: [] } as never
+    if (path.endsWith('/notes/n1') && init?.method === 'PATCH') {
+      writes++
+      project = { ...project, notes: [{ ...project.notes[0], ...JSON.parse(String(init.body)), revision: 2 }] }
+      throw new Error('更新响应丢失')
+    }
+    return project as never
+  })
+  render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  await user.click(await screen.findByRole('button', { name: '编辑笔记 已保存笔记' }))
+  await user.type(screen.getByLabelText('研究内容'), '；已提交更新')
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('原文；已提交更新')
+  expect(screen.queryByLabelText('研究内容')).not.toBeInTheDocument()
+  expect(writes).toBe(1)
+  expect(project.notes).toHaveLength(1)
+})
+
+it('requires a merge when an unknown creation was changed elsewhere before its original replay', async () => {
+  const user = userEvent.setup()
+  let project = existing()
+  let creates = 0
+  const revisions: number[] = []
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path === '/research-projects') return { items: [summary(project)] } as never
+    if (path.endsWith('/files') || path.endsWith('/claims') || path.endsWith('/revisions')) return { items: [] } as never
+    if (path === '/research-projects/p1/notes' && init?.method === 'POST') {
+      creates++
+      if (creates === 1) {
+        const note = { ...savedNote(project), ...JSON.parse(String(init.body)), body: '另一处的新判断', revision: 2 }
+        project = { ...project, notes: [note] }
+        throw new Error('原保存响应丢失')
+      }
+      throw new Error('相同保存请求不能使用不同的笔记内容。')
+    }
+    if (path === '/research-projects/p1/notes/n1' && init?.method === 'PATCH') {
+      const body = JSON.parse(String(init.body)); revisions.push(body.base_revision)
+      project = { ...project, notes: [{ ...project.notes[0], ...body, revision: 3 }] }
+      return project.notes[0] as never
+    }
+    return project as never
+  })
+  render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
+  await user.click(await screen.findByRole('button', { name: '写研究笔记' }))
+  await user.type(screen.getByLabelText('笔记标题'), '新笔记')
+  await user.type(screen.getByLabelText('研究内容'), '我的判断')
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('原保存响应丢失')
+  await user.type(screen.getByLabelText('研究内容'), '；保留的修改')
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('另一处的新判断')
+  expect(screen.getByRole('button', { name: '保存笔记' })).toBeDisabled()
+  expect(screen.getByLabelText('研究内容')).toHaveValue('我的判断；保留的修改')
+  expect(revisions).toEqual([])
+  await user.click(screen.getByRole('button', { name: '继续合并我的修改' }))
+  await user.click(screen.getByRole('button', { name: '保存笔记' }))
+  await screen.findByText('我的判断；保留的修改')
+  expect(revisions).toEqual([2])
+  expect(creates).toBe(2)
+  expect(project.notes).toHaveLength(1)
 })

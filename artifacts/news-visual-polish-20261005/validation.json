@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-05",
+  "changes": [
+    "Align article title, source badge, publication time, body and market section",
+    "Use compact research action and a clearer selected-news state",
+    "Show each automatically identified company in a separate market card",
+    "Add market/day-line badges, latest displayed close and preceding-day change",
+    "Show a blue article-date marker only when the exact date exists in the chart",
+    "Move the latest/publication-date toggle into the market section header",
+    "Improve chart loading, error and narrow-screen states"
+  ],
+  "validation": {
+    "build": "npm run build passed",
+    "frontend": {
+      "tests_passed": 30,
+      "files_passed": 5,
+      "commands": [
+        "npm test -- src/pages/NewsPage.test.tsx src/pages/PatternMatches.test.tsx src/components/StockChartDialog.test.tsx",
+        "npm test -- src/pages/TechnicalBrowser.test.tsx src/pages/LibraryReading.test.tsx"
+      ]
+    },
+    "browser": {
+      "url": "http://127.0.0.1:5173",
+      "widths": [1440, 390, 320],
+      "horizontal_overflow": false,
+      "console_errors_or_warnings": 0,
+      "company_selection_controls": 0,
+      "checks": [
+        "大华股份 renders automatically with its displayed close and change",
+        "浙大网新 and 万里扬 both render as separate cards",
+        "Keyboard OHLC tooltip stays within 320px viewport",
+        "Publication-date view removes article-date marker and labels the cutoff",
+        "Invalid last bars do not produce a displayed price or percentage"
+      ]
+    }
+  },
+  "screenshots": ["news-desktop.png", "news-multiple-desktop.png", "news-mobile.png", "news-320.png"]
+}

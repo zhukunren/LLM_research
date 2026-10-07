@@ -11,6 +11,21 @@ vi.mock('../api', () => ({ api: vi.fn() }))
 vi.mock('../components/PdfReader', () => ({ default: ({ url, page, pageControls }: { url: string; page: number; pageControls?: ReactNode }) => <>{pageControls}<div role="img" aria-label={'PDF ' + page} data-url={url} /></> }))
 const mocked = vi.mocked(api)
 beforeEach(() => vi.clearAllMocks())
+it('keeps the report page across catalog and reader switches', async () => {
+  mocked.mockImplementation(async path => path === '/documents' ? { items: [{ id: 'one', title: '第一份报告', filename: '1.pdf', pages: 5, metadata_status: 'ready' }] } : { queued: 0 })
+  const user = userEvent.setup()
+  render(<ReportPage />)
+  await screen.findByRole('img', { name: 'PDF 1' })
+  const workspace = screen.getByRole('navigation', { name: '研报列表与阅读切换' }).closest('.library-reading-workspace')!
+  await user.click(screen.getByRole('button', { name: /第一份报告/ }))
+  expect(workspace).toHaveAttribute('data-mobile-view', 'reader')
+  fireEvent.change(screen.getByLabelText('研报页码'), { target: { value: '4' } })
+  await user.click(screen.getByRole('navigation', { name: '研报列表与阅读切换' }).querySelector<HTMLButtonElement>('button')!)
+  expect(workspace).toHaveAttribute('data-mobile-view', 'catalog')
+  await user.click(screen.getByRole('button', { name: '阅读研报' }))
+  expect(screen.getByRole('img', { name: 'PDF 4' })).toBeInTheDocument()
+  expect(screen.getByLabelText('研报页码')).toHaveValue(4)
+})
 
 it('keeps drawing and uploads in description, and defaults saved patterns to real candles', async () => {
   const pattern = { id: 'pattern', version: 1, name: '目标走势', representation: 'price_path', input_type: 'drawing', points: Array.from({ length: 10 }, (_, i) => i), params: {}, target_bars: 10 }
@@ -119,4 +134,20 @@ it('restores the last page of each report after changing reports and remounting'
   view.unmount()
   render(<ReportPage />)
   expect(await screen.findByRole('img', { name: 'PDF 4' })).toBeInTheDocument()
+})
+
+it('filters patterns without mixing a saved current window with an editor draft', async () => {
+  const user = userEvent.setup()
+  sessionStorage.setItem('pattern.editor', JSON.stringify({ activeId: '', version: 0, name: '未保存', mode: 'price_path', source: 'drawing', panel: 'browse', draft: null, sourceDraftId: '', minSimilarity: 80, matchMode: 'recent', recentBars: 20, dirty: true, targetBars: 40, rawPoints: [], candles: [], selectedCandle: 0, imageData: '', savedImageUrl: '', imageMime: 'image/png', imageName: '', crop: { x: 0, y: 0, width: 100, height: 100 }, quality: null }))
+  const base = { version: 1, input_type: 'drawing', points: Array.from({ length: 10 }, (_, i) => i), params: { match_mode: 'current' }, target_bars: 10 }
+  mocked.mockImplementation(async path => path === '/patterns' ? { items: [{ ...base, id: 'one', name: '双底走势', representation: 'price_path' }, { ...base, id: 'two', name: '锤头蜡烛', representation: 'ohlc_sequence' }] } : { bars: [], reason: '暂无匹配' })
+  render(<PatternPage />)
+  await screen.findByRole('button', { name: /双底走势/ })
+  await user.type(screen.getByRole('searchbox', { name: '搜索形态' }), '双底')
+  expect(screen.queryByRole('button', { name: /锤头蜡烛/ })).not.toBeInTheDocument()
+  await user.selectOptions(screen.getByLabelText('形态类型筛选'), 'ohlc_sequence')
+  expect(screen.getByRole('heading', { name: '没有找到匹配的形态' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '查看全部形态' }))
+  await user.click(screen.getByRole('button', { name: '加入组合' }))
+  expect(JSON.parse(localStorage.getItem('workbench.tree')!).children[0]).toMatchObject({ pattern_id: 'one', match_mode: 'current' })
 })

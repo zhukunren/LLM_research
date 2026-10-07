@@ -1,0 +1,636 @@
+- link "跳到页面内容":
+  - /url: "#workspace-main"
+- complementary:
+  - img "东吴证券 SOOCHOW SECURITIES"
+  - text: 投研工作台
+  - generic: 张家港营业部
+  - button "开始新研究":
+    - generic: 开始新研究
+  - navigation "主菜单":
+    - generic: 工作空间
+    - button "首页":
+      - generic: 首页
+    - button "研究":
+      - generic: 研究
+    - button "条件选股":
+      - generic: 条件选股
+    - button "观察池":
+      - generic: 观察池
+    - generic: 资料资源
+    - button "资讯库":
+      - generic: 资讯库
+    - button "技术指标库":
+      - generic: 技术指标库
+    - button "形态库":
+      - generic: 形态库
+    - button "研报库":
+      - generic: 研报库
+  - generic: 行情可供查询
+  - button "数据与服务":
+    - generic: 数据与服务
+- main:
+  - button "收起导航":
+  - generic: 研究空间
+  - strong: 观察池
+  - button "搜索与快速导航":
+    - generic: 查找项目、对话或页面
+    - generic: Ctrl K
+  - button "运行任务":
+    - generic: 运行任务
+  - button "行情截至 2026-09-28，查看数据状态":
+    - time: 2026-09-28
+  - generic: 探索模式
+  - generic: 研究跟踪 / WATCHLIST
+  - heading "观察池" [level=1]
+  - button "去条件选股":
+    - text: 去条件选股
+  - button "刷新":
+    - text: 刷新
+  - tablist "观察来源分类":
+    - tab "研究候选":
+      - text: 研究候选
+      - generic: 研究判断与验证计划
+    - tab "筛选批次" [active] [selected]:
+      - text: 筛选批次
+      - generic: 入选表现与走势跟踪
+  - generic: 行情截至 2026-09-28
+  - tabpanel "筛选批次":
+    - region "批次记录导航":
+      - heading "批次记录" [level=2]
+      - generic: 共 6 次执行
+      - text: 当前筛选批次
+      - combobox "选择选股批次":
+        - option "选择记录"
+        - option "2026-09-28 · 收盘价高于20日均线；近5个交易日涨幅大于3% · v2 · 部分数据不足 · 745只" [selected]
+        - option "2026-09-28 · 收盘价高于20日均线；近5个交易日涨幅大于3% · v1 · 部分数据不足 · 746只"
+        - option "2026-09-14 · 趋势向上（验收示例） · v1 · 部分数据不足 · 0只"
+        - option "2026-09-14 · 趋势向上（验收示例） · v1 · 部分数据不足 · 510只"
+        - option "2026-09-28 · 趋势向上（验收示例） · v1 · 部分数据不足 · 746只"
+        - option "2026-09-28 · 收盘价高于20日均线；近5个交易日涨幅大于3% · v1 · 部分数据不足 · 746只"
+      - text: 查找历史
+      - textbox "查找历史":
+        - /placeholder: 搜索方案名称或条件
+    - heading "收盘价高于20日均线；近5个交易日涨幅大于3%" [level=2]
+    - generic: v2
+    - generic: 部分数据不足
+    - paragraph:
+      - text: 信号日期
+      - strong: 2026-09-28
+      - generic: ·
+      - text: 实际执行 2026/9/30 14:58:33
+    - link "导出结果字典":
+      - /url: /api/v1/observation/runs/5cf829d7-8ef4-4e23-a947-50bfe3cf61fb/snapshot
+      - text: 导出结果字典
+    - text: 扫描范围
+    - strong: "5569"
+    - text: 只
+    - text: 入选
+    - strong: "745"
+    - text: 未入选
+    - strong: "4806"
+    - text: 数据不足
+    - strong: "18"
+    - generic "查看筛选条件"
+    - region "批次表现概览":
+      - heading "批次表现" [level=2]
+      - generic: 行情截至 2026-09-28
+      - text: 统计周期
+      - combobox "统计周期":
+        - option "入选至最新" [selected]
+        - option "入选后 5 个交易日"
+        - option "入选后 10 个交易日"
+        - option "入选后 20 个交易日"
+      - generic: 本批次入选
+      - strong: 745 只
+      - generic: 有效统计样本
+      - strong: 0 只
+      - generic: 平均涨跌幅
+      - strong: —
+      - generic: 中位数涨跌幅
+      - strong: —
+      - generic: 上涨占比
+      - strong: —
+      - paragraph: 价格复权口径尚未确认，暂不计算涨跌幅；入选参考价、最新价和观察备注仍可查看。
+    - region "股票结果列表":
+      - generic: BATCH WATCHLIST
+      - heading "本批次观察 745" [level=2]:
+        - text: 本批次观察
+        - generic: "745"
+      - textbox "搜索结果股票":
+        - /placeholder: 搜索股票名称或代码
+      - combobox "观察状态筛选":
+        - option "全部观察状态" [selected]
+        - option "观察中"
+        - option "重点关注"
+        - option "结束观察"
+      - combobox "观察排序":
+        - option "重点关注优先" [selected]
+        - option "按股票代码"
+        - option "涨跌幅从高到低"
+        - option "涨跌幅从低到高"
+      - table:
+        - rowgroup:
+          - row "股票 / 状态 最新价 至今涨跌幅 观察天数":
+            - columnheader "股票 / 状态"
+            - columnheader "最新价"
+            - columnheader "至今涨跌幅"
+            - columnheader "观察天数"
+        - rowgroup:
+          - row "万科A 000002.SZ 观察中 3.71 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "万科A 000002.SZ 观察中":
+              - button "万科A 000002.SZ" [pressed]:
+                - strong: 万科A
+                - generic: 000002.SZ
+              - generic: 观察中
+            - cell "3.71 2026-09-28":
+              - text: "3.71"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "深振业A 000006.SZ 观察中 7.32 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "深振业A 000006.SZ 观察中":
+              - button "深振业A 000006.SZ":
+                - strong: 深振业A
+                - generic: 000006.SZ
+              - generic: 观察中
+            - cell "7.32 2026-09-28":
+              - text: "7.32"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "深物业A 000011.SZ 观察中 10.12 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "深物业A 000011.SZ 观察中":
+              - button "深物业A 000011.SZ":
+                - strong: 深物业A
+                - generic: 000011.SZ
+              - generic: 观察中
+            - cell "10.12 2026-09-28":
+              - text: "10.12"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "沙河股份 000014.SZ 观察中 11.2 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "沙河股份 000014.SZ 观察中":
+              - button "沙河股份 000014.SZ":
+                - strong: 沙河股份
+                - generic: 000014.SZ
+              - generic: 观察中
+            - cell "11.2 2026-09-28":
+              - text: "11.2"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "深华发A 000020.SZ 观察中 14.64 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "深华发A 000020.SZ 观察中":
+              - button "深华发A 000020.SZ":
+                - strong: 深华发A
+                - generic: 000020.SZ
+              - generic: 观察中
+            - cell "14.64 2026-09-28":
+              - text: "14.64"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "*ST皇庭 000056.SZ 观察中 2.73 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "*ST皇庭 000056.SZ 观察中":
+              - button "*ST皇庭 000056.SZ":
+                - strong: "*ST皇庭"
+                - generic: 000056.SZ
+              - generic: 观察中
+            - cell "2.73 2026-09-28":
+              - text: "2.73"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "金融街 000402.SZ 观察中 2.61 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "金融街 000402.SZ 观察中":
+              - button "金融街 000402.SZ":
+                - strong: 金融街
+                - generic: 000402.SZ
+              - generic: 观察中
+            - cell "2.61 2026-09-28":
+              - text: "2.61"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "ST晨鸣 000488.SZ 观察中 2.12 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "ST晨鸣 000488.SZ 观察中":
+              - button "ST晨鸣 000488.SZ":
+                - strong: ST晨鸣
+                - generic: 000488.SZ
+              - generic: 观察中
+            - cell "2.12 2026-09-28":
+              - text: "2.12"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "山东路桥 000498.SZ 观察中 5.76 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "山东路桥 000498.SZ 观察中":
+              - button "山东路桥 000498.SZ":
+                - strong: 山东路桥
+                - generic: 000498.SZ
+              - generic: 观察中
+            - cell "5.76 2026-09-28":
+              - text: "5.76"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "国新健康 000503.SZ 观察中 7.44 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "国新健康 000503.SZ 观察中":
+              - button "国新健康 000503.SZ":
+                - strong: 国新健康
+                - generic: 000503.SZ
+              - generic: 观察中
+            - cell "7.44 2026-09-28":
+              - text: "7.44"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "南华生物 000504.SZ 观察中 12.36 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "南华生物 000504.SZ 观察中":
+              - button "南华生物 000504.SZ":
+                - strong: 南华生物
+                - generic: 000504.SZ
+              - generic: 观察中
+            - cell "12.36 2026-09-28":
+              - text: "12.36"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "丽珠集团 000513.SZ 观察中 30.34 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "丽珠集团 000513.SZ 观察中":
+              - button "丽珠集团 000513.SZ":
+                - strong: 丽珠集团
+                - generic: 000513.SZ
+              - generic: 观察中
+            - cell "30.34 2026-09-28":
+              - text: "30.34"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "渝开发 000514.SZ 观察中 4.34 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "渝开发 000514.SZ 观察中":
+              - button "渝开发 000514.SZ":
+                - strong: 渝开发
+                - generic: 000514.SZ
+              - generic: 观察中
+            - cell "4.34 2026-09-28":
+              - text: "4.34"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "我爱我家 000560.SZ 观察中 3.71 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "我爱我家 000560.SZ 观察中":
+              - button "我爱我家 000560.SZ":
+                - strong: 我爱我家
+                - generic: 000560.SZ
+              - generic: 观察中
+            - cell "3.71 2026-09-28":
+              - text: "3.71"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "平潭发展 000592.SZ 观察中 9.09 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "平潭发展 000592.SZ 观察中":
+              - button "平潭发展 000592.SZ":
+                - strong: 平潭发展
+                - generic: 000592.SZ
+              - generic: 观察中
+            - cell "9.09 2026-09-28":
+              - text: "9.09"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "海螺新材 000619.SZ 观察中 5.22 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "海螺新材 000619.SZ 观察中":
+              - button "海螺新材 000619.SZ":
+                - strong: 海螺新材
+                - generic: 000619.SZ
+              - generic: 观察中
+            - cell "5.22 2026-09-28":
+              - text: "5.22"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "襄阳轴承 000678.SZ 观察中 10.65 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "襄阳轴承 000678.SZ 观察中":
+              - button "襄阳轴承 000678.SZ":
+                - strong: 襄阳轴承
+                - generic: 000678.SZ
+              - generic: 观察中
+            - cell "10.65 2026-09-28":
+              - text: "10.65"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "贝瑞基因 000710.SZ 观察中 10.28 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "贝瑞基因 000710.SZ 观察中":
+              - button "贝瑞基因 000710.SZ":
+                - strong: 贝瑞基因
+                - generic: 000710.SZ
+              - generic: 观察中
+            - cell "10.28 2026-09-28":
+              - text: "10.28"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "普洛药业 000739.SZ 观察中 26.81 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "普洛药业 000739.SZ 观察中":
+              - button "普洛药业 000739.SZ":
+                - strong: 普洛药业
+                - generic: 000739.SZ
+              - generic: 观察中
+            - cell "26.81 2026-09-28":
+              - text: "26.81"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "*ST西发 000752.SZ 观察中 9.01 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "*ST西发 000752.SZ 观察中":
+              - button "*ST西发 000752.SZ":
+                - strong: "*ST西发"
+                - generic: 000752.SZ
+              - generic: 观察中
+            - cell "9.01 2026-09-28":
+              - text: "9.01"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "新华制药 000756.SZ 观察中 14.33 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "新华制药 000756.SZ 观察中":
+              - button "新华制药 000756.SZ":
+                - strong: 新华制药
+                - generic: 000756.SZ
+              - generic: 观察中
+            - cell "14.33 2026-09-28":
+              - text: "14.33"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "华神科技 000790.SZ 观察中 4.42 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "华神科技 000790.SZ 观察中":
+              - button "华神科技 000790.SZ":
+                - strong: 华神科技
+                - generic: 000790.SZ
+              - generic: 观察中
+            - cell "4.42 2026-09-28":
+              - text: "4.42"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "华茂股份 000850.SZ 观察中 5.14 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "华茂股份 000850.SZ 观察中":
+              - button "华茂股份 000850.SZ":
+                - strong: 华茂股份
+                - generic: 000850.SZ
+              - generic: 观察中
+            - cell "5.14 2026-09-28":
+              - text: "5.14"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "安凯客车 000868.SZ 观察中 4.18 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "安凯客车 000868.SZ 观察中":
+              - button "安凯客车 000868.SZ":
+                - strong: 安凯客车
+                - generic: 000868.SZ
+              - generic: 观察中
+            - cell "4.18 2026-09-28":
+              - text: "4.18"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "张裕A 000869.SZ 观察中 17.05 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "张裕A 000869.SZ 观察中":
+              - button "张裕A 000869.SZ":
+                - strong: 张裕A
+                - generic: 000869.SZ
+              - generic: 观察中
+            - cell "17.05 2026-09-28":
+              - text: "17.05"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "大亚圣象 000910.SZ 观察中 6.84 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "大亚圣象 000910.SZ 观察中":
+              - button "大亚圣象 000910.SZ":
+                - strong: 大亚圣象
+                - generic: 000910.SZ
+              - generic: 观察中
+            - cell "6.84 2026-09-28":
+              - text: "6.84"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "华东医药 000963.SZ 观察中 27.02 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "华东医药 000963.SZ 观察中":
+              - button "华东医药 000963.SZ":
+                - strong: 华东医药
+                - generic: 000963.SZ
+              - generic: 观察中
+            - cell "27.02 2026-09-28":
+              - text: "27.02"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "皇台酒业 000995.SZ 观察中 11.33 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "皇台酒业 000995.SZ 观察中":
+              - button "皇台酒业 000995.SZ":
+                - strong: 皇台酒业
+                - generic: 000995.SZ
+              - generic: 观察中
+            - cell "11.33 2026-09-28":
+              - text: "11.33"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "东瑞股份 001201.SZ 观察中 16.13 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "东瑞股份 001201.SZ 观察中":
+              - button "东瑞股份 001201.SZ":
+                - strong: 东瑞股份
+                - generic: 001201.SZ
+              - generic: 观察中
+            - cell "16.13 2026-09-28":
+              - text: "16.13"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+          - row "联科科技 001207.SZ 观察中 18.7 2026-09-28 — 复权口径未确认 0 个交易日 有效行情 0 日":
+            - cell "联科科技 001207.SZ 观察中":
+              - button "联科科技 001207.SZ":
+                - strong: 联科科技
+                - generic: 001207.SZ
+              - generic: 观察中
+            - cell "18.7 2026-09-28":
+              - text: "18.7"
+              - generic: 2026-09-28
+            - cell "— 复权口径未确认":
+              - text: —
+              - generic: 复权口径未确认
+            - cell "0 个交易日 有效行情 0 日":
+              - text: 0 个交易日
+              - generic: 有效行情 0 日
+      - generic: 1–30 / 745 只
+      - button "上一页" [disabled]
+      - button "下一页"
+    - complementary "股票观察详情":
+      - heading "万科A 000002.SZ" [level=2]:
+        - strong: 万科A
+        - generic: 000002.SZ
+      - combobox "K线观察视角":
+        - option "后续走势" [selected]
+        - option "当时视角"
+      - paragraph: 选股日 2026-09-28 · K 线截至 2026-09-28
+      - img "000002.SZ K线，选股日 2026-09-28，4条入选记录"
+      - paragraph: 深蓝：本批次；灰色：其他批次。
+      - generic "入选记录 · 4 次"
+      - generic "当时的判断依据"
+      - strong: 截止日收盘价高于包含截止日在内的20个交易日收盘价算术平均。
+      - text: 符合
+      - paragraph: 截止日收盘价高于包含截止日在内的20个交易日收盘价算术平均。；本次计算值：收盘价 3.71行情原始单位；20日均线 3.296行情原始单位；符合条件。
+      - generic: 实际值：收盘价：3.71；20日均线：3.296
+      - strong: 截止日收盘价相对其前第5个交易日收盘价的涨幅大于3%；按6根日线计算。
+      - text: 符合
+      - paragraph: 截止日收盘价相对其前第5个交易日收盘价的涨幅大于3%；按6根日线计算。；本次计算值：近5个交易日涨幅 11.747%；符合条件。
+      - generic: 实际值：近5个交易日涨幅：11.74698795180723
+      - heading "观察记录" [level=2]
+      - generic: 观察中
+      - generic: 持续记录判断变化
+      - text: 入选参考价
+      - strong: —
+      - generic: 旧记录未保存参考价
+      - text: 期间最高涨幅
+      - strong: —
+      - text: 期间最低涨幅
+      - strong: —
+      - text: 5 日涨跌幅
+      - strong: 未满期
+      - text: 10 日涨跌幅
+      - strong: 未满期
+      - text: 20 日涨跌幅
+      - strong: 未满期
+      - text: 观察状态
+      - combobox "个股观察状态":
+        - option "观察中" [selected]
+        - option "重点关注"
+        - option "结束观察"
+      - text: 观察备注
+      - textbox "观察备注"
+      - generic: 0 / 2000
+      - button "保存观察记录" [disabled]

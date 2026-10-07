@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-04",
+  "running_jobs": 0,
+  "queued_jobs": 0,
+  "backup": "D:\\项目\\LLM_research\\runtime\\backups\\before-workflow-boundary-20261004-143352\\app.db",
+  "tables": {
+    "conversations": {
+      "rows": 9,
+      "sha256": "fd73fd1beafe9b5f5b42db62e66104d59a83c25e531331ccc17f114e7f5cfd7f"
+    },
+    "conversation_messages": {
+      "rows": 54,
+      "sha256": "4c6dba697704449d7027a633813c2a34d77323e801fa140f944fa6113d1eff55"
+    },
+    "screening_task_revisions": {
+      "rows": 8,
+      "sha256": "23dc5d9ca7ac86333a4b8bb461f91bac0fc50ef4dd09f33cd99b1b9af5eb7373"
+    },
+    "screening_task_runs": {
+      "rows": 6,
+      "sha256": "54c8993d6845ac50c722d0cc15aab44b6f729b7a0f16023db0411f9fe8850c4e"
+    },
+    "documents": {
+      "rows": 12,
+      "sha256": "35c4e187f301972a4b69b5ebd3c49fb785a64ef5c918ce329d6044cbeda06981"
+    },
+    "document_pages": {
+      "rows": 98,
+      "sha256": "898b5cfa5a03c4486d74615b1f646fee2260178018642c2a702e4bb20e72cec8"
+    },
+    "research_projects": {
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "research_notes": {
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "integrity_check": "ok"
+}

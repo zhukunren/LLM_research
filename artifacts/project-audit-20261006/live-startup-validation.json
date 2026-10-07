@@ -1,0 +1,81 @@
+{
+  "status": "passed",
+  "started_at": "2026-10-06T16:15:53.1359355Z",
+  "audit_database": "D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\live\\app.db",
+  "data_root": "D:\\项目\\LLM_research\\data",
+  "protected_live_server_pid": 26104,
+  "model_calls": 0,
+  "initial_matching_services": [],
+  "protected_live_server_creation": "2026-10-06T10:27:29.0524570Z",
+  "initial_tasks": {
+    "items": [],
+    "active_count": 0
+  },
+  "registry_backup": "D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\startup-processes-before.json",
+  "original_registry": {
+    "web_port": 8000,
+    "worker": 27008,
+    "worker_started_at": "2026-10-06T04:09:10.811512Z",
+    "api_port": 8000,
+    "api_started_at": "2026-10-06T04:09:10.7700424Z",
+    "started_at": "2026-10-06T04:09:10.8470166Z",
+    "api": 12636,
+    "web_mode": "bundled",
+    "web": 0
+  },
+  "first_start": {
+    "web_port": 8000,
+    "worker_started_at": "2026-10-06T16:15:55.1784316Z",
+    "started_at": "2026-10-06T16:15:55.1925958Z",
+    "api_port": 8000,
+    "web_mode": "bundled",
+    "web": 0,
+    "api_started_at": "2026-10-06T16:15:55.1609688Z",
+    "api": 40604,
+    "worker": 15872
+  },
+  "health": {
+    "status": "ok",
+    "database": "ready",
+    "version": "0.1.0"
+  },
+  "frontend_status": 200,
+  "frontend_content_type": [
+    "text/html; charset=utf-8"
+  ],
+  "listening_addresses": [
+    {
+      "LocalAddress": "127.0.0.1",
+      "LocalPort": 8000,
+      "OwningProcess": 40604
+    }
+  ],
+  "second_start": {
+    "web_port": 8000,
+    "worker_started_at": "2026-10-06T16:15:55.1784316Z",
+    "started_at": "2026-10-06T16:15:55.1925958Z",
+    "api_port": 8000,
+    "web_mode": "bundled",
+    "web": 0,
+    "api_started_at": "2026-10-06T16:15:55.1609688Z",
+    "api": 40604,
+    "worker": 15872
+  },
+  "reused_same_pids": true,
+  "reused_same_creation_times": true,
+  "matching_services_after_reuse": [
+    "list: worker pid=15872",
+    "list: api pid=40604"
+  ],
+  "stop_script_completed": true,
+  "remaining_matching_services": [],
+  "remaining_owned_pids": [],
+  "registry_removed": true,
+  "protected_live_server_survived": true,
+  "protected_live_server_health": {
+    "status": "ok",
+    "database": "ready",
+    "version": "0.1.0"
+  },
+  "finished_at": "2026-10-06T16:16:09.8416003Z"
+}

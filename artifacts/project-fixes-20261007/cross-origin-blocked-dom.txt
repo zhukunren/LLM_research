@@ -1,0 +1,4 @@
+- heading "127.0.0.1 已被屏蔽" [level=1]:
+  - generic: 127.0.0.1 已被屏蔽
+- paragraph: 此页面已被 Chrome 屏蔽
+- generic: ERR_BLOCKED_BY_CLIENT

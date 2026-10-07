@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>写请求来源隔离验收</title>
+<main>
+  <h1>写请求来源隔离验收</h1>
+  <p>仅针对本轮独立验收服务。预期提交后返回 403，且不创建资料更新任务。</p>
+  <form action="http://127.0.0.1:8066/api/v1/maintenance/refresh" method="post">
+    <button type="submit">尝试发起资料更新（隔离验收）</button>
+  </form>
+</main>
+</html>

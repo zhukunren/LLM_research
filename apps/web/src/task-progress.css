@@ -1,0 +1,6 @@
+.task-view-switch { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.task-view-switch button[aria-pressed="true"] { border-color: var(--ui-primary); color: var(--ui-primary); background: var(--ui-primary-soft); }
+.active-tasks-list .task-stage { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+.active-tasks-list > button > span:first-child { flex: 1; min-width: 0; }
+.active-tasks-list > button > span:last-child { flex-shrink: 0; }
+@media (max-width: 480px) { .active-tasks-list > button { align-items: flex-start; flex-wrap: wrap; gap: 8px; } .active-tasks-list > button > span:first-child { flex-basis: 100%; } }

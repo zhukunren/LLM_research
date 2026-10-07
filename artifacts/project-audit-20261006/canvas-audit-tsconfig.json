@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ESNext", "DOM"],
+    "baseUrl": ".",
+    "paths": {
+      "cursor/canvas": ["C:/Users/11705/.cursor/skills-cursor/canvas/sdk/index.d.ts"],
+      "react": ["D:/项目/LLM_research/apps/web/node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["D:/项目/LLM_research/apps/web/node_modules/@types/react/jsx-runtime.d.ts"]
+    },
+    "typeRoots": ["D:/项目/LLM_research/apps/web/node_modules/@types"]
+  },
+  "files": ["C:/Users/11705/.cursor/projects/d/canvases/llm-research-audit.canvas.tsx"]
+}

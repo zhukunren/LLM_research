@@ -1,4 +1,5 @@
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
@@ -39,6 +40,82 @@ def run_strategy(client, saved, **extra):
     run = client.post("/api/v1/screening-runs", json={"strategy_id": strategy["id"], "strategy_version": strategy["version"], "as_of": "2026-09-14", "mode": "exploratory", **extra})
     assert run.status_code == 200, run.text
     return run.json()
+
+
+def test_condition_submissions_replay_once_even_with_concurrent_retries(client):
+    _, saved = compile_and_save(client)
+    body = {"name": "防重复组合", "tree": saved["tree"], "top_n": 30, "request_id": "save-once"}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        responses = list(pool.map(lambda _: client.post("/api/v1/strategies", json=body), range(6)))
+    assert all(response.status_code == 200 for response in responses)
+    strategy = responses[0].json()
+    assert all(response.json() == strategy for response in responses)
+    assert len(client.get("/api/v1/strategies?include_history=true").json()["items"]) == 1
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM audit_events WHERE entity_type='strategy'").fetchone()[0] == 1
+    run_body = {"request_id": "run-once", "strategy_id": strategy["id"], "strategy_version": 1,
+                "as_of": "2026-09-14", "mode": "exploratory"}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        runs = list(pool.map(lambda _: client.post("/api/v1/screening-runs", json=run_body), range(6)))
+    assert all(response.status_code == 200 for response in runs)
+    assert all(response.json() == runs[0].json() for response in runs)
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM screening_runs").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM jobs WHERE kind='screening'").fetchone()[0] == 1
+
+
+def test_submission_ids_reject_changed_payload_and_replay_before_dynamic_checks(client, monkeypatch):
+    _, saved = compile_and_save(client)
+    body = {"name": "固定组合", "tree": saved["tree"], "request_id": "save-identity"}
+    strategy = client.post("/api/v1/strategies", json=body).json()
+    assert client.post("/api/v1/strategies", json={**body, "name": "其他组合"}).status_code == 409
+    run_body = {"request_id": "run-identity", "strategy_id": strategy["id"], "strategy_version": 1,
+                "as_of": "2026-09-14", "mode": "exploratory"}
+    first = client.post("/api/v1/screening-runs", json=run_body)
+    assert first.status_code == 200
+    monkeypatch.setattr(market, "cached_profile", lambda: {"available": False})
+    assert client.post("/api/v1/screening-runs", json=run_body).json() == first.json()
+    assert client.post("/api/v1/screening-runs", json={**run_body, "as_of": "2026-09-13"}).status_code == 409
+
+
+def test_blocked_submission_replays_without_creating_jobs(client, monkeypatch):
+    _, saved = compile_and_save(client)
+    strategy = client.post("/api/v1/strategies", json={"name": "正式组合", "tree": saved["tree"]}).json()
+    monkeypatch.setattr(main, "_strategy_blockers", lambda *_: ["尚未确认行情口径"])
+    body = {"request_id": "blocked-once", "strategy_id": strategy["id"], "strategy_version": 1, "as_of": "2026-09-14"}
+    first = client.post("/api/v1/screening-runs", json=body).json()
+    assert first["status"] == "blocked_dependency"
+    assert client.post("/api/v1/screening-runs", json=body).json() == first
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM screening_runs").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("scope", ["strategy", "screening"])
+def test_submission_record_and_resources_rollback_together(client, monkeypatch, scope):
+    _, saved = compile_and_save(client)
+    strategy = client.post("/api/v1/strategies", json={"name": "原组合", "tree": saved["tree"]}).json()
+    if scope == "strategy":
+        path = "/api/v1/strategies"
+        body = {"id": strategy["id"], "name": "新版本", "tree": saved["tree"], "request_id": "rollback"}
+    else:
+        path = "/api/v1/screening-runs"
+        body = {"request_id": "rollback", "strategy_id": strategy["id"], "strategy_version": 1,
+                "as_of": "2026-09-14", "mode": "exploratory"}
+    remember = main._remember_submission
+    def fail_after_record(*args):
+        remember(*args)
+        raise RuntimeError("simulated interrupted write")
+    monkeypatch.setattr(main, "_remember_submission", fail_after_record)
+    with pytest.raises(RuntimeError, match="simulated interrupted write"):
+        client.post(path, json=body)
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM condition_submission_requests").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM strategies").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM screening_runs").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+    monkeypatch.setattr(main, "_remember_submission", remember)
+    assert client.post(path, json=body).status_code == 200
 
 
 def test_full_flow_keeps_each_atom_provenance_preview_and_all_decisions(client):

@@ -81,7 +81,6 @@ def _completion(criteria: list[dict[str, Any]], pages: list[dict[str, Any]]) -> 
         result = complete_json(
             SYSTEM_PROMPT,
             json.dumps({"criteria": criteria, "pages": pages}, ensure_ascii=False),
-            timeout_seconds=60,
             max_output_tokens=7000,
         )
     except ModelRequestError as exc:

@@ -1,0 +1,38 @@
+{
+  "run_date": "2026-10-06",
+  "runner": "scripts/test.ps1",
+  "python": "System Python 3.12 + runtime/python-deps",
+  "tests": 594,
+  "passed": 593,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 1,
+  "duration_seconds": 76.628,
+  "integration_cases": 338,
+  "unit_cases": 256,
+  "isolation": "Separate DB/data/Codex state paths; 30 synthetic OHLCV bars; live model acceptance disabled",
+  "skipped_reason": "RUN_LIVE_CONVERSATION_TESTS is not 1; live model acceptance is an explicit command",
+  "baseline_without_market": {
+    "xml": "backend-tests-no-market.xml",
+    "passed": 590,
+    "skipped": 1,
+    "failures": 3
+  },
+  "diagnostic_with_one_bar": {
+    "xml": "backend-tests-one-bar.xml",
+    "passed": 592,
+    "skipped": 1,
+    "failures": 1
+  },
+  "fixture_dependency_findings": [
+    "test_screening_tool_api.py:14 and test_workflow_tools.py:14 mock bars but leave market.daily_bar_source_available dependent on mounted Parquet",
+    "test_market_data.py:22 returns early without Parquet and requires at least 10 bars when one exists"
+  ],
+  "warnings": [
+    "Starlette TestClient httpx deprecation",
+    "pypdf PageObject.replace_contents deprecation, emitted twice"
+  ],
+  "source_changes": false,
+  "business_database_used": false,
+  "external_model_calls": false
+}

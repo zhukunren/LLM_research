@@ -1,0 +1,105 @@
+项目审查报告｜开始 2026-10-06，完成 2026-10-07（北京时间）
+
+当前工作区确认 8 项问题：7 项 P2、1 项 P3。按数据访问风险与日常工作受阻程度排序。业务源码未修改。
+“隔离实测”表示真实执行本地函数/API/浏览器处理链，但使用审查专用数据与服务；“条件模拟”表示显式模拟网络、DNS 或接口失败。真实 Chrome、实际服务与最小真实模型结果已归档 live-validation.json；本文分别标注验证边界。原 runtime/app.db 的 SHA256 前后一致，写操作仅发生在数据库副本。
+
+1. [P2] 资讯网址导入可读取本机/内网正文，并送入模型处理链
+触发：向 POST /api/v1/news/import-url 提交本机 HTTP 网页地址。
+证据：实际 Edge/Playwright 读取隔离 127.0.0.1 服务的 479 字正文，接口返回 201；正文进入替换后的 complete_json 参数。
+边界：本机页面读取为隔离实测；模型函数已替换，没有向真实模型传输内容，也未测试真实内网目标。
+定位：D:\项目\LLM_research\apps\api\app\news_library.py:31（只过滤资源类型）、:32（直接导航）、:58–64（正文传入模型）。
+影响：不可信资讯地址可让服务访问本地资源，读取内容随后进入模型调用链。
+修复：在所有页面请求、重定向和子请求上限制公开地址，并把已验证地址与实际连接绑定，拒绝本机、私网和保留地址。
+
+2. [P2] 研究原文下载的地址检查可被 DNS 变化绕过
+触发：直连下载一个域名；地址校验时解析为公网 IP，真正连接时再解析为 127.0.0.1。
+证据：隔离测试模拟两次 DNS 解析，实际从本机服务下载并保存 loopback-source-reached。
+边界：DNS 变化与直连环境为条件模拟，本机下载为实测；未验证当前代理环境或互联网攻击者是否具备触发条件。
+定位：D:\项目\LLM_research\apps\api\app\research_external.py:127（第一次解析校验）、:298（请求连接重新解析）。
+影响：原文获取绕过公开地址限制，可能读取本机/内网资源。
+修复：连接固定到已验证 IP，保留正确 Host/TLS 主机校验；对每次重定向使用同样策略，并核对浏览器获取链的相同边界。
+
+3. [P2] 不可信 Origin 的简单 POST 可创建资料更新任务
+触发：使用 Origin: http://untrusted.example 和 application/x-www-form-urlencoded，POST /api/v1/maintenance/refresh。
+证据：TestClient 接口返回 202，隔离数据库新增 1 个 data_sync 任务；响应没有 Access-Control-Allow-Origin，副作用仍已发生。
+边界：API/数据库行为为隔离实测；真实浏览器能否发出该本机请求还受浏览器网络保护策略影响，尚未实测。
+定位：D:\项目\LLM_research\apps\api\app\main.py:95（CORS 中间件）、D:\项目\LLM_research\apps\api\app\product_api.py:140–142（无写入来源校验的入口）。
+影响：CORS 隐藏响应不能阻止更新任务被启动，可能造成未经工作台操作的任务和资源消耗。
+修复：在产生副作用前校验写请求 Origin 或工作台请求令牌；不能依赖 CORS 响应策略承担写入授权。
+
+4. [P2] 重新生成笔记 PDF 时，项目成果列表返回 500
+触发：创建笔记并生成 PDF → 项目改名 → 重新生成同一笔记 PDF → 新任务排队期间读取 GET /api/v1/research-projects/{id}/files。升级前已有笔记 PDF 也触发同一问题。
+证据：真实服务与实际 worker 中，成果接口依次 200 → 排队时 500 → 完成后 200；隔离复现异常为 KeyError: 'conversation_id'。3 份生成 PDF 都实际 HTTP 下载 200、各 2 页，且包含预期正文。
+边界：实际 HTTP、worker、PDF 生成/下载实机验证，使用业务数据库一致性副本；原业务数据库未改。详情 live-pdf-validation.json。
+定位：D:\项目\LLM_research\apps\api\app\research_projects.py:344（排序必读 conversation_id）、D:\项目\LLM_research\apps\api\app\research_pdf_service.py:316（追加缺少字段的缓存项）。
+影响：报告替换期间或旧缓存迁移时整个项目成果列表不可用。
+修复：统一任务成果与缓存成果字段，或排序允许项目级文件没有对话 ID；加入旧缓存和新 PDF 排队共存用例。
+
+5. [P2] 成功保存笔记后旧草稿未清除，继续编辑或连续写笔记受阻
+触发：编辑笔记并成功保存到 revision 2，再次编辑保存；或成功新建笔记后再次点“写研究笔记”。
+证据：真实 Chrome 连复制数据库，连续新建仍带出上一份标题/正文，修改保存返回 409。jsdom 两次 PATCH 的 base_revision 为 [1,1]，预期 [1,2]；新笔记还复用旧 request_id。
+边界：连续新建旧草稿和 409 已在 Chrome / 真实服务复现；再次编辑旧版本为 jsdom 和 API mock 验证。截图 note-save-conflict.jpg，实机记录 live-validation.json。
+定位：D:\项目\LLM_research\apps\web\src\pages\ResearchProjectsPage.tsx:87–88；D:\项目\LLM_research\apps\web\src\useSessionState.ts:13–14。项目表单 :51–52 也采用同类清除后卸载模式。
+影响：常规后续编辑仍用旧版本，新写第二份笔记复用旧身份，容易出现无端冲突或重用旧笔记。
+修复：卸载编辑器前同步清除已提交的存储草稿，或由持续挂载的组件持有草稿；重开应采用保存后的版本。
+
+6. [P2] 首次创建对话后消息保存失败，未发送问题从输入框消失
+触发：新研究输入问题 → POST /conversations 成功 → POST /conversations/{id}/messages 失败。
+证据：jsdom 模拟消息未保存后，错误提示出现、输入框恢复可编辑，但原问题变为空值；内容仍只保存在 new 草稿键。
+边界：前端行为实测，创建成功/消息失败为 API 条件模拟；未伪称真实服务发生过该网络故障。
+定位：D:\项目\LLM_research\apps\web\src\components\conversation\ConversationWorkspace.tsx:249–251（草稿键）、:877–878（切换 ID）、:914–918（失败后不迁移草稿）。
+影响：用户不能在失败现场直接重试原文，误以为草稿丢失。
+修复：创建并选择对话时将新草稿与来源迁移到新 ID，确认消息保存成功后才清空对应草稿。
+
+7. [P2] 新笔记保存响应丢失后，修改再重试会永久 409
+触发：服务已保存新笔记但响应丢失 → 在保留的编辑器修改正文/标题 → 再保存。
+证据：jsdom 两次 POST 内容不同但 request_id 相同；后端已有记录时按真实检查返回“相同保存请求不能使用不同的笔记内容。”。
+边界：响应丢失和 409 为条件模拟；请求身份复用为前端实测，后端检查已核对源码。
+定位：D:\项目\LLM_research\apps\web\src\pages\ResearchProjectsPage.tsx:79、:82–85；D:\项目\LLM_research\apps\api\app\research_projects.py:230–232。
+影响：网络恢复后反复重试仍不能保存修改，新建编辑器也不提供已有笔记的版本合并入口。
+修复：请求身份绑定本次提交的完整内容；未知提交结果应先恢复已创建记录并转入编辑，避免新身份重试产生重复记录。
+
+8. [P3] 失败提示可通过 API 保存成观察候选的研究来源
+触发：研究回合失败、助手文字为“连接失败，没有研究结果”，以该 source_message_id 创建观察候选。
+证据：隔离真实 API 返回 200，并把失败提示保存为 source_text，source_scope_status 为 unknown。
+边界：API 约束缺失为隔离实测；当前前端对失败答复隐藏后续成果操作，未确认普通 UI 提供该入口。
+定位：D:\项目\LLM_research\apps\api\app\research_observations.py:79（只读取工作流/范围，不读 state）；D:\项目\LLM_research\apps\web\src\components\conversation\ConversationWorkspace.tsx:1154（成果操作仅对非失败答复显示）。
+影响：直接 API 调用可把系统失败文字伪作研究来源，降低候选数据可信度。
+修复：服务端验证来源回合已成功完成且答复可保存，同时覆盖失败/取消来源的拒绝用例。
+
+自动化结果
+后端：594 个用例，593 通过、1 跳过、0 失败，76.63 秒；338 集成用例、256 单元用例。使用独立数据库/数据/Codex 状态路径和 30 根合成 OHLCV bar。唯一跳过项为需要 RUN_LIVE_CONVERSATION_TESTS=1 的真实模型验收；本轮另外通过 Chrome 执行了一次最小真实模型请求。
+前端：35 个文件、208 测试全部通过，Vitest 88.61 秒。补充 4 条回归断言均复现上述 3 个前端缺陷，3.51 秒；默认 npm test 不包含这组独立审查用例。
+生产构建：npm run build 通过，12.82 秒；Vite 7.08 秒。ObservationPage 638.25 kB chunk 告警属于构建体积提示，未据此认定功能故障。
+
+实机验收（真实 Chrome、真实服务、业务数据库一致性副本、真实行情与 PDF 原件）
+1. 8 个主页面均已操作：首页、研究、条件选股、观察池与四类资料页；研究项目子页也操作完成。
+2. 单次最小真实模型请求完成，返回“模型调用成功”；新建项目和第一份笔记持久化成功。连续新建笔记旧草稿和 409 已复现，见问题 5。
+3. 上证指数 SMA20 = 3920.3145，实际行情日 2026-09-28，11 种指标可选；资讯正文与自动公司 K 线可查看。20 日 V 形模板显示 12 个真实匹配样本，688192.SH 相似度 96.3。
+4. 本地研报列表 12 份，泉阳泉 3 页原件在真实 PDF reader 成功翻至第 2 页；观察池 745 条入选记录分页，000002.SZ 历史条件、判断实际值和 K 线可查看。
+5. 确定性本地两股筛选（600000.SH、600519.SH，截止 2026-09-14）得到 1 true / 1 false。研报没有对应评估时得到 2 unknown / partial；冻结历史日期、分类查询、CSV 和幂等通过。该筛选验收无模型调用，详情 live-screening-validation.json。
+6. PDF 的 3 项原始 worker 任务成功；3 份生成 PDF 实际下载均 200、各 2 页且含预期正文。重生成期间成果列表 200→500→200 已复现，见问题 4。
+7. 选股草稿刷新保留，未发送内容阻断确认执行；最近任务可查看；浏览器返回原首页且未重复发送。数据与服务显示真实行情水位 2026-09-28、质量异常与助手已配置。
+8. 按缩放补偿后的实际 390 CSS px 检查首页、研究结果与任务弹窗，innerWidth 390 / scrollWidth 377，无横向溢出。移动截图 CDP 命令超时，但 DOM 检查完成；桌面 3 张截图已保存。
+9. 本轮读取的开发日志中 error/warn 捕获为空，捕获未必覆盖整个浏览器周期，不能据此声称“没有任何 JS 异常”。
+10. 原 runtime/app.db 文件 SHA256 前后均为 cffd055816afb7d9c9ea37a8324677c4a2aeaba03463b44eef46f93fa057c7be，见 preservation-validation.json。
+11. 启动器独立实机验收通过：真实 scripts/start.ps1 -UserMode 启动 8000 端口 API 与 worker，health 显示数据库 ready、前端 HTTP 200、仅 127.0.0.1 监听；二次运行复用相同 PID 和进程创建时间。scripts/stop.ps1 完整停止自己登记的 API/worker、移除登记文件，无遗留自有进程；独立的 8066 主验收服务未被误停，由根任务收尾清理。详情 live-startup-validation.json；未调用模型，原业务数据库哈希未改变。
+边界：最小真实模型成功只证明连通与回合链路，没有本轮完整验收长时联网研究质量和模型生成筛选方案；网络故障/DNS变化等模拟场景不能视为线上事故。
+
+测试隔离缺口
+A. D:\项目\LLM_research\tests\integration\test_screening_tool_api.py:14 和 D:\项目\LLM_research\tests\integration\test_workflow_tools.py:14 的 fixture 只换数据库，模拟 bars 后仍依赖实际 Parquet 的行情可用检查。空数据目录初跑为 590 通过、1 跳过、3 失败；提供合成数据后最终全通过。应同时替换行情源与能力检查，避免依赖用户挂载的数据。
+B. D:\项目\LLM_research\tests\integration\test_market_data.py:22 缺少行情时直接 return，会把未执行检查记为通过；有数据时要求至少 10 根 bar。应明确 skip 或提供完整固定数据。
+C. D:\项目\LLM_research\apps\api\app\settings.py:13–14 的 REPORT_UPLOAD_DIR/PATTERN_UPLOAD_DIR 固定到项目 runtime/uploads；单换 LLMR_DB_PATH/LLMR_DATA_ROOT 不能隔离上传件。应允许审查/测试单独指定上传根目录。
+
+证据文件（均在 D:\项目\LLM_research\artifacts\project-audit-20261006）
+backend_repro.py / backend_repro_results.json：5 项后端问题隔离复现。
+frontend-repro.config.mts / frontend-repro.test.tsx / frontend-repro.log：3 项前端问题的 4 条回归断言。
+backend-tests.xml / backend-tests.log / backend-summary.json：最终后端验收。
+backend-tests-no-market.* / backend-tests-one-bar.*：测试数据依赖诊断。
+frontend-test.log / frontend-build.log / frontend-review.txt：前端测试、构建与详细审查记录。
+live-validation.json：完整 Chrome 操作及最小真实模型验收。
+live-startup-validation.json：用户版启动、同进程复用、完整停止和 loopback 监听实机验收。
+live-pdf-validation.json：真实 worker、PDF HTTP 下载与重生成接口状态。
+live-screening-validation.json / live-screening-*.csv：两股真/假、研报未知、历史日期、CSV 和幂等。
+preservation-validation.json：原 runtime/app.db 前后哈希保全结果。
+note-save-conflict.jpg / technical-chart.jpg / report-reader.jpg：3 张桌面实机截图。

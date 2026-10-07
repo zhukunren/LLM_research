@@ -1,0 +1,237 @@
+{
+  "date": "2026-10-04",
+  "pages": 8,
+  "viewChecks": [
+    {
+      "viewport": 1440,
+      "page": "工作台",
+      "alerts": [],
+      "scrollWidth": 1430,
+      "width": 1430
+    },
+    {
+      "viewport": 1440,
+      "page": "研究中心",
+      "alerts": [],
+      "scrollWidth": 1430,
+      "width": 1440
+    },
+    {
+      "viewport": 1440,
+      "page": "投研助手",
+      "alerts": [],
+      "scrollWidth": 1430,
+      "width": 1430
+    },
+    {
+      "viewport": 1440,
+      "page": "观察池",
+      "alerts": [],
+      "scrollWidth": 1430,
+      "width": 1440
+    },
+    {
+      "viewport": 1440,
+      "page": "资讯库",
+      "alerts": [],
+      "scrollWidth": 1430,
+      "width": 1430
+    },
+    {
+      "viewport": 1440,
+      "page": "技术指标库",
+      "alerts": [],
+      "scrollWidth": 1430,
+      "width": 1430
+    },
+    {
+      "viewport": 1440,
+      "page": "形态库",
+      "alerts": [],
+      "scrollWidth": 1430,
+      "width": 1430
+    },
+    {
+      "viewport": 1440,
+      "page": "研报库",
+      "alerts": [],
+      "scrollWidth": 1430,
+      "width": 1440
+    },
+    {
+      "viewport": 1024,
+      "page": "工作台",
+      "alerts": [],
+      "scrollWidth": 1014,
+      "width": 1014
+    },
+    {
+      "viewport": 1024,
+      "page": "研究中心",
+      "alerts": [],
+      "scrollWidth": 1014,
+      "width": 1024
+    },
+    {
+      "viewport": 1024,
+      "page": "投研助手",
+      "alerts": [],
+      "scrollWidth": 1014,
+      "width": 1014
+    },
+    {
+      "viewport": 1024,
+      "page": "观察池",
+      "alerts": [],
+      "scrollWidth": 1014,
+      "width": 1014
+    },
+    {
+      "viewport": 1024,
+      "page": "资讯库",
+      "alerts": [],
+      "scrollWidth": 1014,
+      "width": 1014
+    },
+    {
+      "viewport": 1024,
+      "page": "技术指标库",
+      "alerts": [],
+      "scrollWidth": 1014,
+      "width": 1014
+    },
+    {
+      "viewport": 1024,
+      "page": "形态库",
+      "alerts": [],
+      "scrollWidth": 1014,
+      "width": 1014
+    },
+    {
+      "viewport": 1024,
+      "page": "研报库",
+      "alerts": [],
+      "scrollWidth": 1014,
+      "width": 1014
+    },
+    {
+      "viewport": 390,
+      "page": "工作台",
+      "alerts": [],
+      "scrollWidth": 380,
+      "width": 380
+    },
+    {
+      "viewport": 390,
+      "page": "研究中心",
+      "alerts": [],
+      "scrollWidth": 380,
+      "width": 380
+    },
+    {
+      "viewport": 390,
+      "page": "投研助手",
+      "alerts": [],
+      "scrollWidth": 380,
+      "width": 380
+    },
+    {
+      "viewport": 390,
+      "page": "观察池",
+      "alerts": [],
+      "scrollWidth": 380,
+      "width": 380
+    },
+    {
+      "viewport": 390,
+      "page": "资讯库",
+      "alerts": [],
+      "scrollWidth": 380,
+      "width": 380
+    },
+    {
+      "viewport": 390,
+      "page": "技术指标库",
+      "alerts": [],
+      "scrollWidth": 380,
+      "width": 380
+    },
+    {
+      "viewport": 390,
+      "page": "形态库",
+      "alerts": [],
+      "scrollWidth": 380,
+      "width": 380
+    },
+    {
+      "viewport": 390,
+      "page": "研报库",
+      "alerts": [],
+      "scrollWidth": 380,
+      "width": 380
+    },
+    {
+      "viewport": 320,
+      "page": "工作台",
+      "alerts": [],
+      "scrollWidth": 310,
+      "width": 310
+    },
+    {
+      "viewport": 320,
+      "page": "研究中心",
+      "alerts": [],
+      "scrollWidth": 310,
+      "width": 310
+    },
+    {
+      "viewport": 320,
+      "page": "投研助手",
+      "alerts": [],
+      "scrollWidth": 310,
+      "width": 310
+    },
+    {
+      "viewport": 320,
+      "page": "观察池",
+      "alerts": [],
+      "scrollWidth": 310,
+      "width": 310
+    },
+    {
+      "viewport": 320,
+      "page": "资讯库",
+      "alerts": [],
+      "scrollWidth": 310,
+      "width": 310
+    },
+    {
+      "viewport": 320,
+      "page": "技术指标库",
+      "alerts": [],
+      "scrollWidth": 310,
+      "width": 310
+    },
+    {
+      "viewport": 320,
+      "page": "形态库",
+      "alerts": [],
+      "scrollWidth": 310,
+      "width": 310
+    },
+    {
+      "viewport": 320,
+      "page": "研报库",
+      "alerts": [],
+      "scrollWidth": 310,
+      "width": 310
+    }
+  ],
+  "frontend": {
+    "fullSuitePassed": 75,
+    "additionalResearchRegressionsPassed": 2,
+    "totalPassed": 77
+  },
+  "build": "passed",
+  "pdfPagePreserved": true
+}

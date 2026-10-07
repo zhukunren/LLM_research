@@ -1,0 +1,2871 @@
+{
+  "date": "2026-10-04",
+  "scope": "isolated synthetic browser acceptance; no model quality evaluation",
+  "fixture": {
+    "research_id": "d23c7d96-c429-4497-9c9c-72429512e0ab",
+    "assistant_id": "0b429579-e7bd-49d1-ab3d-964f22388e6c",
+    "answer": "【合成验收答复】验收公司甲的订单变化只是研究线索。事实、预测与推断需要分开，下一步核对收入兑现和反方证据。此答复未运行真实模型，也未形成选股条件。",
+    "legacy_research_id": "bee48b1c-240a-4a35-91d6-7ef85aafe7fd",
+    "document_id": "qa-report",
+    "source_scope": {
+      "as_of": "2026-09-14",
+      "stock_codes": [
+        "600519.SH"
+      ],
+      "report_lookback_calendar_days": null,
+      "news_lookback_calendar_days": null,
+      "price_basis": null
+    },
+    "qa_db": "D:\\项目\\LLM_research\\runtime\\workflow-boundary-qa\\b16a4d0eb36f4d0b9c523c687b3a97f4\\app.db",
+    "market_sha256": "317179f60a41042e4f5e477808dafe5200b9de1e22858a65ae4525fa5fe104f9",
+    "baseline_counts": {
+      "conversations": 2,
+      "conversation_turns": 2,
+      "conversation_messages": 4,
+      "screening_task_revisions": 1,
+      "screening_task_runs": 0,
+      "research_observation_candidates": 0,
+      "jobs": 0
+    }
+  },
+  "qa_api": "http://127.0.0.1:55280",
+  "checks": [
+    {
+      "name": "research_with_old_task_hides_screening_panel",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "depth_is_independent",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "research_date_can_exceed_market_watermark",
+      "passed": true,
+      "detail": {
+        "as_of": "2026-10-04",
+        "market_watermark": "2026-09-14"
+      }
+    },
+    {
+      "name": "candidate_observation_edit_and_frozen_source",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "screening_handoff_is_editable_restorable_and_linked",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "report_research_action_is_research",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "report_condition_action_is_screening",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "observation_navigates_to_condition_screening",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "research_1440_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 1440,
+        "documentWidth": 1430,
+        "bodyWidth": 1430
+      }
+    },
+    {
+      "name": "screening_1440_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 1440,
+        "documentWidth": 1430,
+        "bodyWidth": 1430
+      }
+    },
+    {
+      "name": "observation_1440_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 1440,
+        "documentWidth": 1430,
+        "bodyWidth": 1430
+      }
+    },
+    {
+      "name": "research_390_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 390,
+        "documentWidth": 380,
+        "bodyWidth": 380
+      }
+    },
+    {
+      "name": "screening_390_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 390,
+        "documentWidth": 380,
+        "bodyWidth": 380
+      }
+    },
+    {
+      "name": "observation_390_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 390,
+        "documentWidth": 380,
+        "bodyWidth": 380
+      }
+    },
+    {
+      "name": "research_320_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 320,
+        "documentWidth": 310,
+        "bodyWidth": 310
+      }
+    },
+    {
+      "name": "screening_320_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 320,
+        "documentWidth": 310,
+        "bodyWidth": 310
+      }
+    },
+    {
+      "name": "observation_320_no_horizontal_overflow",
+      "passed": true,
+      "detail": {
+        "width": 320,
+        "documentWidth": 310,
+        "bodyWidth": 310
+      }
+    },
+    {
+      "name": "handoff_has_no_turn_or_message",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "candidate_source_remains_frozen_after_edit",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "no_new_screening_revision_turn_or_run",
+      "passed": true,
+      "detail": {
+        "conversations": 3,
+        "conversation_turns": 2,
+        "conversation_messages": 4,
+        "screening_task_revisions": 1,
+        "screening_task_runs": 0,
+        "research_observation_candidates": 1,
+        "jobs": 0
+      }
+    },
+    {
+      "name": "zero_agent_processing_and_execution_requests",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "zero_model_calls",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "synthetic_market_file_unchanged",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "zero_page_errors",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "name": "zero_console_errors",
+      "passed": true,
+      "detail": []
+    }
+  ],
+  "screenshots": [
+    {
+      "page": "research",
+      "width": 1440,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\research-1440.png",
+      "sizes": {
+        "width": 1440,
+        "documentWidth": 1430,
+        "bodyWidth": 1430
+      }
+    },
+    {
+      "page": "screening",
+      "width": 1440,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\screening-1440.png",
+      "sizes": {
+        "width": 1440,
+        "documentWidth": 1430,
+        "bodyWidth": 1430
+      }
+    },
+    {
+      "page": "observation",
+      "width": 1440,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\observation-1440.png",
+      "sizes": {
+        "width": 1440,
+        "documentWidth": 1430,
+        "bodyWidth": 1430
+      }
+    },
+    {
+      "page": "research",
+      "width": 390,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\research-390.png",
+      "sizes": {
+        "width": 390,
+        "documentWidth": 380,
+        "bodyWidth": 380
+      }
+    },
+    {
+      "page": "screening",
+      "width": 390,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\screening-390.png",
+      "sizes": {
+        "width": 390,
+        "documentWidth": 380,
+        "bodyWidth": 380
+      }
+    },
+    {
+      "page": "observation",
+      "width": 390,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\observation-390.png",
+      "sizes": {
+        "width": 390,
+        "documentWidth": 380,
+        "bodyWidth": 380
+      }
+    },
+    {
+      "page": "research",
+      "width": 320,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\research-320.png",
+      "sizes": {
+        "width": 320,
+        "documentWidth": 310,
+        "bodyWidth": 310
+      }
+    },
+    {
+      "page": "screening",
+      "width": 320,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\screening-320.png",
+      "sizes": {
+        "width": 320,
+        "documentWidth": 310,
+        "bodyWidth": 310
+      }
+    },
+    {
+      "page": "observation",
+      "width": 320,
+      "path": "D:\\项目\\LLM_research\\artifacts\\workflow-boundary-20261004\\observation-320.png",
+      "sizes": {
+        "width": 320,
+        "documentWidth": 310,
+        "bodyWidth": 310
+      }
+    }
+  ],
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?limit=6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observation/runs",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/runs?limit=3&offset=0",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?limit=6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observation/runs",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/runs?limit=3&offset=0",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/bee48b1c-240a-4a35-91d6-7ef85aafe7fd/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/workflow",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/workflow",
+      "body": {
+        "research_depth": "deep",
+        "base_revision": 0
+      },
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scope",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scope",
+      "body": {
+        "base_revision": 1,
+        "as_of": "2026-10-04",
+        "stock_codes": [
+          "600519.SH",
+          "600036.SH"
+        ]
+      },
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/observation/research-candidates",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/research-candidates",
+      "body": {
+        "conversation_id": "d23c7d96-c429-4497-9c9c-72429512e0ab",
+        "source_message_id": "0b429579-e7bd-49d1-ab3d-964f22388e6c",
+        "stock_code": "600519.SH",
+        "note": "合成验收：跟进原研究结论",
+        "verification": "合成验收：下一季核对订单兑现",
+        "invalidation": "合成验收：订单被取消",
+        "request_id": "8f7cc502-c5f6-4850-b21a-d1d4c0fdadb0"
+      },
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observation/research-candidates",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/research-candidates?offset=0&limit=30&query=",
+      "status": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/observation/research-candidates/419ca3b3-9bff-4458-881f-9072f218ac85",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/research-candidates/419ca3b3-9bff-4458-881f-9072f218ac85",
+      "body": {
+        "revision": 1,
+        "status": "priority",
+        "note": "合成验收：修改观察备注，来源保持原样",
+        "verification": "合成验收：下一季核对订单兑现",
+        "invalidation": "合成验收：订单被取消"
+      },
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observation/research-candidates",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/research-candidates?offset=0&limit=30&query=",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/screening-draft",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/screening-draft",
+      "body": {
+        "source_message_id": "0b429579-e7bd-49d1-ab3d-964f22388e6c",
+        "instructions": "【合成验收条件】近30日有订单实际落地的原文证据，并比较近20日均量。",
+        "request_id": "64e2f48c-e264-4423-ba38-23bc17eba076"
+      },
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/documents",
+      "qa_target": "http://127.0.0.1:55280/api/v1/documents",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/documents/catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/documents/catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/documents",
+      "qa_target": "http://127.0.0.1:55280/api/v1/documents",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/documents/catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/documents/catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=report&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=report&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/documents",
+      "qa_target": "http://127.0.0.1:55280/api/v1/documents",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/documents/catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/documents/catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/documents",
+      "qa_target": "http://127.0.0.1:55280/api/v1/documents",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/documents/catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/documents/catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=report&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=report&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observation/research-candidates",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/research-candidates?offset=0&limit=30&query=",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observation/research-candidates",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/research-candidates?offset=0&limit=30&query=",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/d23c7d96-c429-4497-9c9c-72429512e0ab/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations?scope=screening&limit=50",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/filters",
+      "qa_target": "http://127.0.0.1:55280/api/v1/filters?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/patterns",
+      "qa_target": "http://127.0.0.1:55280/api/v1/patterns?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/strategies",
+      "qa_target": "http://127.0.0.1:55280/api/v1/strategies?include_history=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/watchlists",
+      "qa_target": "http://127.0.0.1:55280/api/v1/watchlists",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/screening-history",
+      "qa_target": "http://127.0.0.1:55280/api/v1/screening-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/condition-drafts",
+      "qa_target": "http://127.0.0.1:55280/api/v1/condition-drafts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/screening-runs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects",
+      "qa_target": "http://127.0.0.1:55280/api/v1/research-projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-scans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "qa_target": "http://127.0.0.1:55280/api/v1/conversations/01e83afd-2736-465c-9cfd-19d4f144444d/research-files",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data/status",
+      "qa_target": "http://127.0.0.1:55280/api/v1/data/status",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/security-catalog",
+      "qa_target": "http://127.0.0.1:55280/api/v1/security-catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/observation/research-candidates",
+      "qa_target": "http://127.0.0.1:55280/api/v1/observation/research-candidates?offset=0&limit=30&query=",
+      "status": 200
+    }
+  ],
+  "page_errors": [],
+  "console_errors": [],
+  "forbidden_processing": [],
+  "passed": true,
+  "final_counts": {
+    "conversations": 3,
+    "conversation_turns": 2,
+    "conversation_messages": 4,
+    "screening_task_revisions": 1,
+    "screening_task_runs": 0,
+    "research_observation_candidates": 1,
+    "jobs": 0
+  },
+  "candidate": {
+    "id": "419ca3b3-9bff-4458-881f-9072f218ac85",
+    "request_id": "8f7cc502-c5f6-4850-b21a-d1d4c0fdadb0",
+    "request_json": "{\"request_id\":\"8f7cc502-c5f6-4850-b21a-d1d4c0fdadb0\",\"conversation_id\":\"d23c7d96-c429-4497-9c9c-72429512e0ab\",\"source_message_id\":\"0b429579-e7bd-49d1-ab3d-964f22388e6c\",\"stock_code\":\"600519.SH\",\"note\":\"合成验收：跟进原研究结论\",\"verification\":\"合成验收：下一季核对订单兑现\",\"invalidation\":\"合成验收：订单被取消\"}",
+    "conversation_id": "d23c7d96-c429-4497-9c9c-72429512e0ab",
+    "source_message_id": "0b429579-e7bd-49d1-ab3d-964f22388e6c",
+    "source_text": "【合成验收答复】验收公司甲的订单变化只是研究线索。事实、预测与推断需要分开，下一步核对收入兑现和反方证据。此答复未运行真实模型，也未形成选股条件。",
+    "source_message_created_at": "2026-10-04T14:18:43+00:00",
+    "source_refs_json": "[]",
+    "project_id": null,
+    "source_scope_json": "{\"as_of\":\"2026-09-14\",\"stock_codes\":[\"600519.SH\"],\"report_lookback_calendar_days\":null,\"news_lookback_calendar_days\":null,\"price_basis\":null}",
+    "source_scope_revision": 1,
+    "source_scope_status": "frozen",
+    "source_as_of": "2026-09-14",
+    "stock_code": "600519.SH",
+    "status": "priority",
+    "note": "合成验收：修改观察备注，来源保持原样",
+    "verification": "合成验收：下一季核对订单兑现",
+    "invalidation": "合成验收：订单被取消",
+    "revision": 2,
+    "created_at": "2026-10-04T14:18:53+00:00",
+    "updated_at": "2026-10-04T14:18:53+00:00"
+  },
+  "draft_conversation": {
+    "id": "01e83afd-2736-465c-9cfd-19d4f144444d",
+    "workflow_type": "screening",
+    "research_depth": "deep",
+    "task_revision": 0,
+    "active_run_id": null
+  },
+  "qa_service_stopped": true,
+  "model_calls": 0,
+  "prior_attempts": [
+    {
+      "qa_run": "D:\\项目\\LLM_research\\runtime\\workflow-boundary-qa\\4882fd174feb47c39df8e6829bb46a97",
+      "passed": false,
+      "completed_checks": 4,
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"打开来源研究对话\", exact=True)\n"
+    },
+    {
+      "qa_run": "D:\\项目\\LLM_research\\runtime\\workflow-boundary-qa\\91e9c65dc810496689c6aeae96030a6d",
+      "passed": false,
+      "completed_checks": 4,
+      "error": "Locator expected to be visible\nActual value: <element(s) not found> \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"heading\", name=\"对话选股\", exact=True)\n"
+    },
+    {
+      "qa_run": "D:\\项目\\LLM_research\\runtime\\workflow-boundary-qa\\9d50a97321f14bdd924df2b880dee167",
+      "passed": false,
+      "completed_checks": 18,
+      "error": "'as_of'"
+    },
+    {
+      "qa_run": "D:\\项目\\LLM_research\\runtime\\workflow-boundary-qa\\e7170e4fb48b48bd9ebc15da94454a0b",
+      "passed": false,
+      "completed_checks": 4,
+      "error": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"查看原研究\", exact=True)\n    - locator resolved to <button type=\"button\" class=\"text-button\">查看原研究</button>\n  - attempting click action\n    - waiting for element to be visible, enabled and stable\n"
+    }
+  ],
+  "api_isolation": {
+    "all_ui_requests_forwarded_to_qa": true,
+    "worker_started": false,
+    "config_file_read": false,
+    "model_quality_evaluated": false,
+    "qa_service_stopped": true
+  }
+}

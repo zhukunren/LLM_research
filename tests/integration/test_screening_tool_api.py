@@ -1,6 +1,9 @@
 import json
+from datetime import date
 
 from fastapi.testclient import TestClient
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from apps.api.app import db, main, market
@@ -13,12 +16,18 @@ from apps.api.app.screening_tools import ToolContext, ToolRegistry, registry
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "tool-tests.db")
+    source = tmp_path / "market.parquet"
+    pq.write_table(pa.Table.from_pylist([{
+        "stock_code": "600000.SH", "trade_date": date(2026, 9, 14),
+        "open": 10., "high": 11., "low": 9., "close": 10., "volume": 100., "amount": 1000.,
+    }]), source)
+    monkeypatch.setattr(market, "STOCK_FILE", source)
     with TestClient(main.app) as session:
         yield session
 
 
 def begin_turn(client, entry_scope="technical"):
-    conversation = client.post("/api/v1/conversations", json={"entry_scope": entry_scope}).json()
+    conversation = client.post("/api/v1/conversations", json={"entry_scope": entry_scope, "workflow_type": "screening"}).json()
     message = client.post(
         f"/api/v1/conversations/{conversation['id']}/messages",
         json={
@@ -103,6 +112,14 @@ def test_dispatch_rejects_stale_revisions_and_unregistered_tool_names(client):
     )
     assert unknown["ok"] is False
     assert unknown["error"]["code"] == "unknown_tool"
+
+
+def test_dispatch_keeps_real_missing_market_capability_guard(client, tmp_path, monkeypatch):
+    context = begin_turn(client)
+    monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
+    monkeypatch.setattr(market, "get_bars", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unavailable source must not be read")))
+    result = registry.dispatch(ToolCall("missing-market", "read_market_window", {"stock_code": "600000.SH", "limit": 5}), context)
+    assert result["ok"] is False and result["error"]["code"] == "capability_unavailable"
 
 
 def test_large_tool_result_uses_conversation_scoped_content_hashed_artifact(client, tmp_path):

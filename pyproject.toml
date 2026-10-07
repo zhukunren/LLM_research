@@ -15,7 +15,12 @@ dependencies = [
   "duckdb==1.4.1",
   "pyarrow==23.0.1",
   "pypdf==6.13.1",
+  "pdfplumber==0.11.10",
+  "pypdfium2==5.14.0",
+  "reportlab==4.4.3",
+  "mistune==3.2.0",
   "pypinyin==0.55.0",
+  "jieba==0.42.1",
   "python-multipart==0.0.20",
   "Pillow==12.2.0",
   "opencv-python-headless==4.13.0.92",
@@ -26,6 +31,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest==8.4.1", "httpx==0.25.2"]
+report-parsing = ["docling[easyocr]==2.133.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -35,6 +41,9 @@ addopts = "-q"
 where = ["."]
 include = ["apps.api*"]
 namespaces = true
+
+[tool.setuptools.package-data]
+"apps.api" = ["assets/research-pdf/*"]
 
 [tool.ruff]
 line-length = 100

@@ -4,6 +4,7 @@ import { api, type DataStatus } from '../api'
 import StockSearch from '../components/StockSearch'
 import type { LibrarySeed } from '../libraryContext'
 import { isText, useSessionState } from '../useSessionState'
+import SearchField from '../components/SearchField'
 
 type Indicator = { id: string; name: string; min_window?: number; max_window?: number; default_window?: number; signal_window?: number }
 type ChartLine = { id: string; label: string; color: string; values: (number | null)[] }
@@ -27,6 +28,10 @@ const fmt = (v: number | null) => v == null || !Number.isFinite(v) ? '—' : Num
 
 export default function TechnicalBrowser({ data, onDescribe }: { data: DataStatus | null; onDescribe: (seed: LibrarySeed) => void }) {
   const [items, setItems] = useState<Indicator[]>([])
+  const [query, setQuery] = useState('')
+  const [mobileView, setMobileView] = useState<'catalog' | 'reader'>('catalog')
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [catalogError, setCatalogError] = useState('')
   const [selected, setSelected] = useSessionState('indicator.selected', 'sma', (value): value is string => typeof value === 'string' && value in guides)
   const [window, setWindow] = useSessionState('indicator.window', 20, (value): value is number => typeof value === 'number' && Number.isFinite(value))
   const [stock, setStock] = useSessionState('indicator.stock', '000001.SH', isText)
@@ -35,7 +40,16 @@ export default function TechnicalBrowser({ data, onDescribe }: { data: DataStatu
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [retry, setRetry] = useState(0)
-  useEffect(() => { const controller = new AbortController(); api<{ items: Indicator[] }>('/indicators', { signal: controller.signal }).then(x => { if (!controller.signal.aborted) setItems(x.items) }).catch(e => { if (!controller.signal.aborted) setError(e.message) }); return () => controller.abort() }, [retry])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setCatalogLoading(true); setCatalogError('')
+    api<{ items: Indicator[] }>('/indicators', { signal: controller.signal })
+      .then(x => { if (!controller.signal.aborted) setItems(x.items) })
+      .catch(e => { if (!controller.signal.aborted) setCatalogError(e.message) })
+      .finally(() => { if (!controller.signal.aborted) setCatalogLoading(false) })
+    return () => controller.abort()
+  }, [retry])
   useEffect(() => { if (!asOf && data?.last_date) setAsOf(data.last_date) }, [data?.last_date, asOf])
   const indicator = items.find(x => x.id === selected)
   const guide = guides[selected]
@@ -62,13 +76,14 @@ export default function TechnicalBrowser({ data, onDescribe }: { data: DataStatu
     else if (!selected.startsWith('macd_') && guide) prompt = guide.example.replace(String(guide.window), String(window))
     onDescribe({ id: crypto.randomUUID(), prompt })
   }
-  return <div className="indicator-browser"><aside className="indicator-catalog"><div className="section-title-row"><h2>常用指标</h2><span>{items.length} 项</span></div>{items.map(item => <button key={item.id} aria-pressed={selected === item.id} className={selected === item.id ? 'active' : ''} onClick={() => { setSelected(item.id); setWindow(guides[item.id]?.window ?? 20) }}><span>{item.name}<small>{item.id.toUpperCase().replaceAll('_', ' ')}</small></span></button>)}</aside>
-    <section className="indicator-detail"><div className="section-title-row"><h2>{indicator?.name ?? '简单移动平均线'}</h2><button className="quiet-button" disabled={busy || !!invalidInput} onClick={describe}>描述条件<ArrowRight size={13} /></button></div><p className="indicator-explanation">{guide?.explanation}</p>
-      <div className="indicator-controls"><label>股票或指数<StockSearch label="股票或指数" value={stock} onChange={setStock} includeIndices /></label><label>指标周期<input type="number" value={window} min={indicator?.min_window ?? 2} max={indicator?.max_window ?? 100} disabled={selected.startsWith('macd_')} onChange={e => { setWindow(Number(e.target.value)) }} /></label><label>截止日期<input type="date" value={asOf} max={data?.last_date} onInput={e => setAsOf(e.currentTarget.value)} onChange={e => { setAsOf(e.target.value) }} /></label></div>
+  const filteredItems = items.filter(item => [item.name, item.id, guides[item.id]?.explanation].join(' ').toLowerCase().includes(query.trim().toLowerCase()))
+  return <div className="technical-reading-workspace library-reading-workspace" data-mobile-view={mobileView}><nav className="library-mobile-switch" aria-label="指标列表与阅读切换"><button type="button" aria-pressed={mobileView === 'catalog'} onClick={() => setMobileView('catalog')}>指标列表</button><button type="button" aria-pressed={mobileView === 'reader'} disabled={!indicator} onClick={() => setMobileView('reader')}>查看指标</button></nav><div className="indicator-browser"><aside className="indicator-catalog library-catalog-pane" aria-label="指标列表"><div className="section-title-row"><h2>常用指标</h2><span>{filteredItems.length} / {items.length} 项</span></div><SearchField label="搜索技术指标" placeholder="名称或缩写" value={query} onChange={setQuery} />{catalogLoading && <p role="status">正在加载指标…</p>}{catalogError && <div className="library-error" role="alert">{catalogError}<button className="text-button" onClick={() => setRetry(value => value + 1)}>重试指标目录</button></div>}{!catalogLoading && !catalogError && !filteredItems.length && <div className="catalog-empty"><p>{query ? '没有匹配的指标。' : '暂无可用指标。'}</p>{query && <button className="text-button" onClick={() => setQuery('')}>查看全部指标</button>}</div>}<div className="library-catalog-rows">{filteredItems.map(item => <button key={item.id} aria-pressed={selected === item.id} className={selected === item.id ? 'active' : ''} onClick={() => { setSelected(item.id); setWindow(guides[item.id]?.window ?? 20); setMobileView('reader') }}><span>{item.name}<small>{item.id.toUpperCase().replaceAll('_', ' ')}</small></span></button>)}</div></aside>
+    <section className="indicator-detail library-reader-pane" aria-label="指标阅读"><button className="text-button reader-back" onClick={() => setMobileView('catalog')}>返回指标列表</button><div className="section-title-row"><h2>{indicator?.name ?? '简单移动平均线'}</h2><button className="quiet-button" disabled={busy || !!invalidInput} onClick={describe}>描述条件<ArrowRight size={13} /></button></div><p className="indicator-explanation">{guide?.explanation}</p>
+      <div className="indicator-controls"><label>股票或指数<StockSearch label="股票或指数" value={stock} onChange={setStock} includeIndices /></label><label>指标周期<input type="number" value={window} min={indicator?.min_window ?? 2} max={indicator?.max_window ?? 250} disabled={selected.startsWith('macd_')} onChange={e => { setWindow(Number(e.target.value)) }} /></label><label>截止日期<input type="date" value={asOf} max={data?.last_date} onInput={e => setAsOf(e.currentTarget.value)} onChange={e => { setAsOf(e.target.value) }} /></label></div>
       {error && <div className="library-error" role="alert">{error}<button className="text-button" onClick={() => setRetry(value => value + 1)}>重新加载指标</button></div>}{invalidInput && <p className="library-error" role="alert">{invalidInput}</p>}
-      {result ? <div className="indicator-result"><div className="indicator-numbers"><div><span>当日数值</span><strong>{fmt(result.current)}</strong></div><div><span>上一交易日</span><strong>{fmt(result.previous)}</strong></div><div><span>实际行情日</span><strong>{result.as_of}</strong></div></div>{result.chart ? <ResponsiveMarketIndicatorChart chart={result.chart} /> : <IndicatorLine series={result.series.slice(-120)} />}<p className="workbench-help">{result.stock_code} · {result.window} 日周期 · {result.warning}</p></div> : <div className="indicator-placeholder"><Activity size={28} /><p>{busy ? '正在加载 K 线和指标…' : invalidInput ? '调整上方参数后自动更新。' : error ? '暂时无法读取行情，请重试。' : '此证券暂无可用行情。'}</p><small>只使用截止日期及之前的行情数据。</small></div>}
+      {result ? <div className="indicator-result"><div className="indicator-numbers"><div><span>当日数值</span><strong>{fmt(result.current)}</strong></div><div><span>上一交易日</span><strong>{fmt(result.previous)}</strong></div><div><span>实际行情日</span><strong>{result.as_of}</strong></div></div>{result.chart ? <ResponsiveMarketIndicatorChart chart={result.chart} /> : <IndicatorLine series={result.series.slice(-120)} />}<p className="workbench-help">{result.stock_code} · {result.window} 日周期 · {result.warning}</p></div> : <div className="indicator-placeholder"><Activity size={28} /><p>{busy ? '正在加载 K 线和指标…' : invalidInput ? '指标参数无效。' : error ? '暂时无法读取行情，请重试。' : '此证券暂无可用行情。'}</p></div>}
 
-    </section></div>
+    </section></div></div>
 }
 
 function IndicatorLine({ series }: { series: Preview['series'] }) {
@@ -80,7 +95,8 @@ function IndicatorLine({ series }: { series: Preview['series'] }) {
   return <div className="indicator-chart"><svg viewBox="0 0 700 210" role="img" aria-label="所选指标的真实历史走势"><line x1="15" x2="685" y1="180" y2="180" stroke="var(--ui-border)" /><line x1="15" x2="685" y1="105" y2="105" stroke="var(--ui-border-subtle)" /><path d={path} stroke="var(--ui-chart-line)" fill="none" strokeWidth="2.3" /><text x="15" y="205">{series[0]?.date}</text><text x="685" y="205" textAnchor="end">{series.at(-1)?.date}</text></svg><small>范围 {fmt(min)} — {fmt(max)}；缺失值留空。</small></div>
 }
 
-export function ResponsiveMarketIndicatorChart({ chart }: { chart: IndicatorChart }) {
+type MarketChartPresentation = { height?: number; showLegend?: boolean; referenceDate?: string }
+export function ResponsiveMarketIndicatorChart({ chart, height, showLegend, referenceDate }: { chart: IndicatorChart } & MarketChartPresentation) {
   const frame = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   useEffect(() => {
@@ -89,10 +105,10 @@ export function ResponsiveMarketIndicatorChart({ chart }: { chart: IndicatorChar
     observer.observe(frame.current)
     return () => observer.disconnect()
   }, [])
-  return <div ref={frame} className="responsive-market-chart"><MarketIndicatorChart chart={chart} containerWidth={width || undefined} /></div>
+  return <div ref={frame} className="responsive-market-chart"><MarketIndicatorChart chart={chart} containerWidth={width || undefined} height={height} showLegend={showLegend} referenceDate={referenceDate} /></div>
 }
 
-export function MarketIndicatorChart({ chart, containerWidth }: { chart: IndicatorChart; containerWidth?: number }) {
+export function MarketIndicatorChart({ chart, containerWidth, height, showLegend = true, referenceDate }: { chart: IndicatorChart; containerWidth?: number } & MarketChartPresentation) {
   const [hover, setHover] = useState<{ index: number; y: number } | null>(null)
   useEffect(() => setHover(null), [chart])
   const bars = chart.bars.map(bar => bar.quality_valid === false ? { ...bar, open: NaN, high: NaN, low: NaN, close: NaN } : bar)
@@ -100,7 +116,7 @@ export function MarketIndicatorChart({ chart, containerWidth }: { chart: Indicat
   const width = containerWidth && Number.isFinite(containerWidth) ? Math.max(200, containerWidth) : 720
   const pad = { left: containerWidth ? 64 : 44, right: 16, top: 16, bottom: 24 }
   const axisDate = (date?: string) => containerWidth && width < 400 ? date?.slice(5) : date
-  const priceHeight = chart.placement === 'pane' ? 196 : 280
+  const priceHeight = chart.placement === 'pane' ? 196 : height ? Math.max(160, height) - 18 : 280
   const paneHeight = chart.placement === 'pane' ? 126 : 0
   const totalHeight = priceHeight + paneHeight + 18
   const x = (index: number) => pad.left + index * (width - pad.left - pad.right) / Math.max(1, bars.length - 1)
@@ -130,8 +146,10 @@ export function MarketIndicatorChart({ chart, containerWidth }: { chart: Indicat
   const paneY = (value: number) => paneTop + (paneMax - value) / paneSpan * (paneHeight - 24)
   const zeroY = paneY(0)
   const candleWidth = Math.max(2, Math.min(10, (width - pad.left - pad.right) / Math.max(1, bars.length) * 0.62))
+  const referenceIndex = referenceDate ? bars.findIndex(bar => bar.trade_date === referenceDate) : -1
+  const referenceLabelX = Math.max(pad.left, Math.min(width - pad.right - 54, x(referenceIndex) - 27))
   return <div className={`indicator-market-chart ${chart.placement}`}>
-    <div className="indicator-chart-legend"><span className="price-key">K线</span>{chart.lines.map(line => <span key={line.id} style={{ '--series-color': line.color } as CSSProperties}><i />{line.label}</span>)}{chart.histogram && <span style={{ '--series-color': chart.histogram.color } as CSSProperties}><i />{chart.histogram.label}</span>}</div>
+    {showLegend && <div className="indicator-chart-legend"><span className="price-key">K线</span>{chart.lines.map(line => <span key={line.id} style={{ '--series-color': line.color } as CSSProperties}><i />{line.label}</span>)}{chart.histogram && <span style={{ '--series-color': chart.histogram.color } as CSSProperties}><i />{chart.histogram.label}</span>}</div>}
     {hover && bars[hover.index] && <div className="indicator-hover-values" role="status"><strong>{bars[hover.index].trade_date}</strong><span>开 {fmt(bars[hover.index].open)}</span><span>高 {fmt(bars[hover.index].high)}</span><span>低 {fmt(bars[hover.index].low)}</span><span>收 {fmt(bars[hover.index].close)}</span>{[...chart.lines, ...(chart.histogram ? [chart.histogram] : [])].map(line => <span key={line.id}>{line.label} {fmt(line.values[hover.index] ?? null)}</span>)}</div>}
     <svg tabIndex={0} aria-keyshortcuts="ArrowLeft ArrowRight Home End" onBlur={() => setHover(null)} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -139,7 +157,7 @@ export function MarketIndicatorChart({ chart, containerWidth }: { chart: Indicat
       const current = hover?.index ?? bars.length - 1
       const index = event.key === 'Home' ? 0 : event.key === 'End' ? bars.length - 1 : Math.max(0, Math.min(bars.length - 1, current + (event.key === 'ArrowLeft' ? -1 : 1)))
       setHover({ index, y: Number.isFinite(bars[index].close) ? priceY(bars[index].close) : priceHeight / 2 })
-    }} style={{ cursor: 'crosshair' }} onPointerLeave={() => setHover(null)} onPointerMove={event => {
+    }} style={{ cursor: 'crosshair', ...(height ? { height: totalHeight, minHeight: 0 } : {}) }} onPointerLeave={() => setHover(null)} onPointerMove={event => {
       const rect = event.currentTarget.getBoundingClientRect()
       const scale = Math.min(rect.width / width, rect.height / totalHeight)
       if (!scale) return
@@ -149,6 +167,7 @@ export function MarketIndicatorChart({ chart, containerWidth }: { chart: Indicat
       setHover({ index: Math.max(0, Math.min(bars.length - 1, Math.round((px - pad.left) * (bars.length - 1) / (width - pad.left - pad.right)))), y: py })
     }} viewBox={'0 0 ' + width + ' ' + totalHeight} role="img" aria-label={chart.placement === 'overlay' ? 'K线主图叠加指标走势' : 'K线主图和指标副图走势'}>
       {[0, 0.25, 0.5, 0.75, 1].map(ratio => <line key={`price-grid-${ratio}`} x1={pad.left} x2={width - pad.right} y1={pad.top + ratio * (priceHeight - pad.top - pad.bottom)} y2={pad.top + ratio * (priceHeight - pad.top - pad.bottom)} className="indicator-grid" />)}
+      {referenceIndex >= 0 && <g className="news-chart-reference" pointerEvents="none"><line x1={x(referenceIndex)} x2={x(referenceIndex)} y1={pad.top} y2={priceHeight - pad.bottom} /><rect x={referenceLabelX} y="1" width="54" height="19" rx="4" /><text x={referenceLabelX + 27} y="14" textAnchor="middle">资讯日</text></g>}
       {bars.map((bar, index) => ![bar.open, bar.high, bar.low, bar.close].every(Number.isFinite) ? null : <g key={bar.trade_date}><line x1={x(index)} x2={x(index)} y1={priceY(bar.high)} y2={priceY(bar.low)} className={bar.close >= bar.open ? 'candle-wick positive' : 'candle-wick negative'} /><rect x={x(index) - candleWidth / 2} y={Math.min(priceY(bar.open), priceY(bar.close))} width={candleWidth} height={Math.max(1.5, Math.abs(priceY(bar.open) - priceY(bar.close)))} className={bar.close >= bar.open ? 'candle-body positive' : 'candle-body negative'} /></g>)}
       {chart.placement === 'overlay' && chart.lines.map(line => <path key={line.id} d={path(line.values, priceY)} fill="none" stroke={line.color} strokeWidth="1.8" className="indicator-series-line" />)}
       {chart.placement === 'pane' && <><line x1={pad.left} x2={width - pad.right} y1={paneTop - 4} y2={paneTop - 4} className="indicator-pane-divider" />{chart.reference_lines.map(value => <g key={`ref-${value}`}><line x1={pad.left} x2={width - pad.right} y1={paneY(value)} y2={paneY(value)} className="indicator-reference-line" /><text x={width - pad.right} y={paneY(value) - 3} textAnchor="end">{value}</text></g>)}{chart.histogram?.values.map((value, index) => value === null || !Number.isFinite(value) ? null : <rect key={`hist-${index}`} x={x(index) - candleWidth / 2} width={candleWidth} y={Math.min(zeroY, paneY(value))} height={Math.max(1, Math.abs(zeroY - paneY(value)))} className={value >= 0 ? 'indicator-histogram positive' : 'indicator-histogram negative'} />)}{chart.lines.map(line => <path key={line.id} d={path(line.values, paneY)} fill="none" stroke={line.color} strokeWidth="1.7" className="indicator-series-line" />)}</>}

@@ -6,6 +6,82 @@ from apps.api.app import codex_runtime, codex_store, conversation_store, db
 from apps.api.app.screening_contracts import ScreeningTaskRevision
 
 
+def test_background_codex_has_explicit_homes_and_retains_system_environment(tmp_path, monkeypatch):
+    from pathlib import Path
+    import os
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: profile))
+    monkeypatch.setattr(codex_runtime, "PROJECT_ROOT", tmp_path)
+    monkeypatch.delenv("HOME", raising=False)
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    monkeypatch.delenv("LLMR_CODEX_HOME", raising=False)
+    monkeypatch.setenv("PATH", "original-search-path")
+    monkeypatch.setenv("LLMR_RESEARCH_MODEL_REQUEST_TIMEOUT_SECONDS", "900")
+    environment = codex_runtime._runtime_environment("conversation", "turn", 3, {"api_key": "test-secret"})
+    assert environment["HOME"] == str(profile)
+    assert environment["CODEX_HOME"] == str(tmp_path / "runtime" / "codex-home")
+    assert environment["CODEX_SQLITE_HOME"] == environment["CODEX_HOME"]
+    assert environment["LLMR_CODEX_LEGACY_HOME"] == str(profile / ".codex")
+    assert (tmp_path / "runtime" / "codex-home").is_dir()
+    assert environment["PATH"] == "original-search-path"
+    assert environment["LLMR_CODEX_TASK_REVISION"] == "3"
+    assert environment["LLMR_RESEARCH_MODEL_REQUEST_TIMEOUT_SECONDS"] == "900"
+    if os.name == "nt":
+        assert environment["USERPROFILE"] == str(profile)
+        assert environment["HOMEDRIVE"] + environment["HOMEPATH"] == str(profile)
+    assert "HOME" not in os.environ
+    assert "CODEX_HOME" not in os.environ
+
+
+def test_background_codex_respects_configured_state_directory_and_rejects_a_file(tmp_path, monkeypatch):
+    configured = tmp_path / "server-state"
+    monkeypatch.setenv("LLMR_CODEX_HOME", str(configured))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "desktop-protected-home"))
+    assert codex_runtime._runtime_environment("c", "t", 0, {})["CODEX_HOME"] == str(configured)
+    assert configured.is_dir()
+    invalid = tmp_path / "not-a-directory"
+    invalid.write_text("keep this file", encoding="utf-8")
+    monkeypatch.setenv("LLMR_CODEX_HOME", str(invalid))
+    with pytest.raises(codex_runtime.CodexRuntimeError, match="状态目录不可写"):
+        codex_runtime._runtime_environment("c", "t", 0, {})
+    assert invalid.read_text(encoding="utf-8") == "keep this file"
+
+
+def test_research_proxy_is_forwarded_to_mcp_without_affecting_model_transport_or_exposing_credentials(tmp_path,monkeypatch):
+    monkeypatch.setenv('LLMR_CODEX_HOME',str(tmp_path/'state'))
+    monkeypatch.delenv('LLMR_RESEARCH_HTTPS_PROXY',raising=False)
+    proxy='http://proxy-user:private-proxy-password@127.0.0.1:7897'
+    monkeypatch.setattr(codex_runtime.urllib.request,'getproxies',lambda:{'https':proxy})
+    environment=codex_runtime._runtime_environment('c','t',0,{})
+    assert environment['LLMR_RESEARCH_HTTPS_PROXY']==proxy
+    assert environment.get('HTTPS_PROXY')==__import__('os').environ.get('HTTPS_PROXY')
+    overrides=codex_runtime._mcp_overrides(environment)
+    assert any('LLMR_RESEARCH_HTTPS_PROXY' in value for value in overrides)
+    assert all('private-proxy-password' not in value for value in overrides)
+
+
+def test_migrates_only_the_bound_rollout_and_does_not_overwrite_a_resumed_thread(tmp_path):
+    thread_id = "01a109b8-bd5f-79d3-8e93-783fea8c4b5c"
+    desktop = tmp_path / "desktop"
+    service = tmp_path / "service"
+    sessions = desktop / "sessions" / "2026" / "10" / "05"
+    sessions.mkdir(parents=True)
+    source = sessions / f"rollout-2026-10-05-{thread_id}.jsonl"
+    source.write_text('original-thread\n', encoding="utf-8")
+    (desktop / "auth.json").write_text("private", encoding="utf-8")
+    (sessions / "unrelated-thread.jsonl").write_text("unrelated", encoding="utf-8")
+    environment = {"LLMR_CODEX_LEGACY_HOME": str(desktop), "CODEX_HOME": str(service)}
+    migrated = codex_runtime._migrate_thread_rollout(thread_id, environment)
+    assert migrated is not None and migrated.read_text(encoding="utf-8") == "original-thread\n"
+    assert not (service / "auth.json").exists()
+    assert not list(service.rglob("unrelated-thread.jsonl"))
+    migrated.write_text("resumed-thread\n", encoding="utf-8")
+    assert codex_runtime._migrate_thread_rollout(thread_id, environment) == migrated
+    assert migrated.read_text(encoding="utf-8") == "resumed-thread\n"
+    assert source.read_text(encoding="utf-8") == "original-thread\n"
+
+
 def _task(conversation_id: str) -> ScreeningTaskRevision:
     return ScreeningTaskRevision.model_validate({
         "task_id": conversation_id,
@@ -37,12 +113,16 @@ def test_codex_overrides_keep_credentials_out_of_runtime_configuration(monkeypat
         "model": "gpt-6-luna",
         "api_key": "private-test-key",
         "reasoning_effort": "max",
+        "supports_standalone_web_search": True,
     }
     overrides = codex_runtime._provider_overrides(settings)
     assert any(item.startswith("model_provider=") for item in overrides)
     assert any("proxy.example/v1" in item for item in overrides)
     assert all("private-test-key" not in item for item in overrides)
     assert 'model_reasoning_effort="max"' in overrides
+    assert 'web_search="live"' in overrides
+    assert 'features.standalone_web_search=true' in overrides
+    assert 'model_providers.llmr.supports_standalone_web_search=true' in overrides
     assert "mcp_servers.llm_research" in " ".join(codex_runtime._mcp_overrides())
     workspace_overrides = codex_runtime._workspace_overrides(tmp_path)
     assert 'sandbox_workspace_write.network_access=true' in workspace_overrides
@@ -78,7 +158,7 @@ def test_research_program_error_can_be_repaired_in_the_same_turn(tmp_path, monke
     from apps.api.app.tool_protocol import ToolCall
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "preview.db")
     db.init_db()
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
     msg = conversation_store.add_user_message(cid, "preview", 0, "验证收盘价高于20日均线的程序")
     conversation_store.start_turn(cid, msg["turn_id"])
     task = _task(cid)
@@ -105,17 +185,21 @@ def test_research_program_error_can_be_repaired_in_the_same_turn(tmp_path, monke
         assert connection.execute("SELECT COUNT(*) FROM screening_task_runs").fetchone()[0] == 0
 
 
-def test_resumed_codex_gets_workspace_model_effort_and_only_final_answer(tmp_path, monkeypatch):
+@pytest.mark.parametrize("depth,effort", [("standard", "high"), ("deep", "max")])
+@pytest.mark.parametrize("resume", [False, True])
+def test_codex_gets_frozen_depth_effort_on_new_and_resumed_threads(tmp_path, monkeypatch, depth, effort, resume):
     from types import SimpleNamespace
     from apps.api.app import market
     import openai_codex
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "runtime.db")
     monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
     db.init_db()
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
+    conversation_store.update_workflow(cid, "screening", depth)
     msg = conversation_store.add_user_message(cid, "run", 0, "读取资料")
     conversation_store.start_turn(cid, msg["turn_id"])
-    codex_store.bind_thread(cid, "previous-thread", "old-model", "test")
+    if resume:
+        codex_store.bind_thread(cid, "previous-thread", "old-model", "test")
     observed = {}
 
     class FakeCodex:
@@ -125,8 +209,13 @@ def test_resumed_codex_gets_workspace_model_effort_and_only_final_answer(tmp_pat
         def __enter__(self): return self
         def __exit__(self, *_): pass
         def thread_resume(self, thread_id, **kwargs):
-            observed["resume"] = kwargs
+            observed["thread"] = kwargs
+            observed["resumed"] = True
             return SimpleNamespace(id=thread_id, turn=self.turn)
+        def thread_start(self, **kwargs):
+            observed["thread"] = kwargs
+            observed["resumed"] = False
+            return SimpleNamespace(id="new-thread", turn=self.turn)
         def turn(self, inputs, **kwargs):
             observed["turn"] = kwargs
             events = [
@@ -137,13 +226,19 @@ def test_resumed_codex_gets_workspace_model_effort_and_only_final_answer(tmp_pat
             return SimpleNamespace(id="native-turn", stream=lambda: iter(events))
 
     monkeypatch.setattr(codex_runtime, "availability", lambda: {"available": True})
-    monkeypatch.setattr(codex_runtime, "llm_settings", lambda: {"model": "configured-model", "base_url": "https://example.invalid", "api_key": "secret", "reasoning_effort": "max"})
+    monkeypatch.setattr(codex_runtime, "llm_settings", lambda: {"model": "configured-model", "base_url": "https://example.invalid", "api_key": "secret", "reasoning_effort": "max", "supports_standalone_web_search": True})
     monkeypatch.setattr(codex_runtime, "_sdk", lambda: (openai_codex.ApprovalMode, FakeCodex, openai_codex.CodexConfig, openai_codex.Sandbox, openai_codex.SkillInput, openai_codex.TextInput))
     result = codex_runtime.run_conversation_turn(cid, msg["turn_id"])
     assert result["response"] == "已核对原文"
-    assert observed["resume"]["model"] == "configured-model"
-    assert observed["resume"]["sandbox"] == openai_codex.Sandbox.workspace_write
-    assert observed["turn"]["effort"] == "max"
+    assert observed["resumed"] is resume
+    assert observed["thread"]["model"] == "configured-model"
+    assert observed["thread"]["sandbox"] == openai_codex.Sandbox.workspace_write
+    assert observed["turn"]["effort"] == effort
+    assert result["reasoning_effort"] == effort
+    assert f'model_reasoning_effort="{effort}"' in observed["config"].config_overrides
+    assert 'web_search="live"' in observed["config"].config_overrides
+    assert 'features.standalone_web_search=true' in observed["config"].config_overrides
+    assert 'model_providers.llmr.supports_standalone_web_search=true' in observed["config"].config_overrides
     assert observed["turn"]["cwd"] == str(tmp_path / "research" / cid / "work")
     assert "sandbox" not in observed["turn"]  # Preserve the configured writable roots on turn/start.
 
@@ -151,7 +246,7 @@ def test_resumed_codex_gets_workspace_model_effort_and_only_final_answer(tmp_pat
 def test_codex_events_are_append_only_and_cursor_paginates(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "codex.db")
     db.init_db()
-    conversation = conversation_store.create_conversation("screening")
+    conversation = conversation_store.create_conversation("screening", workflow_type="screening")
     message = conversation_store.add_user_message(
         conversation["id"], "client-1", 0, "先解释行情覆盖。"
     )
@@ -179,7 +274,7 @@ def test_codex_events_are_append_only_and_cursor_paginates(tmp_path, monkeypatch
 def test_codex_finish_turn_publishes_structured_execution_state_after_tool_mutations(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "codex-finish.db")
     db.init_db()
-    conversation = conversation_store.create_conversation("screening")
+    conversation = conversation_store.create_conversation("screening", workflow_type="screening")
     message = conversation_store.add_user_message(
         conversation["id"], "client-2", 0, "收盘价高于20日均线，筛一下"
     )
@@ -206,7 +301,7 @@ def test_codex_finish_turn_publishes_structured_execution_state_after_tool_mutat
 def test_failure_after_task_mutation_finishes_turn_and_allows_followup(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "failure.db")
     db.init_db()
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
     message = conversation_store.add_user_message(cid, "request", 0, "收盘价高于20日均线，筛一下")
     conversation_store.start_turn(cid, message["turn_id"])
 
@@ -232,12 +327,12 @@ def test_failure_after_task_mutation_finishes_turn_and_allows_followup(tmp_path,
 def test_expired_turn_recovers_without_overwriting_live_or_completed_turns(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "recovery.db")
     db.init_db()
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
     message = conversation_store.add_user_message(cid, "interrupted", 0, "筛一下")
     conversation_store.start_turn(cid, message["turn_id"])
     conversation_store.save_task_revision(cid, 0, message["message_id"], _task(cid))
     conversation_store.set_pending_execute_message(cid, 1, message["message_id"])
-    other = conversation_store.create_conversation("screening")["id"]
+    other = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
     live = conversation_store.add_user_message(other, "live", 0, "解释行情")
     conversation_store.start_turn(other, live["turn_id"])
     with db.connect() as connection:

@@ -1,0 +1,344 @@
+--- before/apps/api/app/research_pdf_service.py
++++ after/apps/api/app/research_pdf_service.py
+@@ -300,7 +300,12 @@
+             seen_urls.add(item["url"])
+         items.append(item)
+     # Existing PDFs remain immediately readable before any background backfill.
+-    for item in sorted(research_pdf.cached_deliverables(owner_id, project=owner_type == "project"), key=lambda value: -value["modified_at"]):
++    cached = [
++        {"conversation_id": owner_id if owner_type == "conversation" else "", "project_id": owner_id if owner_type == "project" else None,
++         "modified_at": 0, **item}
++        for item in research_pdf.cached_deliverables(owner_id, project=owner_type == "project")
++    ]
++    for item in sorted(cached, key=lambda value: (-value["modified_at"], value["name"], value["url"])):
+         if item["url"] in seen_urls:
+             continue
+         if owner_type == "project" and not any(item["name"] == f"研究笔记-{nid[:8]}-v{revision}.pdf" for nid, revision in latest_notes.items()):
+@@ -314,7 +319,7 @@
+         if any(old.get("url") and old["name"] == item["name"] for old in items):
+             continue
+         items.append(item)
+-    return sorted(items, key=lambda item: (-item["modified_at"], item["name"]))
++    return sorted(items, key=lambda item: (-item["modified_at"], item["name"], item.get("url") or "", item.get("id") or ""))
+ 
+ 
+ def note_status(project_id: str, note_id: str, revision: int, *, connection=None) -> dict | None:
+--- before/apps/api/app/research_projects.py
++++ after/apps/api/app/research_projects.py
+@@ -341,7 +341,7 @@
+         )]
+     items = [{**item, "conversation_id": cid} for cid in ids for item in list_deliverables(cid)]
+     items.extend(list_exports("project", project_id))
+-    return sorted(items, key=lambda item: (-item["modified_at"], item["conversation_id"], item["name"]))
++    return sorted(items, key=lambda item: (-item["modified_at"], item.get("conversation_id") or "", item["name"], item.get("url") or "", item.get("id") or ""))
+ 
+ 
+ def conversation_context(conversation_id: str) -> dict | None:
+--- before/apps/api/app/research_observations.py
++++ after/apps/api/app/research_observations.py
+@@ -76,9 +76,23 @@
+     turn = None
+     key = message["client_message_id"] or ""
+     if key.startswith("assistant:"):
+-        turn = connection.execute("SELECT workflow_type,research_scope_json,research_scope_revision FROM conversation_turns WHERE id=? AND conversation_id=?", (key[len("assistant:"):], payload.conversation_id)).fetchone()
++        turn = connection.execute("SELECT workflow_type,state,response_text,research_scope_json,research_scope_revision FROM conversation_turns WHERE id=? AND conversation_id=?", (key[len("assistant:"):], payload.conversation_id)).fetchone()
++        if not turn:
++            raise CandidateError("来源答复的研究回合记录缺失，不能保存为观察候选。", 409)
++    else:
++        # Some historical messages lack the client key. Only an unambiguous
++        # recorded completion with identical text and timestamp proves their
++        # origin; role/content alone cannot distinguish an error message.
++        matches = connection.execute("""SELECT workflow_type,state,response_text,research_scope_json,research_scope_revision
++            FROM conversation_turns WHERE conversation_id=? AND response_text=?
++            AND julianday(updated_at)=julianday(?)""", (payload.conversation_id, message["content"], message["created_at"])).fetchall() if not key else []
++        if len(matches) != 1:
++            raise CandidateError("旧答复缺少可核验的成功研究回合，请完成一次研究后再保存观察候选。", 409)
++        turn = matches[0]
+     if turn and turn["workflow_type"] != "research":
+         raise CandidateError("这条答复产生于条件选股流程，不能作为研究候选的来源。")
++    if turn["state"] != "succeeded" or turn["response_text"] != message["content"]:
++        raise CandidateError("只能将成功完成的研究答复保存为观察候选，请先完成当前研究。", 409)
+     raw_scope = turn["research_scope_json"] if turn else None
+     scope = (json_load(raw_scope) or None) if raw_scope else None
+     return conversation, message, scope, turn["research_scope_revision"] if turn and scope else None
+--- before/tests/integration/test_research_pdf_jobs.py
++++ after/tests/integration/test_research_pdf_jobs.py
+@@ -1,4 +1,5 @@
+ from io import BytesIO
++import json
+ import sqlite3
+ 
+ from fastapi.testclient import TestClient
+@@ -221,3 +222,100 @@
+     result = codex_runtime.process_conversation_turn(cid, tid)
+     assert result["state"] == "succeeded" and result["response_text"] == "应保留的正文"
+     assert store.get_conversation(cid)["messages"][-1]["content"] == "应保留的正文"
++
++
++def test_legacy_project_pdf_lists_and_downloads_without_job_metadata(case, monkeypatch):
++    project = projects.create_project(projects.CreateProject(name="迁移前专题", request_id="legacy-project"))
++    note = projects.create_note(project["id"], projects.CreateNote(title="旧研究笔记", body="迁移前完整研究正文", request_id="legacy-note"))
++    cached = pdf.export_note(project["id"], note["id"])
++    # Model an authentic pre-job cache: the real PDF and old manifest exist,
++    # while no export/job rows or new owner metadata exist.
++    assert "conversation_id" not in cached
++    with db.connect() as connection:
++        connection.execute("DELETE FROM research_pdf_exports WHERE id=?", (note["pdf"]["id"],))
++        connection.execute("DELETE FROM jobs WHERE id=?", (note["pdf"]["job_id"],))
++    monkeypatch.setattr(pdf, "render_document", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("GET cannot render a PDF")))
++    with TestClient(main.app) as client:
++        endpoint = f"/api/v1/research-projects/{project['id']}/files"
++        response = client.get(endpoint)
++        assert response.status_code == 200
++        items = response.json()["items"]
++        assert len(items) == 1 and items[0]["url"] == cached["url"]
++        assert items[0]["conversation_id"] == "" and items[0]["project_id"] == project["id"]
++        assert items[0]["status"] == "succeeded"
++        assert client.get(endpoint).json()["items"] == items
++        download = client.get(cached["url"])
++        assert download.status_code == 200
++        assert "迁移前完整研究正文" in "\n".join(page.extract_text() for page in PdfReader(BytesIO(download.content)).pages)
++    with db.connect() as connection:
++        assert connection.execute("SELECT count(*) FROM research_pdf_exports").fetchone()[0] == 0
++        assert connection.execute("SELECT count(*) FROM jobs").fetchone()[0] == 0
++
++
++def test_replacement_project_pdf_keeps_previous_report_until_success(case, monkeypatch):
++    project = projects.create_project(projects.CreateProject(name="原专题名", request_id="replacement-project"))
++    note = projects.create_note(project["id"], projects.CreateNote(title="完整研究笔记", body="排队、失败、重试期间均可读取的原研究正文", request_id="replacement-note"))
++    assert worker.execute_job(note["pdf"]["job_id"])
++    old = service.list_exports("project", project["id"])[0]
++    projects.update_project(project["id"], projects.UpdateProject(base_revision=1, name="修改后的专题名"))
++    renderer = pdf.render_document
++    with TestClient(main.app) as client:
++        endpoint = f"/api/v1/research-projects/{project['id']}/files"
++        old_bytes = client.get(old["url"]).content
++        queued = client.post(f"/api/v1/research-projects/{project['id']}/notes/{note['id']}/pdf-jobs", json={}).json()
++        assert queued["id"] != note["pdf"]["id"] and queued["status"] == "queued"
++        monkeypatch.setattr(pdf, "render_document", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("替换报告排版失败")))
++        response = client.get(endpoint)
++        assert response.status_code == 200
++        items = response.json()["items"]
++        assert client.get(endpoint).json()["items"] == items
++        pending = next(item for item in items if item.get("id") == queued["id"])
++        previous = next(item for item in items if item.get("url") == old["url"])
++        assert pending["status"] == "queued" and pending["url"] is None
++        assert previous["previous"] and previous["status"] == "succeeded"
++        assert previous["conversation_id"] == "" and previous["project_id"] == project["id"]
++        assert client.get(old["url"]).content == old_bytes
++        assert worker.execute_job(queued["job_id"])
++        failed_items = client.get(endpoint).json()["items"]
++        failed = next(item for item in failed_items if item.get("id") == queued["id"])
++        assert failed["status"] == "failed" and failed["url"] is None
++        assert next(item for item in failed_items if item.get("url") == old["url"])["previous"]
++        assert client.get(old["url"]).content == old_bytes
++        monkeypatch.setattr(pdf, "render_document", renderer)
++        retry = client.post(failed["retry_url"]).json()
++        assert worker.execute_job(retry["job_id"])
++        completed = client.get(endpoint).json()["items"]
++        assert len(completed) == 1 and completed[0]["status"] == "succeeded"
++        assert completed[0]["url"] != old["url"]
++        current_text = "\n".join(page.extract_text() for page in PdfReader(BytesIO(client.get(completed[0]["url"]).content)).pages)
++        assert "修改后的专题名" in current_text and "原研究正文" in current_text
++        assert client.get(old["url"]).content == old_bytes
++
++
++def test_equal_time_legacy_pdf_choice_is_independent_of_manifest_order(case, monkeypatch):
++    project = projects.create_project(projects.CreateProject(name="首次专题名", request_id="tie-project"))
++    note = projects.create_note(project["id"], projects.CreateNote(title="同名笔记", body="真实PDF排序检查", request_id="tie-note"))
++    first = pdf.export_note(project["id"], note["id"])
++    projects.update_project(project["id"], projects.UpdateProject(base_revision=1, name="第二次专题名"))
++    second = pdf.export_note(project["id"], note["id"])
++    assert first["url"] != second["url"]
++    for cached in (first, second):
++        manifest = pdf._root(project["id"], project=True) / (cached["url"].rsplit("/", 1)[-1].removesuffix(".pdf") + ".json")
++        metadata = json.loads(manifest.read_text(encoding="utf-8"))
++        metadata["modified_at"] = 1000.0
++        manifest.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
++    with db.connect() as connection:
++        connection.execute("DELETE FROM research_pdf_exports WHERE id=?", (note["pdf"]["id"],))
++        connection.execute("DELETE FROM jobs WHERE id=?", (note["pdf"]["job_id"],))
++    cached_items = pdf.cached_deliverables(project["id"], project=True)
++    calls = []
++    def alternate_order(*_args, **_kwargs):
++        calls.append(True)
++        return list(reversed(cached_items)) if len(calls) % 2 else cached_items
++    monkeypatch.setattr(pdf, "cached_deliverables", alternate_order)
++    with TestClient(main.app) as client:
++        endpoint = f"/api/v1/research-projects/{project['id']}/files"
++        items = client.get(endpoint).json()["items"]
++        assert client.get(endpoint).json()["items"] == items
++        assert len(items) == 1 and items[0]["url"] == min(first["url"], second["url"])
++        assert client.get(items[0]["url"]).status_code == 200
+--- before/tests/integration/test_research_observations.py
++++ after/tests/integration/test_research_observations.py
+@@ -6,7 +6,7 @@
+ from fastapi import FastAPI
+ from fastapi.testclient import TestClient
+ 
+-from apps.api.app import db, market, observation_api
++from apps.api.app import conversation_store, db, market, observation_api
+ 
+ 
+ @pytest.fixture
+@@ -21,7 +21,7 @@
+         for cid, workflow in (("research", "research"), ("screening", "screening"), ("other", "research")):
+             connection.execute("INSERT INTO conversations(id,entry_scope,workflow_type,project_id,research_scope_json,research_scope_revision,created_at,updated_at) VALUES(?,'report',?,'project',?,9,'2026-10-04','2026-10-04')", (cid, workflow, db.json_dump({"as_of": "2026-10-03"})))
+             connection.execute("INSERT INTO conversation_messages(id,conversation_id,role,content,client_message_id,created_at) VALUES(?,?,'user','只研究，暂不筛选','question','2026-10-01')", (cid + '-question', cid))
+-            connection.execute("INSERT INTO conversation_turns(id,conversation_id,user_message_id,base_revision,state,workflow_type,research_scope_json,research_scope_revision,created_at,updated_at) VALUES(?,?,?,0,'succeeded',?,?,2,'2026-10-01','2026-10-01')", (cid + '-turn', cid, cid + '-question', workflow, db.json_dump({"as_of": "2026-09-30", "universe": {"kind": "stocks", "stock_codes": ["600519.SH"]}})))
++            connection.execute("INSERT INTO conversation_turns(id,conversation_id,user_message_id,base_revision,state,workflow_type,research_scope_json,research_scope_revision,created_at,updated_at,response_text) VALUES(?,?,?,0,'succeeded',?,?,2,'2026-10-01','2026-10-01',' 原研究答复：经营改善仍需验证。 ')", (cid + '-turn', cid, cid + '-question', workflow, db.json_dump({"as_of": "2026-09-30", "universe": {"kind": "stocks", "stock_codes": ["600519.SH"]}})))
+             connection.execute("INSERT INTO conversation_messages(id,conversation_id,role,content,client_message_id,source_refs_json,created_at) VALUES(?,?,'assistant',' 原研究答复：经营改善仍需验证。 ',?,'[]','2026-10-01')", (cid + '-answer', cid, "assistant:" + cid + "-turn"))
+     app = FastAPI()
+     app.include_router(observation_api.router)
+@@ -102,12 +102,66 @@
+         assert connection.execute("SELECT count(*) FROM research_observation_candidates").fetchone()[0] == 0
+ 
+ 
+-def test_legacy_message_has_unknown_scope_and_does_not_take_latest_scope(client):
++def test_unverifiable_legacy_message_cannot_become_candidate(client):
+     with db.connect() as connection:
+         connection.execute("INSERT INTO conversation_messages(id,conversation_id,role,content,created_at) VALUES('legacy','research','assistant','旧研究文字','2026-09-01')")
+-    item = client.post("/api/v1/observation/research-candidates", json=payload(source_message_id="legacy")).json()
+-    assert item["scope"] is None and item["as_of"] is None
+-    assert item["source_scope_status"] == "unknown" and item["source_scope_revision"] is None
++    response = client.post("/api/v1/observation/research-candidates", json=payload(source_message_id="legacy"))
++    assert response.status_code == 409
++    assert client.get("/api/v1/observation/research-candidates").json()["total"] == 0
++
++
++@pytest.mark.parametrize("state", ["failed", "cancelled", "running", "awaiting_agent", "awaiting_user"])
++def test_only_successful_research_turn_can_supply_candidate(client, state):
++    with db.connect() as connection:
++        connection.execute("UPDATE conversation_turns SET state=? WHERE id='research-turn'", (state,))
++    response = client.post("/api/v1/observation/research-candidates", json=payload())
++    assert response.status_code == 409, response.text
++    assert client.get("/api/v1/observation/research-candidates").json()["total"] == 0
++
++
++def test_real_failed_turn_system_reply_is_not_research_evidence(client):
++    cid = conversation_store.create_conversation("report", workflow_type="research")["id"]
++    message = conversation_store.add_user_message(cid, "failed-research", 0, "研究公司")
++    conversation_store.start_turn(cid, message["turn_id"])
++    assert conversation_store.fail_turn(cid, message["turn_id"], "连接失败，没有研究结果")
++    source = conversation_store.get_conversation(cid)["messages"][-1]
++    response = client.post("/api/v1/observation/research-candidates", json=payload(conversation_id=cid, source_message_id=source["id"]))
++    assert response.status_code == 409, response.text
++    assert client.get("/api/v1/observation/research-candidates").json()["total"] == 0
++
++
++@pytest.mark.parametrize("key", ["assistant:missing-turn", "assistant:other-turn", "unbound-modern", None])
++def test_missing_foreign_or_unbound_modern_turn_cannot_bypass_success_guard(client, key):
++    with db.connect() as connection:
++        connection.execute("INSERT INTO conversation_messages(id,conversation_id,role,content,client_message_id,created_at) VALUES('unbound','research','assistant',' 原研究答复：经营改善仍需验证。 ',?,'2026-10-02')", (key,))
++    response = client.post("/api/v1/observation/research-candidates", json=payload(source_message_id="unbound"))
++    assert response.status_code == 409, response.text
++    assert client.get("/api/v1/observation/research-candidates").json()["total"] == 0
++
++
++def test_successful_turn_cannot_lend_provenance_to_different_reply(client):
++    with db.connect() as connection:
++        connection.execute("UPDATE conversation_turns SET response_text='与助手消息不匹配的正文' WHERE id='research-turn'")
++    response = client.post("/api/v1/observation/research-candidates", json=payload())
++    assert response.status_code == 409, response.text
++
++
++@pytest.mark.parametrize("state,ambiguous,expected", [("succeeded", False, 200), ("failed", False, 409), ("succeeded", True, 409)])
++def test_legacy_unbound_reply_requires_one_recorded_successful_completion(client, state, ambiguous, expected):
++    with db.connect() as connection:
++        connection.execute("INSERT INTO conversation_messages(id,conversation_id,role,content,created_at) VALUES('legacy','research','assistant','旧研究判断仍需核验','2026-09-01')")
++        for index in range(2 if ambiguous else 1):
++            question_id = f"legacy-question-{index}"
++            connection.execute("INSERT INTO conversation_messages(id,conversation_id,role,content,created_at) VALUES(?,'research','user','旧研究要求','2026-09-01')", (question_id,))
++            connection.execute("INSERT INTO conversation_turns(id,conversation_id,user_message_id,base_revision,state,workflow_type,response_text,created_at,updated_at) VALUES(?,'research',?,0,?,'research','旧研究判断仍需核验','2026-09-01','2026-09-01')", (f"legacy-turn-{index}", question_id, state))
++    response = client.post("/api/v1/observation/research-candidates", json=payload(source_message_id="legacy"))
++    assert response.status_code == expected, response.text
++    if expected == 200:
++        item = response.json()
++        assert item["scope"] is None and item["as_of"] is None
++        assert item["source_scope_status"] == "unknown" and item["source_scope_revision"] is None
++    else:
++        assert client.get("/api/v1/observation/research-candidates").json()["total"] == 0
+ 
+ 
+ def test_patch_revision_protects_newer_edit_and_source_snapshot(client):
+--- before/tests/integration/test_screening_tool_api.py
++++ after/tests/integration/test_screening_tool_api.py
+@@ -1,6 +1,9 @@
+ import json
++from datetime import date
+ 
+ from fastapi.testclient import TestClient
++import pyarrow as pa
++import pyarrow.parquet as pq
+ import pytest
+ 
+ from apps.api.app import db, main, market
+@@ -13,6 +16,12 @@
+ @pytest.fixture
+ def client(tmp_path, monkeypatch):
+     monkeypatch.setattr(db, "DB_PATH", tmp_path / "tool-tests.db")
++    source = tmp_path / "market.parquet"
++    pq.write_table(pa.Table.from_pylist([{
++        "stock_code": "600000.SH", "trade_date": date(2026, 9, 14),
++        "open": 10., "high": 11., "low": 9., "close": 10., "volume": 100., "amount": 1000.,
++    }]), source)
++    monkeypatch.setattr(market, "STOCK_FILE", source)
+     with TestClient(main.app) as session:
+         yield session
+ 
+@@ -105,6 +114,14 @@
+     assert unknown["error"]["code"] == "unknown_tool"
+ 
+ 
++def test_dispatch_keeps_real_missing_market_capability_guard(client, tmp_path, monkeypatch):
++    context = begin_turn(client)
++    monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
++    monkeypatch.setattr(market, "get_bars", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unavailable source must not be read")))
++    result = registry.dispatch(ToolCall("missing-market", "read_market_window", {"stock_code": "600000.SH", "limit": 5}), context)
++    assert result["ok"] is False and result["error"]["code"] == "capability_unavailable"
++
++
+ def test_large_tool_result_uses_conversation_scoped_content_hashed_artifact(client, tmp_path):
+     context = begin_turn(client)
+     artifacts_root = tmp_path / "artifacts"
+--- before/tests/integration/test_workflow_tools.py
++++ after/tests/integration/test_workflow_tools.py
+@@ -4,6 +4,8 @@
+ import json
+ 
+ import pytest
++import pyarrow as pa
++import pyarrow.parquet as pq
+ 
+ from apps.api.app import codex_context, codex_runtime, conversation_store, db, market, research_tools, screening_tools
+ from apps.api.app.screening_contracts import ResearchScope, ScreeningTaskRevision
+@@ -13,6 +15,12 @@
+ @pytest.fixture
+ def research_context(tmp_path, monkeypatch):
+     monkeypatch.setattr(db, "DB_PATH", tmp_path / "workflow-tools.db")
++    source = tmp_path / "market.parquet"
++    pq.write_table(pa.Table.from_pylist([{
++        "stock_code": "600000.SH", "trade_date": date(2026, 9, 14),
++        "open": 10., "high": 11., "low": 9., "close": 10., "volume": 100., "amount": 1000.,
++    }]), source)
++    monkeypatch.setattr(market, "STOCK_FILE", source)
+     db.init_db()
+     cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
+     previous = conversation_store.add_user_message(cid, "old-plan", 0, "先保存旧范围，不执行。")
+--- before/tests/integration/test_market_data.py
++++ after/tests/integration/test_market_data.py
+@@ -1,4 +1,5 @@
+ from apps.api.app.market import STOCK_FILE, iter_recent_bars
++import pytest
+ 
+ 
+ def test_replacing_sample_parquet_refreshes_profile_without_restart(tmp_path, monkeypatch):
+@@ -21,7 +22,7 @@
+ 
+ def test_real_dataset_scanner_yields_typed_as_of_bars() -> None:
+     if not STOCK_FILE.is_file():
+-        return
++        pytest.skip("Real market data is not mounted; synthetic scanner coverage runs independently")
+     stock_code, bars = next(iter_recent_bars("2026-09-14", per_stock=30))
+     assert stock_code.endswith((".SH", ".SZ", ".BJ"))
+     assert 10 <= len(bars) <= 30

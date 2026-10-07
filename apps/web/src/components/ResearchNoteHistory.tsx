@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { noteStatuses, type ResearchNote } from '../research'
 import ResearchAnswer from './conversation/ResearchAnswer'
+import ResearchNotePDF from './ResearchNotePDF'
 
 export default function ResearchNoteHistory({ projectId, noteId }: { projectId: string; noteId: string }) {
   const [open, setOpen] = useState(false)
@@ -21,7 +22,8 @@ export default function ResearchNoteHistory({ projectId, noteId }: { projectId: 
     {open && (error ? <p role="alert">{error}<button className="text-button" onClick={() => setReload(value => value + 1)}>重试</button></p> : versions.length ? versions.map(version => <details key={version.revision}>
       <summary>第 {version.revision} 版 · {new Date(version.updated_at).toLocaleString('zh-CN')} · {noteStatuses[version.status]}</summary>
       <h4>{version.title}</h4><ResearchAnswer content={version.body} conversationId={version.source_conversation_id || ''} />
-      {version.validation_plan && <p>接下来验证：{version.validation_plan}</p>}
+      <ResearchNotePDF projectId={projectId} noteId={noteId} revision={version.revision} pdf={version.pdf} />
+      {version.validation_plan && <p>验证事项：{version.validation_plan}</p>}
       {version.invalidation_condition && <p>判断失效条件：{version.invalidation_condition}</p>}
     </details>) : <p role="status">正在读取历史版本…</p>)}
   </details>

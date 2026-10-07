@@ -59,7 +59,7 @@ def compile_pattern(prompt: str) -> dict:
                 '不要将圆弧底称作V形，不支持的形态如头肩顶、三重底必须shape=null且issues给出问题。'
                 '成交量、精确涨跌幅、突破颈线、保证上涨、区间内曾经发生等要求不能由归一化路径模板表达，必须issues说明，不能遗漏。'
                 '本接口生成目标模板，不推断真实行情，不声明已匹配，也不输出代码。', prompt,
-                timeout_seconds=40, max_output_tokens=1500,
+                max_output_tokens=1500,
             )
         except ModelRequestError:
             candidate = {"shape": None, "target_bars": 40, "min_similarity": 80, "issues": ["本次解析未完成，请重试；原描述已保留。"], "assumptions": []}

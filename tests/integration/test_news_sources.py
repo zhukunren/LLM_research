@@ -99,7 +99,7 @@ def test_conversation_news_tools_enforce_security_and_lookback(client):
     imported = client.post("/api/v1/news/import", json=dict(request_id="tool-data", items=[
         item(), item(title="过期资讯", published_at="2026-09-01T09:00:00+08:00", available_at="2026-09-01T10:00:00+08:00")
     ])).json()["items"]
-    conversation = client.post("/api/v1/conversations", json={"entry_scope": "news"}).json()
+    conversation = client.post("/api/v1/conversations", json={"entry_scope": "news", "workflow_type": "screening"}).json()
     message = client.post(f"/api/v1/conversations/{conversation['id']}/messages", json=dict(
         client_message_id="news-tools", base_revision=0, content="查看近期资讯")).json()
     context = ToolContext(conversation_id=conversation["id"], turn_id=message["turn_id"], task_revision=0,

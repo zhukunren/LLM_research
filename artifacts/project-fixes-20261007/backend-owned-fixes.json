@@ -1,0 +1,32 @@
+{
+  "files": [
+    "apps/api/app/research_pdf_service.py",
+    "apps/api/app/research_projects.py",
+    "apps/api/app/research_observations.py",
+    "tests/integration/test_research_pdf_jobs.py",
+    "tests/integration/test_research_observations.py",
+    "tests/integration/test_screening_tool_api.py",
+    "tests/integration/test_workflow_tools.py",
+    "tests/integration/test_market_data.py"
+  ],
+  "tests": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "1",
+    "tests": "58",
+    "time": "12.793",
+    "timestamp": "2026-10-07T00:54:51.787897+08:00",
+    "hostname": "我的ThinkBook"
+  },
+  "changes": [
+    "Normalize cache owner metadata and stable sort keys for project PDF file lists",
+    "Retain previous PDF while its replacement queues, fails, or retries",
+    "Require a successful research turn with matching published text for observation candidates",
+    "Allow missing historical client binding only with one matching recorded completion and timestamp",
+    "Supply isolated real Parquet fixtures for tool capability checks; missing real data explicitly skips"
+  ],
+  "isolation": "Empty LLMR_DATA_ROOT; temporary DB and local Parquet; no model or business DB calls",
+  "baseline": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\backend-tests-before",
+  "patch": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\backend-owned-fixes.diff"
+}

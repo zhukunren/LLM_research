@@ -1,0 +1,39 @@
+{
+  "cross_origin_mutation": {
+    "status": 202,
+    "queued_jobs": 1,
+    "cors_allow_origin": null
+  },
+  "legacy_project_pdf": {
+    "status": 500,
+    "cause": "KeyError: 'conversation_id'",
+    "pdf_download_status": 200
+  },
+  "replacement_project_pdf": {
+    "before_status": 200,
+    "replacement_status": "queued",
+    "after_status": 500
+  },
+  "failed_source_candidate": {
+    "status": 200,
+    "source_text": "连接失败，没有研究结果",
+    "source_scope_status": "unknown"
+  },
+  "news_private_source": {
+    "url": "http://127.0.0.1:58493/internal",
+    "title": "Isolated internal service",
+    "text_prefix": "audit-private-data-only audit-private-data-only audit-private-data-only audit-private-data-only audi",
+    "text_length": 479,
+    "api_status": 201,
+    "private_text_sent_to_model_function": true
+  },
+  "dns_rebinding": {
+    "resolutions": [
+      "93.184.216.34",
+      "127.0.0.1"
+    ],
+    "saved_body": "loopback-source-reached",
+    "final_url": "http://audit-rebind.example:58493/source.csv",
+    "content_type": "text/csv"
+  }
+}

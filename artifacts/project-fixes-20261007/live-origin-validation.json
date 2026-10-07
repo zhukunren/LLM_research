@@ -1,0 +1,9 @@
+{
+  "body": {
+    "code": "untrusted_origin",
+    "message": "请从本机投研工作台提交操作。",
+    "details": null,
+    "request_id": "d39d8724-3a3c-44bd-800c-b41e5fbee895"
+  },
+  "status": 403
+}

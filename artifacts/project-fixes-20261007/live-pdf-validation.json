@@ -1,0 +1,370 @@
+{
+  "status": "passed",
+  "database": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\live\\app.db",
+  "model_calls": 0,
+  "started_at": "2026-10-07T01:08:38.350110+08:00",
+  "http_calls": [
+    {
+      "method": "GET",
+      "path": "/api/v1/health",
+      "status": 200,
+      "request_id": "89632280-385c-4692-90f2-3ba7581fa584"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/research-projects",
+      "status": 200,
+      "request_id": "9d63ebbb-fa77-4ab0-b31e-72d9ba68a0f8"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/notes",
+      "status": 200,
+      "request_id": "005a0bf0-cfab-4e70-92f4-e1247e4892d0"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/notes/201291a4-8a32-4c9a-89d2-0ac8e28fc217/pdf-jobs",
+      "status": 200,
+      "request_id": "664758bd-08ce-41c9-937a-d10961bb0e10"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/jobs/4c067db9-e078-490a-9333-a301be93ad5a",
+      "status": 200,
+      "request_id": "20a632b9-4adc-4013-9afb-1271c64dfa20"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/notes/201291a4-8a32-4c9a-89d2-0ac8e28fc217/pdf-status?revision=1",
+      "status": 200,
+      "request_id": "8c6b7820-f526-4d85-9e0a-aee57620d1da"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/8b42233aa59a704953c5aa2aec2be9e21fa2daf3db8e98b4d32dfb72daf005bb.pdf",
+      "status": 200,
+      "request_id": "8a88b341-7792-4a92-a662-0e5328095a3f"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/files",
+      "status": 200,
+      "request_id": "f9fb535d-86a5-4eda-976c-6002a222ce26"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+      "status": 200,
+      "request_id": "055e3f9b-da4e-4934-83fb-f34890f4ecba"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/notes/201291a4-8a32-4c9a-89d2-0ac8e28fc217/pdf-jobs",
+      "status": 200,
+      "request_id": "dd001e04-182c-4763-ad18-c2ef9de0147f"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/files",
+      "status": 200,
+      "request_id": "76f3c949-457a-4d81-8c59-40b575b72d56"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/files",
+      "status": 200,
+      "request_id": "2f11c536-a93c-4401-88f1-339c11b50f9b"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/8b42233aa59a704953c5aa2aec2be9e21fa2daf3db8e98b4d32dfb72daf005bb.pdf",
+      "status": 200,
+      "request_id": "3546b1bf-bfe7-44e4-aa4c-52a6e98f097d"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/jobs/ea3d7397-fe66-44a9-a704-a22ff2bdc9cd",
+      "status": 200,
+      "request_id": "36f1c59e-cf70-430c-9295-05f3b7a376fc"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/notes/201291a4-8a32-4c9a-89d2-0ac8e28fc217/pdf-status?revision=1",
+      "status": 200,
+      "request_id": "f159f20a-7179-4600-977d-f1f87b712971"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/files",
+      "status": 200,
+      "request_id": "b23a4ea6-679a-40d4-a2a4-0753f8b341bf"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/files",
+      "status": 200,
+      "request_id": "36acbf3c-289e-4380-994b-5f67b4693bbc"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/a737cb9098cdb7857f36a50b11831d7aff4f1531115e4a9f630dba0927fe3927.pdf",
+      "status": 200,
+      "request_id": "166b72c5-5b8c-46ec-8a29-40bbe3c8ebd6"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/8b42233aa59a704953c5aa2aec2be9e21fa2daf3db8e98b4d32dfb72daf005bb.pdf",
+      "status": 200,
+      "request_id": "28f9d880-f5f0-4e4c-bd87-b3f4c94eb75b"
+    }
+  ],
+  "jobs": [
+    {
+      "job_id": "4c067db9-e078-490a-9333-a301be93ad5a",
+      "export_id": "22657f5e-86bc-463d-8b7b-09d822332876",
+      "exit_code": 0,
+      "stdout": "True\n",
+      "stderr": ""
+    },
+    {
+      "job_id": "ea3d7397-fe66-44a9-a704-a22ff2bdc9cd",
+      "export_id": "d4074a39-3ade-41ce-bf6e-148e3aaead50",
+      "exit_code": 0,
+      "stdout": "True\n",
+      "stderr": ""
+    }
+  ],
+  "project": {
+    "id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+    "name": "PDF实机复测原专题 40e4ef832817",
+    "objective": "仅在审查数据库副本中验证报告，不调用模型",
+    "status": "active",
+    "revision": 1,
+    "request_id": "pdf-qa-project-40e4ef832817",
+    "created_at": "2026-10-06T17:08:38+00:00",
+    "updated_at": "2026-10-06T17:08:38+00:00"
+  },
+  "note": {
+    "id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+    "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+    "title": "PDF完整正文验收 40e4ef832817",
+    "body": "# 实机报告回归\n\nPDF-QA-40e4ef832817\n\n这是独立审查正文。排队期间应能打开上一份报告，完成后应能打开更新后的报告。\n\n|检查|结果|\n|---|---|\n|来源|隔离数据库|\n|模型调用|零|",
+    "stock_code": null,
+    "validation_plan": "",
+    "invalidation_condition": "",
+    "status": "watching",
+    "revision": 1,
+    "source_conversation_id": null,
+    "source_message_id": null,
+    "request_id": "pdf-qa-note-40e4ef832817",
+    "created_at": "2026-10-06T17:08:38+00:00",
+    "updated_at": "2026-10-06T17:08:38+00:00",
+    "pdf": {
+      "name": "研究笔记-201291a4-v1.pdf",
+      "bytes": 0,
+      "modified_at": 1791306518.0,
+      "url": null,
+      "media_type": "application/pdf",
+      "template_version": "soochow-zhangjiagang-research-v1",
+      "id": "22657f5e-86bc-463d-8b7b-09d822332876",
+      "job_id": "4c067db9-e078-490a-9333-a301be93ad5a",
+      "status": "queued",
+      "message": "正文已保存，等待生成报告",
+      "source_kind": "note",
+      "source_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+      "source_revision": 1,
+      "conversation_id": "",
+      "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+      "retry_url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdf-jobs/22657f5e-86bc-463d-8b7b-09d822332876/retry"
+    }
+  },
+  "first_export": {
+    "name": "研究笔记-201291a4-v1.pdf",
+    "bytes": 45114,
+    "modified_at": 1791306519.6500452,
+    "url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/8b42233aa59a704953c5aa2aec2be9e21fa2daf3db8e98b4d32dfb72daf005bb.pdf",
+    "media_type": "application/pdf",
+    "template_version": "soochow-zhangjiagang-research-v1",
+    "id": "22657f5e-86bc-463d-8b7b-09d822332876",
+    "job_id": "4c067db9-e078-490a-9333-a301be93ad5a",
+    "status": "succeeded",
+    "message": "报告已生成，正文与原件已保留",
+    "source_kind": "note",
+    "source_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+    "source_revision": 1,
+    "conversation_id": "",
+    "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+    "retry_url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdf-jobs/22657f5e-86bc-463d-8b7b-09d822332876/retry"
+  },
+  "first_pdf": {
+    "path": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\live-pdf-original.pdf",
+    "pages": 2,
+    "bytes": 45114,
+    "text": "张家港营业部\n研 究 成 果\nPDF完整正文验收 40e4ef832817\n研究项目\nPDF实机复测原专题 40e4ef832817\n关联公司\n整个研究项目\n笔记版本\n第 1 版\n人工观点状态\n待验证\n记录时间\n2026-10-07 01:08（北京时间）\n来源对话\n手工研究笔记\n内容摘要\nPDF-QA-40e4ef832817\n张家港营业部 · 研究成果   |   模板 v1.0\n第 1 页 / 共 2 页\n\n张家港营业部\n实机报告回归\nPDF-QA-40e4ef832817\n这是独立审查正文。排队期间应能打开上一份报告，完成后应能打开更新后的报告。\n检查\n结果\n来源\n隔离数据库\n模型调用\n零\n张家港营业部 · 研究成果   |   模板 v1.0\n第 2 页 / 共 2 页\n"
+  },
+  "before_files": [
+    {
+      "name": "研究笔记-201291a4-v1.pdf",
+      "bytes": 45114,
+      "modified_at": 1791306519.6500452,
+      "url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/8b42233aa59a704953c5aa2aec2be9e21fa2daf3db8e98b4d32dfb72daf005bb.pdf",
+      "media_type": "application/pdf",
+      "template_version": "soochow-zhangjiagang-research-v1",
+      "id": "22657f5e-86bc-463d-8b7b-09d822332876",
+      "job_id": "4c067db9-e078-490a-9333-a301be93ad5a",
+      "status": "succeeded",
+      "message": "报告已生成，正文与原件已保留",
+      "source_kind": "note",
+      "source_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+      "source_revision": 1,
+      "conversation_id": "",
+      "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+      "retry_url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdf-jobs/22657f5e-86bc-463d-8b7b-09d822332876/retry"
+    }
+  ],
+  "renamed_project": {
+    "id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+    "name": "PDF实机复测原专题 40e4ef832817 更新专题 2d2306cc",
+    "objective": "仅在审查数据库副本中验证报告，不调用模型",
+    "status": "active",
+    "revision": 2,
+    "request_id": "pdf-qa-project-40e4ef832817",
+    "created_at": "2026-10-06T17:08:38+00:00",
+    "updated_at": "2026-10-06T17:08:39+00:00",
+    "companies": [],
+    "conversations": [],
+    "notes": [
+      {
+        "id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+        "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+        "title": "PDF完整正文验收 40e4ef832817",
+        "body": "# 实机报告回归\n\nPDF-QA-40e4ef832817\n\n这是独立审查正文。排队期间应能打开上一份报告，完成后应能打开更新后的报告。\n\n|检查|结果|\n|---|---|\n|来源|隔离数据库|\n|模型调用|零|",
+        "stock_code": null,
+        "validation_plan": "",
+        "invalidation_condition": "",
+        "status": "watching",
+        "revision": 1,
+        "source_conversation_id": null,
+        "source_message_id": null,
+        "request_id": "pdf-qa-note-40e4ef832817",
+        "created_at": "2026-10-06T17:08:38+00:00",
+        "updated_at": "2026-10-06T17:08:38+00:00",
+        "claim_stock_codes": [],
+        "pdf": {
+          "name": "研究笔记-201291a4-v1.pdf",
+          "bytes": 45114,
+          "modified_at": 1791306519.6500452,
+          "url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/8b42233aa59a704953c5aa2aec2be9e21fa2daf3db8e98b4d32dfb72daf005bb.pdf",
+          "media_type": "application/pdf",
+          "template_version": "soochow-zhangjiagang-research-v1",
+          "id": "22657f5e-86bc-463d-8b7b-09d822332876",
+          "job_id": "4c067db9-e078-490a-9333-a301be93ad5a",
+          "status": "succeeded",
+          "message": "报告已生成，正文与原件已保留",
+          "source_kind": "note",
+          "source_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+          "source_revision": 1,
+          "conversation_id": "",
+          "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+          "retry_url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdf-jobs/22657f5e-86bc-463d-8b7b-09d822332876/retry"
+        }
+      }
+    ]
+  },
+  "queued_replacement": {
+    "name": "研究笔记-201291a4-v1.pdf",
+    "bytes": 0,
+    "modified_at": 1791306519.0,
+    "url": null,
+    "media_type": "application/pdf",
+    "template_version": "soochow-zhangjiagang-research-v1",
+    "id": "d4074a39-3ade-41ce-bf6e-148e3aaead50",
+    "job_id": "ea3d7397-fe66-44a9-a704-a22ff2bdc9cd",
+    "status": "queued",
+    "message": "正文已保存，等待生成报告",
+    "source_kind": "note",
+    "source_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+    "source_revision": 1,
+    "conversation_id": "",
+    "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+    "retry_url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdf-jobs/d4074a39-3ade-41ce-bf6e-148e3aaead50/retry"
+  },
+  "queued_files": [
+    {
+      "conversation_id": "",
+      "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+      "modified_at": 1791306519.6500452,
+      "name": "研究笔记-201291a4-v1.pdf",
+      "bytes": 45114,
+      "media_type": "application/pdf",
+      "template_version": "soochow-zhangjiagang-research-v1",
+      "url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/8b42233aa59a704953c5aa2aec2be9e21fa2daf3db8e98b4d32dfb72daf005bb.pdf",
+      "status": "succeeded",
+      "previous": true
+    },
+    {
+      "name": "研究笔记-201291a4-v1.pdf",
+      "bytes": 0,
+      "modified_at": 1791306519.0,
+      "url": null,
+      "media_type": "application/pdf",
+      "template_version": "soochow-zhangjiagang-research-v1",
+      "id": "d4074a39-3ade-41ce-bf6e-148e3aaead50",
+      "job_id": "ea3d7397-fe66-44a9-a704-a22ff2bdc9cd",
+      "status": "queued",
+      "message": "正文已保存，等待生成报告",
+      "source_kind": "note",
+      "source_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+      "source_revision": 1,
+      "conversation_id": "",
+      "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+      "retry_url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdf-jobs/d4074a39-3ade-41ce-bf6e-148e3aaead50/retry"
+    }
+  ],
+  "completed_replacement": {
+    "name": "研究笔记-201291a4-v1.pdf",
+    "bytes": 45139,
+    "modified_at": 1791306521.4051032,
+    "url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/a737cb9098cdb7857f36a50b11831d7aff4f1531115e4a9f630dba0927fe3927.pdf",
+    "media_type": "application/pdf",
+    "template_version": "soochow-zhangjiagang-research-v1",
+    "id": "d4074a39-3ade-41ce-bf6e-148e3aaead50",
+    "job_id": "ea3d7397-fe66-44a9-a704-a22ff2bdc9cd",
+    "status": "succeeded",
+    "message": "报告已生成，正文与原件已保留",
+    "source_kind": "note",
+    "source_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+    "source_revision": 1,
+    "conversation_id": "",
+    "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+    "retry_url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdf-jobs/d4074a39-3ade-41ce-bf6e-148e3aaead50/retry"
+  },
+  "completed_files": [
+    {
+      "name": "研究笔记-201291a4-v1.pdf",
+      "bytes": 45139,
+      "modified_at": 1791306521.4051032,
+      "url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdfs/a737cb9098cdb7857f36a50b11831d7aff4f1531115e4a9f630dba0927fe3927.pdf",
+      "media_type": "application/pdf",
+      "template_version": "soochow-zhangjiagang-research-v1",
+      "id": "d4074a39-3ade-41ce-bf6e-148e3aaead50",
+      "job_id": "ea3d7397-fe66-44a9-a704-a22ff2bdc9cd",
+      "status": "succeeded",
+      "message": "报告已生成，正文与原件已保留",
+      "source_kind": "note",
+      "source_id": "201291a4-8a32-4c9a-89d2-0ac8e28fc217",
+      "source_revision": 1,
+      "conversation_id": "",
+      "project_id": "4229d0b8-dc11-465d-bd0b-8088314d4cf8",
+      "retry_url": "/api/v1/research-projects/4229d0b8-dc11-465d-bd0b-8088314d4cf8/research-pdf-jobs/d4074a39-3ade-41ce-bf6e-148e3aaead50/retry"
+    }
+  ],
+  "replacement_pdf": {
+    "path": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\live-pdf-replacement.pdf",
+    "pages": 2,
+    "bytes": 45139,
+    "text": "张家港营业部\n研 究 成 果\nPDF完整正文验收 40e4ef832817\n研究项目\nPDF实机复测原专题 40e4ef832817 更新专题 2d2306cc\n关联公司\n整个研究项目\n笔记版本\n第 1 版\n人工观点状态\n待验证\n记录时间\n2026-10-07 01:08（北京时间）\n来源对话\n手工研究笔记\n内容摘要\nPDF-QA-40e4ef832817\n张家港营业部 · 研究成果   |   模板 v1.0\n第 1 页 / 共 2 页\n\n张家港营业部\n实机报告回归\nPDF-QA-40e4ef832817\n这是独立审查正文。排队期间应能打开上一份报告，完成后应能打开更新后的报告。\n检查\n结果\n来源\n隔离数据库\n模型调用\n零\n张家港营业部 · 研究成果   |   模板 v1.0\n第 2 页 / 共 2 页\n"
+  },
+  "finished_at": "2026-10-07T01:08:41.663698+08:00"
+}

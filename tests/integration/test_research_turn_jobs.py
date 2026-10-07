@@ -24,7 +24,7 @@ def research(tmp_path, monkeypatch):
     monkeypatch.setattr(market, "security_codes", lambda _: ["600000.SH"])
     monkeypatch.setattr(market, "iter_recent_bars", lambda *_: iter([]))
     db.init_db()
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="research")["id"]
     msg = conversation_store.add_user_message(cid, "request", 0, "验证研究方法。")
     return cid, msg["turn_id"]
 
@@ -77,7 +77,7 @@ def test_expired_codex_job_is_failed_without_replaying_and_rejects_late_tools(re
     conversation_store.start_turn(cid, tid)
     with db.connect() as connection:
         connection.execute("UPDATE jobs SET lease_expires_at='2000-01-01' WHERE id=?", (old_lease.id,))
-    rejected = registry.dispatch(ToolCall("late", "get_research_state", {}), ToolContext(cid, tid, 0))
+    rejected = registry.dispatch(ToolCall("late", "get_research_state", {}), ToolContext(cid, tid, 0, workflow_type="research"))
     assert rejected["error"]["code"] == "conversation_turn_inactive"
     assert jobs.claim(old_lease.id) is None
     interrupted = conversation_store.get_turn(cid, tid)
@@ -144,6 +144,7 @@ def test_authorized_screening_handoff_runs_without_a_browser(research, monkeypat
     cid, tid = research
     monkeypatch.setattr(runtime_executor, "readiness", lambda: {"ready": True})
     conversation_store.finish_turn(cid, tid, 0, "cancelled", "准备正式筛选测试", {})
+    conversation_store.update_workflow(cid, workflow_type="screening", base_revision=0)
     tid = conversation_store.add_user_message(cid, "execute", 0, "收盘价大于10，筛一下")["turn_id"]
     queued = research_turn_service.enqueue_turn(cid, tid)
     def process(conversation_id, turn_id):

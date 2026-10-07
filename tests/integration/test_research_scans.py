@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import csv
 from datetime import date
-from io import StringIO
+from io import StringIO, BytesIO
 import sqlite3
 
 from fastapi.testclient import TestClient
 import pytest
+from pypdf import PdfReader
 
 from apps.api.app import conversation_store, db, jobs, main, market, program_conditions, research_scan_service as scans, worker
 from apps.api.app.screening_contracts import CustomProgram
@@ -35,7 +36,7 @@ def research(tmp_path, monkeypatch):
         (code, [{"trade_date": "2026-09-14", "close": float(int(code[:6]) - 599990), "quality_valid": True}])
         for code in codes]))
     db.init_db()
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="research")["id"]
     msg = conversation_store.add_user_message(cid, "research", 0, "自主计算排名，只研究，不创建正式筛选。")
     conversation_store.start_turn(cid, msg["turn_id"])
     return cid, msg["turn_id"]
@@ -61,7 +62,7 @@ def test_autonomous_mcp_scan_ranks_the_entire_universe_without_business_writes(r
     monkeypatch.setattr(scans, "BATCH_SIZE", 2)
     result = registry.dispatch(ToolCall("scan", "start_research_scan", {
         "name": "价格排序实验", "program": program().model_dump(mode="json"),
-    }), ToolContext(cid, tid, 0))
+    }), ToolContext(cid, tid, 0, workflow_type="research"))
     assert result["ok"], result
     queued = result["result"]
     assert queued["execution_mode"] == "cross_sectional"
@@ -72,6 +73,11 @@ def test_autonomous_mcp_scan_ranks_the_entire_universe_without_business_writes(r
     decisions = scans.list_decisions(cid, scan["id"])["items"]
     assert all(item["metrics"]["universe_size"] == 4 for item in decisions)
     assert [item["stock_code"] for item in decisions if item["state"] == "true"] == ["600002.SH", "600003.SH"]
+    with TestClient(main.app) as client:
+        result = client.get(scan["export_url"])
+        assert result.status_code == 200 and result.headers["content-type"] == "application/pdf"
+        exported = "\n".join(page.extract_text() for page in PdfReader(BytesIO(result.content)).pages)
+        assert "张家港营业部" in exported and "600003.SH" in exported and "universe_size" in exported
     with db.connect() as connection:
         for table in ("screening_task_runs", "execution_requests", "screening_task_revisions", "observation_executions"):
             assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
@@ -91,7 +97,7 @@ def test_scan_is_idempotent_and_frozen_results_remain_readable_in_a_followup(res
     conversation_store.start_turn(cid, next_turn["turn_id"])
     monkeypatch.setattr(market, "source_fingerprint", lambda: ("new-source", 2000, 456))
     saved = registry.dispatch(ToolCall("read", "read_research_scan", {"scan_id": queued["scan_id"]}),
-                              ToolContext(cid, next_turn["turn_id"], 0))
+                              ToolContext(cid, next_turn["turn_id"], 0, workflow_type="research"))
     assert saved["ok"] and saved["result"]["scan"]["uses_current_data"] is False
     assert saved["result"]["decisions"]["total"] == 4
     assert saved["result"]["scan"]["source_fingerprint"][1:] == [1000, 123]
@@ -179,7 +185,7 @@ def test_program_errors_remain_failed_unknown_and_can_be_repaired(research, monk
 def test_cancellation_blocks_late_checkpoints_and_foreign_conversation_access(research, monkeypatch):
     cid, _ = research
     queued = enqueue(research)
-    other = conversation_store.create_conversation("screening")["id"]
+    other = conversation_store.create_conversation("screening", workflow_type="research")["id"]
     with TestClient(main.app) as client:
         base = f"/api/v1/conversations/{other}/research-scans/{queued['scan_id']}"
         assert client.get(base).status_code == 404

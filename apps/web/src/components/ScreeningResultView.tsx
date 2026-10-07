@@ -225,23 +225,16 @@ export default function ScreeningResultView({
 
           {copyNotice && <div className="inline-feedback-badge">{copyNotice}</div>}
 
-          {coverage?.unknown_count ? (
-            <p className="conversation-unknown-note">数据不足不代表不符合。</p>
-          ) : null}
           {!!(coverage?.failed_count || coverage?.not_evaluated_count) && (
             <p className="conversation-unknown-note">
-              其中 {coverage?.failed_count ?? 0} 只处理失败，{coverage?.not_evaluated_count ?? 0} 只未处理，可展开逐股记录查看。
+              {coverage?.failed_count ?? 0} 只处理失败，{coverage?.not_evaluated_count ?? 0} 只未处理。
             </p>
           )}
 
           {coverage?.true_count === 0 && ['succeeded', 'partial'].includes(status) && (
             <div className="conversation-result-guidance">
               <strong>本次没有找到符合条件的股票</strong>
-              <p>
-                {coverage.unknown_count
-                  ? '部分股票的数据不足，补齐资料后可再次筛选。也可以在对话中调整条件。'
-                  : '可以在对话中放宽阈值、调整范围或修改截止日，再次筛选。'}
-              </p>
+              {!!coverage.unknown_count && <p>部分股票数据不足。</p>}
               {onAdjustRequirements && (
                 <button type="button" className="text-button" onClick={onAdjustRequirements}>
                   调整筛选要求
@@ -253,7 +246,7 @@ export default function ScreeningResultView({
           {['failed', 'cancelled'].includes(status) && (
             <div className="conversation-result-guidance">
               <strong>{status === 'failed' ? '这次筛选未能完成' : '这次筛选已取消'}</strong>
-              <p>{progress?.message || '可以核对条件后重新发起筛选。'}</p>
+              {progress?.message && <p>{progress.message}</p>}
             </div>
           )}
 

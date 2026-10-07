@@ -1,4 +1,5 @@
 from apps.api.app.market import STOCK_FILE, iter_recent_bars
+import pytest
 
 
 def test_replacing_sample_parquet_refreshes_profile_without_restart(tmp_path, monkeypatch):
@@ -21,7 +22,7 @@ def test_replacing_sample_parquet_refreshes_profile_without_restart(tmp_path, mo
 
 def test_real_dataset_scanner_yields_typed_as_of_bars() -> None:
     if not STOCK_FILE.is_file():
-        return
+        pytest.skip("Real market data is not mounted; synthetic scanner coverage runs independently")
     stock_code, bars = next(iter_recent_bars("2026-09-14", per_stock=30))
     assert stock_code.endswith((".SH", ".SZ", ".BJ"))
     assert 10 <= len(bars) <= 30

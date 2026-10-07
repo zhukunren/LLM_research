@@ -46,7 +46,7 @@ def _task(conversation_id: str) -> dict:
 def test_codex_task_tools_save_revision_and_authorize_only_current_explicit_request(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "codex-task-tools.db")
     db.init_db()
-    conversation = conversation_store.create_conversation("screening")
+    conversation = conversation_store.create_conversation("screening", workflow_type="screening")
     message = conversation_store.add_user_message(
         conversation["id"], "codex-task-message", 0, "收盘价高于20日均线，筛一下"
     )
@@ -85,7 +85,7 @@ def test_codex_task_tools_save_revision_and_authorize_only_current_explicit_requ
 def test_codex_task_tool_repairs_structural_aliases_but_keeps_missing_scope_unresolved(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "codex-task-repair.db")
     db.init_db()
-    conversation = conversation_store.create_conversation("screening")
+    conversation = conversation_store.create_conversation("screening", workflow_type="screening")
     message = conversation_store.add_user_message(
         conversation["id"], "codex-task-repair", 0, "请保存筛选草稿：收盘价高于20日均线。"
     )
@@ -126,7 +126,7 @@ def turn_context(tmp_path, monkeypatch):
     db.init_db()
 
     def create(content="条件A或者非条件B，截至2026-09-14，筛一下", *, ready=False):
-        cid = conversation_store.create_conversation("screening")["id"]
+        cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
         message = conversation_store.add_user_message(cid, "request", 0, content)
         conversation_store.start_turn(cid, message["turn_id"])
         if ready:
@@ -233,7 +233,7 @@ def test_codex_save_is_visible_reusable_and_idempotent_without_execution(turn_co
     with TestClient(main.app) as client:
         assets = client.get("/api/v1/saved-screening-tasks").json()["items"]
         assert [item["id"] for item in assets] == [asset_id]
-        cid = client.post("/api/v1/conversations", json={"entry_scope": "screening"}).json()["id"]
+        cid = client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "screening"}).json()["id"]
         message = client.post(f"/api/v1/conversations/{cid}/messages", json={
             "client_message_id": "reuse", "base_revision": 0, "content": "复用趋势方案",
         }).json()
@@ -267,4 +267,3 @@ def test_trading_day_news_window_is_blocked_before_execution():
     import pytest
     with pytest.raises(ValueError, match="自然日"):
         validate_executable_task(task)
-

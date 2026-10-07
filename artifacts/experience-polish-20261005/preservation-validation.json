@@ -1,0 +1,47 @@
+{
+  "row_counts_unchanged": true,
+  "changed_counts": {},
+  "content_checks": [
+    {
+      "table": "conversations",
+      "records": 11,
+      "unchanged": true
+    },
+    {
+      "table": "conversation_messages",
+      "records": 60,
+      "unchanged": true
+    },
+    {
+      "table": "conversation_turns",
+      "records": 30,
+      "unchanged": true
+    },
+    {
+      "table": "research_projects",
+      "records": 0,
+      "unchanged": true
+    },
+    {
+      "table": "research_notes",
+      "records": 0,
+      "unchanged": true
+    },
+    {
+      "table": "research_observation_candidates",
+      "records": 0,
+      "unchanged": true
+    },
+    {
+      "table": "screening_task_runs",
+      "records": 6,
+      "unchanged": true
+    },
+    {
+      "table": "screening_task_decisions",
+      "records": 33400,
+      "unchanged": true
+    }
+  ],
+  "active_turns": 0
+}

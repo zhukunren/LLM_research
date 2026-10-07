@@ -27,6 +27,10 @@ MAX_STOCK_SEARCH_RESULTS = 50
 MAX_REPORT_SEARCH_RESULTS = 30
 MAX_REPORT_PAGE_CHARS = 12_000
 TASK_MUTATION_TOOLS = frozenset({"propose_screening_task"})
+SCREENING_WORKFLOW_TOOLS = frozenset({
+    "propose_screening_task", "save_screening_plan", "authorize_screening_execution",
+    "revoke_screening_execution", "preview_screening_program", "execute_screening_task",
+})
 
 class ToolArgs(StrictModel):
     pass
@@ -53,12 +57,14 @@ class SearchSecuritiesArgs(ToolArgs):
 class ReadMarketWindowArgs(ToolArgs):
     stock_code: str = Field(pattern=r"^\d{6}\.(SH|SZ|BJ)$")
     limit: int = Field(ge=1, le=500)
+    as_of: date | None = None
 
 
 class SearchReportPagesArgs(ToolArgs):
     query: str = Field(min_length=1, max_length=300)
     stock_code: str | None
     limit: int = Field(ge=1, le=MAX_REPORT_SEARCH_RESULTS)
+    mode: Literal["smart", "exact"] = "smart"
 
 
 class ReadReportPageArgs(ToolArgs):
@@ -154,6 +160,9 @@ class ToolContext:
     news_lookback_calendar_days: int | None = None
     allowed_document_ids: frozenset[str] | None = None
     allowed_news_ids: frozenset[str] | None = None
+    workflow_type: str = "screening"
+    research_depth: str = "standard"
+    research_scope_revision: int = 0
 
 
 @dataclass(frozen=True)
@@ -200,6 +209,12 @@ def _data_source_id() -> str | None:
 
 
 def _check_market_scope(context: ToolContext, stock_code: str) -> None:
+    if context.workflow_type == "research":
+        if stock_code.rsplit(".", 1)[-1] not in ALLOWED_MARKETS:
+            raise ToolDispatchError("market_unavailable", "当前只接入沪深北市场日线")
+        if context.stock_codes is not None and stock_code not in context.stock_codes:
+            raise ToolDispatchError("security_outside_research_scope", "证券不在当前回合的研究范围内")
+        return
     if not context.as_of:
         raise ToolDispatchError("as_of_required", "请先确定筛选截止日")
     if context.universe_kind is None:
@@ -214,7 +229,7 @@ def _check_market_scope(context: ToolContext, stock_code: str) -> None:
 
 
 def _describe_capabilities(args: ToolArgs, _: ToolContext) -> dict[str, Any]:
-    from .main import screening_capability_manifest
+    from .capability_service import screening_capability_manifest
 
     manifest = screening_capability_manifest()
     capabilities = manifest["capabilities"]
@@ -226,27 +241,30 @@ def _describe_capabilities(args: ToolArgs, _: ToolContext) -> dict[str, Any]:
 
 
 def _market_coverage(_: ToolArgs, __: ToolContext) -> dict[str, Any]:
-    from .main import data_coverage
+    from .capability_service import data_coverage
 
     return data_coverage()
 
 
 def _search_securities(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
-    if not context.as_of:
+    as_of = context.as_of
+    if context.workflow_type == "research" and not as_of:
+        as_of = market.cached_profile().get("last_date")
+    if not as_of:
         raise ToolDispatchError("as_of_required", "搜索证券前请先确定筛选截止日")
-    if context.universe_kind is None:
+    if context.universe_kind is None and context.workflow_type != "research":
         raise ToolDispatchError("universe_required", "搜索证券前请先确定股票范围")
     items = market.search_securities(
         args.query,
         args.market_code or "",
         args.limit,
-        as_of=context.as_of,
+        as_of=as_of,
     )
     if context.universe_kind not in {None, "all_a_shares"}:
         allowed = context.stock_codes or frozenset()
         items = [item for item in items if item["stock_code"] in allowed]
     return {
-        "as_of": context.as_of,
+        "as_of": as_of,
         "items": items,
         "coverage_note": "只返回截至指定日有行情的证券；代码搜索不是公司名称、行业或证券资格数据。",
     }
@@ -254,10 +272,20 @@ def _search_securities(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
 
 def _read_market_window(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
     _check_market_scope(context, args.stock_code)
-    bars = market.get_bars(args.stock_code, context.as_of, args.limit)
+    as_of = context.as_of
+    if context.workflow_type == "research":
+        requested = args.as_of.isoformat() if args.as_of else None
+        if as_of and requested and requested > as_of:
+            raise ToolDispatchError("date_outside_research_scope", "请求日期晚于当前回合的研究截止日")
+        as_of = requested or as_of or market.cached_profile().get("last_date")
+        if not as_of:
+            raise ToolDispatchError("market_date_unavailable", "本地行情没有可用日期")
+    elif args.as_of and args.as_of.isoformat() != as_of:
+        raise ToolDispatchError("date_outside_screening_scope", "行情读取必须使用当前筛选方案的截止日")
+    bars = market.get_bars(args.stock_code, as_of, args.limit)
     return {
         "stock_code": args.stock_code,
-        "requested_as_of": context.as_of,
+        "requested_as_of": as_of,
         "last_bar_date": bars[-1]["trade_date"] if bars else None,
         "bars": bars,
         "source_id": _data_source_id(),
@@ -272,43 +300,38 @@ def _search_report_pages(args: ToolArgs, context: ToolContext) -> dict[str, Any]
         _check_market_scope(context, args.stock_code)
     elif context.universe_kind == "explicit" and context.stock_codes and len(context.stock_codes) == 1:
         args = args.model_copy(update={"stock_code": next(iter(context.stock_codes))})
-    items = documents.search_pages(
+    earliest = None
+    if context.report_lookback_calendar_days is not None and context.as_of:
+        earliest = (date.fromisoformat(context.as_of) - timedelta(days=context.report_lookback_calendar_days)).isoformat()
+    filters = dict(mode=args.mode, allowed_source_ids=context.allowed_document_ids,
+                   available_after=earliest,
+                   stock_codes=context.stock_codes if context.universe_kind == "explicit" else None)
+    result = documents.search(
         args.query,
         context.as_of,
         args.stock_code,
         args.limit,
+        confirmed_security_only=bool(args.stock_code),
+        **filters,
     )
-    if context.allowed_document_ids is not None:
-        items = [item for item in items if item["document_id"] in context.allowed_document_ids]
+    items = result["items"]
     unverified_security_hits = 0
     if args.stock_code:
-        verified = [
-            item for item in items
-            if item["stock_code"] == args.stock_code
-            and item["security_binding_status"] == "confirmed"
-        ]
-        unverified_security_hits = len(items) - len(verified)
-        items = verified
+        broader = documents.search(args.query, context.as_of, args.stock_code, 1, **filters)
+        unverified_security_hits = broader["total"] - result["total"]
     else:
         for item in items:
             item["eligible_for_specific_security_screening"] = (
                 item["stock_code"] is not None
                 and item["security_binding_status"] == "confirmed"
             )
-    if context.report_lookback_calendar_days is not None and context.as_of:
-        cutoff = date.fromisoformat(context.as_of) - timedelta(
-            days=context.report_lookback_calendar_days
-        )
-        items = [
-            item for item in items
-            if item["available_at"] and date.fromisoformat(item["available_at"]) >= cutoff
-        ]
     return {
+        **result,
         "as_of": context.as_of,
         "items": items,
         "excluded_unverified_security_hits": unverified_security_hits,
         "scope": "indexed_local_pages",
-        "coverage_note": "返回明确的同页关键词命中；证券未确认绑定的研报不作为单股证据；未命中文档不能据此判为不存在相关事实。",
+        "coverage_note": result["coverage_note"] + "证券未确认绑定的研报不作为单股证据。",
     }
 
 
@@ -518,6 +541,17 @@ def _current_turn_user_message(context: ToolContext) -> dict[str, Any]:
 
 def _research_state(_: ToolArgs, context: ToolContext) -> dict[str, Any]:
     conversation = conversation_store.get_conversation(context.conversation_id, message_limit=50)
+    if context.workflow_type == "research":
+        return {
+            "conversation_id": context.conversation_id, "turn_id": context.turn_id,
+            "workflow_type": "research", "research_depth": context.research_depth,
+            "research_scope_revision": context.research_scope_revision,
+            "research_scope": {"as_of": context.as_of, "stock_codes": sorted(context.stock_codes) if context.stock_codes is not None else [],
+                               "report_lookback_calendar_days": context.report_lookback_calendar_days,
+                               "news_lookback_calendar_days": context.news_lookback_calendar_days},
+            "task_revision": 0, "task": None, "pending_execution_message_id": None,
+            "note": "研究状态独立于筛选方案；可操作的判断可通过研究回答的转换动作形成独立选股草稿。",
+        }
     task = None
     if conversation["task_revision"]:
         try:
@@ -890,16 +924,17 @@ class ToolRegistry:
     def registered_tool_names(self) -> set[str]:
         return set(self._registrations)
 
-    def tools_for_codex(self) -> list[ToolDefinition]:
-        from .main import screening_capability_manifest
+    def tools_for_codex(self, context: ToolContext | None = None) -> list[ToolDefinition]:
+        from .capability_service import screening_capability_manifest
 
         manifest = screening_capability_manifest()
         availability = {item["id"]: item["availability"] for item in manifest["capabilities"]}
         return [
             registration.tool
             for registration in self._registrations.values()
-            if registration.capability_id is None
-            or availability.get(registration.capability_id, "unavailable") != "unavailable"
+            if (context is None or context.workflow_type == "screening" or registration.tool.name not in SCREENING_WORKFLOW_TOOLS)
+            and (registration.capability_id is None
+                 or availability.get(registration.capability_id, "unavailable") != "unavailable")
         ]
 
     def dispatch(self, call: ToolCall, context: ToolContext) -> dict[str, Any]:
@@ -930,8 +965,11 @@ class ToolRegistry:
             return self._finish_call(
                 call, context, {"ok": False, "error": {"code": "unknown_tool", "message": "没有注册此工具"}}, failed=True
             )
+        if context.workflow_type != "screening" and call.name in SCREENING_WORKFLOW_TOOLS:
+            return self._finish_call(call, context, self._error(
+                "screening_workflow_required", "此动作属于条件选股。请把研究判断转为独立选股草稿后，在条件选股工作区继续。"), failed=True)
         if registration.capability_id:
-            from .main import screening_capability_manifest
+            from .capability_service import screening_capability_manifest
 
             available = {
                 item["id"]: item["availability"]
@@ -1021,7 +1059,7 @@ class ToolRegistry:
                 (context.conversation_id,),
             ).fetchone()
             turn = connection.execute(
-                "SELECT conversation_id,state FROM conversation_turns WHERE id=?",
+                "SELECT conversation_id,state,workflow_type,research_depth,research_scope_revision,research_scope_json FROM conversation_turns WHERE id=?",
                 (context.turn_id,),
             ).fetchone()
             if not conversation or not turn or turn["conversation_id"] != context.conversation_id:
@@ -1035,7 +1073,19 @@ class ToolRegistry:
                     raise ToolDispatchError("conversation_turn_inactive", str(exc)) from exc
             elif connection.execute("SELECT 1 FROM research_turn_jobs WHERE turn_id=?", (context.turn_id,)).fetchone():
                 raise ToolDispatchError("conversation_turn_inactive", "后台研究尚未开始，不能提前调用工具")
-            if conversation["task_revision"] != context.task_revision:
+            if turn["workflow_type"] != context.workflow_type:
+                raise ToolDispatchError("workflow_conflict", "工具上下文与当前回合工作类型不一致")
+            if context.workflow_type == "research" and turn["research_scope_revision"] != context.research_scope_revision:
+                raise ToolDispatchError("research_scope_conflict", "工具上下文与当前回合的研究范围版本不一致")
+            if context.workflow_type == "research":
+                pinned = json_load(turn["research_scope_json"])
+                codes = frozenset(pinned.get("stock_codes") or []) or None
+                if (context.as_of != pinned.get("as_of") or context.stock_codes != codes
+                    or context.report_lookback_calendar_days != pinned.get("report_lookback_calendar_days")
+                    or context.news_lookback_calendar_days != pinned.get("news_lookback_calendar_days")
+                    or context.research_depth != turn["research_depth"]):
+                    raise ToolDispatchError("research_scope_conflict", "工具上下文不能改写当前回合冻结的研究范围")
+            if context.workflow_type == "screening" and conversation["task_revision"] != context.task_revision:
                 raise ToolDispatchError("revision_conflict", "对话条件已更新，请重新读取当前版本")
 
             existing = connection.execute(
@@ -1093,14 +1143,18 @@ class ToolRegistry:
         with connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             turn = connection.execute(
-                """SELECT t.state,c.task_revision,c.state AS conversation_state
+                """SELECT t.state,t.workflow_type,t.research_scope_revision,c.task_revision,c.state AS conversation_state
                    FROM conversation_turns t JOIN conversations c ON c.id=t.conversation_id
                    WHERE t.id=? AND t.conversation_id=?""",
                 (context.turn_id, context.conversation_id),
             ).fetchone()
             revision_is_current = turn and (
-                turn["task_revision"] == context.task_revision
+                (turn["workflow_type"] == "research" and context.workflow_type == "research"
+                 and turn["research_scope_revision"] == context.research_scope_revision)
+                or (turn["workflow_type"] == "screening" and context.workflow_type == "screening" and turn["task_revision"] == context.task_revision)
                 or (
+                    turn["workflow_type"] == "screening" and context.workflow_type == "screening"
+                    and
                     call.name in TASK_MUTATION_TOOLS
                     and turn["task_revision"] == context.task_revision + 1
                 )
@@ -1150,7 +1204,7 @@ def _register_default_tools(registry: ToolRegistry) -> None:
     registry.register("get_market_coverage", "Read the market watermark, fields, units, and source identity.", EmptyToolArgs, _market_coverage)
     registry.register("search_securities", "Search securities within the fixed date and universe context.", SearchSecuritiesArgs, _search_securities, "market.security_search")
     registry.register("read_market_window", "Read up to 500 ordered daily bars for one security inside the fixed task scope.", ReadMarketWindowArgs, _read_market_window, "market.daily_bars")
-    registry.register("search_report_pages", "Find same-page keyword matches in indexed local reports.", SearchReportPagesArgs, _search_report_pages, "report.page_search")
+    registry.register("search_report_pages", "Find local report page text by relevance; smart uses lexical expansion, exact requires all keywords on one page. Read originals to verify claims.", SearchReportPagesArgs, _search_report_pages, "report.page_search")
     registry.register("read_report_page", "Read one page with availability and security-binding status.", ReadReportPageArgs, _read_report_page, "report.page_search")
     registry.register("inspect_saved_conditions", "Read saved immutable conditions, combinations, and patterns.", InspectSavedConditionsArgs, _inspect_saved_conditions, "portfolio.inspect_saved_conditions")
     registry.register("read_artifact_chunk", "Read a bounded JSON artifact chunk by id and character offset.", ReadArtifactChunkArgs, _read_artifact, "runtime.artifact_read")

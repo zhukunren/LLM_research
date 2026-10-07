@@ -13,7 +13,7 @@ def test_codex_executes_and_reads_results_in_same_active_turn(client, monkeypatc
     from apps.api.app.screening_contracts import ScreeningTaskRevision
     from apps.api.app.screening_tools import ToolContext, registry
     from apps.api.app.tool_protocol import ToolCall
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
     prompt = "收盘价高于20日均线，筛一下"
     msg = conversation_store.add_user_message(cid, "research-execute", 0, prompt)
     conversation_store.start_turn(cid, msg["turn_id"])
@@ -46,7 +46,7 @@ def test_active_research_cannot_execute_from_discussion_only(client):
     from apps.api.app.screening_contracts import ScreeningTaskRevision
     from apps.api.app.screening_tools import ToolContext, registry
     from apps.api.app.tool_protocol import ToolCall
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
     prompt = "只讨论收盘价高于20日均线，不要执行"
     msg = conversation_store.add_user_message(cid, "discussion", 0, prompt)
     conversation_store.start_turn(cid, msg["turn_id"])
@@ -111,7 +111,7 @@ def task_payload(conversation_id: str, prompt: str, *, universe=None, custom_pro
 
 
 def create_authorized_turn(client: TestClient, *, universe=None, watchlist_id=None, custom_program=False):
-    conversation = client.post("/api/v1/conversations", json={"entry_scope": "screening"}).json()
+    conversation = client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "screening"}).json()
     prompt = "收盘价高于20日均线，筛一下"
     message_response = client.post(
         f"/api/v1/conversations/{conversation['id']}/messages",
@@ -248,7 +248,7 @@ def test_enqueue_is_concurrent_idempotent_and_old_worker_cannot_claim_protocol(c
 
 def create_button_turn(client, *, incomplete=False):
     from apps.api.app.screening_contracts import ScreeningTaskRevision
-    cid = conversation_store.create_conversation("screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
     prompt = "帮我整理收盘价高于20日均线的条件，先不执行"
     message = conversation_store.add_user_message(cid, "draft", 0, prompt)
     raw = task_payload(cid, prompt)

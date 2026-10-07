@@ -19,6 +19,8 @@ EvaluationStatus = Literal["completed", "failed", "not_evaluated"]
 ConditionLibrary = Literal["technical", "news", "report", "pattern", "ranking"]
 ConversationScope = Literal["technical", "news", "report", "pattern", "screening"]
 ResearchMode = Literal["research", "screening", "advanced"]
+WorkflowType = Literal["research", "screening"]
+ResearchDepth = Literal["standard", "deep"]
 MAX_MESSAGE_CHARS = 8000
 MAX_LOGIC_NODES = 1000
 MAX_LOGIC_CHILDREN = 200
@@ -33,10 +35,68 @@ class CreateConversationRequest(ContractModel):
     entry_scope: ConversationScope
     research_mode: ResearchMode | None = None
     project_id: str | None = Field(default=None, min_length=1, max_length=100)
+    workflow_type: WorkflowType | None = None
+    research_depth: ResearchDepth | None = None
 
 
 class UpdateResearchModeRequest(ContractModel):
     research_mode: ResearchMode
+
+
+class ResearchScope(ContractModel):
+    """An exploratory data scope, independent of a saved screening task."""
+
+    as_of: date | None = None
+    stock_codes: list[str] = Field(default_factory=list, max_length=20000)
+    report_lookback_calendar_days: int | None = Field(default=None, ge=1, le=3650)
+    news_lookback_calendar_days: int | None = Field(default=None, ge=1, le=3650)
+    price_basis: Literal["unadjusted", "forward_adjusted", "back_adjusted", "unknown"] | None = None
+
+    @field_validator("stock_codes")
+    @classmethod
+    def valid_research_stock_codes(cls, value: list[str]) -> list[str]:
+        normalized = [code.upper() for code in value]
+        if any(not re.fullmatch(r"\d{4,6}\.(SH|SZ|BJ|HK|KS)", code) for code in normalized):
+            raise ValueError("研究范围证券代码无效")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("研究范围证券代码不能重复")
+        return sorted(normalized)
+
+
+class UpdateWorkflowRequest(ContractModel):
+    workflow_type: WorkflowType | None = None
+    research_depth: ResearchDepth | None = None
+    base_revision: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def has_update(self):
+        if self.workflow_type is None and self.research_depth is None:
+            raise ValueError("请指定工作流或研究深度")
+        return self
+
+
+class UpdateResearchScopeRequest(ResearchScope):
+    base_revision: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def has_scope_update(self):
+        if not self.model_fields_set - {"base_revision"}:
+            raise ValueError("请指定要修改的研究范围")
+        return self
+
+
+class CreateScreeningDraftRequest(ContractModel):
+    request_id: str = Field(min_length=1, max_length=100)
+    source_message_id: str = Field(min_length=1, max_length=100)
+    instructions: str = Field(min_length=1, max_length=3000)
+
+    @field_validator("instructions")
+    @classmethod
+    def actionable_instructions(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("请填写可操作的选股条件描述")
+        return value
 
 
 class ConversationSourceReference(ContractModel):
@@ -63,6 +123,7 @@ class AddUserMessageRequest(ContractModel):
     base_revision: int = Field(ge=0)
     content: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
     source_refs: list[ConversationSourceReference] = Field(default_factory=list, max_length=8)
+    research_scope_revision: int | None = Field(default=None, ge=0)
 
 
 class IntentProposal(ContractModel):

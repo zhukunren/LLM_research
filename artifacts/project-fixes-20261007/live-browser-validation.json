@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-07",
+  "browser": "本机Chrome",
+  "scope": "真实API与业务数据库副本；无HTTP mock；本轮不调模型",
+  "checks": [
+    {
+      "case": "连续新建两份笔记",
+      "status": "passed",
+      "evidence": "第二次新建标题/正文为空，两份笔记均实际保存"
+    },
+    {
+      "case": "连续编辑笔记",
+      "status": "passed",
+      "evidence": "重开显示版本2正文，再次保存版本3成功，无旧版本冲突"
+    },
+    {
+      "case": "真实Chrome跨来源表单POST",
+      "status": "blocked_by_browser",
+      "evidence": "Chrome显示ERR_BLOCKED_BY_CLIENT，不能据此认定请求到达API；同一Origin的真实HTTP复测403且data_sync任务为0"
+    },
+    {
+      "case": "API拒绝私网资讯地址",
+      "status": "passed",
+      "evidence": "真实HTTP422，fix-private-url-check没有入库"
+    },
+    {
+      "case": "失败答复不能加入观察",
+      "status": "passed",
+      "evidence": "现有failed研究答复真实HTTP409，候选数量不变"
+    },
+    {
+      "case": "PDF重新生成期间可访问",
+      "status": "passed",
+      "evidence": "真实HTTP19次均200，排队旧PDF可读，新版含新专题名，详见live-pdf-validation.json"
+    }
+  ],
+  "notes_api_evidence": "live-notes-validation.json",
+  "policy_api_evidence": "live-origin-validation.json/live-observation-validation.json",
+  "limitations": [
+    "首次消息失败和笔记丢失响应由正式回归测试注入，未在Chrome制造网络断连",
+    "跨来源表单被Chrome自身阻断；服务端拒绝在真实HTTP复测确认"
+  ]
+}

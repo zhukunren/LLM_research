@@ -1,0 +1,61 @@
+{
+  "sha256": "cffd055816afb7d9c9ea37a8324677c4a2aeaba03463b44eef46f93fa057c7be",
+  "source": "D:\\项目\\LLM_research\\runtime\\app.db",
+  "copied_jobs": [
+    {
+      "kind": "report_evaluation",
+      "state": "partial",
+      "count": 1
+    },
+    {
+      "kind": "report_metadata",
+      "state": "failed",
+      "count": 5
+    },
+    {
+      "kind": "report_metadata",
+      "state": "succeeded",
+      "count": 12
+    },
+    {
+      "kind": "research_turn",
+      "state": "cancelled",
+      "count": 1
+    },
+    {
+      "kind": "research_turn",
+      "state": "failed",
+      "count": 3
+    },
+    {
+      "kind": "research_turn",
+      "state": "succeeded",
+      "count": 9
+    },
+    {
+      "kind": "screening",
+      "state": "cancelled",
+      "count": 1
+    },
+    {
+      "kind": "screening",
+      "state": "failed",
+      "count": 1
+    },
+    {
+      "kind": "screening",
+      "state": "partial",
+      "count": 6
+    },
+    {
+      "kind": "screening",
+      "state": "succeeded",
+      "count": 3
+    },
+    {
+      "kind": "screening_task",
+      "state": "partial",
+      "count": 6
+    }
+  ]
+}

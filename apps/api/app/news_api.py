@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from . import news_sources
 from . import news_library
+from .news_companies import chart_companies
 from .model_client import ModelRequestError
 
 router = APIRouter(prefix="/api/v1/news", tags=["本地资讯"])
@@ -62,7 +63,8 @@ def import_news_text(request_id: str, title: str, source: str,
 @router.get("/{item_id}")
 def get_news(item_id: str):
     try:
-        return news_sources.get_item(item_id)
+        item = news_sources.get_item(item_id)
+        return {**item, "chart_companies": chart_companies(item)}
     except news_sources.NewsError as exc:
         _error(exc)
 

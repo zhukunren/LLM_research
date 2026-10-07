@@ -1,0 +1,120 @@
+{
+  "case_count": 1,
+  "run_dates_asia_shanghai": [
+    "2026-10-05",
+    "2026-10-06"
+  ],
+  "information_cutoff": "2026-02-01",
+  "same_prompt_verified": true,
+  "project_empty_local_library": true,
+  "project_separate_threads": true,
+  "project_metrics": [
+    {
+      "depth": "standard",
+      "state": "succeeded",
+      "seconds": 688.8,
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "web_action_count_including_search_open_find": 10,
+      "native_image_view_count": 3,
+      "mcp_tool_calls": 15,
+      "mcp_states": {
+        "succeeded": 9,
+        "failed": 6
+      }
+    },
+    {
+      "depth": "deep",
+      "state": "succeeded",
+      "seconds": 1023.0,
+      "model": "gpt-6-luna",
+      "reasoning_effort": "max",
+      "web_action_count_including_search_open_find": 11,
+      "native_image_view_count": 4,
+      "mcp_tool_calls": 16,
+      "mcp_states": {
+        "succeeded": 12,
+        "failed": 4
+      }
+    }
+  ],
+  "chatgpt_web": {
+    "mode": "深度研究",
+    "displayed_strength": "Extra High / 极高",
+    "model": "页面未显示",
+    "url": "https://chatgpt.com/c/6ac3c69b-2d8c-83ec-bf2a-a0a827943fa9",
+    "displayed_duration": "5m",
+    "displayed_sources": 0,
+    "displayed_citations": 0,
+    "displayed_searches": 0,
+    "report_link_count": 0,
+    "internal_tool_activity": "Unavailable; UI counters do not prove that no backend search occurred."
+  },
+  "manual_review": {
+    "primary_baseline": {
+      "source": "https://ourbrand.asml.com/m/c416bb685db46ca0/original/ASML-Press-Release-Q4-and-full-year-2025-financial-results.pdf",
+      "publication_date": "2026-01-28",
+      "physical_page": 1,
+      "unit": "EUR million",
+      "sales_2024": 28263,
+      "sales_2025": 32667,
+      "sales_yoy_percent": 15.5822099564802,
+      "bookings_q4_2025": 13158,
+      "bookings_fy_2025": 28035,
+      "q4_share_percent": 46.9341894060995,
+      "backlog_2025": 38797,
+      "2026_guidance_eur_billion": [
+        34,
+        39
+      ]
+    },
+    "standard": {
+      "key_amounts_units_and_calculations": "verified",
+      "source_cutoff": "Cited core disclosures are dated before the cutoff; historical availability is not automatically certified.",
+      "counterevidence": "TSMC/Micron primary materials; distinguishes management statements from independent verification.",
+      "citation_issue": "The linked ASML 2024 report places Zeiss capacity restrictions on printed page 71; answer says 70.",
+      "overall_pass": false
+    },
+    "deep": {
+      "key_amounts_units_and_calculations": "verified",
+      "additional_work": "ASML order end-use chart and AI attribution; Intel dependency risk; SK hynix customer demand coverage.",
+      "chart_review": "Official presentation page 11 visibly labels Logic 44%, Memory 56%, with no separate AI category.",
+      "citation_issue": "TSMC new-fab/timing passage is physical page 14; direct wafer-vs-power statement is page 18. Answer cites 9/13/17 collectively.",
+      "overall_pass": false
+    },
+    "web": {
+      "percentage_calculations": "Rounded percentages are consistent with the primary baseline.",
+      "issues": [
+        "Summary sales in Chinese 亿 are understated by a factor of ten.",
+        "2026 guidance in Chinese 亿 is understated by a factor of ten.",
+        "The 7,516 million row belongs to Q3 2025, not Q4 2024.",
+        "The orders-greater-than-sales argument follows from the inconsistent units and is numerically incorrect.",
+        "No source URLs or usable citation locators are provided in the report; primary customer evidence cannot be audited from the answer."
+      ],
+      "overall_pass": false
+    }
+  },
+  "changes": [
+    "Explicit physical/printed/zero-based page distinction and footer-boundary verification.",
+    "Explicit claim-to-passage matching using distinctive wording and surrounding context.",
+    "Cross-check million/billion conversions and summary/body/table consistency.",
+    "Reusable isolated live-evaluation CLI and review guidance."
+  ],
+  "code_validation": {
+    "related_tests_passed": 28,
+    "python_compile": "passed",
+    "cli_help": "passed"
+  },
+  "limits": [
+    "One question with one initial sample per mode; not a general model/product ranking.",
+    "ChatGPT page does not identify its underlying model.",
+    "Web duration is a displayed value; project duration is measured end to end.",
+    "Instructions and successful narrow probes do not guarantee correct citations on future reports.",
+    "Some official sources return 403 and require another legitimate primary-source reading path."
+  ],
+  "targeted_followup": {
+    "state": "succeeded",
+    "response": "存在。魏哲家明确说“目前”瓶颈是台积电晶圆供应，而非电力；PDF物理页 **18**，印刷页 **18**。第10页是他转述客户的看法，不是这句直接判断。[原始逐字稿](https://investor.tsmc.com/english/encrypt/files/encrypt_file/reports/2026-01/51d09df96cd89ac19d65af39032b038dc2896a24/TSMC%204Q25%20Transcript.pdf)",
+    "notes": "Precise original wording was supplied for a targeted locator check; this is not a blind repeat of the full benchmark."
+  }
+}

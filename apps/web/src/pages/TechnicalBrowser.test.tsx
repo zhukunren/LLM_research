@@ -62,3 +62,26 @@ it('renders all three Bollinger lines together on the price chart', async () => 
   expect(screen.getByText('中轨')).toBeInTheDocument()
   expect(screen.getByText('下轨')).toBeInTheDocument()
 })
+
+it('finds indicators by abbreviation and recovers from an empty search', async () => {
+  const user = userEvent.setup()
+  render(<TechnicalBrowser data={{ available: true, last_date: '2026-09-14' } as never} onDescribe={vi.fn()} />)
+  await screen.findByRole('button', { name: /相对强弱指标/ })
+  const search = screen.getByRole('searchbox', { name: '搜索技术指标' })
+  await user.type(search, 'rsi')
+  expect(screen.getByRole('button', { name: /相对强弱指标/ })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /布林带/ })).not.toBeInTheDocument()
+  await user.clear(search); await user.type(search, '不存在的指标')
+  expect(screen.getByText('没有匹配的指标。')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '查看全部指标' }))
+  expect(screen.getByRole('button', { name: /布林带/ })).toBeInTheDocument()
+})
+it('keeps indicator catalog failures visible when preview loading completes', async () => {
+  mocked.mockImplementation(async path => {
+    if (path === '/indicators') throw new Error('目录暂不可用')
+    return preview('sma', 'overlay')
+  })
+  render(<TechnicalBrowser data={{ available: true, last_date: '2026-09-14' } as never} onDescribe={vi.fn()} />)
+  await screen.findByRole('img', { name: 'K线主图叠加指标走势' })
+  expect(screen.getByRole('alert')).toHaveTextContent('目录暂不可用')
+})

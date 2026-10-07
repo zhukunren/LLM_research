@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse, FileResponse
 
-from . import codex_runtime, codex_store, conversation_store, research_workspace, research_turn_service
+from . import codex_runtime, codex_store, conversation_store, research_workspace, research_turn_service, research_pdf, research_pdf_service
+from pydantic import BaseModel, Field
 from .settings import default_research_mode
 from .screening_contracts import (
     AddUserMessageRequest,
@@ -11,9 +12,13 @@ from .screening_contracts import (
     CreateConversationRequest,
     SaveTaskRevisionRequest,
     UpdateResearchModeRequest,
+    UpdateWorkflowRequest,
+    UpdateResearchScopeRequest,
+    CreateScreeningDraftRequest,
+    ResearchScope,
 )
 
-router = APIRouter(prefix="/api/v1/conversations", tags=["对话式筛选"])
+router = APIRouter(prefix="/api/v1/conversations", tags=["投研与选股工作流"])
 
 
 @router.get("/research-modes")
@@ -21,26 +26,89 @@ def get_research_modes():
     return {"default_mode": default_research_mode()}
 
 
+@router.get("/research-pdf-template")
+def research_pdf_template():
+    return FileResponse(research_pdf.ASSETS / "template-preview.pdf", filename="东吴证券-张家港营业部-研究成果模板.pdf", media_type="application/pdf", content_disposition_type="inline", headers={"X-Content-Type-Options": "nosniff"})
+
+
 @router.get("/{conversation_id}/research-files")
 def list_research_files(conversation_id: str):
     try:
-        conversation_store.get_conversation(conversation_id, message_limit=1)
-        return {"items": research_workspace.list_outputs(conversation_id)}
+        return {"items": research_pdf.list_deliverables(conversation_id), "format": "pdf", "template_version": research_pdf.TEMPLATE_VERSION}
     except conversation_store.ConversationNotFound as exc:
         _store_error(exc)
+    except research_pdf.PDFError as exc:
+        raise HTTPException(503, {"code": "research_pdf_failed", "message": str(exc)}) from exc
+    except research_pdf_service.ExportError as exc:
+        raise HTTPException(exc.status, {"code": "research_pdf_job_error", "message": str(exc)}) from exc
+
+
+class GenerateResearchReports(BaseModel):
+    request_id: str = Field(min_length=1, max_length=100)
+
+
+@router.post("/{conversation_id}/research-pdf-jobs")
+def generate_research_reports(conversation_id: str, payload: GenerateResearchReports):
+    try:
+        return research_pdf_service.enqueue_discovery("conversation", conversation_id, payload.request_id)
+    except research_pdf_service.ExportError as exc:
+        raise HTTPException(exc.status, {"code": "research_pdf_job_error", "message": str(exc)}) from exc
+
+
+@router.post("/{conversation_id}/research-pdf-jobs/{export_id}/retry")
+def retry_research_report(conversation_id: str, export_id: str):
+    try:
+        return research_pdf_service.retry_export("conversation", conversation_id, export_id)
+    except research_pdf_service.ExportError as exc:
+        raise HTTPException(exc.status, {"code": "research_pdf_job_error", "message": str(exc)}) from exc
+
+
+@router.get("/{conversation_id}/research-pdfs/{filename}")
+def get_research_pdf(conversation_id: str, filename: str):
+    try:
+        conversation_store.get_conversation(conversation_id, message_limit=1)
+        target, name = research_pdf.pdf_path(conversation_id, filename)
+        return FileResponse(target, filename=name, media_type="application/pdf", headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
+    except conversation_store.ConversationNotFound as exc:
+        _store_error(exc)
+    except research_pdf.PDFError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/{conversation_id}/research-assets/{path:path}")
+def get_research_image(conversation_id: str, path: str):
+    try:
+        conversation_store.get_conversation(conversation_id, message_limit=1)
+        target = research_workspace.output_path(conversation_id, path)
+        if target.suffix.lower() not in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+            raise research_workspace.WorkspaceError("此文件不是可嵌入的图表")
+        from PIL import Image
+        with Image.open(target) as source:
+            media = Image.MIME.get(source.format)
+            source.verify()
+        if not media:
+            raise research_workspace.WorkspaceError("图表格式无效")
+        return FileResponse(target, media_type=media, headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
+    except conversation_store.ConversationNotFound as exc:
+        _store_error(exc)
+    except (research_workspace.WorkspaceError, OSError, ValueError) as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.get("/{conversation_id}/research-files/{path:path}")
 def get_research_file(conversation_id: str, path: str):
     try:
         conversation_store.get_conversation(conversation_id, message_limit=1)
-        target = research_workspace.output_path(conversation_id, path)
-        return FileResponse(target, filename=target.name, media_type="application/octet-stream",
+        item = research_pdf.export_file(conversation_id, path)
+        target, name = research_pdf.pdf_path(conversation_id, item["url"].rsplit("/", 1)[-1])
+        return FileResponse(target, filename=name, media_type="application/pdf",
                             headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
     except conversation_store.ConversationNotFound as exc:
         _store_error(exc)
     except research_workspace.WorkspaceError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except research_pdf.PDFError as exc:
+        raise HTTPException(503, {"code": "research_pdf_failed", "message": str(exc)}) from exc
 
 
 @router.post("/{conversation_id}/turns/{turn_id}/cancel")
@@ -81,7 +149,8 @@ def _store_error(exc: Exception) -> None:
 @router.post("")
 def create_conversation(payload: CreateConversationRequest):
     try:
-        return conversation_store.create_conversation(payload.entry_scope, payload.research_mode or default_research_mode(), payload.project_id)
+        return conversation_store.create_conversation(payload.entry_scope, payload.research_mode or default_research_mode(), payload.project_id,
+                                                       workflow_type=payload.workflow_type, research_depth=payload.research_depth)
     except conversation_store.ConversationStoreError as exc:
         _store_error(exc)
 
@@ -90,8 +159,9 @@ def create_conversation(payload: CreateConversationRequest):
 def list_conversations(
     scope: ConversationScope | None = None,
     limit: int = Query(default=50, ge=1, le=100),
+    active_only: bool = False,
 ):
-    return {"items": conversation_store.list_conversations(scope, limit)}
+    return {"items": conversation_store.list_conversations(scope, limit, active_only)}
 
 
 @router.get("/{conversation_id}")
@@ -122,6 +192,7 @@ def add_user_message(conversation_id: str, payload: AddUserMessageRequest):
             payload.base_revision,
             payload.content,
             payload.source_refs,
+            research_scope_revision=payload.research_scope_revision,
         )
     except (
         conversation_store.ConversationNotFound,
@@ -133,6 +204,32 @@ def add_user_message(conversation_id: str, payload: AddUserMessageRequest):
         status_code=200 if result["idempotent_replay"] else 202,
         content=result,
     )
+
+
+@router.patch("/{conversation_id}/workflow")
+def update_workflow(conversation_id: str, payload: UpdateWorkflowRequest):
+    try:
+        return conversation_store.update_workflow(conversation_id, payload.workflow_type, payload.research_depth, payload.base_revision)
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
+
+
+@router.patch("/{conversation_id}/research-scope")
+def update_research_scope(conversation_id: str, payload: UpdateResearchScopeRequest):
+    try:
+        scope = ResearchScope.model_validate(payload.model_dump(exclude={"base_revision"}, exclude_unset=True))
+        return conversation_store.update_research_scope(conversation_id, payload.base_revision, scope)
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
+
+
+@router.post("/{conversation_id}/screening-draft")
+def create_screening_draft(conversation_id: str, payload: CreateScreeningDraftRequest):
+    try:
+        result = conversation_store.create_screening_draft(conversation_id, payload.request_id, payload.source_message_id, payload.instructions)
+        return JSONResponse(status_code=200 if result["idempotent_replay"] else 201, content=result)
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
 
 
 @router.get("/{conversation_id}/turns/{turn_id}")

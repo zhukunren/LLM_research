@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import csv
@@ -12,11 +13,12 @@ from datetime import date, timedelta
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from . import codex_runtime, documents, jobs, market, runtime_executor
 from .conversation_api import router as conversation_router
@@ -29,6 +31,7 @@ from .pattern_language import router as pattern_language_router
 from .product_api import router as product_router
 from .observation_api import router as observation_router
 from .research_project_api import router as research_project_router
+from .task_api import router as task_router
 from .condition_contract import filter_object
 from .db import connect, init_db, json_dump, json_load, utc_now
 from .indicators import INDICATORS, chart_display, values
@@ -54,8 +57,8 @@ from .models import (
 from .patterns import extract_path, score_window, store_source_image, validate_candles
 from .rules import filter_parameters, local_draft, pattern_references, references, validate_filter, validate_tree
 from .report_evidence import PROMPT_VERSION, model_name, normalize_quote
-from .screening_capabilities import build_manifest, market_coverage
-from .screening_tools import registry as screening_tool_registry
+from .request_security import trusted_write_request
+from . import capability_service
 from .settings import (
     PATTERN_UPLOAD_DIR,
     PROJECT_ROOT,
@@ -89,6 +92,7 @@ app.include_router(pattern_language_router)
 app.include_router(product_router)
 app.include_router(observation_router)
 app.include_router(research_project_router)
+app.include_router(task_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -104,7 +108,15 @@ app.add_middleware(
 @app.middleware("http")
 async def request_id(request: Request, call_next):
     request.state.request_id = request.headers.get("X-Request-ID") or str(uuid4())
-    response = await call_next(request)
+    if not trusted_write_request(request):
+        response = JSONResponse(status_code=403, content={
+            "code": "untrusted_origin",
+            "message": "请从本机投研工作台提交操作。",
+            "details": None,
+            "request_id": request.state.request_id,
+        })
+    else:
+        response = await call_next(request)
     response.headers["X-Request-ID"] = request.state.request_id
     return response
 
@@ -148,22 +160,7 @@ def health():
 
 
 def screening_capability_manifest():
-    with connect() as connection:
-        report_count = connection.execute(
-            "SELECT COUNT(DISTINCT document_id) FROM document_pages"
-        ).fetchone()[0]
-        pattern_count = connection.execute("SELECT COUNT(*) FROM patterns").fetchone()[0]
-        news_count = connection.execute("SELECT COUNT(DISTINCT root_id) FROM news_records").fetchone()[0]
-    return build_manifest(
-        market_available=market.daily_bar_source_available(STOCK_FILE),
-        indexed_reports=report_count,
-        saved_patterns=pattern_count,
-        indexed_news=news_count,
-        builtin_indicators=INDICATORS,
-        model_configured=bool(llm_settings()["configured"]),
-        registered_tool_names=screening_tool_registry.registered_tool_names(),
-        runtime_ready=runtime_executor.readiness()["ready"],
-    )
+    return capability_service.screening_capability_manifest(stock_file=STOCK_FILE, model_configured=bool(llm_settings()["configured"]))
 
 
 @app.get(f"{API_PREFIX}/capabilities")
@@ -276,7 +273,7 @@ def data_status():
 
 @app.get(f"{API_PREFIX}/data/coverage")
 def data_coverage():
-    return market_coverage(market.cached_profile())
+    return capability_service.data_coverage()
 
 
 @app.get(f"{API_PREFIX}/securities")
@@ -405,7 +402,6 @@ def _llm_filter(prompt: str, library: str) -> dict[str, Any] | None:
         return complete_json(
             system_prompt,
             f"Library={library}\nRequest:\n{prompt}",
-            timeout_seconds=35,
             max_output_tokens=1800,
         )
     except ModelRequestError:
@@ -571,6 +567,10 @@ def list_strategies(include_history: bool = False):
 
 @app.post(f"{API_PREFIX}/strategies")
 def save_strategy(payload: StrategyInput):
+    with connect() as connection:
+        replay = _submission_replay(connection, "strategy", payload)
+        if replay is not None:
+            return replay
     validation = validate_strategy(StrategyValidationInput(tree=payload.tree))
     if not validation["valid"]:
         _bad_request("策略引用校验失败", 422, "invalid_strategy", validation["errors"])
@@ -578,6 +578,9 @@ def save_strategy(payload: StrategyInput):
     now = utc_now()
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
+        replay = _submission_replay(connection, "strategy", payload)
+        if replay is not None:
+            return replay
         version = connection.execute("SELECT COALESCE(MAX(version),0)+1 FROM strategies WHERE id=?", (strategy_id,)).fetchone()[0]
         strategy = {
             "schema_version": "1.0", "name": payload.name, "tree": payload.tree,
@@ -593,7 +596,35 @@ def save_strategy(payload: StrategyInput):
             (strategy_id, version, now),
         )
         row = connection.execute("SELECT * FROM strategies WHERE id=? AND version=?", (strategy_id, version)).fetchone()
-    return _strategy_obj(row)
+        result = _strategy_obj(row)
+        _remember_submission(connection, "strategy", payload, result)
+    return result
+
+
+def _submission_identity(payload: StrategyInput | ScreenInput) -> str:
+    return json.dumps(payload.model_dump(exclude={"request_id"}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _submission_replay(connection, scope: str, payload: StrategyInput | ScreenInput):
+    if not payload.request_id:
+        return None
+    row = connection.execute(
+        "SELECT request_json,response_json FROM condition_submission_requests WHERE scope=? AND request_id=?",
+        (scope, payload.request_id),
+    ).fetchone()
+    if row is None:
+        return None
+    if row["request_json"] != _submission_identity(payload):
+        _bad_request("这次提交编号已用于其他内容，请重新提交", 409, "submission_request_conflict")
+    return json_load(row["response_json"])
+
+
+def _remember_submission(connection, scope: str, payload: StrategyInput | ScreenInput, response: dict):
+    if payload.request_id:
+        connection.execute(
+            "INSERT INTO condition_submission_requests(scope,request_id,request_json,response_json,created_at) VALUES(?,?,?,?,?)",
+            (scope, payload.request_id, _submission_identity(payload), json_dump(response), utc_now()),
+        )
 
 
 def _strategy_blockers(strategy: dict[str, Any], mode: str) -> list[str]:
@@ -617,6 +648,9 @@ def _strategy_blockers(strategy: dict[str, Any], mode: str) -> list[str]:
 @app.post(f"{API_PREFIX}/screening-runs")
 def create_screening_run(payload: ScreenInput):
     with connect() as connection:
+        replay = _submission_replay(connection, "screening", payload)
+        if replay is not None:
+            return replay
         row = connection.execute(
             "SELECT strategy_json FROM strategies WHERE id=? AND version=?",
             (payload.strategy_id, payload.strategy_version),
@@ -648,28 +682,34 @@ def create_screening_run(payload: ScreenInput):
                "source_fingerprint": market.source_fingerprint(), "report_evaluation_ids": evaluation_ids,
                "effective_market_date": profile.get("last_date") if payload.as_of == profile.get("last_date") else market.latest_market_date(payload.as_of)}
     run_id, now = str(uuid4()), utc_now()
-    if blockers:
-        result = {
-            "blockers": blockers, "mode": payload.mode, "results": [],
-            "counts": {"evaluated": 0, "true": 0, "false": 0, "unknown": 0},
-        }
-        with connect() as connection:
+    with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        replay = _submission_replay(connection, "screening", payload)
+        if replay is not None:
+            return replay
+        if blockers:
+            result = {
+                "blockers": blockers, "mode": payload.mode, "results": [],
+                "counts": {"evaluated": 0, "true": 0, "false": 0, "unknown": 0},
+            }
             connection.execute(
                 "INSERT INTO screening_runs(id,strategy_id,strategy_version,as_of,mode,status,result_json,created_at,finished_at,context_json) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (run_id, payload.strategy_id, payload.strategy_version, payload.as_of, payload.mode, "blocked_dependency", json_dump(result), now, now, json_dump(context)),
             )
-        return {"id": run_id, "status": "blocked_dependency", **result}
-    job_id = str(uuid4())
-    with connect() as connection:
-        connection.execute(
-            "INSERT INTO screening_runs(id,strategy_id,strategy_version,as_of,mode,status,result_json,created_at,context_json) VALUES(?,?,?,?,?,?,?,?,?)",
-            (run_id, payload.strategy_id, payload.strategy_version, payload.as_of, payload.mode, "queued", "{}", now, json_dump(context)),
-        )
-        connection.execute(
-            "INSERT INTO jobs(id,kind,payload_json,state,message,created_at,updated_at,required_protocol) VALUES(?,?,?,?,?,?,?,?)",
-            (job_id, "screening", json_dump({"run_id": run_id, "strategy_id": payload.strategy_id, "strategy_version": payload.strategy_version}), "queued", "等待筛选 worker", now, now, "condition-decisions-v1"),
-        )
-    return {"id": run_id, "job_id": job_id, "status": "queued", "mode": payload.mode, "message": "筛选任务已进入本地队列"}
+            response = {"id": run_id, "status": "blocked_dependency", **result}
+        else:
+            job_id = str(uuid4())
+            connection.execute(
+                "INSERT INTO screening_runs(id,strategy_id,strategy_version,as_of,mode,status,result_json,created_at,context_json) VALUES(?,?,?,?,?,?,?,?,?)",
+                (run_id, payload.strategy_id, payload.strategy_version, payload.as_of, payload.mode, "queued", "{}", now, json_dump(context)),
+            )
+            connection.execute(
+                "INSERT INTO jobs(id,kind,payload_json,state,message,created_at,updated_at,required_protocol) VALUES(?,?,?,?,?,?,?,?)",
+                (job_id, "screening", json_dump({"run_id": run_id, "strategy_id": payload.strategy_id, "strategy_version": payload.strategy_version}), "queued", "等待筛选 worker", now, now, "condition-decisions-v1"),
+            )
+            response = {"id": run_id, "job_id": job_id, "status": "queued", "mode": payload.mode, "message": "筛选任务已进入本地队列"}
+        _remember_submission(connection, "screening", payload, response)
+    return response
 
 
 @app.get(f"{API_PREFIX}/screening-runs")
@@ -902,14 +942,14 @@ def preview_pattern(payload: PatternPreviewInput):
 
 
 @app.get(f"{API_PREFIX}/patterns/{{pattern_id}}/best-match")
-def pattern_best_match(pattern_id: str, version: int):
+def pattern_best_match(pattern_id: str, version: int, limit: int = Query(default=1, ge=1, le=24)):
     from .pattern_examples import find_example
     with connect() as connection:
         row = connection.execute("SELECT pattern_json FROM patterns WHERE id=? AND version=?", (pattern_id, version)).fetchone()
     if not row:
         _bad_request("找不到形态版本", 404, "pattern_version_not_found")
     try:
-        return find_example(json_load(row[0]))
+        return find_example(json_load(row[0]), limit=limit)
     except ValueError as exc:
         _bad_request(str(exc), 409, "pattern_market_changed")
 
@@ -1153,8 +1193,9 @@ async def upload_document(file: UploadFile = File(...)):
         if target.read_bytes()[:5] != b"%PDF-":
             target.unlink(missing_ok=True)
             _bad_request("文件内容不是有效 PDF")
-        result = documents.import_local_reports()
-        current = next((item for item in result["results"] if item.get("filename") == safe_name), None)
+        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        result = await run_in_threadpool(documents.import_local_reports, paths=[target])
+        current = next((item for item in result["results"] if item.get("sha256") == digest), None)
         return {"uploaded": True, "bytes": size, "result": current, "import_summary": {"imported": result["imported"], "failed": result["failed"]}}
     finally:
         await file.close()
@@ -1162,11 +1203,9 @@ async def upload_document(file: UploadFile = File(...)):
 
 @app.post(f"{API_PREFIX}/documents/search")
 def search_documents(payload: ReportSearchInput):
-    hits = documents.search_pages(payload.query, payload.as_of, payload.stock_code)
-    return {
-        "items": hits, "scope": "indexed_local_pages",
-        "coverage_note": "仅返回明确的同页关键词命中；不代表未命中文档不存在相关事实。",
-    }
+    return documents.search(payload.query, payload.as_of.isoformat() if payload.as_of else None,
+                            payload.stock_code, payload.limit, mode=payload.mode, offset=payload.offset,
+                            confirmed_security_only=bool(payload.stock_code and payload.as_of))
 
 
 @app.get(f"{API_PREFIX}/documents/{{document_id}}/pages/{{page_number}}")

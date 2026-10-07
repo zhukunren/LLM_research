@@ -1,0 +1,13 @@
+{
+  "health": "ok",
+  "active_jobs": 0,
+  "running_turns": 0,
+  "business_rows_preserved_after_restart": true,
+  "preview_type": "application/pdf",
+  "preview_pdf_valid": true,
+  "listing_format": "pdf",
+  "all_files_pdf": true,
+  "download_type": "application/pdf",
+  "download_pages_branded": true,
+  "passed": true
+}

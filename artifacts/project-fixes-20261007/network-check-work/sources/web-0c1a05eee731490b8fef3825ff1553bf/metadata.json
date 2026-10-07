@@ -1,0 +1,27 @@
+{
+  "source_id": "web-0c1a05eee731490b8fef3825ff1553bf",
+  "retrieved_at": "2026-10-06T17:02:32+00:00",
+  "research_as_of": "2026-10-07",
+  "historical_availability_verified": false,
+  "content_is_untrusted": true,
+  "kind": "web",
+  "requested_url": "https://example.com/",
+  "url": "https://example.com/",
+  "title": "Example Domain",
+  "publisher_declared_date": null,
+  "sha256": "4827fcf413a703d735933f5e10110865f46dfd313cd4a24efc9d2f3f04790d9a",
+  "text_path": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\network-check-work\\sources\\web-0c1a05eee731490b8fef3825ff1553bf\\text.txt",
+  "html_path": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\network-check-work\\sources\\web-0c1a05eee731490b8fef3825ff1553bf\\page.html",
+  "image_path": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\network-check-work\\sources\\web-0c1a05eee731490b8fef3825ff1553bf\\page.png",
+  "tables_path": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\network-check-work\\sources\\web-0c1a05eee731490b8fef3825ff1553bf\\tables.json",
+  "image_sha256": "1bdcfa8a523eb9e2a4990ee8deca3021a7cedbbbed61328585e91f70f4e0047c",
+  "scroll_y": 0,
+  "text_characters": 917,
+  "links": [
+    {
+      "text": "Learn more",
+      "url": "https://iana.org/help/example-domains",
+      "download": false
+    }
+  ]
+}

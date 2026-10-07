@@ -1,0 +1,974 @@
+{
+  "status": "passed",
+  "api": "http://127.0.0.1:8066/api/v1",
+  "as_of": "2026-09-14",
+  "stock_codes": [
+    "600000.SH",
+    "600519.SH"
+  ],
+  "started_at": "2026-10-07T00:03:25.957168+08:00",
+  "database": "D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\live\\app.db",
+  "http_calls": [
+    {
+      "method": "GET",
+      "path": "/data/status",
+      "status": 200,
+      "request_id": "22b57299-1488-4b0d-84e0-2eead8ecf8cb"
+    },
+    {
+      "method": "GET",
+      "path": "/securities/600000.SH/bars?as_of=2026-09-14&limit=3",
+      "status": 200,
+      "request_id": "083bba96-1f13-4dd9-b231-6e43f4c54b93"
+    },
+    {
+      "method": "GET",
+      "path": "/securities/600519.SH/bars?as_of=2026-09-14&limit=3",
+      "status": 200,
+      "request_id": "e7ad38e3-4328-4be9-8a40-89e283590899"
+    },
+    {
+      "method": "POST",
+      "path": "/watchlists",
+      "status": 200,
+      "request_id": "044bd498-387e-447c-b25d-d4590accc7b7"
+    },
+    {
+      "method": "POST",
+      "path": "/watchlists/24b3bd06-9d1b-4137-b91d-ccdef2af5a94/items",
+      "status": 200,
+      "request_id": "46fbf50a-c52f-46d7-b48b-417953a0e586"
+    },
+    {
+      "method": "POST",
+      "path": "/watchlists/24b3bd06-9d1b-4137-b91d-ccdef2af5a94/items",
+      "status": 200,
+      "request_id": "52692545-2df4-4de8-bfd2-6f660ccb5113"
+    },
+    {
+      "method": "GET",
+      "path": "/watchlists/24b3bd06-9d1b-4137-b91d-ccdef2af5a94/export",
+      "status": 200,
+      "request_id": "cfb8c42f-b837-430b-b181-06cd6faf5268"
+    },
+    {
+      "method": "POST",
+      "path": "/filters",
+      "status": 200,
+      "request_id": "7992ee45-770f-49c6-ac04-785c479f53de"
+    },
+    {
+      "method": "POST",
+      "path": "/strategies",
+      "status": 200,
+      "request_id": "225f3c4a-d77e-4c92-ad6a-bc2696b533b1"
+    },
+    {
+      "method": "POST",
+      "path": "/screening-runs",
+      "status": 200,
+      "request_id": "e8977bfd-9888-4ea3-a3c5-0991cf8bd6f9"
+    },
+    {
+      "method": "POST",
+      "path": "/screening-runs",
+      "status": 200,
+      "request_id": "af0d4470-26aa-4c02-aec5-04c908226f3f"
+    },
+    {
+      "method": "GET",
+      "path": "/jobs/de4379da-7ff6-4924-8963-987b989e2bb0",
+      "status": 200,
+      "request_id": "36c79b61-d068-4725-86eb-e28945511570"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/6e65fb93-3381-49f5-8737-1c7393765786",
+      "status": 200,
+      "request_id": "8e5595f5-26ef-46d2-822e-822ae82150a4"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/6e65fb93-3381-49f5-8737-1c7393765786/decisions?limit=100",
+      "status": 200,
+      "request_id": "ab7e41c9-981e-4744-9185-5722da0bd6c6"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/6e65fb93-3381-49f5-8737-1c7393765786/decisions?state=true&limit=100",
+      "status": 200,
+      "request_id": "f7436f66-e919-4bdb-a278-e5fa865863b7"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/6e65fb93-3381-49f5-8737-1c7393765786/decisions?state=false&limit=100",
+      "status": 200,
+      "request_id": "60caeff6-c34b-4d26-9ca3-748b2a3d8eff"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/6e65fb93-3381-49f5-8737-1c7393765786/decisions?state=unknown&limit=100",
+      "status": 200,
+      "request_id": "79b81b52-670f-4f15-959f-e210ba2d4019"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/6e65fb93-3381-49f5-8737-1c7393765786/export",
+      "status": 200,
+      "request_id": "c0ab60e1-3602-4e30-af68-ed4494cca357"
+    },
+    {
+      "method": "POST",
+      "path": "/screening-runs",
+      "status": 200,
+      "request_id": "8c898cfb-0cf5-4d8b-95b2-25f39b47a1dc"
+    },
+    {
+      "method": "POST",
+      "path": "/filters",
+      "status": 200,
+      "request_id": "50cfc17d-a3f2-4837-a9bc-338f762a1965"
+    },
+    {
+      "method": "POST",
+      "path": "/strategies",
+      "status": 200,
+      "request_id": "e2fc853f-eef0-4ff2-aa39-a30709463c18"
+    },
+    {
+      "method": "POST",
+      "path": "/screening-runs",
+      "status": 200,
+      "request_id": "f7547bf0-1aac-4fab-866c-2bd9467886ac"
+    },
+    {
+      "method": "POST",
+      "path": "/screening-runs",
+      "status": 200,
+      "request_id": "382a3988-449d-4ca7-9acf-d05003eb4208"
+    },
+    {
+      "method": "GET",
+      "path": "/jobs/d71450a6-b710-4d30-9fdf-5ef6b3323eb1",
+      "status": 200,
+      "request_id": "c0a06106-2888-42a2-ac7a-5b773aaf0447"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/ff8041a8-8ade-4d5c-86a5-beedb8e7d96f",
+      "status": 200,
+      "request_id": "c051a30c-a23c-403c-9bc0-4cdc6353b088"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/ff8041a8-8ade-4d5c-86a5-beedb8e7d96f/decisions?limit=100",
+      "status": 200,
+      "request_id": "4acff4e5-f7ca-4277-b11f-5a3e1d617938"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/ff8041a8-8ade-4d5c-86a5-beedb8e7d96f/decisions?state=true&limit=100",
+      "status": 200,
+      "request_id": "5cd54ca3-a3fa-4223-a6b3-2700dafc705b"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/ff8041a8-8ade-4d5c-86a5-beedb8e7d96f/decisions?state=false&limit=100",
+      "status": 200,
+      "request_id": "27593343-122d-423d-80fe-f4ab48cd4689"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/ff8041a8-8ade-4d5c-86a5-beedb8e7d96f/decisions?state=unknown&limit=100",
+      "status": 200,
+      "request_id": "b3a76011-9945-40a2-9faa-01b24976fb59"
+    },
+    {
+      "method": "GET",
+      "path": "/screening-runs/ff8041a8-8ade-4d5c-86a5-beedb8e7d96f/export",
+      "status": 200,
+      "request_id": "64790b89-f06e-42cf-bba4-8875c92049aa"
+    },
+    {
+      "method": "POST",
+      "path": "/screening-runs",
+      "status": 200,
+      "request_id": "75adf20a-012f-453b-976e-2eb92eb863c0"
+    }
+  ],
+  "runs": [
+    {
+      "name": "审查实机：价格真假",
+      "condition": {
+        "schema_version": "1.0",
+        "kind": "technical",
+        "name": "审查：真实收盘价高于两股中点",
+        "description": "确定性本地条件，无模型调用",
+        "expression": {
+          "op": "metric_compare",
+          "metric": "close",
+          "window": 1,
+          "operator": "gt",
+          "value": 643.6800000000001
+        },
+        "status": "validated",
+        "provenance": {
+          "last_edited_by": "local_user",
+          "based_on_version": null,
+          "edited_at": "2026-10-06T16:03:26+00:00"
+        },
+        "id": "7508bed1-e480-4e2a-bb31-34c600773413",
+        "library": "technical",
+        "version": 1,
+        "created_at": "2026-10-06T16:03:26+00:00",
+        "parameters": {
+          "value": {
+            "label": "比较阈值",
+            "type": "number"
+          }
+        },
+        "contract": {
+          "summary": "收盘价大于 643.68 元",
+          "notes": [
+            "使用截止日及之前的日线；周期按该证券有记录的交易日计数。",
+            "数据缺失、异常或历史不足时，记为“数据不足”。"
+          ],
+          "minimum_bars": 1,
+          "availability": "market",
+          "availability_label": "可用日线试算"
+        }
+      },
+      "strategy": {
+        "id": "4603cad3-5df5-4354-96c8-1a39e477aa7c",
+        "version": 1,
+        "created_at": "2026-10-06T16:03:26+00:00",
+        "schema_version": "1.0",
+        "name": "审查实机：价格真假",
+        "tree": {
+          "op": "filter_ref",
+          "filter_id": "7508bed1-e480-4e2a-bb31-34c600773413",
+          "version": 1
+        },
+        "top_n": 10,
+        "status": "published",
+        "dependency_policy": "require_all_enabled",
+        "unknown_policy": "exclude_and_report"
+      },
+      "queued": {
+        "id": "6e65fb93-3381-49f5-8737-1c7393765786",
+        "job_id": "de4379da-7ff6-4924-8963-987b989e2bb0",
+        "status": "queued",
+        "mode": "exploratory",
+        "message": "筛选任务已进入本地队列"
+      },
+      "run": {
+        "id": "6e65fb93-3381-49f5-8737-1c7393765786",
+        "strategy_id": "4603cad3-5df5-4354-96c8-1a39e477aa7c",
+        "strategy_version": 1,
+        "as_of": "2026-09-14",
+        "mode": "exploratory",
+        "status": "succeeded",
+        "created_at": "2026-10-06T16:03:26+00:00",
+        "finished_at": "2026-10-06T16:03:30+00:00",
+        "result": {
+          "counts": {
+            "evaluated": 2,
+            "true": 1,
+            "false": 1,
+            "unknown": 0
+          },
+          "results": [
+            {
+              "stock_code": "600519.SH",
+              "market": "SH",
+              "as_of": "2026-09-14",
+              "close": 1277.96,
+              "state": "true",
+              "score": 1.0,
+              "details": [
+                {
+                  "state": "true",
+                  "actual": 1277.96,
+                  "threshold": 643.6800000000001,
+                  "operator": "gt",
+                  "metric": "close",
+                  "window": 1,
+                  "baseline": null,
+                  "latest_value": 1277.96,
+                  "start_date": "2026-09-14",
+                  "end_date": "2026-09-14",
+                  "unit": "元",
+                  "effective_expression": {
+                    "op": "metric_compare",
+                    "metric": "close",
+                    "window": 1,
+                    "operator": "gt",
+                    "value": 643.6800000000001
+                  },
+                  "parameter_overrides": {},
+                  "summary": "收盘价大于 643.68 元",
+                  "score_weight": 1.0,
+                  "score_contribution": 1.0,
+                  "filter_id": "7508bed1-e480-4e2a-bb31-34c600773413",
+                  "version": 1,
+                  "name": "审查：真实收盘价高于两股中点",
+                  "node_path": "root",
+                  "provenance": {
+                    "last_edited_by": "local_user",
+                    "based_on_version": null,
+                    "edited_at": "2026-10-06T16:03:26+00:00"
+                  },
+                  "data_date": "2026-09-14"
+                }
+              ],
+              "logic": {
+                "op": "filter_ref",
+                "path": "root",
+                "name": "审查：真实收盘价高于两股中点",
+                "state": "true"
+              },
+              "reason": null
+            }
+          ],
+          "truncated_matches": 0,
+          "unknown_sample": [],
+          "mode": "exploratory",
+          "ranking": "按组合树中命中条件的用户权重求和；同分按证券代码稳定排序后应用 TopN",
+          "data_snapshot": {
+            "watermark": "2026-09-28",
+            "stock_file_bytes": 285999322,
+            "sha256": "05103ff6d11f854d14aaa9170698e226ff492d100ccb0dbbc992eb4aa9dedbbd",
+            "price_basis": "unknown"
+          },
+          "report_evaluation_coverage": [],
+          "universe": {
+            "kind": "watchlist",
+            "id": "24b3bd06-9d1b-4137-b91d-ccdef2af5a94",
+            "name": "审查实机测试：真实两股 05ccd82d",
+            "codes": [
+              "600000.SH",
+              "600519.SH"
+            ]
+          },
+          "strategy_snapshot": {
+            "schema_version": "1.0",
+            "name": "审查实机：价格真假",
+            "tree": {
+              "op": "filter_ref",
+              "filter_id": "7508bed1-e480-4e2a-bb31-34c600773413",
+              "version": 1
+            },
+            "top_n": 10,
+            "status": "published",
+            "dependency_policy": "require_all_enabled",
+            "unknown_policy": "exclude_and_report"
+          },
+          "condition_snapshots": [
+            {
+              "id": "7508bed1-e480-4e2a-bb31-34c600773413",
+              "library": "technical",
+              "name": "审查：真实收盘价高于两股中点",
+              "version": 1,
+              "expression": {
+                "op": "metric_compare",
+                "metric": "close",
+                "window": 1,
+                "operator": "gt",
+                "value": 643.6800000000001
+              },
+              "provenance": {
+                "last_edited_by": "local_user",
+                "based_on_version": null,
+                "edited_at": "2026-10-06T16:03:26+00:00"
+              }
+            }
+          ],
+          "trace_version": "condition-decisions-v1",
+          "warnings": [
+            "探索模式：复权口径和量额单位尚未确认",
+            "证券基础资料和完整交易日历尚未接入"
+          ]
+        },
+        "context": {
+          "universe": {
+            "kind": "watchlist",
+            "id": "24b3bd06-9d1b-4137-b91d-ccdef2af5a94",
+            "name": "审查实机测试：真实两股 05ccd82d",
+            "codes": [
+              "600000.SH",
+              "600519.SH"
+            ]
+          },
+          "strategy_snapshot": {
+            "schema_version": "1.0",
+            "name": "审查实机：价格真假",
+            "tree": {
+              "op": "filter_ref",
+              "filter_id": "7508bed1-e480-4e2a-bb31-34c600773413",
+              "version": 1
+            },
+            "top_n": 10,
+            "status": "published",
+            "dependency_policy": "require_all_enabled",
+            "unknown_policy": "exclude_and_report"
+          },
+          "source_fingerprint": [
+            "D:\\项目\\LLM_research\\data\\stock_data\\stock_daily.parquet",
+            285999322,
+            1790585228482179800
+          ],
+          "report_evaluation_ids": {
+            "7508bed1-e480-4e2a-bb31-34c600773413@1": null
+          },
+          "effective_market_date": "2026-09-14"
+        },
+        "job": {
+          "id": "de4379da-7ff6-4924-8963-987b989e2bb0",
+          "state": "succeeded",
+          "progress": 1.0,
+          "message": "完成：评估 2 只，命中 1 只，未知 0 只"
+        }
+      },
+      "decisions": {
+        "items": [
+          {
+            "stock_code": "600519.SH",
+            "market": "SH",
+            "as_of": "2026-09-14",
+            "close": 1277.96,
+            "state": "true",
+            "score": 1.0,
+            "details": [
+              {
+                "state": "true",
+                "actual": 1277.96,
+                "threshold": 643.6800000000001,
+                "operator": "gt",
+                "metric": "close",
+                "window": 1,
+                "baseline": null,
+                "latest_value": 1277.96,
+                "start_date": "2026-09-14",
+                "end_date": "2026-09-14",
+                "unit": "元",
+                "effective_expression": {
+                  "op": "metric_compare",
+                  "metric": "close",
+                  "window": 1,
+                  "operator": "gt",
+                  "value": 643.6800000000001
+                },
+                "parameter_overrides": {},
+                "summary": "收盘价大于 643.68 元",
+                "score_weight": 1.0,
+                "score_contribution": 1.0,
+                "filter_id": "7508bed1-e480-4e2a-bb31-34c600773413",
+                "version": 1,
+                "name": "审查：真实收盘价高于两股中点",
+                "node_path": "root",
+                "provenance": {
+                  "last_edited_by": "local_user",
+                  "based_on_version": null,
+                  "edited_at": "2026-10-06T16:03:26+00:00"
+                },
+                "data_date": "2026-09-14"
+              }
+            ],
+            "logic": {
+              "op": "filter_ref",
+              "path": "root",
+              "name": "审查：真实收盘价高于两股中点",
+              "state": "true"
+            },
+            "reason": null
+          },
+          {
+            "stock_code": "600000.SH",
+            "market": "SH",
+            "as_of": "2026-09-14",
+            "close": 9.4,
+            "state": "false",
+            "score": 0.0,
+            "details": [
+              {
+                "state": "false",
+                "actual": 9.4,
+                "threshold": 643.6800000000001,
+                "operator": "gt",
+                "metric": "close",
+                "window": 1,
+                "baseline": null,
+                "latest_value": 9.4,
+                "start_date": "2026-09-14",
+                "end_date": "2026-09-14",
+                "unit": "元",
+                "effective_expression": {
+                  "op": "metric_compare",
+                  "metric": "close",
+                  "window": 1,
+                  "operator": "gt",
+                  "value": 643.6800000000001
+                },
+                "parameter_overrides": {},
+                "summary": "收盘价大于 643.68 元",
+                "score_weight": 1.0,
+                "score_contribution": 0.0,
+                "filter_id": "7508bed1-e480-4e2a-bb31-34c600773413",
+                "version": 1,
+                "name": "审查：真实收盘价高于两股中点",
+                "node_path": "root",
+                "provenance": {
+                  "last_edited_by": "local_user",
+                  "based_on_version": null,
+                  "edited_at": "2026-10-06T16:03:26+00:00"
+                },
+                "data_date": "2026-09-14"
+              }
+            ],
+            "logic": {
+              "op": "filter_ref",
+              "path": "root",
+              "name": "审查：真实收盘价高于两股中点",
+              "state": "false"
+            },
+            "reason": null
+          }
+        ],
+        "total": 2,
+        "offset": 0,
+        "limit": 100
+      },
+      "csv": "D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\live-screening-6e65fb93.csv",
+      "csv_rows": [
+        {
+          "运行ID": "6e65fb93-3381-49f5-8737-1c7393765786",
+          "策略ID": "4603cad3-5df5-4354-96c8-1a39e477aa7c",
+          "策略版本": "1",
+          "截止日": "2026-09-14",
+          "模式": "exploratory",
+          "状态": "succeeded",
+          "证券代码": "600519.SH",
+          "市场": "SH",
+          "实际日期": "2026-09-14",
+          "收盘": "1277.96",
+          "综合分": "1.0",
+          "条件详情": "[{\"state\":\"true\",\"actual\":1277.96,\"threshold\":643.6800000000001,\"operator\":\"gt\",\"metric\":\"close\",\"window\":1,\"baseline\":null,\"latest_value\":1277.96,\"start_date\":\"2026-09-14\",\"end_date\":\"2026-09-14\",\"unit\":\"元\",\"effective_expression\":{\"op\":\"metric_compare\",\"metric\":\"close\",\"window\":1,\"operator\":\"gt\",\"value\":643.6800000000001},\"parameter_overrides\":{},\"summary\":\"收盘价大于 643.68 元\",\"score_weight\":1.0,\"score_contribution\":1.0,\"filter_id\":\"7508bed1-e480-4e2a-bb31-34c600773413\",\"version\":1,\"name\":\"审查：真实收盘价高于两股中点\",\"node_path\":\"root\",\"provenance\":{\"last_edited_by\":\"local_user\",\"based_on_version\":null,\"edited_at\":\"2026-10-06T16:03:26+00:00\"},\"data_date\":\"2026-09-14\"}]"
+        }
+      ],
+      "worker": {
+        "exit_code": 0,
+        "stdout": "True\n",
+        "stderr": ""
+      }
+    },
+    {
+      "name": "审查实机：缺失研报评估为未知",
+      "condition": {
+        "schema_version": "1.0",
+        "kind": "report",
+        "name": "审查：没有评估结果时保留未知",
+        "description": "只保存条件，不调用研报评估或模型",
+        "expression": {
+          "op": "evidence_query",
+          "evaluation_mode": "rubric",
+          "combine": "all",
+          "lookback_calendar_days": 30,
+          "criteria": [
+            {
+              "id": "audit_orders",
+              "label": "订单增长",
+              "question": "订单是否有明确增长证据？",
+              "signals": [],
+              "counter_signals": []
+            }
+          ]
+        },
+        "status": "validated",
+        "provenance": {
+          "last_edited_by": "local_user",
+          "based_on_version": null,
+          "edited_at": "2026-10-06T16:03:31+00:00"
+        },
+        "id": "7ea2a205-56b0-4219-9788-83df73e71134",
+        "library": "report",
+        "version": 1,
+        "created_at": "2026-10-06T16:03:31+00:00",
+        "parameters": {},
+        "contract": {
+          "summary": "订单增长",
+          "notes": [
+            "回看 30 个自然日内的本地研报。",
+            "须先完成对应截止日的研报评估；判断附带原文页码，未覆盖时记为数据不足。"
+          ],
+          "availability": "report_evaluation",
+          "availability_label": "需先评估研报"
+        }
+      },
+      "strategy": {
+        "id": "e8dcef23-46d2-4676-b639-6f89efc40e0a",
+        "version": 1,
+        "created_at": "2026-10-06T16:03:31+00:00",
+        "schema_version": "1.0",
+        "name": "审查实机：缺失研报评估为未知",
+        "tree": {
+          "op": "filter_ref",
+          "filter_id": "7ea2a205-56b0-4219-9788-83df73e71134",
+          "version": 1
+        },
+        "top_n": 10,
+        "status": "published",
+        "dependency_policy": "require_all_enabled",
+        "unknown_policy": "exclude_and_report"
+      },
+      "queued": {
+        "id": "ff8041a8-8ade-4d5c-86a5-beedb8e7d96f",
+        "job_id": "d71450a6-b710-4d30-9fdf-5ef6b3323eb1",
+        "status": "queued",
+        "mode": "exploratory",
+        "message": "筛选任务已进入本地队列"
+      },
+      "run": {
+        "id": "ff8041a8-8ade-4d5c-86a5-beedb8e7d96f",
+        "strategy_id": "e8dcef23-46d2-4676-b639-6f89efc40e0a",
+        "strategy_version": 1,
+        "as_of": "2026-09-14",
+        "mode": "exploratory",
+        "status": "partial",
+        "created_at": "2026-10-06T16:03:31+00:00",
+        "finished_at": "2026-10-06T16:03:35+00:00",
+        "result": {
+          "counts": {
+            "evaluated": 2,
+            "true": 0,
+            "false": 0,
+            "unknown": 2
+          },
+          "results": [],
+          "truncated_matches": 0,
+          "unknown_sample": [
+            {
+              "stock_code": "600000.SH",
+              "market": "SH",
+              "as_of": "2026-09-14",
+              "close": 9.4,
+              "state": "unknown",
+              "score": 0.0,
+              "details": [
+                {
+                  "state": "unknown",
+                  "reason": "没有该证券已确认绑定且符合截止日的研报评估；无报告不等于不符合",
+                  "score_weight": 1.0,
+                  "score_contribution": 0.0,
+                  "filter_id": "7ea2a205-56b0-4219-9788-83df73e71134",
+                  "version": 1,
+                  "name": "审查：没有评估结果时保留未知",
+                  "node_path": "root",
+                  "provenance": {
+                    "last_edited_by": "local_user",
+                    "based_on_version": null,
+                    "edited_at": "2026-10-06T16:03:31+00:00"
+                  },
+                  "data_date": "2026-09-14"
+                }
+              ],
+              "logic": {
+                "op": "filter_ref",
+                "path": "root",
+                "name": "审查：没有评估结果时保留未知",
+                "state": "unknown"
+              },
+              "reason": null
+            },
+            {
+              "stock_code": "600519.SH",
+              "market": "SH",
+              "as_of": "2026-09-14",
+              "close": 1277.96,
+              "state": "unknown",
+              "score": 0.0,
+              "details": [
+                {
+                  "state": "unknown",
+                  "reason": "没有该证券已确认绑定且符合截止日的研报评估；无报告不等于不符合",
+                  "score_weight": 1.0,
+                  "score_contribution": 0.0,
+                  "filter_id": "7ea2a205-56b0-4219-9788-83df73e71134",
+                  "version": 1,
+                  "name": "审查：没有评估结果时保留未知",
+                  "node_path": "root",
+                  "provenance": {
+                    "last_edited_by": "local_user",
+                    "based_on_version": null,
+                    "edited_at": "2026-10-06T16:03:31+00:00"
+                  },
+                  "data_date": "2026-09-14"
+                }
+              ],
+              "logic": {
+                "op": "filter_ref",
+                "path": "root",
+                "name": "审查：没有评估结果时保留未知",
+                "state": "unknown"
+              },
+              "reason": null
+            }
+          ],
+          "mode": "exploratory",
+          "ranking": "按组合树中命中条件的用户权重求和；同分按证券代码稳定排序后应用 TopN",
+          "data_snapshot": {
+            "watermark": "2026-09-28",
+            "stock_file_bytes": 285999322,
+            "sha256": "05103ff6d11f854d14aaa9170698e226ff492d100ccb0dbbc992eb4aa9dedbbd",
+            "price_basis": "unknown"
+          },
+          "report_evaluation_coverage": [
+            {
+              "filter_id": "7ea2a205-56b0-4219-9788-83df73e71134",
+              "version": 1,
+              "state": "missing",
+              "reason": "尚未对该截止日执行研报评估"
+            }
+          ],
+          "universe": {
+            "kind": "watchlist",
+            "id": "24b3bd06-9d1b-4137-b91d-ccdef2af5a94",
+            "name": "审查实机测试：真实两股 05ccd82d",
+            "codes": [
+              "600000.SH",
+              "600519.SH"
+            ]
+          },
+          "strategy_snapshot": {
+            "schema_version": "1.0",
+            "name": "审查实机：缺失研报评估为未知",
+            "tree": {
+              "op": "filter_ref",
+              "filter_id": "7ea2a205-56b0-4219-9788-83df73e71134",
+              "version": 1
+            },
+            "top_n": 10,
+            "status": "published",
+            "dependency_policy": "require_all_enabled",
+            "unknown_policy": "exclude_and_report"
+          },
+          "condition_snapshots": [
+            {
+              "id": "7ea2a205-56b0-4219-9788-83df73e71134",
+              "library": "report",
+              "name": "审查：没有评估结果时保留未知",
+              "version": 1,
+              "expression": {
+                "op": "evidence_query",
+                "evaluation_mode": "rubric",
+                "combine": "all",
+                "lookback_calendar_days": 30,
+                "criteria": [
+                  {
+                    "id": "audit_orders",
+                    "label": "订单增长",
+                    "question": "订单是否有明确增长证据？",
+                    "signals": [],
+                    "counter_signals": []
+                  }
+                ]
+              },
+              "provenance": {
+                "last_edited_by": "local_user",
+                "based_on_version": null,
+                "edited_at": "2026-10-06T16:03:31+00:00"
+              }
+            }
+          ],
+          "trace_version": "condition-decisions-v1",
+          "warnings": [
+            "探索模式：复权口径和量额单位尚未确认",
+            "证券基础资料和完整交易日历尚未接入"
+          ]
+        },
+        "context": {
+          "universe": {
+            "kind": "watchlist",
+            "id": "24b3bd06-9d1b-4137-b91d-ccdef2af5a94",
+            "name": "审查实机测试：真实两股 05ccd82d",
+            "codes": [
+              "600000.SH",
+              "600519.SH"
+            ]
+          },
+          "strategy_snapshot": {
+            "schema_version": "1.0",
+            "name": "审查实机：缺失研报评估为未知",
+            "tree": {
+              "op": "filter_ref",
+              "filter_id": "7ea2a205-56b0-4219-9788-83df73e71134",
+              "version": 1
+            },
+            "top_n": 10,
+            "status": "published",
+            "dependency_policy": "require_all_enabled",
+            "unknown_policy": "exclude_and_report"
+          },
+          "source_fingerprint": [
+            "D:\\项目\\LLM_research\\data\\stock_data\\stock_daily.parquet",
+            285999322,
+            1790585228482179800
+          ],
+          "report_evaluation_ids": {
+            "7ea2a205-56b0-4219-9788-83df73e71134@1": null
+          },
+          "effective_market_date": "2026-09-14"
+        },
+        "job": {
+          "id": "d71450a6-b710-4d30-9fdf-5ef6b3323eb1",
+          "state": "partial",
+          "progress": 1.0,
+          "message": "完成：评估 2 只，命中 0 只，未知 2 只"
+        }
+      },
+      "decisions": {
+        "items": [
+          {
+            "stock_code": "600000.SH",
+            "market": "SH",
+            "as_of": "2026-09-14",
+            "close": 9.4,
+            "state": "unknown",
+            "score": 0.0,
+            "details": [
+              {
+                "state": "unknown",
+                "reason": "没有该证券已确认绑定且符合截止日的研报评估；无报告不等于不符合",
+                "score_weight": 1.0,
+                "score_contribution": 0.0,
+                "filter_id": "7ea2a205-56b0-4219-9788-83df73e71134",
+                "version": 1,
+                "name": "审查：没有评估结果时保留未知",
+                "node_path": "root",
+                "provenance": {
+                  "last_edited_by": "local_user",
+                  "based_on_version": null,
+                  "edited_at": "2026-10-06T16:03:31+00:00"
+                },
+                "data_date": "2026-09-14"
+              }
+            ],
+            "logic": {
+              "op": "filter_ref",
+              "path": "root",
+              "name": "审查：没有评估结果时保留未知",
+              "state": "unknown"
+            },
+            "reason": null
+          },
+          {
+            "stock_code": "600519.SH",
+            "market": "SH",
+            "as_of": "2026-09-14",
+            "close": 1277.96,
+            "state": "unknown",
+            "score": 0.0,
+            "details": [
+              {
+                "state": "unknown",
+                "reason": "没有该证券已确认绑定且符合截止日的研报评估；无报告不等于不符合",
+                "score_weight": 1.0,
+                "score_contribution": 0.0,
+                "filter_id": "7ea2a205-56b0-4219-9788-83df73e71134",
+                "version": 1,
+                "name": "审查：没有评估结果时保留未知",
+                "node_path": "root",
+                "provenance": {
+                  "last_edited_by": "local_user",
+                  "based_on_version": null,
+                  "edited_at": "2026-10-06T16:03:31+00:00"
+                },
+                "data_date": "2026-09-14"
+              }
+            ],
+            "logic": {
+              "op": "filter_ref",
+              "path": "root",
+              "name": "审查：没有评估结果时保留未知",
+              "state": "unknown"
+            },
+            "reason": null
+          }
+        ],
+        "total": 2,
+        "offset": 0,
+        "limit": 100
+      },
+      "csv": "D:\\项目\\LLM_research\\artifacts\\project-audit-20261006\\live-screening-ff8041a8.csv",
+      "csv_rows": [
+        {
+          "运行ID": "ff8041a8-8ade-4d5c-86a5-beedb8e7d96f",
+          "策略ID": "e8dcef23-46d2-4676-b639-6f89efc40e0a",
+          "策略版本": "1",
+          "截止日": "2026-09-14",
+          "模式": "exploratory",
+          "状态": "partial",
+          "证券代码": "",
+          "市场": "",
+          "实际日期": "",
+          "收盘": "",
+          "综合分": "",
+          "条件详情": "{\"counts\":{\"evaluated\":2,\"true\":0,\"false\":0,\"unknown\":2},\"results\":[],\"truncated_matches\":0,\"unknown_sample\":[{\"stock_code\":\"600000.SH\",\"market\":\"SH\",\"as_of\":\"2026-09-14\",\"close\":9.4,\"state\":\"unknown\",\"score\":0.0,\"details\":[{\"state\":\"unknown\",\"reason\":\"没有该证券已确认绑定且符合截止日的研报评估；无报告不等于不符合\",\"score_weight\":1.0,\"score_contribution\":0.0,\"filter_id\":\"7ea2a205-56b0-4219-9788-83df73e71134\",\"version\":1,\"name\":\"审查：没有评估结果时保留未知\",\"node_path\":\"root\",\"provenance\":{\"last_edited_by\":\"local_user\",\"based_on_version\":null,\"edited_at\":\"2026-10-06T16:03:31+00:00\"},\"data_date\":\"2026-09-14\"}],\"logic\":{\"op\":\"filter_ref\",\"path\":\"root\",\"name\":\"审查：没有评估结果时保留未知\",\"state\":\"unknown\"},\"reason\":null},{\"stock_code\":\"600519.SH\",\"market\":\"SH\",\"as_of\":\"2026-09-14\",\"close\":1277.96,\"state\":\"unknown\",\"score\":0.0,\"details\":[{\"state\":\"unknown\",\"reason\":\"没有该证券已确认绑定且符合截止日的研报评估；无报告不等于不符合\",\"score_weight\":1.0,\"score_contribution\":0.0,\"filter_id\":\"7ea2a205-56b0-4219-9788-83df73e71134\",\"version\":1,\"name\":\"审查：没有评估结果时保留未知\",\"node_path\":\"root\",\"provenance\":{\"last_edited_by\":\"local_user\",\"based_on_version\":null,\"edited_at\":\"2026-10-06T16:03:31+00:00\"},\"data_date\":\"2026-09-14\"}],\"logic\":{\"op\":\"filter_ref\",\"path\":\"root\",\"name\":\"审查：没有评估结果时保留未知\",\"state\":\"unknown\"},\"reason\":null}],\"mode\":\"exploratory\",\"ranking\":\"按组合树中命中条件的用户权重求和；同分按证券代码稳定排序后应用 TopN\",\"data_snapshot\":{\"watermark\":\"2026-09-28\",\"stock_file_bytes\":285999322,\"sha256\":\"05103ff6d11f854d14aaa9170698e226ff492d100ccb0dbbc992eb4aa9dedbbd\",\"price_basis\":\"unknown\"},\"report_evaluation_coverage\":[{\"filter_id\":\"7ea2a205-56b0-4219-9788-83df73e71134\",\"version\":1,\"state\":\"missing\",\"reason\":\"尚未对该截止日执行研报评估\"}],\"universe\":{\"kind\":\"watchlist\",\"id\":\"24b3bd06-9d1b-4137-b91d-ccdef2af5a94\",\"name\":\"审查实机测试：真实两股 05ccd82d\",\"codes\":[\"600000.SH\",\"600519.SH\"]},\"strategy_snapshot\":{\"schema_version\":\"1.0\",\"name\":\"审查实机：缺失研报评估为未知\",\"tree\":{\"op\":\"filter_ref\",\"filter_id\":\"7ea2a205-56b0-4219-9788-83df73e71134\",\"version\":1},\"top_n\":10,\"status\":\"published\",\"dependency_policy\":\"require_all_enabled\",\"unknown_policy\":\"exclude_and_report\"},\"condition_snapshots\":[{\"id\":\"7ea2a205-56b0-4219-9788-83df73e71134\",\"library\":\"report\",\"name\":\"审查：没有评估结果时保留未知\",\"version\":1,\"expression\":{\"op\":\"evidence_query\",\"evaluation_mode\":\"rubric\",\"combine\":\"all\",\"lookback_calendar_days\":30,\"criteria\":[{\"id\":\"audit_orders\",\"label\":\"订单增长\",\"question\":\"订单是否有明确增长证据？\",\"signals\":[],\"counter_signals\":[]}]},\"provenance\":{\"last_edited_by\":\"local_user\",\"based_on_version\":null,\"edited_at\":\"2026-10-06T16:03:31+00:00\"}}],\"trace_version\":\"condition-decisions-v1\",\"warnings\":[\"探索模式：复权口径和量额单位尚未确认\",\"证券基础资料和完整交易日历尚未接入\"]}"
+        }
+      ],
+      "worker": {
+        "exit_code": 0,
+        "stdout": "True\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "source_stat_before": {
+    "size": 285999322,
+    "mtime_ns": 1790585228482179800
+  },
+  "market_source": {
+    "last_date": "2026-09-28",
+    "sha256": "05103ff6d11f854d14aaa9170698e226ff492d100ccb0dbbc992eb4aa9dedbbd",
+    "bytes": 285999322,
+    "price_basis": "unknown",
+    "rows": 16983061,
+    "securities": 5569
+  },
+  "latest_bars": {
+    "600000.SH": {
+      "trade_date": "2026-09-14",
+      "open": 9.28,
+      "high": 9.43,
+      "low": 9.24,
+      "close": 9.4,
+      "volume": 771871.0,
+      "amount": 722307.374,
+      "quality_valid": true,
+      "quality_reason": null
+    },
+    "600519.SH": {
+      "trade_date": "2026-09-14",
+      "open": 1277.27,
+      "high": 1285.53,
+      "low": 1270.36,
+      "close": 1277.96,
+      "volume": 16571.0,
+      "amount": 2116621.85,
+      "quality_valid": true,
+      "quality_reason": null
+    }
+  },
+  "threshold": 643.6800000000001,
+  "watchlist": {
+    "id": "24b3bd06-9d1b-4137-b91d-ccdef2af5a94",
+    "name": "审查实机测试：真实两股 05ccd82d",
+    "created_at": "2026-10-06T16:03:26+00:00",
+    "items": []
+  },
+  "source_stat_after": {
+    "size": 285999322,
+    "mtime_ns": 1790585228482179800
+  },
+  "model_calls": 0,
+  "finished_at": "2026-10-07T00:03:35.543986+08:00"
+}

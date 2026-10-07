@@ -184,7 +184,7 @@ def claim(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, ex
                 "UPDATE jobs SET state=?,message=?,updated_at=?,lease_owner=NULL,lease_expires_at=NULL WHERE id=?", (state, message, now, row[0])
             )
             _set_run_state(connection, row[1], json_load(row[2]), state, now if state == "failed" else None)
-        predicates = ["state='queued'", "required_protocol IN ('legacy','condition-decisions-v1','screening-task-v1','research-scan-v1','research-turn-v1')", "(? IS NULL OR id=?)"]
+        predicates = ["state='queued'", "required_protocol IN ('legacy','condition-decisions-v1','screening-task-v1','research-scan-v1','research-turn-v1','research-pdf-v1')", "(? IS NULL OR id=?)"]
         params: list[Any] = [job_id, job_id]
         if kinds is not None:
             if not kinds:
@@ -253,6 +253,18 @@ def retry(job_id: str) -> dict:
             return {"job_id": existing[0], "status": existing[2], **json_load(existing[1])}
         if old["state"] not in {"failed", "cancelled", "partial"}:
             raise ValueError("只能重试失败、已取消或部分完成的任务")
+        if old["kind"] == "research_pdf":
+            payload = json_load(old["payload_json"])
+            export = connection.execute("SELECT job_id FROM research_pdf_exports WHERE id=?", (payload["export_id"],)).fetchone()
+            if not export or export["job_id"] != job_id:
+                raise ValueError("报告已有新的生成任务，请刷新查看。")
+            new_job, now = str(uuid4()), utc_now()
+            connection.execute(
+                "INSERT INTO jobs(id,kind,payload_json,state,message,created_at,updated_at,retry_of,required_protocol) VALUES(?,'research_pdf',?,'queued','等待重新生成报告',?,?,?,'research-pdf-v1')",
+                (new_job, old["payload_json"], now, now, job_id),
+            )
+            connection.execute("UPDATE research_pdf_exports SET job_id=?,updated_at=? WHERE id=?", (new_job, now, payload["export_id"]))
+            return {"job_id": new_job, "status": "queued", **payload}
         if old["kind"] not in RUN_TABLES:
             raise ValueError("不支持重试此任务类型")
         payload = json_load(old["payload_json"])

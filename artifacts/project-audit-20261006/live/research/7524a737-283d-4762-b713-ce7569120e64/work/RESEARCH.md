@@ -1,0 +1,5 @@
+# 研究工作区
+
+读取 research-inputs.json 获取原始行情、资料快照和 Python 路径。可使用终端、Python、DuckDB、NumPy、PyArrow、pypdf、Pillow 和文件工具自主研究、试算、调试。外部资料研究优先使用原生联网搜索与网页阅读工具发现来源、打开一手原文并核验引用。capture_research_page 保存动态网页正文、表格、链接与截图；download_research_source 保存 PDF、图像或数据表原件及网址、哈希。inspect_research_pdf 按原页码提取候选表格与页面图像；用原生图像工具实际查看 image_path 核对表头、单位、负号、脚注与图表，必要时按 bbox 放大。工具页码从1开始按PDF物理页计数；与印刷页及从0开始的索引分开。网页抽取文本的页脚可能属于上一页，引用前须核对目标页面或明确边界，不能猜页码。inspect_research_image 可裁剪外部图像；list_research_external_sources 可在后续回合找回来源。来源保存在 sources/，不当作最终报告交付。动态网页和资料下载可用 Playwright 启动独立无头 Chromium/Edge，不使用用户浏览器配置文件。使用 playwright.chromium.launch(**manifest['web']['launch_options']) 启动，结束时关闭浏览器。外部行情和财务数据通过 query_tushare 工具读取，服务端保留密钥。执行 Python 时使用清单中的 python 可执行文件。SQLite 用 mode=ro 打开；行情用 DuckDB/Arrow 查询，避免将全库装入提示词。
+
+outputs/ 保存报告正文、表格和图表输入，服务端统一生成带东吴证券 logo 和张家港营业部字样的 PDF 交付物；不得自行改模板或重绘标识。tmp/ 存放临时文件。本目录跨回合保留。读取研报PDF或 report_pages 原文，引用 source id、页码或资讯 id。先确认字段和单位，再作数值判断。探索计算不要求先创建筛选条件。批量正式筛选、保存方案、版本和观察池通过 MCP 业务工具完成，不得直接改应用数据库。用户只要求讨论/保存时，不启动正式筛选。

@@ -1,0 +1,165 @@
+{
+  "scope": "Synthetic intercepted API; visual and interaction acceptance; no model evaluation or daily database writes",
+  "checks": [
+    {
+      "width": 1440,
+      "case": "first-task",
+      "overflow": false,
+      "writes": 0
+    },
+    {
+      "width": 1440,
+      "case": "observe-prefill",
+      "writes": 1,
+      "no_process_or_execute": true
+    },
+    {
+      "width": 1440,
+      "case": "bookmark-and-tasks",
+      "reload_writes": 0,
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "case": "library/news",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "case": "library/reports",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "case": "library/technical",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "case": "library/patterns",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "case": "screening/new",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "case": "projects",
+      "overflow": false
+    },
+    {
+      "width": 1440,
+      "case": "observation",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "case": "first-task",
+      "overflow": false,
+      "writes": 0
+    },
+    {
+      "width": 390,
+      "case": "observe-prefill",
+      "writes": 1,
+      "no_process_or_execute": true
+    },
+    {
+      "width": 390,
+      "case": "bookmark-and-tasks",
+      "reload_writes": 0,
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "case": "library/news",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "case": "library/reports",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "case": "library/technical",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "case": "library/patterns",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "case": "screening/new",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "case": "projects",
+      "overflow": false
+    },
+    {
+      "width": 390,
+      "case": "observation",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "case": "first-task",
+      "overflow": false,
+      "writes": 0
+    },
+    {
+      "width": 320,
+      "case": "observe-prefill",
+      "writes": 1,
+      "no_process_or_execute": true
+    },
+    {
+      "width": 320,
+      "case": "bookmark-and-tasks",
+      "reload_writes": 0,
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "case": "library/news",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "case": "library/reports",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "case": "library/technical",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "case": "library/patterns",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "case": "screening/new",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "case": "projects",
+      "overflow": false
+    },
+    {
+      "width": 320,
+      "case": "observation",
+      "overflow": false
+    }
+  ],
+  "page_errors": []
+}

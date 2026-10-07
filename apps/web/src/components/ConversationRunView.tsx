@@ -43,7 +43,7 @@ export default function ConversationRunView({ conversationId, runId, onContinue 
   }, [base, run?.status, state, query, offset, reload])
   if (!run) return <div><p role={error ? 'alert' : 'status'}>{error || '正在读取历史筛选…'}</p>{error && <button onClick={() => setReload(i => i + 1)}>重试</button>}</div>
   return <div><div className="section-title-row"><h2>选股记录</h2><button className="primary-button" onClick={onContinue}>打开原对话与方案</button></div>
-    <p className="history-date-notice">这是截止 {run.as_of} 的历史结果。修改方案或数据更新不会改变这份记录。</p>
+    <p className="history-date-notice">截止日期：{run.as_of}</p>
     <details><summary>本次采用的筛选规则</summary><TaskLogic task={run.task} /></details>
     <ScreeningResultView asOf={run.as_of} revision={run.task_revision} status={run.status} isCurrent={false}
       coverage={run.result.coverage} progress={{ message: run.job.message, percent: run.job.progress }}

@@ -43,7 +43,7 @@ def _task(conversation_id: str):
 
 
 def _conversation(client):
-    conversation = client.post("/api/v1/conversations", json={"entry_scope": "screening"}).json()
+    conversation = client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "screening"}).json()
     message = client.post(f"/api/v1/conversations/{conversation['id']}/messages", json={
         "client_message_id": "save-task-message", "base_revision": 0,
         "content": "收盘价高于自定义趋势线且研报支持订单增长",

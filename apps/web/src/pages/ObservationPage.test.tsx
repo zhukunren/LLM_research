@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ObservationPage from './ObservationPage'
+import type { ObservationItem } from './ObservationPage'
 import type { ScreeningTaskRevision } from '../api'
 
 vi.mock('../components/ObservationChart', () => ({ default: ({ code, view }: { code: string; view: string }) => <div data-testid="chart">{code} · {view}</div> }))
@@ -21,6 +22,7 @@ function mockApi(intercept?: (url: string, init?: RequestInit) => Response | Pro
     const url = String(input)
     const custom = intercept?.(url, init)
     if (custom) return custom
+    if (url.includes('/observation/research-candidates')) return json({ items: [], total: 0 })
     if (url.includes('/saved-screening-tasks')) return json({ items: [{ id: 'saved', name: '趋势方案', version: 2, task, created_at: '2026-09-01T09:00:00Z' }] })
     if (url.includes('/observation/runs?')) return json({ items: [run(), run('run-2')], total: 2 })
     if (url.includes('/decisions?')) return json({ items: [{ stock_code: '600000.SH', state: 'true', reason_code: 'condition_met', evaluation_status: 'completed', condition_decisions: [{ condition_id: 'c', reference_id: 'r', explanation: '收盘价符合条件', state: 'true', actual_values: {}, thresholds: {}, units: {} }] }], total: 1 })
@@ -36,31 +38,31 @@ function mockApi(intercept?: (url: string, init?: RequestInit) => Response | Pro
 }
 const data = { available: true, last_date: '2026-09-03' }
 
-describe('观察池第一版', () => {
-  it('加载方案不执行，显式执行使用所选版本与最新日期，失败重试复用请求标识', async () => {
-    const requests: Record<string, unknown>[] = []
-    const fetcher = mockApi((url, init) => {
-      if (url.endsWith('/execute')) {
-        requests.push(JSON.parse(String(init?.body)))
-        return requests.length === 1 ? json({ message: '响应丢失，请重试' }, 503) : json({ run_id: 'run-1' })
-      }
-    })
+describe('观察池来源分类与跟踪', () => {
+  it('restores the bookmarked batch before old session selection and reports only actual read objects', async () => {
+    sessionStorage.setItem('observation.run', '"run-1"')
+    const fetcher = mockApi(), location = vi.fn()
+    const view = render(<ObservationPage data={data} initialRunId="run-2" initialTab="batches" onLocationChange={location} />)
+    await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600001.SH'))
+    expect(screen.getByLabelText('选择选股批次')).toHaveValue('run-2')
+    expect(location).toHaveBeenCalledWith('batches', 'run-2')
+    view.rerender(<ObservationPage data={data} initialRunId="run-1" initialTab="batches" onLocationChange={location} />)
+    await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600000.SH'))
+    expect(location).toHaveBeenLastCalledWith('batches', 'run-1')
+    expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true)
+  })
+
+  it('默认研究跟踪，通过条件选股导航开始新筛选', async () => {
+    const fetcher = mockApi()
+    const navigate = vi.fn()
     const user = userEvent.setup()
-    render(<ObservationPage data={data} />)
-    await waitFor(() => expect(screen.getByRole('button', { name: '执行选股' })).toBeEnabled())
+    render(<ObservationPage data={data} onNavigateScreening={navigate} />)
+    await screen.findByText('还没有研究候选')
+    expect(screen.getByRole('tab', { name: '研究候选' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('button', { name: '执行选股' })).not.toBeInTheDocument()
     expect(fetcher.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
-    await user.click(screen.getByRole('button', { name: '执行选股' }))
-    await screen.findByText('响应丢失，请重试')
-    await user.click(screen.getByRole('button', { name: '执行选股' }))
-    await waitFor(() => expect(requests).toHaveLength(2))
-    expect(requests[0]).toEqual(requests[1])
-    expect(requests[0]).toMatchObject({ version: 2, as_of: '2026-09-03' })
-    await screen.findByText(/选股已提交/)
-    fireEvent.input(screen.getByLabelText('选股行情截止日'), { target: { value: '2026-09-01' } })
-    await user.click(screen.getByRole('button', { name: '执行选股' }))
-    await waitFor(() => expect(requests).toHaveLength(3))
-    expect(requests[2]).toMatchObject({ version: 2, as_of: '2026-09-01' })
-    expect(requests[2].request_id).not.toEqual(requests[0].request_id)
+    await user.click(screen.getByRole('button', { name: '去条件选股' }))
+    expect(navigate).toHaveBeenCalledOnce()
   })
 
   it('列表与K线联动，观察页显示后续走势，结束观察与备注显式保存', async () => {
@@ -71,8 +73,7 @@ describe('观察池第一版', () => {
     })
     const user = userEvent.setup()
     render(<ObservationPage data={data} />)
-    expect(await screen.findByTestId('chart')).toHaveTextContent('600000.SH · selection')
-    await user.click(screen.getByRole('button', { name: '查看本批次观察' }))
+    await user.click(screen.getByRole('tab', { name: '筛选批次' }))
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600000.SH · observation'))
     await user.selectOptions(screen.getByLabelText('统计周期'), '5')
     expect(screen.getAllByText('未满期').length).toBeGreaterThan(0)
@@ -94,8 +95,7 @@ describe('观察池第一版', () => {
     })
     const user = userEvent.setup()
     render(<ObservationPage data={data} />)
-    await screen.findByTestId('chart')
-    await user.click(screen.getByRole('tab', { name: '观察池' }))
+    await user.click(screen.getByRole('tab', { name: '筛选批次' }))
     await waitFor(() => expect(requested).toBe(true))
     await user.selectOptions(screen.getByLabelText('选择选股批次'), 'run-2')
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600001.SH'))
@@ -103,4 +103,50 @@ describe('观察池第一版', () => {
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600001.SH'))
     expect(screen.queryByRole('button', { name: '600000.SH' })).not.toBeInTheDocument()
   })
+
+  it('涨跌幅升序将缺失值放在最后，搜索无结果可一键恢复完整列表', async () => {
+    mockApi(url => {
+      if (url.endsWith('/performance')) {
+        const value = performance()
+        const items: ObservationItem[] = [
+          { ...value.items[0], stock_code: '600000.SH', return_latest: 12 },
+          { ...value.items[0], stock_code: '600001.SH', return_latest: -4 },
+          { ...value.items[0], stock_code: '600002.SH', return_latest: null },
+        ]
+        return json({ ...value, items, summary: { ...value.summary, selected: 3 } })
+      }
+    })
+    const user = userEvent.setup()
+    render(<ObservationPage data={data} />)
+    await user.click(screen.getByRole('tab', { name: '筛选批次' }))
+    await screen.findByRole('cell', { name: '-4.00%' })
+    await user.selectOptions(screen.getByLabelText('观察排序'), 'return-asc')
+    const list = screen.getByRole('region', { name: '股票结果列表' })
+    const rows = within(list).getAllByRole('row')
+    expect(rows[1]).toHaveTextContent('600001.SH')
+    expect(rows[2]).toHaveTextContent('600000.SH')
+    expect(rows[3]).toHaveTextContent('600002.SH')
+    await user.type(screen.getByLabelText('搜索结果股票'), '不存在的股票')
+    expect(screen.getByText('没有匹配的股票')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '显示全部股票' }))
+    expect(screen.getByLabelText('搜索结果股票')).toHaveValue('')
+    expect(within(list).getAllByRole('row')).toHaveLength(4)
+  })
+})
+
+it('uses neutral styling for unchanged prices and missing horizon returns', async () => {
+  mockApi(url => {
+    if (url.endsWith('/performance')) {
+      const value = performance()
+      value.items[0].return_latest = 0
+      return json(value)
+    }
+  })
+  const user = userEvent.setup()
+  render(<ObservationPage data={data} />)
+  await user.click(screen.getByRole('tab', { name: '筛选批次' }))
+  const unchanged = await screen.findByRole('cell', { name: '0.00%' })
+  expect(unchanged).toHaveClass('observation-neutral')
+  await user.selectOptions(screen.getByLabelText('统计周期'), '5')
+  expect(screen.getByRole('cell', { name: /未满期/ })).toHaveClass('observation-neutral')
 })

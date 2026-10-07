@@ -17,8 +17,8 @@ def client(tmp_path, monkeypatch):
         yield session
 
 
-def create_conversation(client, scope="technical"):
-    response = client.post("/api/v1/conversations", json={"entry_scope": scope})
+def create_conversation(client, scope="technical", workflow_type="screening"):
+    response = client.post("/api/v1/conversations", json={"entry_scope": scope, "workflow_type": workflow_type})
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -77,7 +77,7 @@ def test_migration_010_is_applied_once_and_conversation_survives_reload(client):
 
 def test_research_mode_persists_and_cannot_change_during_an_active_turn(client, monkeypatch):
     monkeypatch.setenv("LLMR_RESEARCH_MODE", "advanced")
-    created = create_conversation(client)
+    created = create_conversation(client, workflow_type="research")
     cid = created["id"]
     assert created["research_mode"] == "advanced"
     url = f"/api/v1/conversations/{cid}/mode"

@@ -58,7 +58,7 @@ export default function StockSearch({ value, onChange, label = '搜索股票', i
         onMouseDown={event => event.preventDefault()} onClick={() => choose(item)}><strong>{item.name || item.stock_code}</strong><span>{item.stock_code} · {({ SH: '沪市', SZ: '深市', BJ: '北交所' } as Record<string, string>)[item.market] || item.market}</span></button>)}
       {loading && <p role="status">正在读取股票名称…</p>}
       {error && <p role="alert">股票名称暂时无法读取。<button type="button" className="text-button" onMouseDown={event => event.preventDefault()} onClick={refresh}>重试</button></p>}
-      {!matches.length && !loading && !error && <p>没有匹配股票。可输入完整代码，或在“数据与服务”更新股票名称。</p>}
+      {!matches.length && !loading && !error && <p>没有匹配股票。</p>}
     </div>}
   </div>
 }

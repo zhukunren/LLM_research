@@ -56,6 +56,12 @@ def llm_settings() -> dict[str, str | bool]:
     if not config.has_section(provider_section) or not (PROJECT_ROOT / "config.ini").is_file():
         api_mode = os.environ.get("LLMR_LLM_API_MODE", api_mode).strip().lower()
         api_path = os.environ.get("LLMR_LLM_API_PATH", os.environ.get("LLMR_LLM_CHAT_PATH", api_path))
+    search_capability = os.environ.get(
+        "LLMR_LLM_SUPPORTS_STANDALONE_WEB_SEARCH",
+        provider.get("supports_standalone_web_search", "false"),
+    ).strip().lower()
+    if search_capability not in configparser.ConfigParser.BOOLEAN_STATES:
+        raise ValueError("supports_standalone_web_search 应为 true 或 false")
     return {
         "configured": bool(base_url and key and model),
         "base_url": base_url,
@@ -64,7 +70,17 @@ def llm_settings() -> dict[str, str | bool]:
         "reasoning_effort": reasoning_effort,
         "api_mode": api_mode,
         "api_path": api_path,
+        "supports_standalone_web_search": configparser.ConfigParser.BOOLEAN_STATES[search_capability],
     }
+
+
+def research_web_search_mode() -> str:
+    config = _read_config()
+    section = config["research"] if config.has_section("research") else {}
+    mode = os.environ.get("LLMR_RESEARCH_WEB_SEARCH", section.get("web_search", "live")).strip().lower()
+    if mode not in {"live", "cached", "disabled"}:
+        raise ValueError("research.web_search 应为 live、cached 或 disabled")
+    return mode
 
 
 def research_settings() -> dict[str, int]:
@@ -72,7 +88,9 @@ def research_settings() -> dict[str, int]:
     section = config["research"] if config.has_section("research") else {}
     values = {}
     for name, default, minimum, maximum in (
-        ("turn_timeout_seconds", 1200, 30, 7200),
+        ("turn_timeout_seconds", 3600, 30, 7200),
+        ("model_request_timeout_seconds", 600, 1, 3600),
+        ("tool_timeout_seconds", 1800, 1, 7200),
         ("max_tool_calls", 0, 0, 10000),
         ("max_output_file_bytes", 50 * 1024 * 1024, 1024, 200 * 1024 * 1024),
     ):
@@ -83,14 +101,28 @@ def research_settings() -> dict[str, int]:
     return values
 
 
-def research_mode_settings(mode: str | None) -> dict[str, int | str]:
+def report_parser_settings() -> dict[str, str | None]:
+    config = _read_config()
+    section = config["reports"] if config.has_section("reports") else {}
+    backend = os.environ.get("LLMR_REPORT_PARSER", section.get("parser", "pypdf")).strip().lower()
+    if backend not in {"pypdf", "docling"}:
+        raise ValueError("reports.parser 仅支持 pypdf 或 docling")
+    artifacts = os.environ.get("LLMR_DOCLING_ARTIFACTS_PATH", section.get("docling_artifacts_path", "")).strip() or None
+    return {"backend": backend, "docling_artifacts_path": artifacts}
+
+
+def research_mode_settings(mode: str | None, depth: str | None = None) -> dict[str, int | str]:
     """Return user-facing research budgets without widening business write access."""
     normalized = (mode or "research").strip().lower()
     if normalized not in {"research", "screening", "advanced"}:
         normalized = "research"
-    values: dict[str, int | str] = {**research_settings(), "mode": normalized}
-    if normalized == "advanced":
-        values["turn_timeout_seconds"] = max(int(values["turn_timeout_seconds"]), 3600)
+    deep = depth == "deep" or (depth is None and normalized == "advanced")
+    values: dict[str, int | str] = {
+        **research_settings(), "mode": normalized,
+        "reasoning_effort": "max" if deep else "high",
+    }
+    if deep:
+        values["turn_timeout_seconds"] = max(int(values["turn_timeout_seconds"]), 7200)
         values["max_output_file_bytes"] = max(int(values["max_output_file_bytes"]), 200 * 1024 * 1024)
     return values
 

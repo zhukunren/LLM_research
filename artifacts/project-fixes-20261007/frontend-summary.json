@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-07",
+  "fixed_audit_ids": [5, 6, 7],
+  "also_fixed": "Research project form draft cleanup",
+  "business_files": [
+    "apps/web/src/useSessionState.ts",
+    "apps/web/src/pages/ResearchProjectsPage.tsx",
+    "apps/web/src/components/conversation/ConversationWorkspace.tsx"
+  ],
+  "new_regression_cases": 13,
+  "focused": { "files": 3, "passed": 29, "failed": 0, "duration_seconds": 16.22 },
+  "full_test": { "files": 36, "passed": 221, "failed": 0, "duration_seconds": 87.94, "exit_code": 0 },
+  "build": { "passed": true, "duration_seconds": 13.051042, "vite_seconds": 7.26, "exit_code": 0 },
+  "warning": "Existing ObservationPage chunk 638.25 kB",
+  "backend_changes": false,
+  "external_model_calls": false,
+  "real_browser_validation": "Root task performs separately",
+  "recovery_contract": {
+    "note": "Replay original create content and request_id, recover note_id/revision, PATCH current edited content to the same object; confirm unrelated concurrent edits",
+    "message": "Persist original payload and client_message_id across draft identity migration and reload; unchanged draft replays original revisions; existing UI message deduplicated"
+  }
+}

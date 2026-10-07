@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Play, RefreshCw, Search, Telescope } from 'lucide-react'
-import { api, type DataStatus, type SavedScreeningTask, type ScreeningTaskDecision, type ScreeningTaskRevision } from '../api'
+import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Download, History, Loader2, RefreshCw, Search, Telescope } from 'lucide-react'
+import { api, type DataStatus, type ScreeningTaskRevision } from '../api'
 import { StockName } from '../components/StockSearch'
-import { TaskLogic, taskUniverseLabel } from '../components/conversation/TaskBrief'
+import { TaskLogic } from '../components/conversation/TaskBrief'
 import ObservationChart from '../components/ObservationChart'
+import ResearchCandidatePanel from './ResearchCandidatePanel'
 import { navigateTabs } from '../keyboard'
 import { isText, useSessionState } from '../useSessionState'
 import '../observation.css'
@@ -24,113 +25,84 @@ const watchLabels: Record<string, string> = { watching: '观察中', priority: '
 const active = (status?: string) => status === 'queued' || status === 'running'
 export const number = (value: number | null | undefined) => value == null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 export const percent = (value: number | null | undefined) => value == null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
+const returnClass = (value: number | null | undefined) => value == null || value === 0 ? 'observation-neutral' : value > 0 ? 'observation-up' : 'observation-down'
 const timestamp = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
 
-export default function ObservationPage({ data }: { data: DataStatus | null }) {
-  const [tab, setTab] = useSessionState<'screening' | 'observation'>('observation.tab', 'screening', (value): value is 'screening' | 'observation' => value === 'screening' || value === 'observation')
-  const [saved, setSaved] = useState<SavedScreeningTask[]>([])
-  const [asset, setAsset] = useSessionState('observation.asset', '', isText)
-  const [assetQuery, setAssetQuery] = useState('')
-  const [asOf, setAsOf] = useState(data?.last_date ?? '')
-  const [scope, setScope] = useState('saved')
-  const [batches, setBatches] = useState<Batch[]>([])
-  const [historyQuery, setHistoryQuery] = useState('')
-  const [historyOffset, setHistoryOffset] = useState(0)
-  const [historyTotal, setHistoryTotal] = useState(0)
+type Props = { data: DataStatus | null; onNavigateScreening?: () => void; onOpenResearch?: (conversationId: string) => void; onStartResearch?: () => void; initialRunId?: string; initialCandidateId?: string; initialTab?: 'candidates' | 'batches'; onLocationChange?: (tab: 'candidates' | 'batches', id: string) => void }
+export default function ObservationPage({ data, onNavigateScreening, onOpenResearch, onStartResearch, initialRunId, initialCandidateId, initialTab, onLocationChange }: Props) {
   const [runId, setRunId] = useSessionState('observation.run', '', isText)
-  const [run, setRun] = useState<Run | null>(null)
-  const [decisions, setDecisions] = useState<ScreeningTaskDecision[]>([])
-  const [total, setTotal] = useState(0)
-  const [offset, setOffset] = useState(0)
-  const [state, setState] = useState('true')
-  const [query, setQuery] = useState('')
+  const [tab, setTab] = useState<'candidates' | 'batches'>(() => initialTab || (initialRunId || runId ? 'batches' : 'candidates'))
+  const locationCallback = useRef(onLocationChange)
+  locationCallback.current = onLocationChange
+  useEffect(() => {
+    if (initialRunId) { setRunId(initialRunId); setTab('batches') }
+    else if (initialCandidateId) { setRunId(''); setTab('candidates') }
+    else if (initialTab) { setTab(initialTab); if (initialTab === 'candidates') setRunId('') }
+  }, [initialRunId, initialCandidateId, initialTab])
+  function changeTab(next: 'candidates' | 'batches') { setTab(next); locationCallback.current?.(next, next === 'batches' ? runId : '') }
+  const [batches, setBatches] = useState<Batch[]>([]), [historyQuery, setHistoryQuery] = useState('')
+  const [historyOffset, setHistoryOffset] = useState(0), [historyTotal, setHistoryTotal] = useState(0)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [run, setRun] = useState<Run | null>(null), [performance, setPerformance] = useState<Performance | null>(null)
+  const [query, setQuery] = useState(''), [offset, setOffset] = useState(0)
   const [selectedCode, setSelectedCode] = useSessionState('observation.code', '', isText)
-  const [performance, setPerformance] = useState<Performance | null>(null)
   const [horizon, setHorizon] = useState<'latest' | '5' | '10' | '20'>('latest')
-  const [sort, setSort] = useState('code')
-  const [watchStatus, setWatchStatus] = useState('')
-  const [refresh, setRefresh] = useState(0)
-  const [busy, setBusy] = useState(false)
-  const [catalogLoading, setCatalogLoading] = useState(true)
-  const [resultsLoading, setResultsLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [resultError, setResultError] = useState('')
-  const [notice, setNotice] = useState('')
-  const attempt = useRef<{ key: string; id: string } | null>(null)
-  const submitLock = useRef(false)
-  const chosen = saved.find(item => `${item.id}@${item.version}` === asset)
-
-  useEffect(() => { if (!asOf && data?.last_date) setAsOf(data.last_date) }, [data?.last_date, asOf])
+  const [sort, setSort] = useState('priority'), [watchStatus, setWatchStatus] = useState('')
+  const [refresh, setRefresh] = useState(0), [busy, setBusy] = useState(false), [resultsLoading, setResultsLoading] = useState(false)
+  const [error, setError] = useState(''), [resultError, setResultError] = useState('')
+  const resultsRef = useRef<HTMLElement>(null), detailRef = useRef<HTMLElement>(null)
+  function readStock(code: string) {
+    setSelectedCode(code)
+    if (globalThis.matchMedia?.('(max-width: 1100px)').matches) {
+      detailRef.current?.focus({ preventScroll: true })
+      detailRef.current?.scrollIntoView({ behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
+    }
+  }
   useEffect(() => {
+    if (tab !== 'batches') return
     const controller = new AbortController()
-    setCatalogLoading(true)
-    api<{ items: SavedScreeningTask[] }>('/saved-screening-tasks?include_history=true&limit=200', { signal: controller.signal })
-      .then(result => { if (!controller.signal.aborted) { setSaved(result.items); setAsset(current => result.items.some(item => `${item.id}@${item.version}` === current) ? current : result.items[0] ? `${result.items[0].id}@${result.items[0].version}` : '') } })
-      .catch(reason => { if (!controller.signal.aborted) setError(reason.message) })
-      .finally(() => { if (!controller.signal.aborted) setCatalogLoading(false) })
-    return () => controller.abort()
-  }, [refresh])
-  useEffect(() => {
-    const controller = new AbortController()
+    setHistoryLoading(true); setError('')
     const timer = setTimeout(() => {
       api<{ items: Batch[]; total: number }>(`/observation/runs?limit=50&offset=${historyOffset}&query=${encodeURIComponent(historyQuery)}`, { signal: controller.signal })
         .then(result => { if (!controller.signal.aborted) { setBatches(result.items); setHistoryTotal(result.total); setRunId(current => current || result.items[0]?.id || '') } })
         .catch(reason => { if (!controller.signal.aborted) setError(reason.message) })
+        .finally(() => { if (!controller.signal.aborted) setHistoryLoading(false) })
     }, 150)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [refresh, historyQuery, historyOffset])
+  }, [tab, refresh, historyQuery, historyOffset])
   useEffect(() => {
-    if (!runId) { setRun(null); return }
+    if (tab !== 'batches' || !runId) { setRun(null); return }
     const controller = new AbortController()
     let timer: ReturnType<typeof setTimeout>
-    setRun(null); setSelectedCode(''); setDecisions([]); setPerformance(null); setOffset(0); setQuery(''); setResultError('')
+    setRun(null); setSelectedCode(''); setPerformance(null); setOffset(0); setQuery(''); setResultError('')
     async function load() {
       try {
         const value = await api<Run>(`/observation/runs/${runId}`, { signal: controller.signal })
         if (controller.signal.aborted) return
         setRun(value)
+        locationCallback.current?.('batches', value.id)
         setBatches(items => items.map(item => item.id === value.id ? { ...item, status: value.status, counts: value.result.coverage ?? {} } : item))
         if (active(value.status)) timer = setTimeout(load, 1500)
       } catch (reason) { if (!controller.signal.aborted) setResultError((reason as Error).message) }
     }
     void load()
     return () => { controller.abort(); clearTimeout(timer) }
-  }, [runId, refresh])
+  }, [tab, runId, refresh])
   useEffect(() => {
     const controller = new AbortController()
-    setDecisions([]); setPerformance(null); setResultsLoading(false)
-    if (!run || run.id !== runId || active(run.status)) return
+    setPerformance(null); setResultsLoading(false)
+    if (tab !== 'batches' || !run || run.id !== runId || active(run.status)) return
     setResultsLoading(true); setResultError('')
     const timer = setTimeout(() => {
-      const path = tab === 'screening'
-        ? `/observation/runs/${runId}/decisions?state=${state}&query=${encodeURIComponent(query)}&offset=${offset}&limit=30`
-        : `/observation/runs/${runId}/performance`
-      api<Performance | { items: ScreeningTaskDecision[]; total: number }>(path, { signal: controller.signal }).then(value => {
-        if (controller.signal.aborted) return
-        if ('summary' in value) { setPerformance(value); setSelectedCode(current => value.items.some(item => item.stock_code === current) ? current : value.items[0]?.stock_code ?? '') }
-        else { setDecisions(value.items); setTotal(value.total); setSelectedCode(current => value.items.some(item => item.stock_code === current) ? current : value.items[0]?.stock_code ?? '') }
+      api<Performance>(`/observation/runs/${runId}/performance`, { signal: controller.signal }).then(value => {
+        if (!controller.signal.aborted) { setPerformance(value); setSelectedCode(current => value.items.some(item => item.stock_code === current) ? current : '') }
       }).catch(reason => { if (!controller.signal.aborted) setResultError(reason.message) })
         .finally(() => { if (!controller.signal.aborted) setResultsLoading(false) })
     }, 180)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [run?.id, run?.status, runId, tab, state, tab === 'screening' ? query : '', tab === 'screening' ? offset : 0, refresh])
-
-  function switchTab(value: 'screening' | 'observation') { setTab(value); setOffset(0); setQuery(''); setResultError('') }
-  async function execute() {
-    if (!chosen || submitLock.current) return
-    submitLock.current = true; setBusy(true); setError(''); setNotice('')
-    const payload = { version: chosen.version, as_of: asOf, ...(scope === 'all' ? { universe: { kind: 'all_a_shares', stock_codes: [] } } : {}) }
-    const key = `${chosen.id}:${JSON.stringify(payload)}`
-    if (attempt.current?.key !== key) attempt.current = { key, id: crypto.randomUUID() }
-    try {
-      const result = await api<{ run_id: string }>(`/observation/saved-tasks/${chosen.id}/execute`, { method: 'POST', body: JSON.stringify({ ...payload, request_id: attempt.current.id }) })
-      attempt.current = null; setRunId(result.run_id); setRefresh(value => value + 1)
-      setNotice('选股已提交，本次条件和执行日期已保存。完成后可直接查看本批次观察。')
-    } catch (reason) { setError((reason as Error).message) }
-    finally { submitLock.current = false; setBusy(false) }
-  }
+  }, [tab, run?.id, run?.status, runId, refresh])
   async function cancel() {
-    if (!run) return
+    if (!run || busy) return
     setBusy(true)
     try { await api(`/jobs/${run.job_id}/cancel`, { method: 'POST' }); setRefresh(value => value + 1) }
     catch (reason) { setError((reason as Error).message) }
@@ -140,47 +112,73 @@ export default function ObservationPage({ data }: { data: DataStatus | null }) {
     const matching = (performance?.items ?? []).filter(item => (!watchStatus || item.status === watchStatus) && `${item.name} ${item.stock_code}`.toLowerCase().includes(query.toLowerCase().trim()))
     return matching.sort((a, b) => {
       if (sort === 'priority') return Number(b.status === 'priority') - Number(a.status === 'priority') || a.stock_code.localeCompare(b.stock_code)
-      if (sort === 'return') { const av = horizon === 'latest' ? a.return_latest : a.returns[horizon], bv = horizon === 'latest' ? b.return_latest : b.returns[horizon]; return (bv ?? -Infinity) - (av ?? -Infinity) || a.stock_code.localeCompare(b.stock_code) }
+      if (sort === 'return' || sort === 'return-asc') {
+        const av = horizon === 'latest' ? a.return_latest : a.returns[horizon], bv = horizon === 'latest' ? b.return_latest : b.returns[horizon]
+        if (av == null || bv == null) return av == null && bv == null ? a.stock_code.localeCompare(b.stock_code) : av == null ? 1 : -1
+        return (sort === 'return-asc' ? av - bv : bv - av) || a.stock_code.localeCompare(b.stock_code)
+      }
       return a.stock_code.localeCompare(b.stock_code)
     })
   }, [performance, query, watchStatus, sort, horizon])
   useEffect(() => {
-    if (tab !== 'observation' || !performance) return
+    if (tab !== 'batches' || !performance) return
     const page = observed.slice(offset, offset + 30)
     if (offset > 0 && !page.length) { setOffset(0); return }
     setSelectedCode(current => page.some(item => item.stock_code === current) ? current : page[0]?.stock_code ?? '')
   }, [observed, offset, tab, performance])
   const selectedObservation = performance?.items.find(item => item.stock_code === selectedCode)
-  const stat = performance?.summary[horizon]
-  const counts = run?.result.coverage
-  const selectedTasks = saved.filter(item => `${item.name} ${item.task.conditions.map(c => c.description).join(' ')}`.toLowerCase().includes(assetQuery.toLowerCase().trim()) || `${item.id}@${item.version}` === asset)
+  const stat = performance?.summary[horizon], counts = run?.result.coverage
 
-  return <div className="page-content observation-page">
-    <div className="page-heading"><div><span className="workspace-eyebrow">研究跟踪</span><h1>观察池</h1></div><button className="secondary-button" onClick={() => { setError(''); setRefresh(value => value + 1) }}><RefreshCw size={15} />刷新</button></div>
-    <div className="observation-tabs" role="tablist" aria-label="观察池页面" onKeyDown={event => navigateTabs(event, ['screening', 'observation'] as const, tab, switchTab)}><button role="tab" tabIndex={tab === 'screening' ? 0 : -1} id="screening-tab" aria-controls="observation-panel" aria-selected={tab === 'screening'} onClick={() => switchTab('screening')}>选股</button><button role="tab" tabIndex={tab === 'observation' ? 0 : -1} id="observation-tab" aria-controls="observation-panel" aria-selected={tab === 'observation'} onClick={() => switchTab('observation')}>观察池</button></div>
-    {error && <div className="library-error" role="alert">{error}</div>}{notice && <div className="inline-notice" role="status">{notice}</div>}
+  return <div className="page-content observation-page observation-redesigned">
+    <header className="page-heading observation-page-heading">
+      <div><span className="workspace-eyebrow">研究跟踪 / WATCHLIST</span><h1>观察池</h1></div>
+      <div className="observation-heading-actions">{onNavigateScreening && <button className="primary-button" onClick={onNavigateScreening}>去条件选股<ArrowRight size={15} /></button>}<button className="secondary-button" onClick={() => { setError(''); setRefresh(value => value + 1) }}><RefreshCw size={15} />刷新</button></div>
+    </header>
+    <div className="observation-source-nav">
+      <div className="observation-tabs" role="tablist" aria-label="观察来源分类" onKeyDown={event => navigateTabs(event, ['candidates', 'batches'] as const, tab, changeTab)}>
+        <button role="tab" aria-label="研究候选" tabIndex={tab === 'candidates' ? 0 : -1} id="candidates-tab" aria-controls="observation-panel" aria-selected={tab === 'candidates'} onClick={() => changeTab('candidates')}><Telescope size={17} /><span>研究候选<small>研究判断与验证计划</small></span></button>
+        <button role="tab" aria-label="筛选批次" tabIndex={tab === 'batches' ? 0 : -1} id="batches-tab" aria-controls="observation-panel" aria-selected={tab === 'batches'} onClick={() => changeTab('batches')}><ClipboardList size={17} /><span>筛选批次<small>入选表现与走势跟踪</small></span></button>
+      </div>
+      <span className="observation-data-status"><span />{data?.last_date ? `行情截至 ${data.last_date}` : '未记录行情日期'}</span>
+    </div>
+    {error && <div className="library-error" role="alert">{error}<button className="text-button" onClick={() => setRefresh(value => value + 1)}>重新加载</button></div>}
     <section id="observation-panel" role="tabpanel" aria-labelledby={`${tab}-tab`}>
-      {tab === 'screening' ? <section className="observation-card selection-controls">
-        <div className="observation-form"><label>查找方案<input placeholder="方案名称或条件" value={assetQuery} onChange={e => setAssetQuery(e.target.value)} /></label><label className="wide-field">已保存方案<select aria-label="已保存方案" value={asset} disabled={busy || catalogLoading} onChange={e => { setAsset(e.target.value); setScope('saved') }}><option value="">选择方案</option>{selectedTasks.map(item => <option key={`${item.id}@${item.version}`} value={`${item.id}@${item.version}`}>{item.name} · v{item.version}</option>)}</select></label><label>行情截止日<input aria-label="选股行情截止日" type="date" value={asOf} max={data?.last_date} disabled={busy} onInput={e => setAsOf(e.currentTarget.value)} onChange={e => setAsOf(e.target.value)} /></label><label>股票范围<select aria-label="选股股票范围" value={scope} disabled={busy} onChange={e => setScope(e.target.value)}><option value="saved">{chosen ? `沿用方案 · ${taskUniverseLabel(chosen.task)}` : '沿用方案范围'}</option><option value="all">全部 A 股</option></select></label><button className="primary-button" disabled={busy || !chosen || !asOf || !data?.available || !!(data?.last_date && asOf > data.last_date)} onClick={() => void execute()}><Play size={15} />{busy ? '提交中…' : '执行选股'}</button></div>
-        <p className="observation-muted">行情截至 {data?.last_date ?? '尚未加载'}。每次执行自动保存独立批次；重新执行会保留旧结果。</p>
-        {chosen && <details className="observation-rules"><summary>查看本次条件 · {chosen.task.conditions.length} 项 · v{chosen.version}</summary><TaskLogic task={chosen.task} /></details>}
-        {!catalogLoading && !saved.length && <div className="observation-empty"><Telescope size={25} /><strong>还没有保存的选股方案</strong><p>在“投研助手”中核对条件并保存方案，然后回到这里执行。</p></div>}
-      </section> : <section className="observation-card history-controls"><div className="observation-form"><label>查找历史<input placeholder="方案名称或条件" value={historyQuery} onChange={e => { setHistoryQuery(e.target.value); setHistoryOffset(0) }} /></label><label className="wide-field">选择选股批次<select aria-label="选择选股批次" value={runId} onChange={e => setRunId(e.target.value)}><option value="">选择记录</option>{run && !batches.some(item => item.id === run.id) && <option value={run.id}>{run.signal_date} · {run.name}</option>}{batches.map(item => <option key={item.id} value={item.id}>{item.signal_date} · {item.name} · v{item.version} · {stateLabels[item.status]}{item.counts.true_count != null ? ` · ${item.counts.true_count}只` : ''} · 执行 {timestamp(item.created_at)}</option>)}</select></label></div><div className="observation-pagination"><span>共 {historyTotal} 次执行</span><button disabled={historyOffset === 0} onClick={() => setHistoryOffset(value => Math.max(0, value - 50))}>上一页批次</button><button disabled={historyOffset + 50 >= historyTotal} onClick={() => setHistoryOffset(value => value + 50)}>下一页批次</button></div></section>}
-      {run && <section className="observation-run-header"><div><strong>{run.name} · v{run.version}</strong><p>信号日期 {run.signal_date} · 实际执行 {timestamp(run.created_at)} · {stateLabels[run.status]}{run.historical_replay ? ' · 历史补算' : ''}</p><p>目标 {counts?.target_total ?? run.task.scope.universe?.stock_codes.length ?? '—'} 只 · 入选 {counts?.true_count ?? '—'} · 未入选 {counts?.false_count ?? '—'} · 数据不足 {counts?.unknown_count ?? '—'}</p></div>{tab === 'screening' && !active(run.status) && <button className="secondary-button" onClick={() => switchTab('observation')}>查看本批次观察<ArrowRight size={14} /></button>}{!active(run.status) && <a className="secondary-button" href={`/api/v1/observation/runs/${run.id}/snapshot`}>导出结果字典</a>}{tab === 'observation' && <details className="observation-rules"><summary>本批次条件快照</summary><TaskLogic task={run.task} /></details>}</section>}
-      {run && active(run.status) && <div className="observation-card" role="status"><p>{run.job.message}</p><progress value={run.job.progress} max={1} /><button className="secondary-button" disabled={busy} onClick={() => void cancel()}>取消本次选股</button></div>}
-      {tab === 'observation' && performance && <><div className="observation-summary-toolbar"><label>统计周期<select aria-label="统计周期" value={horizon} onChange={e => setHorizon(e.target.value as typeof horizon)}><option value="latest">入选至最新</option><option value="5">入选后 5 个交易日</option><option value="10">入选后 10 个交易日</option><option value="20">入选后 20 个交易日</option></select></label><span>行情截至 {performance.latest_date ?? '暂无数据'} · 统计覆盖整个批次，包含已结束观察的股票</span></div><div className="observation-stats"><StatCard label="本批次入选" value={`${performance.summary.selected} 只`} /><StatCard label="有效统计样本" value={`${stat?.count ?? 0} 只`} /><StatCard label="平均涨跌幅" value={percent(stat?.average)} /><StatCard label="中位数涨跌幅" value={percent(stat?.median)} /><StatCard label="上涨占比" value={stat?.positive_rate == null ? '—' : `${stat.positive_rate.toFixed(1)}%`} /></div><p className="observation-disclosure">{performance.warning} 未满期、缺失数据不计入该周期的有效样本。</p></>}
-      {resultError && <div className="library-error" role="alert">{resultError}<button className="text-button" onClick={() => setRefresh(value => value + 1)}>重新加载</button></div>}
-      {!runId ? <div className="observation-empty"><Telescope size={30} /><strong>{tab === 'screening' ? '选择方案，开始第一批选股' : '暂无选股历史'}</strong><p>选股完成后，可在观察池查看入选标记和后续表现。</p></div> : !run ? <p role="status">正在读取选股记录…</p> : !active(run.status) && <div className="observation-workspace">
-        <section className="observation-card observation-results" aria-busy={resultsLoading}><div className="observation-table-toolbar"><label className="observation-search"><Search size={15} /><input aria-label="搜索结果股票" placeholder="股票名称或代码" value={query} onChange={e => { setQuery(e.target.value); setOffset(0) }} /></label>{tab === 'screening' ? <select aria-label="结果状态" value={state} onChange={e => { setState(e.target.value); setOffset(0) }}><option value="true">入选股票</option><option value="false">未入选</option><option value="unknown">数据不足</option><option value="">全部判断</option></select> : <><select aria-label="观察状态筛选" value={watchStatus} onChange={e => { setWatchStatus(e.target.value); setOffset(0) }}><option value="">全部观察状态</option>{Object.entries(watchLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select><select aria-label="观察排序" value={sort} onChange={e => setSort(e.target.value)}><option value="code">按代码</option><option value="return">涨跌幅从高到低</option><option value="priority">重点关注优先</option></select></>}</div>
-          {resultsLoading ? <p className="observation-empty" role="status">正在加载{tab === 'screening' ? '选股结果' : '观察统计'}…</p> : tab === 'screening' ? <><div className="observation-table-scroll"><table><thead><tr><th>股票</th><th>判断</th><th>入选参考价</th><th>判断依据</th></tr></thead><tbody>{decisions.map(item => <tr key={item.stock_code} className={selectedCode === item.stock_code ? 'selected' : ''} onClick={() => setSelectedCode(item.stock_code)}><td><button className="stock-link" aria-pressed={selectedCode === item.stock_code} onClick={() => setSelectedCode(item.stock_code)}><StockName code={item.stock_code} /></button></td><td>{({ true: '入选', false: '未入选', unknown: '数据不足' })[item.state]}</td><td>{number(run.reference_prices[item.stock_code]?.close)}</td><td className="observation-reason"><span>{item.condition_decisions.map(c => c.explanation).join('；') || item.reason_code}</span></td></tr>)}</tbody></table></div>{!decisions.length && <p className="observation-empty">{query ? '没有匹配的股票，试试清除搜索。' : run.status === 'failed' ? `选股执行失败：${run.job.message}。可重新执行，原记录会保留。` : run.status === 'cancelled' ? '本次选股已取消。可重新执行，原记录会保留。' : state === 'true' ? '本批次没有入选股票。可查看未入选和数据不足的原因。' : '该分类没有股票。'}</p>}<Pagination offset={offset} total={total} onChange={setOffset} /></> : <><div className="observation-table-scroll"><table><thead><tr><th>股票 / 状态</th><th>最新价</th><th>{horizon === 'latest' ? '至今涨跌幅' : `${horizon}日涨跌幅`}</th><th>观察进度</th></tr></thead><tbody>{observed.slice(offset, offset + 30).map(item => <tr key={item.stock_code} className={selectedCode === item.stock_code ? 'selected' : ''} onClick={() => setSelectedCode(item.stock_code)}><td><button className="stock-link" aria-pressed={selectedCode === item.stock_code} onClick={() => setSelectedCode(item.stock_code)}><StockName code={item.stock_code} /></button><small className={`observation-status ${item.status}`}>{watchLabels[item.status]}</small></td><td>{number(item.latest_close)}<small>{item.latest_date ?? '无行情'}</small></td><td className={(horizon === 'latest' ? item.return_latest : item.returns[horizon])! > 0 ? 'observation-up' : 'observation-down'}>{percent(horizon === 'latest' ? item.return_latest : item.returns[horizon])}<small>{horizon !== 'latest' && item.days < Number(horizon) ? '未满期' : item.reason || ((horizon === 'latest' ? item.return_latest : item.returns[horizon]) == null ? '数据不足' : '')}</small></td><td>{item.days} 个交易日<small>有效行情 {item.observed_days} 日</small></td></tr>)}</tbody></table></div>{!observed.length && <p className="observation-empty">{performance?.items.length ? '没有符合当前搜索或状态的股票。' : '本批次暂无入选股票可供观察。'}</p>}<Pagination offset={offset} total={observed.length} onChange={setOffset} /></>}
+      {tab === 'candidates' ? <ResearchCandidatePanel initialCandidateId={initialCandidateId} onLocationChange={id => locationCallback.current?.('candidates', id)} onStartResearch={onStartResearch} refresh={refresh} onOpenResearch={onOpenResearch} /> : <>
+        <section className="observation-batch-controls" aria-label="批次记录导航" aria-busy={historyLoading}>
+          <div className="observation-section-heading"><div><History size={17} /><h2>批次记录</h2><span>{historyLoading ? '读取中…' : `共 ${historyTotal} 次执行`}</span></div></div>
+          <div className="observation-batch-fields">
+            <label className="observation-batch-main">当前筛选批次<select aria-label="选择选股批次" value={runId} onChange={event => setRunId(event.target.value)}><option value="">选择记录</option>{run && !batches.some(item => item.id === run.id) && <option value={run.id}>{run.signal_date} · {run.name}</option>}{batches.map(item => <option key={item.id} value={item.id}>{item.signal_date} · {item.name} · v{item.version} · {stateLabels[item.status]}{item.counts.true_count != null ? ` · ${item.counts.true_count}只` : ''}</option>)}</select></label>
+            <label>查找历史<div className="observation-search"><Search size={16} /><input aria-label="查找历史" placeholder="搜索方案名称或条件" value={historyQuery} onChange={event => { setHistoryQuery(event.target.value); setHistoryOffset(0) }} /></div></label>
+            {(historyTotal > 50 || historyOffset > 0) && <div className="observation-pagination"><span>{historyOffset + 1}–{Math.min(historyOffset + 50, historyTotal)} / {historyTotal}</span><button disabled={!historyOffset || historyLoading} onClick={() => setHistoryOffset(value => Math.max(0, value - 50))}>上一页批次</button><button disabled={historyOffset + 50 >= historyTotal || historyLoading} onClick={() => setHistoryOffset(value => value + 50)}>下一页批次</button></div>}
+          </div>
+          {!historyLoading && historyQuery && !batches.length && <p className="observation-muted">没有匹配的批次。<button className="text-button" onClick={() => { setHistoryQuery(''); setHistoryOffset(0) }}>清除搜索</button></p>}
         </section>
-        <aside className="observation-detail">{selectedCode && !resultsLoading ? <><ObservationChart key={`chart:${runId}:${selectedCode}`} runId={runId} code={selectedCode} view={tab === 'screening' ? 'selection' : 'observation'} task={run.task} refresh={refresh} />{tab === 'observation' && selectedObservation && <ObservationNote key={`note:${runId}:${selectedCode}`} runId={runId} item={selectedObservation} onSaved={value => setPerformance(current => current ? { ...current, items: current.items.map(item => item.stock_code === selectedCode ? { ...item, ...value } : item) } : current)} />}</> : <div className="observation-card observation-empty">点击左侧股票查看 K 线与入选依据。</div>}</aside>
-      </div>}
+        {run && <section className="observation-run-header">
+          <div className="observation-run-title"><div className="observation-run-name"><h2>{run.name}</h2><span className="observation-version">v{run.version}</span><span className={`observation-run-state ${run.status}`}>{!active(run.status) && run.status === 'succeeded' && <CheckCircle2 size={13} />}{stateLabels[run.status] ?? run.status}</span>{run.historical_replay && <span className="observation-version">历史补算</span>}</div><p>信号日期 <strong>{run.signal_date}</strong><span>·</span>实际执行 {timestamp(run.created_at)}</p></div>
+          {!active(run.status) && <a className="secondary-button" href={`/api/v1/observation/runs/${run.id}/snapshot`}><Download size={14} />导出结果字典</a>}
+          <div className="observation-coverage"><span>扫描范围 <strong>{counts?.target_total ?? '—'}</strong> 只</span><span>入选 <strong>{counts?.true_count ?? '—'}</strong></span><span>未入选 <strong>{counts?.false_count ?? '—'}</strong></span><span>数据不足 <strong>{counts?.unknown_count ?? '—'}</strong></span><details className="observation-rules"><summary>查看筛选条件</summary><TaskLogic task={run.task} /></details></div>
+        </section>}
+        {run && active(run.status) && <div className="observation-card observation-running" role="status"><Loader2 size={22} /><div><strong>{stateLabels[run.status]}</strong><p>{run.job.message || '正在评估筛选条件…'}</p><progress aria-label="本次选股进度" value={run.job.progress} max={1} /></div><button className="secondary-button" disabled={busy} onClick={() => void cancel()}>取消本次选股</button></div>}
+        {performance && <section className="observation-performance" aria-label="批次表现概览">
+          <div className="observation-summary-toolbar"><div><h2>批次表现</h2><span>行情截至 {performance.latest_date ?? data?.last_date ?? '暂无数据'}</span></div><label>统计周期<select aria-label="统计周期" value={horizon} onChange={event => setHorizon(event.target.value as typeof horizon)}><option value="latest">入选至最新</option><option value="5">入选后 5 个交易日</option><option value="10">入选后 10 个交易日</option><option value="20">入选后 20 个交易日</option></select></label></div>
+          <div className="observation-stats"><StatCard label="本批次入选" value={`${performance.summary.selected} 只`} /><StatCard label="有效统计样本" value={`${stat?.count ?? 0} 只`} /><StatCard label="平均涨跌幅" value={percent(stat?.average)} tone={returnClass(stat?.average)} /><StatCard label="中位数涨跌幅" value={percent(stat?.median)} tone={returnClass(stat?.median)} /><StatCard label="上涨占比" value={stat?.positive_rate == null ? '—' : `${stat.positive_rate.toFixed(1)}%`} /></div>
+          {performance.warning && <p className="observation-methodology">{performance.warning}</p>}
+        </section>}
+        {resultError && <div className="library-error" role="alert">{resultError}<button className="text-button" onClick={() => setRefresh(value => value + 1)}>重新加载</button></div>}
+        {!runId ? !error && <div className="observation-empty observation-start"><span className="observation-empty-icon"><ClipboardList size={26} /></span><strong>{historyLoading ? '正在查找筛选批次…' : '暂无筛选批次'}</strong>{onNavigateScreening && !historyLoading && <button className="secondary-button" onClick={onNavigateScreening}>创建筛选批次<ArrowRight size={14} /></button>}</div> : !run ? !resultError && <div className="observation-loading" role="status"><Loader2 size={18} />正在读取选股记录…</div> : !active(run.status) && !resultError && <div className="observation-workspace">
+          <section ref={resultsRef} tabIndex={-1} aria-label="股票结果列表" className="observation-card observation-results" aria-busy={resultsLoading}>
+            <div className="observation-list-heading"><div><span className="observation-kicker">BATCH WATCHLIST</span><h2>本批次观察<span>{performance?.items.length ?? '—'}</span></h2></div></div>
+            <div className="observation-table-toolbar"><label className="observation-search"><Search size={16} /><input aria-label="搜索结果股票" placeholder="搜索股票名称或代码" value={query} onChange={event => { setQuery(event.target.value); setOffset(0) }} /></label><select aria-label="观察状态筛选" value={watchStatus} onChange={event => { setWatchStatus(event.target.value); setOffset(0) }}><option value="">全部观察状态</option>{Object.entries(watchLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select><select aria-label="观察排序" value={sort} onChange={event => { setSort(event.target.value); setOffset(0) }}><option value="priority">重点关注优先</option><option value="code">按股票代码</option><option value="return">涨跌幅从高到低</option><option value="return-asc">涨跌幅从低到高</option></select></div>
+            {(query || watchStatus) && <div className="observation-filter-feedback"><span>匹配 {observed.length} / {performance?.items.length ?? 0} 只股票</span><button className="text-button" onClick={() => { setQuery(''); setWatchStatus(''); setOffset(0) }}>清除筛选</button></div>}
+            {resultsLoading ? <div className="observation-loading" role="status"><Loader2 size={18} />正在加载观察统计…</div> : <><div className="observation-table-scroll"><table><thead><tr><th>股票 / 状态</th><th>最新价</th><th>{horizon === 'latest' ? '至今涨跌幅' : `${horizon}日涨跌幅`}</th><th>观察天数</th></tr></thead><tbody>{observed.slice(offset, offset + 30).map(item => <tr key={item.stock_code} className={selectedCode === item.stock_code ? 'selected' : ''} onClick={() => readStock(item.stock_code)}><td data-label="股票"><button className="stock-link" aria-pressed={selectedCode === item.stock_code} onClick={event => { event.stopPropagation(); readStock(item.stock_code) }}><StockName code={item.stock_code} /></button><small className={`observation-status ${item.status}`}>{watchLabels[item.status] ?? item.status}{item.note && <span title={item.note}> · 已记备注</span>}</small></td><td data-label="最新价">{number(item.latest_close)}<small>{item.latest_date ?? '无行情'}</small></td><td data-label={horizon === 'latest' ? '至今涨跌幅' : `${horizon}日涨跌幅`} className={returnClass(horizon === 'latest' ? item.return_latest : item.returns[horizon])}>{percent(horizon === 'latest' ? item.return_latest : item.returns[horizon])}<small>{horizon !== 'latest' && item.days < Number(horizon) ? '未满期' : item.reason || ((horizon === 'latest' ? item.return_latest : item.returns[horizon]) == null ? '数据不足' : '')}</small></td><td data-label="观察天数">{item.days} 个交易日<small>有效行情 {item.observed_days} 日</small></td></tr>)}</tbody></table></div>{!observed.length && <div className="observation-empty"><Telescope size={25} /><strong>{performance?.items.length ? '没有匹配的股票' : '本批次暂无入选股票'}</strong>{(query || watchStatus) && <button className="secondary-button" onClick={() => { setQuery(''); setWatchStatus(''); setOffset(0) }}>显示全部股票</button>}</div>}<Pagination offset={offset} total={observed.length} onChange={setOffset} /></>}
+          </section>
+          <aside ref={detailRef} tabIndex={-1} aria-label="股票观察详情" className="observation-detail">{selectedCode && <button className="secondary-button observation-back" onClick={() => { resultsRef.current?.focus({ preventScroll: true }); resultsRef.current?.scrollIntoView({ behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' }) }}><ArrowLeft size={14} />返回股票列表</button>}{selectedCode && !resultsLoading ? <><ObservationChart key={`chart:${runId}:${selectedCode}`} runId={runId} code={selectedCode} view="observation" task={run.task} refresh={refresh} />{selectedObservation && <ObservationNote key={`note:${runId}:${selectedCode}`} runId={runId} item={selectedObservation} onSaved={value => setPerformance(current => current ? { ...current, items: current.items.map(item => item.stock_code === selectedCode ? { ...item, ...value } : item) } : current)} />}</> : <div className="observation-card observation-empty"><Telescope size={25} /><strong>未选择股票</strong></div>}</aside>
+        </div>}
+      </>}
     </section>
   </div>
 }
-
-function StatCard({ label, value }: { label: string; value: string }) { return <div className="observation-stat"><span>{label}</span><strong>{value}</strong></div> }
+function StatCard({ label, value, tone = '' }: { label: string; value: string; tone?: string }) { return <div className="observation-stat"><span>{label}</span><strong className={tone}>{value}</strong></div> }
 function Pagination({ offset, total, onChange }: { offset: number; total: number; onChange: (value: number) => void }) { return <div className="observation-pagination"><span>{total ? `${offset + 1}–${Math.min(offset + 30, total)} / ${total} 只` : '0 只'}</span><button disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - 30))}>上一页</button><button disabled={offset + 30 >= total} onClick={() => onChange(offset + 30)}>下一页</button></div> }
 function ObservationNote({ runId, item, onSaved }: { runId: string; item: ObservationItem; onSaved: (value: { status: string; note: string; updated_at: string }) => void }) {
   type Draft = { note: string; status: string }
@@ -199,5 +197,15 @@ function ObservationNote({ runId, item, onSaved }: { runId: string; item: Observ
     catch (reason) { if (mounted.current) setMessage((reason as Error).message) }
     finally { if (mounted.current) setBusy(false) }
   }
-  return <section className="observation-card observation-note"><h2>观察记录</h2><div className="observation-detail-metrics"><span>入选参考价<strong>{number(item.reference_close)}</strong><small>{item.reference_date ?? '旧记录未保存参考价'}</small></span><span>期间最高涨幅<strong>{percent(item.peak_return)}</strong></span><span>期间最低涨幅<strong>{percent(item.trough_return)}</strong></span></div><div className="observation-detail-metrics">{['5', '10', '20'].map(n => <span key={n}>{n} 日涨跌幅<strong>{item.days < Number(n) ? '未满期' : percent(item.returns[n])}</strong></span>)}</div>{item.invalid_bars > 0 && <p className="observation-disclosure">期间有 {item.invalid_bars} 根异常行情，区间最高／最低涨幅暂不可用。</p>}<label>观察状态<select aria-label="个股观察状态" value={status} disabled={busy} onChange={e => setStatus(e.target.value)}>{Object.entries(watchLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>观察备注<textarea aria-label="观察备注" value={note} disabled={busy} maxLength={2000} rows={3} placeholder="记录关注理由、后续验证点和变化…" onChange={e => setNote(e.target.value)} /></label><div className="observation-note-actions"><button className="primary-button" disabled={busy || (note === item.note && status === item.status)} onClick={() => void save()}>{busy ? '保存中…' : '保存观察记录'}</button>{item.updated_at && <small>更新于 {timestamp(item.updated_at)}</small>}</div>{message && <p role="status">{message}</p>}</section>
+  const changed = note !== item.note || status !== item.status
+  function resetDraft() { setDrafts(current => { const next = { ...current }; delete next[key]; return next }); setMessage('') }
+  return <section className="observation-card observation-note">
+    <div className="observation-section-heading"><div><h2>观察记录</h2><span className={`observation-status ${item.status}`}>{watchLabels[item.status]}</span></div><span>{changed ? '有未保存的修改' : '持续记录判断变化'}</span></div>
+    <div className="observation-detail-metrics observation-stock-metrics"><span>入选参考价<strong>{number(item.reference_close)}</strong><small>{item.reference_date ?? '旧记录未保存参考价'}</small></span><span>期间最高涨幅<strong className={returnClass(item.peak_return)}>{percent(item.peak_return)}</strong></span><span>期间最低涨幅<strong className={returnClass(item.trough_return)}>{percent(item.trough_return)}</strong></span>{['5', '10', '20'].map(n => <span key={n}>{n} 日涨跌幅<strong className={item.days < Number(n) ? 'observation-neutral' : returnClass(item.returns[n])}>{item.days < Number(n) ? '未满期' : percent(item.returns[n])}</strong></span>)}</div>
+    {item.invalid_bars > 0 && <p className="observation-disclosure">期间有 {item.invalid_bars} 根异常行情，区间最高／最低涨幅暂不可用。</p>}
+    <label>观察状态<select aria-label="个股观察状态" value={status} disabled={busy} onChange={e => setStatus(e.target.value)}>{Object.entries(watchLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+    <label>观察备注<textarea aria-label="观察备注" value={note} disabled={busy} maxLength={2000} rows={4} onChange={e => setNote(e.target.value)} /><span className="observation-field-hint">{note.length} / 2000</span></label>
+    <div className="observation-save-footer">{item.updated_at && <div><small>更新于 {timestamp(item.updated_at)}</small></div>}<div>{changed && <button className="text-button" disabled={busy} onClick={resetDraft}>恢复已保存记录</button>}<button className="primary-button" disabled={busy || !changed} onClick={() => void save()}>{busy ? '保存中…' : '保存观察记录'}</button></div></div>
+    {message && <p className="observation-save-message" role="status">{message}</p>}
+  </section>
 }

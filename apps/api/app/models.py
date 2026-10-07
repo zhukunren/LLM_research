@@ -40,6 +40,7 @@ class IndicatorPreviewInput(StrictModel):
 
 class StrategyInput(StrictModel):
     id: str | None = None
+    request_id: str | None = Field(default=None, min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=100)
     tree: dict[str, Any]
     top_n: int = Field(default=30, ge=1, le=500)
@@ -50,6 +51,7 @@ class StrategyValidationInput(StrictModel):
 
 
 class ScreenInput(StrictModel):
+    request_id: str | None = Field(default=None, min_length=1, max_length=100)
     strategy_id: str
     strategy_version: int = Field(ge=1)
     as_of: str
@@ -117,8 +119,11 @@ class WatchlistItemInput(StrictModel):
 
 class ReportSearchInput(StrictModel):
     query: str = Field(min_length=1, max_length=300)
-    as_of: str | None = None
-    stock_code: str | None = None
+    as_of: date | None = None
+    stock_code: str | None = Field(default=None, pattern=r"^\d{4,6}\.(SH|SZ|BJ|HK|KS)$")
+    mode: Literal["smart", "exact"] = "smart"
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=30, ge=1, le=100)
 
 
 class ReportEvaluationInput(StrictModel):

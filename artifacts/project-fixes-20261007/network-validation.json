@@ -1,0 +1,45 @@
+{
+  "public_url": "https://example.com/",
+  "private_requests": [
+    {
+      "url": "http://127.0.0.1:8066/api/v1/health",
+      "rejected": true,
+      "type": "NewsError",
+      "message": "来源网址不能指向本机、内网或保留地址；代理 Fake-IP 须通过公开 HTTPS 域名核验。"
+    },
+    {
+      "url": "http://10.0.0.1/",
+      "rejected": true,
+      "type": "NewsError",
+      "message": "来源网址不能指向本机、内网或保留地址；代理 Fake-IP 须通过公开 HTTPS 域名核验。"
+    },
+    {
+      "url": "http://[::1]/",
+      "rejected": true,
+      "type": "NewsError",
+      "message": "来源网址不能指向本机、内网或保留地址；代理 Fake-IP 须通过公开 HTTPS 域名核验。"
+    }
+  ],
+  "public_checks": {
+    "transport": {
+      "status": 200,
+      "url": "https://example.com/",
+      "example_domain_present": true,
+      "tls_verification": true,
+      "source_proxy_configured": true
+    },
+    "news_browser": {
+      "url": "https://example.com/",
+      "title": "Example Domain",
+      "public_body_present": true,
+      "body_characters": 917
+    },
+    "research_browser": {
+      "url": "https://example.com/",
+      "title": "Example Domain",
+      "public_body_present": true,
+      "body_characters": 917,
+      "image_path": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\network-check-work\\sources\\web-acd5a39909924b46a2fdecb45107a869\\page.png"
+    }
+  }
+}

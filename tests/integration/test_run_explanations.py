@@ -19,7 +19,7 @@ def client(tmp_path, monkeypatch):
 
 
 def _authorized(client):
-    conversation = client.post("/api/v1/conversations", json={"entry_scope": "screening"}).json()
+    conversation = client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "screening"}).json()
     prompt = "收盘价高于20日均线，筛一下"
     message = client.post(f"/api/v1/conversations/{conversation['id']}/messages", json={
         "client_message_id": "explain-message", "base_revision": 0, "content": prompt,

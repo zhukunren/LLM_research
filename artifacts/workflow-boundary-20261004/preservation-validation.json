@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-04",
+  "checks": [
+    {
+      "table": "conversations",
+      "rows": 9,
+      "legacy_values_preserved": true
+    },
+    {
+      "table": "conversation_messages",
+      "rows": 54,
+      "legacy_values_preserved": true
+    },
+    {
+      "table": "screening_task_revisions",
+      "rows": 8,
+      "legacy_values_preserved": true
+    },
+    {
+      "table": "screening_task_runs",
+      "rows": 6,
+      "legacy_values_preserved": true
+    },
+    {
+      "table": "documents",
+      "rows": 12,
+      "legacy_values_preserved": true
+    },
+    {
+      "table": "document_pages",
+      "rows": 98,
+      "legacy_values_preserved": true
+    },
+    {
+      "table": "research_projects",
+      "rows": 0,
+      "legacy_values_preserved": true
+    },
+    {
+      "table": "research_notes",
+      "rows": 0,
+      "legacy_values_preserved": true
+    }
+  ],
+  "backup": "D:\\项目\\LLM_research\\runtime\\backups\\before-workflow-boundary-20261004-143352\\app.db",
+  "integrity_check": "ok",
+  "workflows": {
+    "research": 4,
+    "screening": 5
+  },
+  "research_candidates": 0,
+  "draft_transfers": 0,
+  "migrations_applied": [
+    "027_research_screening_boundary.sql",
+    "028_research_observations.sql"
+  ],
+  "health": "ok",
+  "live_workflow_fields_available": true
+}

@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from pypdf import PdfReader
-
-from .db import connect, utc_now
-from .settings import REPORT_DIR, REPORT_UPLOAD_DIR
+from .db import connect, json_dump, utc_now
+from .settings import REPORT_DIR, REPORT_UPLOAD_DIR, report_parser_settings
+from .report_parser import parse_report
+from . import report_search
 
 
 SECURITY_PATTERN = re.compile(r"(?<!\d)(\d{4,6})\.(SH|SZ|BJ|HK|KS)\b", re.I)
@@ -25,39 +25,48 @@ def _metadata(filename: str) -> tuple[str | None, str | None, str | None]:
     return date, market, security
 
 
-def import_local_reports() -> dict[str, Any]:
-    if not REPORT_DIR.is_dir() and not REPORT_UPLOAD_DIR.is_dir():
-        return {"imported": 0, "failed": 0, "results": []}
+def import_local_reports(*, paths: list[Path] | None = None) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
-    paths = []
-    if REPORT_DIR.is_dir():
-        paths.extend(REPORT_DIR.glob("*.pdf"))
-    if REPORT_UPLOAD_DIR.is_dir():
-        paths.extend(REPORT_UPLOAD_DIR.glob("*.pdf"))
-    with connect() as connection:
-        for path in sorted(paths):
-            display_filename = path.name
+    if paths is None:
+        paths = []
+        if REPORT_DIR.is_dir():
+            paths.extend(REPORT_DIR.glob("*.pdf"))
+        if REPORT_UPLOAD_DIR.is_dir():
+            paths.extend(REPORT_UPLOAD_DIR.glob("*.pdf"))
+    for path in sorted(paths):
+        display_filename = path.name
+        digest = None
+        try:
             if path.parent == REPORT_UPLOAD_DIR and "--" in path.name:
                 display_filename = path.name.split("--", 1)[1]
             data = path.read_bytes()
             digest = hashlib.sha256(data).hexdigest()
-            existing = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()
+            with connect() as connection:
+                existing = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()
             if existing:
-                results.append({"id": existing[0], "filename": display_filename, "status": "already_imported"})
+                results.append({"id": existing[0], "sha256": digest, "filename": display_filename, "status": "already_imported"})
                 continue
             doc_id = str(uuid4())
             publication_date, market, stock_code = _metadata(display_filename)
-            try:
-                reader = PdfReader(path, strict=False)
-                page_texts = [(page.extract_text() or "").strip() for page in reader.pages]
-                chars = sum(map(len, page_texts))
-                status = "indexed" if chars else "no_text"
-                connection.execute(
+            parsed = parse_report(path, **report_parser_settings())
+            if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                raise ValueError("研报 PDF 在解析期间发生变化，请重新导入。")
+            # Parse outside the write transaction; OCR must not hold the writer
+            # lock. A failed insert rolls back every page of this document.
+            page_texts = parsed.page_texts
+            chars = sum(map(len, page_texts))
+            status = "indexed" if chars else "no_text"
+            with connect() as connection:
+                inserted = connection.execute(
                     """INSERT INTO documents
-                       (id,sha256,filename,title,publication_date,market,stock_code,pages,extracted_chars,parse_status,source_path,imported_at,available_at)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (doc_id, digest, display_filename, Path(display_filename).stem, publication_date, market, stock_code, len(page_texts), chars, status, str(path), utc_now(), publication_date),
+                       (id,sha256,filename,title,publication_date,market,stock_code,pages,extracted_chars,parse_status,source_path,imported_at,available_at,parser_metadata_json)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sha256) DO NOTHING""",
+                    (doc_id, digest, display_filename, Path(display_filename).stem, publication_date, market, stock_code, len(page_texts), chars, status, str(path), utc_now(), publication_date, json_dump(parsed.metadata)),
                 )
+                if not inserted.rowcount:
+                    existing = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()
+                    results.append({"id": existing[0], "sha256": digest, "filename": display_filename, "status": "already_imported"})
+                    continue
                 for page_number, text in enumerate(page_texts, start=1):
                     connection.execute(
                         "INSERT INTO document_pages(document_id,page_number,text) VALUES(?,?,?)",
@@ -68,9 +77,9 @@ def import_local_reports() -> dict[str, Any]:
                             "INSERT INTO document_pages_fts(document_id,page_number,text) VALUES(?,?,?)",
                             (doc_id, str(page_number), text),
                         )
-                results.append({"id": doc_id, "filename": display_filename, "status": status, "pages": len(page_texts), "extracted_chars": chars})
-            except Exception as exc:
-                results.append({"filename": display_filename, "status": "failed", "reason": str(exc)[:300]})
+            results.append({"id": doc_id, "sha256": digest, "filename": display_filename, "status": status, "pages": len(page_texts), "extracted_chars": chars, "parser_metadata": parsed.metadata})
+        except Exception as exc:
+            results.append({"filename": display_filename, "sha256": digest, "status": "failed", "reason": str(exc)[:300]})
     from .report_catalog import enqueue
     enqueue()
     return {
@@ -86,7 +95,7 @@ def list_documents() -> list[dict[str, Any]]:
             """SELECT id,filename,title,publication_date,market,stock_code,pages,extracted_chars,parse_status,imported_at,
                       stock_code_status,stock_code_confirmed_at,available_at,available_at_status,available_at_confirmed_at,
                       stock_code_source,stock_code_evidence_json,stock_code_model,stock_code_extracted_at,stock_code_prompt_version,
-                      metadata_json,metadata_status,metadata_error,metadata_job_id
+                      metadata_json,metadata_status,metadata_error,metadata_job_id,parser_metadata_json
                FROM documents ORDER BY publication_date DESC, filename"""
         ).fetchall()
         job_states = {row["id"]: dict(row) for row in connection.execute("SELECT id,state,message FROM jobs WHERE kind='report_metadata'")}
@@ -95,6 +104,7 @@ def list_documents() -> list[dict[str, Any]]:
     for row in rows:
         item = dict(row)
         item["metadata"] = json_load(item.pop("metadata_json"))
+        item["parser_metadata"] = json_load(item.pop("parser_metadata_json"))
         job = job_states.get(item["metadata_job_id"])
         if job and item["metadata_status"] != "ready":
             item["metadata_status"] = job["state"]
@@ -104,36 +114,16 @@ def list_documents() -> list[dict[str, Any]]:
     return items
 
 
-def search_pages(query: str, as_of: str | None = None, stock_code: str | None = None, limit: int = 30) -> list[dict[str, Any]]:
-    terms = [term.strip() for term in re.split(r"[\s,，;；]+", query) if term.strip()]
-    if not terms:
-        return []
-    sql = """SELECT d.id,d.filename,d.title,d.publication_date,d.market,d.stock_code,p.page_number,p.text,
-                    d.available_at,d.available_at_status,d.sha256,d.stock_code_status
-             FROM document_pages p JOIN documents d ON d.id=p.document_id WHERE d.parse_status='indexed'"""
-    params: list[Any] = []
-    if as_of:
-        sql += " AND d.available_at_status='confirmed' AND d.available_at IS NOT NULL AND d.available_at<=?"
-        params.append(as_of)
-    if stock_code:
-        sql += " AND (d.stock_code=? OR d.stock_code IS NULL)"
-        params.append(stock_code)
-    sql += " AND " + " AND ".join("instr(lower(p.text),lower(?))>0" for _ in terms)
-    params.extend(terms)
-    sql += " ORDER BY d.publication_date DESC,p.page_number LIMIT ?"
-    params.append(max(1, min(limit, 100)))
-    with connect() as connection:
-        rows = connection.execute(sql, params).fetchall()
-    return [
-        {
-            "document_id": row[0], "filename": row[1], "title": row[2], "publication_date": row[3],
-            "market": row[4], "stock_code": row[5], "page_number": row[6],
-            "snippet": _snippet(row[7], terms), "match_type": "exact_same_page_keyword",
-            "available_at": row[8], "availability_status": row[9],
-            "source_sha256": row[10], "security_binding_status": row[11],
-        }
-        for row in rows
-    ]
+def search(query: str, as_of: str | None = None, stock_code: str | None = None, limit: int = 30, **options) -> dict[str, Any]:
+    return report_search.search(query, as_of, stock_code, limit, **options)
+
+
+def search_pages(query: str, as_of: str | None = None, stock_code: str | None = None, limit: int = 30, *, mode="exact", **options) -> list[dict[str, Any]]:
+    return search(query, as_of, stock_code, limit, mode=mode, **options)["items"]
+
+
+def search_source_catalog(query: str, as_of: str | None = None, stock_code: str | None = None, **options) -> dict[str, Any]:
+    return report_search.search_source_catalog(query, as_of, stock_code, **options)
 
 
 def read_page(

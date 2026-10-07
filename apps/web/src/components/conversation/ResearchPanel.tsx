@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Download, LoaderCircle, RefreshCw, Square } from 'lucide-react'
 import { api } from '../../api'
+import type { ResearchFile } from '../../research'
+import ResearchFileList, { reportPending } from '../ResearchFileList'
 
 type Coverage = { target_total: number; true_count?: number; false_count?: number; unknown_count?: number; failed_count?: number; not_evaluated_count?: number }
 type ScanSummary = {
@@ -13,9 +15,9 @@ type Scan = {
   job: { progress: number; message: string }
 }
 type Decision = { stock_code: string; state: string; evaluation_status: string; explanation: string; metrics: Record<string, unknown>; units: Record<string, string> }
-type Output = { name: string; bytes: number; url: string }
+type Output = ResearchFile
 
-const labels: Record<string, string> = { queued: '排队中', running: '计算中', succeeded: '已完成', partial: '部分结果', failed: '失败', cancelled: '已停止', true: '符合', false: '不符合', unknown: '未知' }
+const labels: Record<string, string> = { queued: '排队中', running: '计算中', succeeded: '已完成', partial: '部分结果', failed: '失败', cancelled: '已停止', true: '满足实验判据', false: '未满足实验判据', unknown: '未知' }
 const pending = (status: string) => ['queued', 'running'].includes(status)
 const PAGE_SIZE = 20
 
@@ -23,7 +25,7 @@ function metricText(item: Decision) {
   return Object.entries(item.metrics).map(([name, value]) => `${name}: ${typeof value === 'object' ? JSON.stringify(value) : String(value)}${item.units[name] || ''}`).join('; ')
 }
 
-export default function ResearchPanel({ conversationId, turnActive, refreshKey, onContentChange }: { conversationId: string; turnActive: boolean; refreshKey: number; onContentChange?: (hasContent: boolean) => void }) {
+export default function ResearchPanel({ conversationId, turnActive, refreshKey, showGenerate = false, onContentChange }: { conversationId: string; turnActive: boolean; refreshKey: number; showGenerate?: boolean; onContentChange?: (hasContent: boolean) => void }) {
   const [scans, setScans] = useState<ScanSummary[]>([])
   const [outputs, setOutputs] = useState<Output[]>([])
   const [selected, setSelected] = useState('')
@@ -38,11 +40,14 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
   const [detailError, setDetailError] = useState('')
   const [loading, setLoading] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [reportBusy, setReportBusy] = useState('')
+  const [reportNotice, setReportNotice] = useState('')
   const scansActive = scans.some(item => pending(item.status))
+  const reportsActive = outputs.some(item => reportPending(item.status))
 
   useEffect(() => {
-    onContentChange?.(!!scans.length || !!outputs.length || !!error)
-  }, [scans.length, outputs.length, error, onContentChange])
+    onContentChange?.(showGenerate || !!scans.length || !!outputs.length || !!error)
+  }, [showGenerate, scans.length, outputs.length, error, onContentChange])
 
   useEffect(() => {
     if (!conversationId) return
@@ -66,9 +71,9 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
       finally { reading = false }
     }
     void load()
-    const timer = turnActive || scansActive ? globalThis.setInterval(() => { void load() }, 1500) : undefined
+    const timer = turnActive || scansActive || reportsActive ? globalThis.setInterval(() => { void load() }, 1500) : undefined
     return () => { active = false; globalThis.clearInterval(timer) }
-  }, [conversationId, turnActive, scansActive, refreshKey, reload])
+  }, [conversationId, turnActive, scansActive, reportsActive, refreshKey, reload])
 
   useEffect(() => {
     setOffset(0); setState(''); setQuery(''); setScan(null); setItems([]); setDetailError('')
@@ -116,10 +121,22 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
     finally { setCancelling(false) }
   }
 
-  if (!scans.length && !outputs.length && !error) return null
+  async function generateReports(file?: ResearchFile) {
+    setReportBusy(file?.id || 'generate'); setError('')
+    try {
+      await api(file?.retry_url ? file.retry_url.replace(/^\/api\/v1/, '') : `/conversations/${conversationId}/research-pdf-jobs`, { method: 'POST', ...(file?.retry_url ? {} : { body: JSON.stringify({ request_id: crypto.randomUUID() }) }) })
+      setReportNotice('报告已提交后台生成。')
+      setReload(value => value + 1)
+    } catch (reason) { setError((reason as Error).message) }
+    finally { setReportBusy('') }
+  }
+
+  if (!showGenerate && !scans.length && !outputs.length && !error) return null
   const coverage = scan?.result.coverage
   return <section className="conversation-research-section" aria-label="研究计算与成果">
     <div className="conversation-panel-heading"><h2>研究计算与成果</h2><button className="icon-button" title="刷新研究成果" aria-label="刷新研究成果" onClick={() => setReload(value => value + 1)}><RefreshCw size={15} /></button></div>
+    <button className="text-button" disabled={!!reportBusy || turnActive} onClick={() => void generateReports()}>{reportBusy === 'generate' ? '正在提交…' : '生成已有报告'}</button>
+    {reportNotice && <p role="status" className="conversation-muted">{reportNotice}</p>}
     {error && <p role="alert">{error}</p>}
     {!!scans.length && <>
       <select className="research-scan-select" aria-label="查看研究扫描" value={selected} onChange={event => setSelected(event.target.value)}>
@@ -128,10 +145,10 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
       {scan && <>
         <div className="research-scan-status"><span>{labels[scan.status] || scan.status} · 截至 {scan.as_of}</span>{pending(scan.status)
           ? <button className="icon-button" title="停止研究扫描" aria-label="停止研究扫描" disabled={cancelling} onClick={() => void cancel()}><Square size={14} /></button>
-          : <a className="icon-button" href={scan.export_url} title="下载研究扫描 CSV" aria-label="下载研究扫描 CSV"><Download size={15} /></a>}</div>
+          : <a className="icon-button" href={scan.export_url} title="下载研究扫描 PDF" aria-label="下载研究扫描 PDF"><Download size={15} /></a>}</div>
         {pending(scan.status) && <progress aria-label="研究扫描进度" value={scan.job.progress} max={1} />}
         <p className="conversation-muted">{scan.job.message}</p>
-        {coverage && <p className="research-coverage">目标 {coverage.target_total} · 符合 {coverage.true_count || 0} · 不符合 {coverage.false_count || 0} · 未知 {coverage.unknown_count || 0} · 失败 {coverage.failed_count || 0} · 未处理 {coverage.not_evaluated_count || 0}</p>}
+        {coverage && <p className="research-coverage">目标 {coverage.target_total} · 满足实验判据 {coverage.true_count || 0} · 未满足实验判据 {coverage.false_count || 0} · 未知 {coverage.unknown_count || 0} · 失败 {coverage.failed_count || 0} · 未处理 {coverage.not_evaluated_count || 0}</p>}
         {scan.result.error && <p role="alert" className="research-scan-error">{scan.result.error}</p>}
         {['failed', 'cancelled'].includes(scan.status) && items.length > 0 && <p className="research-scan-error">以下为中断前记录，未完成本次范围验证。</p>}
       </>}
@@ -143,6 +160,6 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
         <div className="research-pagination"><span>{total ? `${offset + 1}-${Math.min(offset + PAGE_SIZE, total)} / ${total}` : '0 / 0'}</span><button className="icon-button" title="上一页研究结果" aria-label="上一页研究结果" disabled={offset === 0} onClick={() => setOffset(value => Math.max(0, value - PAGE_SIZE))}><ChevronLeft size={16} /></button><button className="icon-button" title="下一页研究结果" aria-label="下一页研究结果" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(value => value + PAGE_SIZE)}><ChevronRight size={16} /></button></div>
       </>}
     </>}
-    {!!outputs.length && <ul className="research-output-list">{outputs.map(item => <li key={item.name}><a href={item.url} download title={item.name}><Download size={14} /><span>{item.name}</span><small>{item.bytes < 1024 ? `${item.bytes} B` : `${Math.ceil(item.bytes / 1024)} KB`}</small></a></li>)}</ul>}
+    {!!outputs.length && <ResearchFileList files={outputs} busyId={reportBusy} onRetry={file => void generateReports(file)} />}
   </section>
 }

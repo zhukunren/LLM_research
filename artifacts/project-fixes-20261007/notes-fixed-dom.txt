@@ -1,0 +1,146 @@
+- link "跳到页面内容":
+  - /url: "#workspace-main"
+- complementary:
+  - img "东吴证券 SOOCHOW SECURITIES"
+  - text: 投研工作台
+  - generic: 张家港营业部
+  - button "开始新研究":
+    - generic: 开始新研究
+  - navigation "主菜单":
+    - generic: 工作空间
+    - button "首页":
+      - generic: 首页
+    - button "研究":
+      - generic: 研究
+    - button "条件选股":
+      - generic: 条件选股
+    - button "观察池":
+      - generic: 观察池
+    - generic: 资料资源
+    - button "资讯库":
+      - generic: 资讯库
+    - button "技术指标库":
+      - generic: 技术指标库
+    - button "形态库":
+      - generic: 形态库
+    - button "研报库":
+      - generic: 研报库
+  - generic: 行情可供查询
+  - button "数据与服务":
+    - generic: 数据与服务
+- main:
+  - button "收起导航":
+  - generic: 研究空间
+  - strong: 研究项目
+  - button "搜索与快速导航":
+    - generic: 查找项目、对话或页面
+    - generic: Ctrl K
+  - button "运行任务":
+    - generic: 运行任务
+    - strong: "4"
+  - button "行情截至 2026-09-28，查看数据状态":
+    - time: 2026-09-28
+  - generic: 探索模式
+  - tablist "研究工作区":
+    - tab "研究对话"
+    - tab "研究项目" [selected]
+  - tabpanel "研究项目":
+    - heading "研究项目" [level=1]
+    - generic: 4 个进行中
+    - button "刷新研究项目":
+    - button "新建项目":
+      - text: 新建项目
+    - status: 研究笔记已保存。
+    - complementary "研究项目列表":
+      - strong: 项目目录
+      - generic: 4 个
+      - searchbox "搜索研究项目"
+      - checkbox "显示已归档项目" [checked]
+      - text: 显示已归档项目
+      - button "修复实机复测 20261007 0 家公司 · 2 份笔记":
+        - strong: 修复实机复测 20261007
+        - generic: 0 家公司 · 2 份笔记
+      - button "PDF实机复测原专题 40e4ef832817 更新专题 2d2306cc 0 家公司 · 1 份笔记":
+        - strong: PDF实机复测原专题 40e4ef832817 更新专题 2d2306cc
+        - generic: 0 家公司 · 1 份笔记
+      - button "研究收件箱 0 家公司 · 2 份笔记":
+        - strong: 研究收件箱
+        - generic: 0 家公司 · 2 份笔记
+      - button "AI带来的投资机会 0 家公司 · 0 份笔记":
+        - strong: AI带来的投资机会
+        - generic: 0 家公司 · 0 份笔记
+      - generic: 4 个进行中
+      - generic: 0 个归档
+    - region "当前研究项目":
+      - generic: 进行中
+      - text: 更新于
+      - time: 10/07 01:12
+      - heading "修复实机复测 20261007" [level=2]
+      - button "编辑项目":
+      - button "归档":
+        - text: 归档
+      - button "开始研究":
+        - text: 开始研究
+      - generic: 研究目标
+      - paragraph: 连续笔记保存、编辑和草稿清理的真实接口回归。
+      - group "项目概览":
+        - button "查看全部研究笔记" [pressed]:
+          - generic: 研究笔记
+          - strong: 2份
+        - button "查看待验证判断":
+          - generic: 待验证判断
+          - strong: 2项
+        - button "查看项目研究对话":
+          - generic: 研究对话
+          - strong: 0次
+      - region "关联公司":
+        - heading "关联公司 0" [level=3]:
+          - text: 关联公司
+          - generic: "0"
+        - combobox "选择关联公司"
+        - button "加入" [disabled]:
+          - text: 加入
+      - tablist "项目内容":
+        - tab "研究笔记 2" [selected]:
+          - text: 研究笔记
+          - generic: "2"
+        - tab "研究对话 0":
+          - text: 研究对话
+          - generic: "0"
+        - tab "研究成果 2":
+          - text: 研究成果
+          - generic: "2"
+      - tabpanel "研究笔记 2":
+        - heading "观点与验证" [level=3]
+        - button "写研究笔记":
+          - text: 写研究笔记
+        - searchbox "搜索研究笔记"
+        - combobox "筛选笔记状态":
+          - option "全部观点状态" [selected]
+          - option "待验证"
+          - option "得到支持"
+          - option "存在反证"
+          - option "判断失效"
+        - combobox "笔记排序":
+          - option "最近更新" [selected]
+          - option "按标题排序"
+        - generic: 2 / 2 份笔记
+        - article:
+          - heading "修复后第二份笔记" [level=3]:
+            - button "修复后第二份笔记" [expanded]:
+              - generic: 修复后第二份笔记
+          - generic: 待验证
+          - button "编辑笔记 修复后第二份笔记":
+          - status: PDF 后台生成中 · 正文已保存
+          - time: 10/07 01:12
+          - paragraph: 第二份内容的版本3：连续编辑再次保存成功。
+          - generic "判断与原文依据"
+          - generic "历史版本"
+        - article:
+          - heading "修复后第一份笔记" [level=3]:
+            - button "修复后第一份笔记":
+              - generic: 修复后第一份笔记
+          - generic: 待验证
+          - button "编辑笔记 修复后第一份笔记":
+          - status: PDF 后台生成中 · 正文已保存
+          - time: 10/07 01:10

@@ -1,0 +1,83 @@
+- link "跳到页面内容":
+  - /url: "#workspace-main"
+- complementary:
+  - navigation "主菜单":
+    - button "首页":
+      - generic: 首页
+    - button "研究":
+      - generic: 研究
+    - button "条件选股":
+      - generic: 选股
+    - button "观察池":
+      - generic: 观察
+    - button "打开资料库":
+      - generic: 资料
+- main:
+  - img "东吴证券"
+  - strong: 研究对话
+  - button "搜索与快速导航":
+  - button "运行任务" [expanded]:
+  - button "数据与服务":
+  - tablist "研究工作区":
+    - tab "研究对话" [selected]
+    - tab "研究项目"
+  - tabpanel "研究对话":
+    - heading "研究对话" [level=1]
+    - button "最近研究对话":
+      - generic: 最近对话
+    - button "新研究":
+    - generic "独立研究项目归属"
+    - option "未归入项目" [selected]
+    - option "审查实机测试 20261006（PDF 重生成验收）（PDF 重生成验收）"
+    - option "研究收件箱"
+    - option "AI带来的投资机会"
+    - region "研究对话":
+      - log:
+        - article:
+          - strong: 你
+          - time: 10/06 23:53
+          - generic: 已完成
+          - paragraph: 项目实机验收：请只回复‘模型调用成功’，不检索资料，不联网，不使用工具，不生成文件。
+        - article:
+          - strong: 投研助手
+          - time: 10/06 23:54
+          - paragraph: 模型调用成功
+          - region "研究答复操作":
+            - button "保存为研究笔记":
+              - strong: 保存为研究笔记
+            - button "加入观察":
+              - strong: 加入观察
+            - button "转为选股草稿":
+              - strong: 转为选股草稿
+            - button "复制答复":
+              - text: 复制答复
+      - generic "研究范围：不限研究股票 · 截止 2026-09-28 修改":
+        - text: 研究范围：不限研究股票 · 截止 2026-09-28
+        - generic: 修改
+      - generic: 研究要求
+      - textbox "研究要求":
+        - /placeholder: 公司、资料或研究问题
+      - combobox "研究深度":
+        - option "普通" [selected]
+        - option "深入"
+      - button "发送" [disabled]:
+        - text: 发送
+    - complementary "研究成果":
+      - text: 本次研究
+      - heading "研究成果" [level=2]
+      - region "研究计算与成果":
+        - heading "研究计算与成果" [level=2]
+        - button "刷新研究成果":
+        - button "生成已有报告"
+        - link "研究报告-20261006-fed06edb.pdf 39.5 KB":
+          - /url: /api/v1/conversations/7524a737-283d-4762-b713-ce7569120e64/research-pdfs/bd9a52313c2f39bd5e8080b7a2b44a6e91d36ea5a030ec42900c2247e0cbc031.pdf
+          - strong: 研究报告-20261006-fed06edb.pdf
+          - generic: 39.5 KB
+- dialog "运行任务列表":
+  - banner:
+    - heading "任务进展" [level=2]
+    - button "关闭运行任务" [active]:
+  - group "任务查看范围":
+    - button "进行中" [pressed]
+    - button "最近任务"
+  - paragraph: 当前没有正在运行的任务。

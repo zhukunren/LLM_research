@@ -133,6 +133,7 @@ def test_save_answer_once_keeps_original_message_and_rejects_other_project(clien
 
 
 def test_project_artifacts_keep_source_links_after_reassignment(client):
+    from apps.api.app import worker
     saved, other = project(client), project(client, "另一个项目")
     first, second = conversation(client, saved["id"]), conversation(client, other["id"])
     answer = assistant_answer(first["id"])
@@ -142,12 +143,19 @@ def test_project_artifacts_keep_source_links_after_reassignment(client):
         output.mkdir(parents=True)
         (output / filename).write_text("value\n1\n", encoding="utf-8")
     url = f"/api/v1/research-projects/{saved['id']}/files"
+    assert client.post(f"/api/v1/research-projects/{saved['id']}/research-pdf-jobs", json={"request_id": "discover-existing"}).status_code == 200
+    for _ in range(20):
+        if not worker.execute_job(kinds=("research_pdf",)):
+            break
     items = client.get(url).json()["items"]
-    assert [item["name"] for item in items] == ["table.csv"]
-    assert items[0]["conversation_id"] == first["id"]
-    assert client.get(items[0]["url"]).status_code == 200
+    assert all(item["name"].endswith(".pdf") for item in items)
+    table = next(item for item in items if item["name"] == "table.csv.pdf")
+    assert table["conversation_id"] == first["id"]
+    assert not any("private" in item["name"] for item in items)
+    assert client.get(table["url"]).status_code == 200
     client.patch(f"/api/v1/conversations/{first['id']}/project", json={"project_id": other["id"]})
-    assert [item["name"] for item in client.get(url).json()["items"]] == ["table.csv"]
+    assert "table.csv.pdf" in [item["name"] for item in client.get(url).json()["items"]]
+    assert not any("private" in item["name"] for item in client.get(url).json()["items"])
     assert client.get("/api/v1/research-projects/absent/files").status_code == 404
 
 

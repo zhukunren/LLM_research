@@ -20,9 +20,9 @@ type ReportEvaluation = {
 }
 
 const libText = {
-  news: { title: '资讯库', intro: '设计资讯筛选条件', placeholder: '例如：过去 5 个交易日，公告新增订单且金额超过 1 亿元', name: '资讯条件', dependency: '资讯数据源未接入。条件可以编辑和保存；正式运行会被阻断。' },
-  technical: { title: '技术指标库', intro: '描述并保存常见或自定义时序指标', placeholder: '描述行情字段、计算窗口和判断方式', name: '技术指标条件', dependency: '行情可用于探索试算；复权口径与量额单位未核验，正式运行受限。' },
-  report: { title: '研报条件', intro: '用自然语言表达研究目标，生成可编辑的判断口径', placeholder: '例如：找基本面改善且行业景气度上升的公司；重视订单和毛利率，不把预测当成已实现事实', name: '研报证据条件', dependency: '模型逐份评估本地研报并从原文提取证券代码；唯一主体候选需人工确认，确认后刷新评估才会进入策略。无本地报告不表示不符合。' },
+  news: { title: '资讯库', name: '资讯条件' },
+  technical: { title: '技术指标库', name: '技术指标条件' },
+  report: { title: '研报条件', name: '研报证据条件' },
 }
 
 const initialCriterion: Criterion = {
@@ -140,7 +140,7 @@ export default function LibraryPage({ library }: { library: Library }) {
       setKind('evidence_query'); setTerms(Array.isArray(value.terms) ? value.terms.map(String).join(',') : ''); setLookback(Number(value.lookback_calendar_days ?? 30))
     }
     setEvaluation(null)
-    setNotice(`已载入 v${item.version}。保存后会生成新版本，历史策略继续引用旧版本。`)
+    setNotice(`已载入 v${item.version}。`)
   }
 
   async function save() {
@@ -223,22 +223,21 @@ export default function LibraryPage({ library }: { library: Library }) {
 
   return (
     <div className="page-content">
-      <div className="page-heading"><div><p className="eyebrow">条件资产 · {library === 'news' ? 'Tushare 适配预留' : library === 'report' ? '版本化证据判断' : '确定性计算'}</p><h1>{copy.title}</h1></div><span className="plain-state"><span className="status-dot warning" />{library === 'news' ? '数据源未接入' : library === 'report' ? '评估需文本模型' : '行情口径待核验'}</span></div>
-      <div className="dependency-banner"><span className="status-dot warning" /><div><strong>{copy.intro}</strong><p>{copy.dependency}</p></div></div>
+      <div className="page-heading"><div><h1>{copy.title}</h1></div></div>
       <div className="library-layout">
         <aside className="asset-rail">
           <div className="rail-heading"><strong>已保存条件</strong><button className="text-button" onClick={resetForm}>新建</button></div>
           {items.map((item) => <button className={`asset-row ${activeId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => load(item)}>
             <span className="asset-row-title">{item.name}</span><span className="asset-row-meta">v{item.version} · {item.created_at.slice(0, 10)}</span>
           </button>)}
-          {!items.length && <div className="rail-empty">保存后的条件会显示在这里。</div>}
+          {!items.length && <div className="rail-empty">暂无已保存条件</div>}
         </aside>
 
         <div className="library-workspace">
           <section className="conversation-panel">
             <div className="panel-heading"><div><MessageSquareText size={16} /><strong>条件对话</strong></div><span>结构化草稿</span></div>
             <label className="sr-only" htmlFor="filter-prompt">筛选要求</label>
-            <textarea id="filter-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={copy.placeholder} rows={3} />
+            <textarea id="filter-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={3} />
             <div className="conversation-footer"><span>{draftSource === 'configured_llm' ? '已配置文本模型' : library === 'report' ? '本地通用判断模板' : '本地规则解析'}</span><button className="secondary-button compact" onClick={makeDraft} disabled={busy}><Sparkles size={14} />生成条件草稿</button></div>
           </section>
 
@@ -246,10 +245,10 @@ export default function LibraryPage({ library }: { library: Library }) {
             <div className="panel-heading"><div><SlidersIcon /><strong>条件编辑器</strong></div><span>{version ? `当前 v${version}` : '未保存草稿'}</span></div>
             <div className="form-grid two-col">
               <label className="field"><span>条件名称</span><input value={name} onChange={(event) => setName(event.target.value)} /></label>
-              <label className="field"><span>说明</span><input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="条件的适用范围与默认假设" /></label>
+              <label className="field"><span>说明</span><input value={description} onChange={(event) => setDescription(event.target.value)} /></label>
             </div>
             {library === 'report' ? <div className="rubric-editor">
-              <div className="rubric-heading"><div><strong>判断标准</strong><small>模型按这些标准查找支持与反向证据；未提及将标为 unknown。</small></div><label className="field"><span>标准关系</span><select value={combineCriteria} onChange={(event) => setCombineCriteria(event.target.value as 'all' | 'any')}><option value="all">全部满足</option><option value="any">任一满足</option></select></label></div>
+              <div className="rubric-heading"><div><strong>判断标准</strong></div><label className="field"><span>标准关系</span><select value={combineCriteria} onChange={(event) => setCombineCriteria(event.target.value as 'all' | 'any')}><option value="all">全部满足</option><option value="any">任一满足</option></select></label></div>
               {criteria.map((criterion, index) => <div className="rubric-criterion" key={criterion.id}>
                 <div className="rubric-criterion-heading"><span className="rubric-index">{String(index + 1).padStart(2, '0')}</span><label className="field grow"><span>维度名称</span><input value={criterion.label} onChange={(event) => updateCriterion(index, { label: event.target.value })} /></label><button className="table-action danger-action" title="移除判断维度" disabled={criteria.length <= 1} onClick={() => setCriteria((current) => current.filter((_, position) => position !== index))}>×</button></div>
                 <label className="field"><span>判断问题</span><textarea rows={3} value={criterion.question} onChange={(event) => updateCriterion(index, { question: event.target.value })} /></label>
@@ -284,7 +283,7 @@ export default function LibraryPage({ library }: { library: Library }) {
             <div className="panel-heading"><div><Play size={15} /><strong>{library === 'report' ? '按口径评估本地研报' : '单证券试算'}</strong></div><span>{library === 'report' ? '异步 · 逐条校验引用' : '探索模式'}</span></div>
             {library === 'report' ? <>
               <div className="preview-control"><label className="field"><span>报告截止日</span><input type="date" value={evaluationAsOf} onChange={(event) => setEvaluationAsOf(event.target.value)} /></label><button className="secondary-button" disabled={busy || !activeId} onClick={startReportEvaluation}><Play size={14} />评估研报</button></div>
-              <div className="search-scope-note">评估会将回溯范围内的研报文本发送到已配置的模型服务；模型结果、验证后的原文引用和评估版本保存在本地。</div>
+
               {evaluation && <ReportEvaluationPanel evaluation={evaluation} busy={busy} onConfirmLlm={confirmReportSecurity} onJobAction={controlEvaluation} />}
             </> : <>
               <div className="preview-control"><label className="field"><span>证券代码</span><input value={stock} onChange={(event) => setStock(event.target.value.toUpperCase())} /></label><button className="secondary-button" disabled={busy || !activeId} onClick={tryPreview}><Play size={14} />试算</button></div>
@@ -372,8 +371,7 @@ function ReportEvaluationPanel({ evaluation, busy, onConfirmLlm, onJobAction }: 
         {criterion.evidence.map((evidence, index) => <blockquote key={`${evidence.page}-${index}`}><span>p.{evidence.page} · {evidenceType(evidence.evidence_type)}{evidence.period ? ` · ${evidence.period}` : ''}</span><q>{evidence.quote}</q></blockquote>)}
       </div>)}
     </article>)}
-    {state === 'queued' || state === 'running' ? null : assessments.length === 0 && !coverage.message && <div className="empty-inline">截止日和回溯范围内没有可评估的已索引研报。空范围不会返回未命中。</div>}
-    <div className="evaluation-footnote">只覆盖已索引的本地研报，不代表全市场报告完整；没有研报或证据不足均为 unknown。引用经过页内原文校验。</div>
+    {state === 'queued' || state === 'running' ? null : assessments.length === 0 && !coverage.message && <div className="empty-inline">所选范围内暂无可评估研报。</div>}
   </div>
 }
 

@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-05",
+  "behavior": "Automatically match companies in the news title and body by security names and explicit security codes. Render all matching company charts below the article without stock search or company selection.",
+  "data": "Existing news and local market data. Display-time matches do not rewrite stored news or its screening/evidence associations.",
+  "tests": {
+    "frontend_related": { "passed": 27, "files": 5, "command": "npm test -- src/pages/NewsPage.test.tsx src/pages/LibraryReading.test.tsx src/pages/LibraryWorkflow.test.tsx src/pages/TechnicalBrowser.test.tsx src/pages/PatternMatches.test.tsx", "note": "The unchanged TechnicalBrowser pointer test failed on the first run during concurrent build and passed on the repeated suite without code changes." },
+    "backend_related": { "passed": 26, "command": ".\\scripts\\test.ps1 tests/integration/test_news_company_charts.py tests/integration/test_news_sources.py tests/integration/test_library_reading.py" },
+    "build": "npm run build passed"
+  },
+  "browser": {
+    "url": "http://127.0.0.1:5173",
+    "widths": [1440, 390, 320],
+    "horizontal_overflow": false,
+    "console_errors_or_warnings": 0,
+    "company_selection_controls": 0,
+    "checks": [
+      "Unlinked old news about 大华股份 automatically displays 002236.SZ candles",
+      "News mentioning 浙大网新 and 万里扬 directly displays both 600797.SH and 002434.SZ candles",
+      "Both charts remain visible at 240px height on narrow screens",
+      "Names embedded in longer phrases and generic robot-industry references are excluded by resolver tests",
+      "Title/body company matches are deduplicated; catalog updates apply without restarting"
+    ]
+  },
+  "screenshots": ["news-auto-desktop.png", "news-multiple-desktop.png", "news-multiple-mobile.png"]
+}

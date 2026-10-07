@@ -1,0 +1,11 @@
+{
+  "web_port": 8000,
+  "worker": 27008,
+  "worker_started_at": "2026-10-06T04:09:10.8115120Z",
+  "api_port": 8000,
+  "api_started_at": "2026-10-06T04:09:10.7700424Z",
+  "started_at": "2026-10-06T04:09:10.8470166Z",
+  "api": 12636,
+  "web_mode": "bundled",
+  "web": 0
+}

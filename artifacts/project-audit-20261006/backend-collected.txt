@@ -1,0 +1,73 @@
+tests/integration/test_api_assets.py: 7
+tests/integration/test_backup_restore.py: 1
+tests/integration/test_capability_api.py: 3
+tests/integration/test_codex_mcp_protocol.py: 1
+tests/integration/test_codex_web_route.py: 1
+tests/integration/test_company_research.py: 11
+tests/integration/test_condition_workbench.py: 18
+tests/integration/test_conversation_recovery.py: 2
+tests/integration/test_conversations.py: 13
+tests/integration/test_cross_library_conversation.py: 3
+tests/integration/test_evidence_tools.py: 8
+tests/integration/test_experience_polish.py: 3
+tests/integration/test_library_reading.py: 11
+tests/integration/test_library_workspaces.py: 14
+tests/integration/test_local_runtime.py: 6
+tests/integration/test_market_data.py: 3
+tests/integration/test_model_tool_probe.py: 1
+tests/integration/test_news_company_charts.py: 8
+tests/integration/test_news_screening.py: 10
+tests/integration/test_news_sources.py: 7
+tests/integration/test_observation_pool.py: 7
+tests/integration/test_pattern_matching_v2.py: 3
+tests/integration/test_product_usability.py: 4
+tests/integration/test_program_screening.py: 2
+tests/integration/test_report_retrieval.py: 17
+tests/integration/test_report_screening_v2.py: 15
+tests/integration/test_research_external_tools.py: 2
+tests/integration/test_research_observations.py: 15
+tests/integration/test_research_pdf.py: 14
+tests/integration/test_research_pdf_jobs.py: 11
+tests/integration/test_research_projects.py: 9
+tests/integration/test_research_scans.py: 12
+tests/integration/test_research_screening_boundary.py: 16
+tests/integration/test_research_turn_jobs.py: 8
+tests/integration/test_research_workspace.py: 9
+tests/integration/test_run_explanations.py: 2
+tests/integration/test_saved_screening_tasks.py: 6
+tests/integration/test_screening_composition.py: 4
+tests/integration/test_screening_tool_api.py: 3
+tests/integration/test_screening_v2_jobs.py: 13
+tests/integration/test_system_workflows.py: 17
+tests/integration/test_task_progress.py: 7
+tests/integration/test_tushare_sync.py: 3
+tests/integration/test_workflow_tools.py: 8
+tests/unit/test_codex_runtime.py: 15
+tests/unit/test_codex_task_tools.py: 33
+tests/unit/test_condition_language.py: 40
+tests/unit/test_evidence_sources.py: 2
+tests/unit/test_indicators.py: 9
+tests/unit/test_model_client.py: 9
+tests/unit/test_model_tool_turns.py: 8
+tests/unit/test_patterns.py: 9
+tests/unit/test_program_condition_contract.py: 5
+tests/unit/test_ranking_scope.py: 8
+tests/unit/test_report_evidence.py: 4
+tests/unit/test_report_parser.py: 15
+tests/unit/test_research_external.py: 17
+tests/unit/test_research_external_scope.py: 30
+tests/unit/test_research_timeouts.py: 2
+tests/unit/test_research_web_search.py: 9
+tests/unit/test_rules.py: 7
+tests/unit/test_runtime_executor.py: 7
+tests/unit/test_screening_capabilities.py: 3
+tests/unit/test_screening_contracts.py: 18
+tests/unit/test_screening_tools.py: 4
+tests/unit/test_verify_conversation.py: 2
+
+============================== warnings summary ===============================
+runtime\python-deps\fastapi\testclient.py:1
+  D:\��Ŀ\LLM_research\runtime\python-deps\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

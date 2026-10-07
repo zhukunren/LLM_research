@@ -18,6 +18,8 @@ def connect() -> Iterator[sqlite3.Connection]:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB_PATH, timeout=30)
     connection.row_factory = sqlite3.Row
+    from .report_search import normalize_search_text
+    connection.create_function("llmr_search_text", 1, normalize_search_text, deterministic=True)
     connection.execute("PRAGMA foreign_keys=ON")
     connection.execute("PRAGMA journal_mode=WAL")
     try:

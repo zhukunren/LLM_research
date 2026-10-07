@@ -1,0 +1,187 @@
+- link "跳到页面内容":
+  - /url: "#workspace-main"
+- complementary:
+  - img "东吴证券 SOOCHOW SECURITIES"
+  - text: 投研工作台
+  - generic: 张家港营业部
+  - button "开始新研究":
+    - generic: 开始新研究
+  - navigation "主菜单":
+    - generic: 工作空间
+    - button "首页":
+      - generic: 首页
+    - button "研究":
+      - generic: 研究
+    - button "条件选股":
+      - generic: 条件选股
+    - button "观察池":
+      - generic: 观察池
+    - generic: 资料资源
+    - button "资讯库":
+      - generic: 资讯库
+    - button "技术指标库":
+      - generic: 技术指标库
+    - button "形态库" [active]:
+      - generic: 形态库
+    - button "研报库":
+      - generic: 研报库
+  - generic: 行情可供查询
+  - button "数据与服务":
+    - generic: 数据与服务
+- main:
+  - button "收起导航":
+  - generic: 研究空间
+  - strong: 形态库
+  - button "搜索与快速导航":
+    - generic: 查找项目、对话或页面
+    - generic: Ctrl K
+  - button "运行任务":
+    - generic: 运行任务
+  - button "行情截至 2026-09-28，查看数据状态":
+    - time: 2026-09-28
+  - generic: 探索模式
+  - heading "形态库" [level=1]
+  - button "研究当前形态":
+    - text: 研究当前形态
+  - button "新建形态":
+    - text: 新建形态
+  - tablist "形态库功能":
+    - tab "浏览形态" [selected]:
+      - text: 浏览形态
+    - tab "描述需求":
+      - text: 描述需求
+    - tab "我的形态":
+      - text: 我的形态
+  - tabpanel "浏览形态":
+    - complementary "形态列表":
+      - strong: 我的形态
+      - generic: 4 / 4
+      - searchbox "搜索形态"
+      - combobox "形态类型筛选":
+        - option "全部形态类型" [selected]
+        - option "走势曲线"
+        - option "蜡烛图"
+      - button "20 日V 形反转 走势曲线 · 20 根 · v1":
+        - generic: 20 日V 形反转
+        - generic: 走势曲线 · 20 根 · v1
+      - button "30 日双底 走势曲线 · 30 根 · v1":
+        - generic: 30 日双底
+        - generic: 走势曲线 · 30 根 · v1
+      - button "新形态 走势曲线 · 40 根 · v1":
+        - generic: 新形态
+        - generic: 走势曲线 · 40 根 · v1
+      - button "新形态 走势曲线 · 40 根 · v1":
+        - generic: 新形态
+        - generic: 走势曲线 · 40 根 · v1
+    - region "形态对照":
+      - heading "20 日V 形反转" [level=2]
+      - button "编辑形态"
+      - generic: 20 个交易日
+      - generic: 最低相似度 80 分
+      - generic: 版本 v1
+      - button "K线" [pressed]
+      - button "原始曲线"
+      - button "刷新形态匹配":
+        - text: 刷新匹配
+      - strong: 迪哲医药
+      - generic: 688192.SH
+      - text: 相似度
+      - strong: "96.3"
+      - text: 分
+      - generic: K线
+      - img "K线主图叠加指标走势":
+        - generic: 2026-07-20
+        - generic: 2026-08-14
+        - generic: "65.9"
+        - generic: "48.3"
+      - paragraph: 688192.SH · 2026-07-20 至 2026-08-14 · 形态相似度 96.3 分
+      - region "相似K线样本":
+        - heading "相似 K 线" [level=3]
+        - generic: 12 个样本 · 行情截至 2026-09-28
+        - button "查看 688192.SH 相似K线，相似度 96.3 分" [pressed]:
+          - generic: "01"
+          - strong: 迪哲医药
+          - generic: 688192.SH
+          - text: "96.3"
+          - generic: 相似度
+          - generic: 2026-07-20 — 2026-08-14
+        - button "查看 002717.SZ 相似K线，相似度 95.9 分":
+          - generic: "02"
+          - strong: "*ST岭南"
+          - generic: 002717.SZ
+          - text: "95.9"
+          - generic: 相似度
+          - generic: 2026-05-15 — 2026-06-11
+        - button "查看 301257.SZ 相似K线，相似度 94.5 分":
+          - generic: "03"
+          - strong: 普蕊斯
+          - generic: 301257.SZ
+          - text: "94.5"
+          - generic: 相似度
+          - generic: 2026-07-20 — 2026-08-14
+        - button "查看 601857.SH 相似K线，相似度 94.3 分":
+          - generic: "04"
+          - strong: 中国石油
+          - generic: 601857.SH
+          - text: "94.3"
+          - generic: 相似度
+          - generic: 2026-06-16 — 2026-07-14
+        - button "查看 688408.SH 相似K线，相似度 94.2 分":
+          - generic: "05"
+          - strong: 中信博
+          - generic: 688408.SH
+          - text: "94.2"
+          - generic: 相似度
+          - generic: 2026-03-23 — 2026-04-20
+        - button "查看 688667.SH 相似K线，相似度 94.1 分":
+          - generic: "06"
+          - strong: 菱电电控
+          - generic: 688667.SH
+          - text: "94.1"
+          - generic: 相似度
+          - generic: 2026-05-27 — 2026-06-24
+        - button "查看 002403.SZ 相似K线，相似度 94.0 分":
+          - generic: "07"
+          - strong: 爱仕达
+          - generic: 002403.SZ
+          - text: "94.0"
+          - generic: 相似度
+          - generic: 2026-07-10 — 2026-08-06
+        - button "查看 300161.SZ 相似K线，相似度 94.0 分":
+          - generic: "08"
+          - strong: 华中数控
+          - generic: 300161.SZ
+          - text: "94.0"
+          - generic: 相似度
+          - generic: 2026-07-13 — 2026-08-07
+        - button "查看 002389.SZ 相似K线，相似度 93.8 分":
+          - generic: "09"
+          - strong: 航天彩虹
+          - generic: 002389.SZ
+          - text: "93.8"
+          - generic: 相似度
+          - generic: 2026-08-10 — 2026-09-04
+        - button "查看 300736.SZ 相似K线，相似度 93.7 分":
+          - generic: "10"
+          - strong: 百邦科技
+          - generic: 300736.SZ
+          - text: "93.7"
+          - generic: 相似度
+          - generic: 2026-05-26 — 2026-06-23
+        - button "查看 002850.SZ 相似K线，相似度 93.3 分":
+          - generic: "11"
+          - strong: 科达利
+          - generic: 002850.SZ
+          - text: "93.3"
+          - generic: 相似度
+          - generic: 2026-05-21 — 2026-06-17
+        - button "查看 688718.SH 相似K线，相似度 93.2 分":
+          - generic: "12"
+          - strong: 唯赛勃
+          - generic: 688718.SH
+          - text: "93.2"
+          - generic: 相似度
+          - generic: 2026-05-25 — 2026-06-22
+      - generic: 本地全部证券，每只最近120个结束窗口；每家公司取最相近区间，按原始相似度排序
+      - button "加入组合":
+        - text: 加入组合

@@ -8,6 +8,30 @@ import pytest
 from apps.api.app import model_client, settings
 
 
+@pytest.mark.parametrize("kind", ["json", "tool"])
+def test_model_generation_uses_configured_wait_but_preserves_probe_override(monkeypatch, kind):
+    monkeypatch.setattr(model_client, "llm_settings", lambda: {
+        "configured": True, "api_mode": "responses", "api_path": "/v1/responses",
+        "base_url": "https://example.invalid", "api_key": "test-key", "model": "test-model",
+    })
+    monkeypatch.setattr(model_client, "research_settings", lambda: {"model_request_timeout_seconds": 900})
+    waits = []
+    def request(_config, _body, timeout_seconds):
+        waits.append(timeout_seconds)
+        return {"status": "completed", "output_text": '{"ok":true}', "output": [
+            {"type": "message", "content": [{"type": "output_text", "text": '{"ok":true}'}]},
+        ]}
+    monkeypatch.setattr(model_client, "_request_json_body", request)
+    if kind == "json":
+        model_client.complete_json("Return JSON", "generate")
+        model_client.complete_json("Return JSON", "probe", timeout_seconds=20)
+    else:
+        tools = [model_client.FunctionTool("read_sources", "Read sources", {"type": "object", "properties": {}, "required": [], "additionalProperties": False})]
+        model_client.create_tool_turn("Analyze", "generate", tools)
+        model_client.create_tool_turn("Analyze", "probe", tools, timeout_seconds=20)
+    assert waits == [900, 20]
+
+
 def test_responses_configuration_is_loaded_from_config_ini(tmp_path, monkeypatch) -> None:
     (tmp_path / "config.ini").write_text(
         "[app]\nmodel_provider=OpenAI\nmodel=gpt-5.5\nreview_model=gpt-5.5\n"

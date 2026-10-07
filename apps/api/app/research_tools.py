@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 import json
+import re
 import time as clock
 from typing import Any, Literal, TYPE_CHECKING
 from uuid import uuid4
@@ -140,8 +141,96 @@ TUSHARE_RESEARCH_APIS = frozenset({
 TUSHARE_RESEARCH_PARAMS = frozenset({
     "ts_code", "trade_date", "start_date", "end_date", "ann_date", "period",
     "exchange", "fields", "source", "offset", "limit", "is_open", "list_status",
-    "report_type", "type", "market", "year", "month",
+    "report_type", "type", "market", "year", "month", "src",
 })
+
+# Official Tushare input semantics: document/2 doc_ids 27/144/145/28/32/170/95
+# use trading dates; 33/36/44/45/46 use announcement-date ranges. Doc_id 79
+# uses reporting periods for start/end, and 103 (dividend) has no end_date
+# input. These two must be checked using returned announcement dates instead.
+TUSHARE_DIRECTORY_APIS = frozenset({"trade_cal", "stock_basic", "index_basic"})
+TUSHARE_MARKET_DATE_APIS = frozenset({"daily", "weekly", "monthly", "adj_factor", "daily_basic", "moneyflow", "index_daily"})
+TUSHARE_ANNOUNCEMENT_RANGE_APIS = frozenset({"income", "balancesheet", "cashflow", "forecast", "express"})
+TUSHARE_NEWS_APIS = frozenset({"news", "major_news"})
+
+
+def _tushare_record_date(value) -> date | None:
+    if value is None or value == "":
+        return None
+    text = str(value).strip()
+    try:
+        if re.fullmatch(r"\d{8}", text):
+            return datetime.strptime(text, "%Y%m%d").date()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+            return date.fromisoformat(text)
+        parsed = datetime.fromisoformat(text)
+        return parsed.astimezone(news_sources.LOCAL_ZONE).date() if parsed.tzinfo else parsed.date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _tushare_scoped_params(args, context):
+    from .screening_tools import ToolDispatchError
+    params = dict(args.params)
+    directory = args.api_name in TUSHARE_DIRECTORY_APIS
+    scoped = context is not None and context.workflow_type == "research" and not directory
+    cutoff = date.fromisoformat(context.as_of) if scoped and context.as_of else None
+    codes = context.stock_codes if scoped else None
+    if args.api_name in TUSHARE_NEWS_APIS and "source" in params and "src" not in params:
+        params["src"] = params.pop("source")
+    if codes is not None and params.get("ts_code"):
+        supplied = {code.upper() for code in re.split(r"[,，\s]+", str(params["ts_code"]).strip()) if code}
+        if not supplied or not supplied <= codes:
+            raise ToolDispatchError("security_outside_research_scope", "Tushare 查询证券超出当前研究范围")
+        params["ts_code"] = ",".join(sorted(supplied))
+    if codes is not None and args.api_name in TUSHARE_NEWS_APIS:
+        raise ToolDispatchError("tushare_security_scope_unverifiable", "该新闻接口不提供证券归属，无法核验当前研究范围；请读取已关联的本地资讯")
+    if cutoff:
+        # fina_indicator start/end describe reporting periods, not availability.
+        date_keys = {"trade_date", "ann_date"}
+        if args.api_name != "fina_indicator":
+            date_keys.update({"start_date", "end_date"})
+        for key in date_keys:
+            if params.get(key):
+                value = _tushare_record_date(params[key])
+                if value is None:
+                    raise ToolDispatchError("invalid_tushare_date", f"Tushare {key} 必须是有效日期")
+                if value > cutoff:
+                    raise ToolDispatchError("date_outside_research_scope", "Tushare 查询日期晚于当前研究截止日")
+        if args.api_name in TUSHARE_MARKET_DATE_APIS | TUSHARE_ANNOUNCEMENT_RANGE_APIS and not params.get("end_date"):
+            params["end_date"] = cutoff.strftime("%Y%m%d")
+        elif args.api_name in TUSHARE_NEWS_APIS and not params.get("end_date"):
+            params["end_date"] = cutoff.isoformat() + " 23:59:59"
+        elif args.api_name == "dividend" and any(params.get(key) for key in ("start_date", "end_date")):
+            raise ToolDispatchError("unsupported_tushare_date_filter", "分红接口不支持公告日期范围；请按证券或公告日期查询并核验返回日期")
+    return params, cutoff, codes, directory
+
+
+def _tushare_scoped_rows(rows, api_name, cutoff, codes, directory):
+    excluded = {"security_outside_scope": 0, "missing_security": 0,
+                "date_after_cutoff": 0, "missing_date": 0, "invalid_date": 0}
+    kept = []
+    for row in rows:
+        if codes is not None:
+            code = str(row.get("ts_code") or "").strip().upper()
+            if not code or code not in codes:
+                excluded["missing_security" if not code else "security_outside_scope"] += 1
+                continue
+        if cutoff:
+            fields = ("trade_date",) if api_name in TUSHARE_MARKET_DATE_APIS else ("datetime",) if api_name == "news" else ("pub_time",) if api_name == "major_news" else ("ann_date", "imp_ann_date") if api_name == "dividend" else ("ann_date", "f_ann_date")
+            values = [row.get(field) for field in fields if row.get(field) not in (None, "")]
+            dates = [_tushare_record_date(value) for value in values]
+            reason = "missing_date" if not values else "invalid_date" if any(value is None for value in dates) else "date_after_cutoff" if any(value > cutoff for value in dates) else None
+            if reason:
+                excluded[reason] += 1
+                continue
+        kept.append(row)
+    status = "directory_only" if directory else "not_requested" if cutoff is None and codes is None else "verified_page" if kept else "no_verified_rows"
+    return kept, {"status": status, "as_of": cutoff.isoformat() if cutoff else None,
+                  "stock_codes": sorted(codes) if codes is not None else None,
+                  "excluded_scope_counts": excluded, "excluded_total": sum(excluded.values()),
+                  "record_dates_verified": bool(cutoff and kept), "historical_revision_verified": False,
+                  "coverage": "returned_page_only"}
 
 
 class TushareQueryArgs(ToolArgs):
@@ -160,37 +249,64 @@ def query_tushare(args: TushareQueryArgs, context: ToolContext) -> dict[str, Any
         raise ToolDispatchError("invalid_tushare_params", "Tushare 查询参数不受支持")
     if any(len(str(value)) > 500 for value in args.params.values()):
         raise ToolDispatchError("invalid_tushare_params", "Tushare 查询参数过长")
-    if args.api_name not in {"trade_cal", "stock_basic", "index_basic"} and not any(
-        args.params.get(key) for key in ("ts_code", "trade_date", "start_date", "ann_date", "period")
+    params, cutoff, codes, directory = _tushare_scoped_params(args, context)
+    if not directory and not any(
+        params.get(key) for key in ("ts_code", "trade_date", "start_date", "end_date", "ann_date", "period")
     ):
         raise ToolDispatchError("tushare_scope_required", "请提供证券代码或查询日期，避免无范围的外部查询")
     try:
-        rows = tushare_sync._query(tushare_sync.create_client(), args.api_name, **args.params)
+        raw_rows = tushare_sync._query(tushare_sync.create_client(), args.api_name, **params)
     except Exception as exc:
         raise ToolDispatchError("tushare_query_failed", f"{args.api_name} 查询失败：{type(exc).__name__}") from exc
     queried_at = utc_now()
+    rows, scope_validation = _tushare_scoped_rows(raw_rows, args.api_name, cutoff, codes, directory)
+    received = len(raw_rows)
     artifact = None
     if args.save_to_file:
-        payload = json.dumps({"api_name": args.api_name, "params": args.params, "source": "tushare_relay",
-                              "queried_at": queried_at, "items": rows}, ensure_ascii=False, allow_nan=False, default=str)
+        payload = json.dumps({"api_name": args.api_name, "params": params, "source": "tushare_relay",
+                              "queried_at": queried_at, "items": rows, "received": received,
+                              "scope_validation": scope_validation}, ensure_ascii=False, allow_nan=False, default=str)
         from .settings import research_mode_settings
-        mode = conversation_store.get_conversation(context.conversation_id, message_limit=1)["research_mode"]
-        if len(payload.encode("utf-8")) > int(research_mode_settings(mode)["max_output_file_bytes"]):
+        conversation = conversation_store.get_conversation(context.conversation_id, message_limit=1)
+        if len(payload.encode("utf-8")) > int(research_mode_settings(conversation["research_mode"], context.research_depth)["max_output_file_bytes"]):
             raise ToolDispatchError("tushare_page_too_large", "查询结果超过单文件预算，请缩小范围或按接口分页")
         with connect() as connection:
             conversation_store.require_running_turn(connection, context.conversation_id, context.turn_id)
         artifact = research_workspace.write_output(context.conversation_id, f"tushare/{args.api_name}-{uuid4().hex}.json", payload)
-    return {"api_name": args.api_name, "params": args.params, "items": rows[:args.limit],
-            "returned": len(rows[:args.limit]), "received": len(rows), "truncated": len(rows) > args.limit,
+    return {"api_name": args.api_name, "params": params, "items": rows[:args.limit],
+            "returned": len(rows[:args.limit]), "received": received, "matched": len(rows), "truncated": len(rows) > args.limit,
+            "scope_validation": scope_validation,
             "source": "tushare_relay", "queried_at": queried_at, "artifact": artifact,
-            "note": "items 是提示词预览；artifact 包含本次接口返回的整页数据。接口可能仍有下一页，请按接口的 offset/limit 分页，不把本页视作完整覆盖。外部数据只用于研究；正式筛选仍使用冻结的本地数据。核对单位、复权与可得日期。"}
+            "note": "items 是提示词预览；artifact 保存同一范围内的整页数据，received 是过滤前页行数；排除原因见 scope_validation。缺证券或日期字段的记录不会伪称已核验。目录只供发现，不能证明历史资格；日期核验也不证明财报历史版本。接口可能仍有下一页，请按 offset/limit 分页。外部数据只用于研究，核对单位与复权；正式筛选仍使用冻结的本地数据。"}
 
 
 def discover_research_data(_: DiscoverResearchDataArgs, context: ToolContext) -> dict:
     return research_workspace.describe_inputs(context.conversation_id, context.turn_id)
 
 
-def search_sources(args: SearchSourcesArgs, _: ToolContext) -> dict:
+def _source_request(args, context):
+    """Apply the independently frozen research scope to convenient read tools."""
+    if context is None or context.workflow_type != "research":
+        return args
+    updates = {}
+    if context.as_of:
+        if args.as_of and args.as_of.isoformat() > context.as_of:
+            from .screening_tools import ToolDispatchError
+            raise ToolDispatchError("date_outside_research_scope", "资料查询晚于当前回合的研究截止日")
+        if args.as_of is None:
+            updates["as_of"] = date.fromisoformat(context.as_of)
+    if getattr(args, "stock_code", None) and context.stock_codes is not None and args.stock_code not in context.stock_codes:
+        from .screening_tools import ToolDispatchError
+        raise ToolDispatchError("security_outside_research_scope", "证券不在当前回合的研究范围内")
+    return args.model_copy(update=updates) if updates else args
+
+
+def search_sources(args: SearchSourcesArgs, context: ToolContext) -> dict:
+    args = _source_request(args, context)
+    research_codes = context.stock_codes if context is not None and context.workflow_type == "research" else None
+    report_earliest = None
+    if context is not None and args.as_of and context.report_lookback_calendar_days:
+        report_earliest = (args.as_of - timedelta(days=context.report_lookback_calendar_days)).isoformat()
     if args.kind == "news":
         predicates, params = [], []
         if args.as_of:
@@ -206,6 +322,13 @@ def search_sources(args: SearchSourcesArgs, _: ToolContext) -> dict:
         if args.stock_code:
             predicates.append("EXISTS(SELECT 1 FROM json_each(n.stock_codes_json) WHERE value=?)")
             params.append(args.stock_code)
+        if research_codes is not None:
+            predicates.append("EXISTS(SELECT 1 FROM json_each(n.stock_codes_json) WHERE value IN (" + ",".join("?" for _ in research_codes) + "))" if research_codes else "0")
+            params.extend(sorted(research_codes))
+        if context is not None and args.as_of and context.news_lookback_calendar_days:
+            earliest = datetime.combine(args.as_of - timedelta(days=context.news_lookback_calendar_days), time.min, news_sources.LOCAL_ZONE).astimezone(timezone.utc).isoformat()
+            predicates.append("n.available_at>=?")
+            params.append(earliest)
         clause = " AND ".join(predicates)
         with connect() as connection:
             total = connection.execute(f"SELECT COUNT(*) FROM news_records n WHERE {clause}", params).fetchone()[0]
@@ -214,6 +337,12 @@ def search_sources(args: SearchSourcesArgs, _: ToolContext) -> dict:
                 (*params, args.limit, args.offset)).fetchall()
         return {"items": [dict(row) for row in rows], "total": total, "offset": args.offset,
                 "as_of": args.as_of.isoformat() if args.as_of else None}
+    if args.query:
+        result = documents.search_source_catalog(args.query, args.as_of.isoformat() if args.as_of else None,
+                                                 args.stock_code, offset=args.offset, limit=args.limit,
+                                                 stock_codes=research_codes, available_after=report_earliest)
+        return {**result, "as_of": args.as_of.isoformat() if args.as_of else None,
+                "note": "资料发现结果仅供定位；须读取原文、核对证券与首次可得日期后才能用于研究判断。"}
     predicates, params = ["1=1"], []
     if args.query:
         predicates.append("(instr(d.title,?)>0 OR EXISTS(SELECT 1 FROM document_pages p WHERE p.document_id=d.id AND instr(p.text,?)>0))")
@@ -224,6 +353,12 @@ def search_sources(args: SearchSourcesArgs, _: ToolContext) -> dict:
     if args.as_of:
         predicates.append("d.available_at_status='confirmed' AND d.available_at<=?")
         params.append(args.as_of.isoformat())
+    if report_earliest:
+        predicates.append("d.available_at>=?")
+        params.append(report_earliest)
+    if research_codes is not None:
+        predicates.append("d.stock_code IN (" + ",".join("?" for _ in research_codes) + ")" if research_codes else "0")
+        params.extend(sorted(research_codes))
     clause = " AND ".join(predicates)
     with connect() as connection:
         total = connection.execute(f"SELECT COUNT(*) FROM documents d WHERE {clause}", params).fetchone()[0]
@@ -236,8 +371,9 @@ def search_sources(args: SearchSourcesArgs, _: ToolContext) -> dict:
             "note": "开放研究目录；未指定截止日时可阅读未确认日期资料，但不能用来证明历史筛选结论。"}
 
 
-def read_source(args: ReadSourceArgs, _: ToolContext) -> dict:
+def read_source(args: ReadSourceArgs, context: ToolContext) -> dict:
     from .screening_tools import ToolDispatchError
+    args = _source_request(args, context)
     if args.kind == "report":
         result = documents.read_page(args.source_id, args.page_number,
                                      as_of=args.as_of.isoformat() if args.as_of else None, max_chars=None)
@@ -254,6 +390,15 @@ def read_source(args: ReadSourceArgs, _: ToolContext) -> dict:
             if not available or datetime.fromisoformat(available) >= cutoff:
                 raise ToolDispatchError("source_after_cutoff", "资讯日期未确认或晚于截止日")
         text = result.pop("body")
+    if context is not None and context.workflow_type == "research":
+        if context.stock_codes is not None:
+            codes = {result.get("stock_code")} if args.kind == "report" else set(result.get("stock_codes") or [])
+            if not codes.intersection(context.stock_codes):
+                raise ToolDispatchError("security_outside_research_scope", "资料证券归属不在当前回合的研究范围内")
+        lookback = context.report_lookback_calendar_days if args.kind == "report" else context.news_lookback_calendar_days
+        available = result.get("available_at")
+        if lookback and args.as_of and available and str(available)[:10] < (args.as_of - timedelta(days=lookback)).isoformat():
+            raise ToolDispatchError("source_outside_research_lookback", "资料早于当前研究回溯范围")
     if args.offset > len(text):
         raise ToolDispatchError("invalid_offset", "读取位置超出原文")
     end = min(len(text), args.offset + args.limit)
@@ -332,6 +477,11 @@ def read_run(args: ReadRunArgs, context: ToolContext) -> dict:
 
 def start_research_scan(args: StartResearchScanArgs, context: ToolContext) -> dict:
     from .screening_tools import ToolDispatchError
+    args = _source_request(args, context)
+    if context.workflow_type == "research" and context.stock_codes is not None:
+        if args.stock_codes and not set(args.stock_codes) <= context.stock_codes:
+            raise ToolDispatchError("security_outside_research_scope", "研究扫描超出当前回合的证券范围")
+        args = args.model_copy(update={"universe": "explicit", "stock_codes": args.stock_codes or sorted(context.stock_codes)})
     try:
         return research_scan_service.enqueue_scan(
             context.conversation_id,
@@ -388,6 +538,8 @@ def cancel_research_scan(args: CancelResearchScanArgs, context: ToolContext) -> 
 
 
 def register_tools(registry) -> None:
+    from .research_external import register_tools as register_external_tools
+    register_external_tools(registry)
     registry.register("read_project_company", "Read this conversation's project company dossier as of an explicit date. Includes actual price dates, unknown units, source counts and bounded previews. No screening task or run is created. Use normal source/data tools for full analysis.", ReadProjectCompanyArgs, read_project_company)
     registry.register("read_saved_research_evidence", "Read the immutable original-text snapshot attached to a research claim in this conversation's project. Claim IDs are in project context. Quote location is verified; semantic support and claim kind are user annotations, not established facts.", ReadSavedEvidenceArgs, read_saved_research_evidence)
     registry.register("discover_research_data", "Inspect this turn's actual Parquet columns and types, units, date range, SQLite snapshot schemas and source paths. No screening task is required. Use native Python/DuckDB for arbitrary exploratory queries; unknown units must be verified.", DiscoverResearchDataArgs, discover_research_data)

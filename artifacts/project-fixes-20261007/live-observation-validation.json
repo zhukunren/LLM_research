@@ -1,0 +1,93 @@
+{
+  "status": "passed",
+  "database": "D:\\项目\\LLM_research\\artifacts\\project-fixes-20261007\\live\\app.db",
+  "model_calls": 0,
+  "project_id": "a6275616-bccd-4526-8f05-5bc2beeed220",
+  "note_ids": [
+    "d2a4c8ca-aef1-42ed-9396-ab8906d3760e",
+    "4b38ef06-339d-41bf-ab5c-98e195510943"
+  ],
+  "pdf_jobs": [
+    {
+      "id": "3f1dd6dc-f9bc-4edd-ac39-bf412b8f6cee",
+      "state": "queued",
+      "export_id": "0f021c1b-8fb0-4414-af64-874647796417",
+      "note_id": "d2a4c8ca-aef1-42ed-9396-ab8906d3760e",
+      "source_revision": 1,
+      "final_state": "succeeded",
+      "exit_code": 0,
+      "stdout": "True\n",
+      "stderr": ""
+    },
+    {
+      "id": "8a0ca21e-e457-4c22-bd13-6f52891d2973",
+      "state": "queued",
+      "export_id": "62de3330-6909-489c-aa40-ea0f19057406",
+      "note_id": "4b38ef06-339d-41bf-ab5c-98e195510943",
+      "source_revision": 1,
+      "final_state": "succeeded",
+      "exit_code": 0,
+      "stdout": "True\n",
+      "stderr": ""
+    },
+    {
+      "id": "c6158d2b-fff4-4d4e-a0a4-a59276f0179b",
+      "state": "queued",
+      "export_id": "7aa98355-ce70-4494-bc76-4f0781c02b8a",
+      "note_id": "4b38ef06-339d-41bf-ab5c-98e195510943",
+      "source_revision": 2,
+      "final_state": "succeeded",
+      "exit_code": 0,
+      "stdout": "True\n",
+      "stderr": ""
+    },
+    {
+      "id": "56e2fc06-ef46-4f86-ac39-011869bf1018",
+      "state": "queued",
+      "export_id": "f9f3b4ec-499d-43a0-8530-5e75f19d825f",
+      "note_id": "4b38ef06-339d-41bf-ab5c-98e195510943",
+      "source_revision": 3,
+      "final_state": "succeeded",
+      "exit_code": 0,
+      "stdout": "True\n",
+      "stderr": ""
+    }
+  ],
+  "selected_pending_pdf_jobs": 0,
+  "origin_rejection": {
+    "status": 403,
+    "response": {
+      "code": "untrusted_origin",
+      "message": "请从本机投研工作台提交操作。",
+      "details": null,
+      "request_id": "cfa6e065-93dc-4a9d-86f9-bdda0fa76c65"
+    },
+    "data_sync_jobs_before": 0,
+    "data_sync_jobs_after": 0
+  },
+  "private_news_request_count": 0,
+  "created_own_failed_source": false,
+  "source": {
+    "conversation_id": "e049d98e-bfb0-4421-bce8-0384ff0765be",
+    "source_message_id": "27eacb9d-b54f-45a2-b956-752005416077",
+    "turn_id": "cc2a1523-4e66-4b4d-beb5-891a09f9bf83",
+    "state": "failed"
+  },
+  "candidate_rejection": {
+    "status": 409,
+    "response": {
+      "code": "request_error",
+      "message": "只能将成功完成的研究答复保存为观察候选，请先完成当前研究。",
+      "details": null,
+      "request_id": "2ebd0b32-e4d3-4b3f-97e6-e9b109cd944b"
+    },
+    "candidate_count_before": 0,
+    "candidate_count_after": 0
+  },
+  "tasks_after": {
+    "items": [],
+    "active_count": 0
+  },
+  "pending_jobs_after": 0,
+  "finished_at": "2026-10-07T01:19:25.658189+08:00"
+}

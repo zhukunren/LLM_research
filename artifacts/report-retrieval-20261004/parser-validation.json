@@ -1,0 +1,5722 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-04T12:05:20.906659+00:00",
+  "scope": "data/research_report/*.pdf",
+  "backend": "pypdf",
+  "read_only_sources": true,
+  "database_access": false,
+  "model_calls": false,
+  "summary": {
+    "source_count": 58,
+    "success_count": 58,
+    "error_count": 0,
+    "page_count": 559,
+    "non_empty_pages": 559,
+    "empty_pages": 0,
+    "fallback_pages": 0,
+    "extracted_chars": 1580009,
+    "all_sources_unchanged": true,
+    "files_with_library_warnings": 25,
+    "library_warning_count": 78,
+    "elapsed_seconds": 20.4919
+  },
+  "results": [
+    {
+      "filename": "20260918-太平洋证券-H&H国际控股（1112.HK）：业务协同发力，盈利弹性与降债周期共振.pdf",
+      "size_bytes": 476467,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 11936,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 11936,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3529,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 935,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 5953,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 697,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1799,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "8e25bbdd698dc5f290e4c8359aebece552e7ccba378c92cf6bc84b8b2721f642",
+      "sha256_after": "8e25bbdd698dc5f290e4c8359aebece552e7ccba378c92cf6bc84b8b2721f642",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260918-太平洋证券-燕京啤酒（000729.SZ）：U8大单品持续引领，降本控费高质量增长.pdf",
+      "size_bytes": 462248,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 11028,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 11028,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3609,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 980,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4920,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 697,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1692,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "67e493045a70c6d8a3a17e0d9414a4f3e0a8d2104d7bf71d3501978ba41200d1",
+      "sha256_after": "67e493045a70c6d8a3a17e0d9414a4f3e0a8d2104d7bf71d3501978ba41200d1",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260921-西南证券-安孚科技（603031.SH）：为易缆微第二股东，布局硬科技，继续深化新增长曲线战略布局.pdf",
+      "size_bytes": 1394323,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 16624,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 16624,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3762,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 2310,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 6268,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1711,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 2573,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2635,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "dc4909c8ebd784612d25f6cc56c88f3bae7715ec04b90e27e7010cb78b5adc3d",
+      "sha256_after": "dc4909c8ebd784612d25f6cc56c88f3bae7715ec04b90e27e7010cb78b5adc3d",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260922-元大证券（韩国）-GS工程建设（006360.KS）：Proven player in data center construction.pdf",
+      "size_bytes": 680394,
+      "status": "success",
+      "page_count": 10,
+      "non_empty_pages": 10,
+      "extracted_chars": 51042,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 10,
+        "extracted_chars": 51042,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 7398,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 2438,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 3794,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 6344,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 3139,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 4000,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 13725,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 3843,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 5365,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 996,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.6844,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "f6d6ad3cd6d68cbbf3f228a1161a5d91e6ed37e01e77249026c6c7397388b600",
+      "sha256_after": "f6d6ad3cd6d68cbbf3f228a1161a5d91e6ed37e01e77249026c6c7397388b600",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260922-元大证券（韩国）-大宇建设（047040.KS）：Improving profitability and growing orders.pdf",
+      "size_bytes": 685733,
+      "status": "success",
+      "page_count": 11,
+      "non_empty_pages": 11,
+      "extracted_chars": 53580,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 11,
+        "extracted_chars": 53580,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 7140,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 3069,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 2390,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 6163,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 2482,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 4283,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 2127,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 13783,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 3272,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 7824,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 1047,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.6881,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "4776920aff3e902b2d267569b1c23c1998c8bdadbf02a1cc3ed4fe3dccf8597d",
+      "sha256_after": "4776920aff3e902b2d267569b1c23c1998c8bdadbf02a1cc3ed4fe3dccf8597d",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260922-国元国际-申洲国际（2313.HK）：未来关注公司海外新产能爬坡和新客户贡献.pdf",
+      "size_bytes": 1023947,
+      "status": "success",
+      "page_count": 7,
+      "non_empty_pages": 7,
+      "extracted_chars": 28143,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 7,
+        "extracted_chars": 28143,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3766,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1947,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 5488,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 4996,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1985,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 7739,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 2222,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2423,
+      "library_warnings": {
+        "Ignoring wrong pointing object 6 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 8 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 12 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 14 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 17 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 20 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 22 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 24 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 26 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 28 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 30 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 32 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 34 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 36 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 38 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 40 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 42 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 44 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 46 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 48 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 50 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 53 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 55 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 57 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 66 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 68 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 70 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 72 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 74 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 80 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 82 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 84 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 86 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 91 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 93 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 95 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 97 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 102 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 104 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 106 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 108 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 110 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 112 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 117 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 119 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 121 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 123 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 125 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 127 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 132 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 134 0 (offset 0)": 1,
+        "Ignoring wrong pointing object 136 0 (offset 0)": 1,
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 53,
+      "sha256_before": "b310ab6d9c586c5cad77a0d603ab65e5748a767e78207547e1b712a043d1f269",
+      "sha256_after": "b310ab6d9c586c5cad77a0d603ab65e5748a767e78207547e1b712a043d1f269",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260922-太平洋证券-招商银行（600036.SH）：2026年中报点评，财富管理带动中收提速，息差降幅收窄.pdf",
+      "size_bytes": 493749,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 13505,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 13505,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3759,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1586,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 6590,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 748,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1996,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "c88f78955619f7a1ed771e1308867e7aaf93fcd001d7fa285164f4b659661c3f",
+      "sha256_after": "c88f78955619f7a1ed771e1308867e7aaf93fcd001d7fa285164f4b659661c3f",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260922-太平洋证券-邮储银行（601658.SH）：2026年中报点评，非息收入拉动营收增长，成本收入比延续改善.pdf",
+      "size_bytes": 496322,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 13284,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 13284,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3733,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1429,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 6553,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 747,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2018,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "8a5c7fe94a54f8e02d4ad683727e150b2ccc900e62e5ee419657c34937808bc0",
+      "sha256_after": "8a5c7fe94a54f8e02d4ad683727e150b2ccc900e62e5ee419657c34937808bc0",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-东吴证券-泉阳泉（600189.SH）：推进园林资产剥离，水业务兑现成长.pdf",
+      "size_bytes": 545726,
+      "status": "success",
+      "page_count": 3,
+      "non_empty_pages": 3,
+      "extracted_chars": 12769,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 3,
+        "extracted_chars": 12769,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 4161,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 7019,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1589,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1904,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "3b9597852adabd843f8291d2f8b9f07445b263b5eb07c55504eb9d766303ec45",
+      "sha256_after": "3b9597852adabd843f8291d2f8b9f07445b263b5eb07c55504eb9d766303ec45",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-中泰国际-瀚天天成（2726.HK）：穿越周期SiC外延龙头，AI与新能源共振释放业绩弹性.pdf",
+      "size_bytes": 1030546,
+      "status": "success",
+      "page_count": 18,
+      "non_empty_pages": 18,
+      "extracted_chars": 45599,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 18,
+        "extracted_chars": 45599,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3664,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 5083,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1622,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1729,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 2432,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 1930,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 2437,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 2776,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 2027,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 1535,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 2770,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 2389,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 2902,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 1100,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 8330,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 1042,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 366,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 1465,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.5658,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "c3dda63f4649280cf65cbc070670be6007155b270d66238f8f6fe5e6372e862c",
+      "sha256_after": "c3dda63f4649280cf65cbc070670be6007155b270d66238f8f6fe5e6372e862c",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-中邮证券-威尔高（301251.SZ）：拐点已至，电源PCB核心卡位.pdf",
+      "size_bytes": 757482,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 12213,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 12213,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2616,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 2056,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4981,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1689,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 871,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.3551,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "9330ea691382d6295089be6fd4035376aec42e405e8e00a911b510a10f163d2f",
+      "sha256_after": "9330ea691382d6295089be6fd4035376aec42e405e8e00a911b510a10f163d2f",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-中邮证券-明星电力（600101.SH）：盈利略承压，积极拓展综合能源服务.pdf",
+      "size_bytes": 751737,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 11300,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 11300,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2289,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1488,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4957,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1689,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 877,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.3174,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "0dd2cbe4afc526556303565b37041dd0b5e53000952ee6897241cade0ac8450d",
+      "sha256_after": "0dd2cbe4afc526556303565b37041dd0b5e53000952ee6897241cade0ac8450d",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-交银国际-翰森制药（3692.HK）：B7-H3 ADC优异数据闪耀WCLC，新一轮新品上市潮将至；上调目标价.pdf",
+      "size_bytes": 419025,
+      "status": "success",
+      "page_count": 7,
+      "non_empty_pages": 7,
+      "extracted_chars": 26188,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 7,
+        "extracted_chars": 26188,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3617,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 3703,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 3962,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 4607,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 6930,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 808,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 2561,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.586,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "b87f2d6d90aaabf0530020e6aab0112f265ed84015a6702b67ccbd364dbcb38d",
+      "sha256_after": "b87f2d6d90aaabf0530020e6aab0112f265ed84015a6702b67ccbd364dbcb38d",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-元大证券（韩国）-DL E C Co（375500.KS）：Housing strong，now with nuclear power and shareholder returns.pdf",
+      "size_bytes": 756334,
+      "status": "success",
+      "page_count": 11,
+      "non_empty_pages": 11,
+      "extracted_chars": 55401,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 11,
+        "extracted_chars": 55401,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 6929,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 3087,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 2823,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 7394,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 4229,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 3949,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 1597,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 13761,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 2822,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 7763,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 1047,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.7733,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "8e5efcc438cd89937fb19b5ddf314fdce9023645ec4c694609944a0de084ac21",
+      "sha256_after": "8e5efcc438cd89937fb19b5ddf314fdce9023645ec4c694609944a0de084ac21",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-元大证券（韩国）-三星电子（005930.KS）：A longer cycle matters more than slowing memory price hikes.pdf",
+      "size_bytes": 1003281,
+      "status": "success",
+      "page_count": 11,
+      "non_empty_pages": 11,
+      "extracted_chars": 81475,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 11,
+        "extracted_chars": 81475,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 7624,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 8036,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 2641,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 9243,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 9380,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 9377,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 9213,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 13691,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 3413,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 7823,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 1034,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 1.0178,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "6f9c7161b728f1c63b2e89df5807426a98e4c58ae54bda672f24cccd31217281",
+      "sha256_after": "6f9c7161b728f1c63b2e89df5807426a98e4c58ae54bda672f24cccd31217281",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-华西证券-视源股份（002841.SZ）：收入高增，盈利能力显著修复.pdf",
+      "size_bytes": 1134703,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 12355,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 12355,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3213,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1815,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 5365,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 855,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1107,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1974,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "fbe57cb08a1a71023cc937618193e47fe5c3d5dac4a7f366bfb430e88719552e",
+      "sha256_after": "fbe57cb08a1a71023cc937618193e47fe5c3d5dac4a7f366bfb430e88719552e",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-华鑫证券-优迅股份（688807.SH）：聚焦光通信前端收发电芯片，单波100G、200G产品进展顺利.pdf",
+      "size_bytes": 324240,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10973,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10973,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2088,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1541,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4424,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1484,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1436,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1605,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "861f7a371e2b3a0f30cba02454fccccadce2d7e1bc6c7b33bfcdc1d90f32f344",
+      "sha256_after": "861f7a371e2b3a0f30cba02454fccccadce2d7e1bc6c7b33bfcdc1d90f32f344",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-太平洋证券-乐舒适（2698.HK）：非洲卫品龙头，拓区域+延品类未来可期.pdf",
+      "size_bytes": 1809345,
+      "status": "success",
+      "page_count": 39,
+      "non_empty_pages": 39,
+      "extracted_chars": 36138,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 39,
+        "extracted_chars": 36138,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 184,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1296,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 357,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 146,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 965,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 1451,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 776,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 948,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 83,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 604,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 446,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 487,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 416,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 1139,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 658,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 1166,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 1612,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 87,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 979,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 341,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 22,
+            "extraction_mode": "layout",
+            "extracted_chars": 860,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 23,
+            "extraction_mode": "layout",
+            "extracted_chars": 962,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 24,
+            "extraction_mode": "layout",
+            "extracted_chars": 512,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 25,
+            "extraction_mode": "layout",
+            "extracted_chars": 82,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 26,
+            "extraction_mode": "layout",
+            "extracted_chars": 1337,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 27,
+            "extraction_mode": "layout",
+            "extracted_chars": 1681,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 28,
+            "extraction_mode": "layout",
+            "extracted_chars": 1612,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 29,
+            "extraction_mode": "layout",
+            "extracted_chars": 492,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 30,
+            "extraction_mode": "layout",
+            "extracted_chars": 985,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 31,
+            "extraction_mode": "layout",
+            "extracted_chars": 77,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 32,
+            "extraction_mode": "layout",
+            "extracted_chars": 1105,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 33,
+            "extraction_mode": "layout",
+            "extracted_chars": 1329,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 34,
+            "extraction_mode": "layout",
+            "extracted_chars": 69,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 35,
+            "extraction_mode": "layout",
+            "extracted_chars": 1076,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 36,
+            "extraction_mode": "layout",
+            "extracted_chars": 138,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 37,
+            "extraction_mode": "layout",
+            "extracted_chars": 8011,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 38,
+            "extraction_mode": "layout",
+            "extracted_chars": 412,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 39,
+            "extraction_mode": "layout",
+            "extracted_chars": 776,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.6633,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "08f31e79f261bd5c00a4b71c4bb286e34c6c8687a0a3936d9b53bf9083ef3b4c",
+      "sha256_after": "08f31e79f261bd5c00a4b71c4bb286e34c6c8687a0a3936d9b53bf9083ef3b4c",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-太平洋证券-保利发展（600048.SH）：2026年半年报点评，业绩短期承压，投资聚焦核心城市.pdf",
+      "size_bytes": 627655,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 11412,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 11412,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3057,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1415,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 5423,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 695,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.195,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "e6e32895de065d7ed3777153407396d21f097ca8fe90a009dba0c750e523eded",
+      "sha256_after": "e6e32895de065d7ed3777153407396d21f097ca8fe90a009dba0c750e523eded",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-太平洋证券-宁波精达（603088.SH）：Q2迎来强修复，海外业务经营亮眼.pdf",
+      "size_bytes": 461988,
+      "status": "success",
+      "page_count": 4,
+      "non_empty_pages": 4,
+      "extracted_chars": 9973,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 4,
+        "extracted_chars": 9973,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3745,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 4713,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 692,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 823,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1448,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "9640edc0ffd03eae2e23ce7a5fc77f90f65f447ce6bebc384009a401e4af8d6e",
+      "sha256_after": "9640edc0ffd03eae2e23ce7a5fc77f90f65f447ce6bebc384009a401e4af8d6e",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-太平洋证券-渝农商行（601077.SH）：2026年中报点评，净息差同比回升，资产结构向对公迁移.pdf",
+      "size_bytes": 495768,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 13562,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 13562,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3727,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1707,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 6558,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 748,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2043,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "92b334f6e9fd88cdd73b0b88288406eabe1489c47a2a3c9b9da81a22455be3b4",
+      "sha256_after": "92b334f6e9fd88cdd73b0b88288406eabe1489c47a2a3c9b9da81a22455be3b4",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-太平洋证券-逸飞激光（688646.SH）：需求端景气增长，静待盈利能力回升.pdf",
+      "size_bytes": 463135,
+      "status": "success",
+      "page_count": 4,
+      "non_empty_pages": 4,
+      "extracted_chars": 10025,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 4,
+        "extracted_chars": 10025,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3539,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 4968,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 695,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 823,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1468,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "cf3bc74db1807a2270519522db7604b6a60ee183fe859a7abc04d24a030ca6c2",
+      "sha256_after": "cf3bc74db1807a2270519522db7604b6a60ee183fe859a7abc04d24a030ca6c2",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260923-盈立证券-映宇宙（3700.HK）：结构调整进入兑现期，AI与GPU算力打开新增量.pdf",
+      "size_bytes": 370791,
+      "status": "success",
+      "page_count": 4,
+      "non_empty_pages": 4,
+      "extracted_chars": 5525,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 4,
+        "extracted_chars": 5525,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2216,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1778,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 287,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1244,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.096,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "cac1c214c3edfbdcb22c71150e00aaf0aa3846e59feef8b8ed9b5de04031442c",
+      "sha256_after": "cac1c214c3edfbdcb22c71150e00aaf0aa3846e59feef8b8ed9b5de04031442c",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-华西证券-港迪技术（301633.SZ）：变频器小巨人，数据中心业务带来第二曲线.pdf",
+      "size_bytes": 1488796,
+      "status": "success",
+      "page_count": 7,
+      "non_empty_pages": 7,
+      "extracted_chars": 16542,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 7,
+        "extracted_chars": 16542,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2964,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1267,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 2422,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 2869,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 5063,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 849,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 1108,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2662,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "d13f26bd2eb7b105f8c01866314c9931928dd0c940d1c71d116052a45b52ca4c",
+      "sha256_after": "d13f26bd2eb7b105f8c01866314c9931928dd0c940d1c71d116052a45b52ca4c",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-华鑫证券-正泰电器（601877.SH）：智慧电器深耕算力配电，海外储能拓展成长空间.pdf",
+      "size_bytes": 331935,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10872,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10872,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2174,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1081,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4780,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1356,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1631,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "15545d8745ef029802ff4ccd424d76fe034db4661cf1c16bcb4f7100f9175066",
+      "sha256_after": "15545d8745ef029802ff4ccd424d76fe034db4661cf1c16bcb4f7100f9175066",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-华鑫证券-白云电器（603861.SH）：电网订单稳步拓展，出海与算力供电培育增量.pdf",
+      "size_bytes": 331568,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10670,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10670,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2110,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1094,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4629,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1356,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1579,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "7fe600cb998748c2d90aaa0ecb3089b2bf92a7e977f5b0000521336888833fe0",
+      "sha256_after": "7fe600cb998748c2d90aaa0ecb3089b2bf92a7e977f5b0000521336888833fe0",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-华鑫证券-盛弘股份（300693.SZ）：工业电源盈利提升，储能与算力需求驱动成长.pdf",
+      "size_bytes": 329005,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10499,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10499,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2034,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1014,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4614,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1356,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1586,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "124de38b1607f95fa275a6a616ebcb8f57c8fab430e655a033a4ba5bdce52615",
+      "sha256_after": "124de38b1607f95fa275a6a616ebcb8f57c8fab430e655a033a4ba5bdce52615",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-华鑫证券-科士达（002518.SZ）：数据中心业务稳步增长，海外光储打开增量空间.pdf",
+      "size_bytes": 327234,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10651,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10651,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2135,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1045,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4634,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1356,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1584,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "ce11664aafca1191839447616200a3fd7d7d45f4f7d9f5425091e95b1ef74a8c",
+      "sha256_after": "ce11664aafca1191839447616200a3fd7d7d45f4f7d9f5425091e95b1ef74a8c",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-华鑫证券-迈为股份（300751.SZ）：毛利率提升，半导体与显示业务加速拓展.pdf",
+      "size_bytes": 331037,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10816,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10816,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2219,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1063,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4697,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1356,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1607,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "af17fbda9f1daf1d17a0539a10e497eacb3c8d9fb3ab7f39627c2b6a09fca816",
+      "sha256_after": "af17fbda9f1daf1d17a0539a10e497eacb3c8d9fb3ab7f39627c2b6a09fca816",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-华鑫证券-阳光电源（300274.SZ）：产品结构优化，储能与算力供电打开成长空间.pdf",
+      "size_bytes": 332331,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10902,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10902,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2222,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1062,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4781,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1356,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1637,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "14059ba542eef8ce349709451b3f1481df7588b10879046bc76c5999283457d9",
+      "sha256_after": "14059ba542eef8ce349709451b3f1481df7588b10879046bc76c5999283457d9",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-国金证券-川仪股份（603100.SH）：行业解决方案有利于仪表自主可控.pdf",
+      "size_bytes": 1243666,
+      "status": "success",
+      "page_count": 4,
+      "non_empty_pages": 4,
+      "extracted_chars": 15272,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 4,
+        "extracted_chars": 15272,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3309,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 9109,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 823,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 2031,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2169,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "4a0d01f250b9740b53dea92c47e315c5d003320208731df7846d61b5d8727e86",
+      "sha256_after": "4a0d01f250b9740b53dea92c47e315c5d003320208731df7846d61b5d8727e86",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-国金证券-汇聚科技（1729.HK）：背靠立讯集团，MPO和服务器业务驱动增长.pdf",
+      "size_bytes": 4056794,
+      "status": "success",
+      "page_count": 31,
+      "non_empty_pages": 31,
+      "extracted_chars": 89822,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 31,
+        "extracted_chars": 89822,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2933,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 3034,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 3318,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1227,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 2584,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 2383,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 3579,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 1639,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 2561,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 3210,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 2960,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 3053,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 2634,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 4208,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 1547,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 2879,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 3705,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 3866,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 3291,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 2412,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 1566,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 22,
+            "extraction_mode": "layout",
+            "extracted_chars": 3322,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 23,
+            "extraction_mode": "layout",
+            "extracted_chars": 3148,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 24,
+            "extraction_mode": "layout",
+            "extracted_chars": 2723,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 25,
+            "extraction_mode": "layout",
+            "extracted_chars": 3143,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 26,
+            "extraction_mode": "layout",
+            "extracted_chars": 3418,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 27,
+            "extraction_mode": "layout",
+            "extracted_chars": 3321,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 28,
+            "extraction_mode": "layout",
+            "extracted_chars": 837,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 29,
+            "extraction_mode": "layout",
+            "extracted_chars": 9001,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 30,
+            "extraction_mode": "layout",
+            "extracted_chars": 290,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 31,
+            "extraction_mode": "layout",
+            "extracted_chars": 2030,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 1.0661,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "4579313ed7fd645604dfe57abf6b7f2a9e6770c69743de1dc389bee662a1171b",
+      "sha256_after": "4579313ed7fd645604dfe57abf6b7f2a9e6770c69743de1dc389bee662a1171b",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-太平洋证券-国机汽车（600335.SH）：2026年H1点评，利润增速同比超20%.pdf",
+      "size_bytes": 396167,
+      "status": "success",
+      "page_count": 4,
+      "non_empty_pages": 4,
+      "extracted_chars": 9365,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 4,
+        "extracted_chars": 9365,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3371,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 4471,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 701,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1443,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "07c6de7898e42cb325a1629672132616793d3528bcb998a2e85202d2977c5980",
+      "sha256_after": "07c6de7898e42cb325a1629672132616793d3528bcb998a2e85202d2977c5980",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-太平洋证券-春风动力（603129.SH）：中国全地形车出海龙头，高端新品放量助推量价齐升.pdf",
+      "size_bytes": 3271825,
+      "status": "success",
+      "page_count": 47,
+      "non_empty_pages": 47,
+      "extracted_chars": 35313,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 47,
+        "extracted_chars": 35313,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 395,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1331,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 516,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 301,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 517,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 1670,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 1800,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 695,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 801,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 849,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 686,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 785,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 1853,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 263,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 301,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 833,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 784,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 702,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 554,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 866,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 725,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 22,
+            "extraction_mode": "layout",
+            "extracted_chars": 992,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 23,
+            "extraction_mode": "layout",
+            "extracted_chars": 683,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 24,
+            "extraction_mode": "layout",
+            "extracted_chars": 2246,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 25,
+            "extraction_mode": "layout",
+            "extracted_chars": 726,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 26,
+            "extraction_mode": "layout",
+            "extracted_chars": 301,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 27,
+            "extraction_mode": "layout",
+            "extracted_chars": 384,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 28,
+            "extraction_mode": "layout",
+            "extracted_chars": 121,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 29,
+            "extraction_mode": "layout",
+            "extracted_chars": 463,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 30,
+            "extraction_mode": "layout",
+            "extracted_chars": 664,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 31,
+            "extraction_mode": "layout",
+            "extracted_chars": 472,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 32,
+            "extraction_mode": "layout",
+            "extracted_chars": 583,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 33,
+            "extraction_mode": "layout",
+            "extracted_chars": 353,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 34,
+            "extraction_mode": "layout",
+            "extracted_chars": 753,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 35,
+            "extraction_mode": "layout",
+            "extracted_chars": 374,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 36,
+            "extraction_mode": "layout",
+            "extracted_chars": 494,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 37,
+            "extraction_mode": "layout",
+            "extracted_chars": 606,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 38,
+            "extraction_mode": "layout",
+            "extracted_chars": 301,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 39,
+            "extraction_mode": "layout",
+            "extracted_chars": 633,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 40,
+            "extraction_mode": "layout",
+            "extracted_chars": 3508,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 41,
+            "extraction_mode": "layout",
+            "extracted_chars": 1044,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 42,
+            "extraction_mode": "layout",
+            "extracted_chars": 267,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 43,
+            "extraction_mode": "layout",
+            "extracted_chars": 108,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 44,
+            "extraction_mode": "layout",
+            "extracted_chars": 301,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 45,
+            "extraction_mode": "layout",
+            "extracted_chars": 493,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 46,
+            "extraction_mode": "layout",
+            "extracted_chars": 445,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 47,
+            "extraction_mode": "layout",
+            "extracted_chars": 771,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 1.1074,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "9e4820a82441e3def53b77579b21d63c59d91e6d304d78d97b5bda3bc1a10f82",
+      "sha256_after": "9e4820a82441e3def53b77579b21d63c59d91e6d304d78d97b5bda3bc1a10f82",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-太平洋证券-长飞光纤（601869.SH）：利润大幅增长，算力建设释放光纤需求.pdf",
+      "size_bytes": 510166,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 11049,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 11049,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3221,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1340,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4971,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 695,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1829,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "cb5e5c355b40f98fffdfc5da46a334a7e53453f6c7de65f2b693c39614cb8872",
+      "sha256_after": "cb5e5c355b40f98fffdfc5da46a334a7e53453f6c7de65f2b693c39614cb8872",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-开源证券-南方乳业（920196.BJ）：贵州乳品龙头企业，入股光大乳业扩展省外市场.pdf",
+      "size_bytes": 1931487,
+      "status": "success",
+      "page_count": 30,
+      "non_empty_pages": 30,
+      "extracted_chars": 65494,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 30,
+        "extracted_chars": 65494,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2979,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 6793,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 3721,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 762,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1713,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 1819,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 1771,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 2172,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 1632,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 2086,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 2045,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 2662,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 2453,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 2282,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 2461,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 2567,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 2051,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 3331,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 1324,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 445,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 1881,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 22,
+            "extraction_mode": "layout",
+            "extracted_chars": 1282,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 23,
+            "extraction_mode": "layout",
+            "extracted_chars": 2773,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 24,
+            "extraction_mode": "layout",
+            "extracted_chars": 1833,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 25,
+            "extraction_mode": "layout",
+            "extracted_chars": 1299,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 26,
+            "extraction_mode": "layout",
+            "extracted_chars": 3091,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 27,
+            "extraction_mode": "layout",
+            "extracted_chars": 1980,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 28,
+            "extraction_mode": "layout",
+            "extracted_chars": 1501,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 29,
+            "extraction_mode": "layout",
+            "extracted_chars": 1270,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 30,
+            "extraction_mode": "layout",
+            "extracted_chars": 1515,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.7161,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 2
+      },
+      "library_warning_count": 2,
+      "sha256_before": "014829becaa2abc417815fd3660517fe1f46625a62b90e801107cca312002cdc",
+      "sha256_after": "014829becaa2abc417815fd3660517fe1f46625a62b90e801107cca312002cdc",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260924-湘财证券-天准科技（688003.SH）：双核驱动、多线共振，天准工业AI装备迈入新周期.pdf",
+      "size_bytes": 1350441,
+      "status": "success",
+      "page_count": 22,
+      "non_empty_pages": 22,
+      "extracted_chars": 53675,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 22,
+        "extracted_chars": 53675,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2672,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 2034,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 5311,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1563,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1267,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 3027,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 2338,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 2868,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 2201,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 917,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 2334,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 2589,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 2714,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 1918,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 2132,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 2790,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 1344,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 2058,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 2735,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 1803,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 6007,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 22,
+            "extraction_mode": "layout",
+            "extracted_chars": 1053,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.6452,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "4eb99922f5fc61d82798edee93e9eee7390e5579d364106943a20f3ebd8f93a1",
+      "sha256_after": "4eb99922f5fc61d82798edee93e9eee7390e5579d364106943a20f3ebd8f93a1",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-Astris Advisory-NIPPN（2001.T）：Transitory weakness with recovery in H2.pdf",
+      "size_bytes": 893065,
+      "status": "success",
+      "page_count": 12,
+      "non_empty_pages": 12,
+      "extracted_chars": 63441,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 12,
+        "extracted_chars": 63441,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 8392,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 5067,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4788,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 3651,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 2674,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 6843,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 3677,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 4813,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 3144,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 2684,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 13323,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 4385,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.6066,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "4fd252970cd1dc6817b8d06581cbb4f100edec6cb5699067faedc3ee4b81b16e",
+      "sha256_after": "4fd252970cd1dc6817b8d06581cbb4f100edec6cb5699067faedc3ee4b81b16e",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-Astris Advisory-NIPPN（2001.T）：减益は一时的、下期に回复へ.pdf",
+      "size_bytes": 905187,
+      "status": "success",
+      "page_count": 12,
+      "non_empty_pages": 12,
+      "extracted_chars": 39742,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 12,
+        "extracted_chars": 39742,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 5102,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 2638,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 2533,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1784,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1272,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 5921,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 2044,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 2624,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 1354,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 1170,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 11215,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 2085,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.4913,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "dead2d8f1025486d043c0c0f93291563d4f5f774b343b9ed6567a444d3f275eb",
+      "sha256_after": "dead2d8f1025486d043c0c0f93291563d4f5f774b343b9ed6567a444d3f275eb",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-华鑫证券-华明装备（002270.SZ）：海外业务加速，分接开关与检修服务拓展空间.pdf",
+      "size_bytes": 325079,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10658,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10658,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2121,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1079,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4621,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1356,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1659,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "754877ac35b52a0b567359ad684b48e37237d5b41bc4d0c7d5c81c32c5ae050f",
+      "sha256_after": "754877ac35b52a0b567359ad684b48e37237d5b41bc4d0c7d5c81c32c5ae050f",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-华鑫证券-德业股份（605117.SH）：储能电池高增，光储协同打开成长空间.pdf",
+      "size_bytes": 325038,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10754,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10754,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2099,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1119,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4699,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1481,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1356,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1566,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "9700b392a7d2d548d19def78e461e2e8ec0bdf930b2b4b2b318ffcc1ba8c5430",
+      "sha256_after": "9700b392a7d2d548d19def78e461e2e8ec0bdf930b2b4b2b318ffcc1ba8c5430",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-国金证券-华宝国际（0336.HK）：收购印尼HNB烟弹资产，新型烟草一体化转型纵深推进.pdf",
+      "size_bytes": 1225671,
+      "status": "success",
+      "page_count": 4,
+      "non_empty_pages": 4,
+      "extracted_chars": 14681,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 4,
+        "extracted_chars": 14681,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3319,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 9019,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 294,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 2049,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2229,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "62798d3611dba9860fefbae8f53be31bea7bb2b203d7099ec6556cada6281650",
+      "sha256_after": "62798d3611dba9860fefbae8f53be31bea7bb2b203d7099ec6556cada6281650",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-太平洋证券-乔锋智能（301603.SZ）：交付及盈利能力同步向上，业绩延续高增长态势.pdf",
+      "size_bytes": 468128,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 10182,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 10182,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2976,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 941,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 4747,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 695,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 823,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1524,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "583a515af9b7684d4294d09173a2051a5e6fd863110f61d8b797bc08351c448e",
+      "sha256_after": "583a515af9b7684d4294d09173a2051a5e6fd863110f61d8b797bc08351c448e",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-太平洋证券-纽威数控（688697.SH）：上半年景气增长，毛利率显著改善.pdf",
+      "size_bytes": 458421,
+      "status": "success",
+      "page_count": 4,
+      "non_empty_pages": 4,
+      "extracted_chars": 10058,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 4,
+        "extracted_chars": 10058,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3792,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 4748,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 695,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 823,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1446,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "6bfbaab2df4726a75e9ef19b3cfcd5e4dcde7d12a4fe2d120204abcf3243c351",
+      "sha256_after": "6bfbaab2df4726a75e9ef19b3cfcd5e4dcde7d12a4fe2d120204abcf3243c351",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-方正证券-强一股份（688809.SH）：自主MEMS探针卡立足高端算力，存储拓展打开成长空间.pdf",
+      "size_bytes": 1015730,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 15596,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 15596,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2855,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 3137,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 2533,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 5619,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1452,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.236,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "0dd4597ec319f571a7f7fe9e266a196e9b9543d05cf9b1c64c4b0cdcf2392c90",
+      "sha256_after": "0dd4597ec319f571a7f7fe9e266a196e9b9543d05cf9b1c64c4b0cdcf2392c90",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-方正证券-洛轴股份（301699.SZ）：轴承行业领军企业，担国产化重任.pdf",
+      "size_bytes": 1003651,
+      "status": "success",
+      "page_count": 6,
+      "non_empty_pages": 6,
+      "extracted_chars": 15841,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 6,
+        "extracted_chars": 15841,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2229,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1207,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 3216,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 2068,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 5669,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 1452,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2389,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "f1517bdabd1703aed758f4e16fa2d654c9195f7e81810dba6575ce54da1093ab",
+      "sha256_after": "f1517bdabd1703aed758f4e16fa2d654c9195f7e81810dba6575ce54da1093ab",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-盈立证券-德祥新云算力（0199.HK）：绿电资源驱动的AIDC新进入者，转型执行是关键变量.pdf",
+      "size_bytes": 1289046,
+      "status": "success",
+      "page_count": 22,
+      "non_empty_pages": 22,
+      "extracted_chars": 24822,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 22,
+        "extracted_chars": 24822,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 2681,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 4382,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1119,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 714,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1214,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 274,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 1317,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 1167,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 1043,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 879,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 688,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 1185,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 1051,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 1342,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 1010,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 931,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 582,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 991,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 616,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 352,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 428,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 22,
+            "extraction_mode": "layout",
+            "extracted_chars": 856,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.5381,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "2427c6c22624bfaa6aa4bc462650658725b3697890b3b7637508dd96cdfc8086",
+      "sha256_after": "2427c6c22624bfaa6aa4bc462650658725b3697890b3b7637508dd96cdfc8086",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260925-银河证券-锐捷网络（301165.SZ）：高速交换机蓄势起航，智算网络业务放量.pdf",
+      "size_bytes": 2089185,
+      "status": "success",
+      "page_count": 21,
+      "non_empty_pages": 21,
+      "extracted_chars": 48694,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 21,
+        "extracted_chars": 48694,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3213,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 2365,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1993,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1233,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1949,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 1120,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 2794,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 1843,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 2632,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 1400,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 2849,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 2309,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 2388,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 876,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 2998,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 2190,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 1491,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 567,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 3750,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 6216,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 2518,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.7798,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "8d35bdab57242e50f254b581e0e8c0326e289461fe61d31a8cc7a7fc258bf2a9",
+      "sha256_after": "8d35bdab57242e50f254b581e0e8c0326e289461fe61d31a8cc7a7fc258bf2a9",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260926-华福证券-乖宝宠物（301498.SZ）：26H1业绩点评，盈利能力阶段性承压，主动调整夯实品牌长期优势.pdf",
+      "size_bytes": 392998,
+      "status": "success",
+      "page_count": 3,
+      "non_empty_pages": 3,
+      "extracted_chars": 12943,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 3,
+        "extracted_chars": 12943,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3669,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 7305,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1969,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1777,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "4309aa57de940dfa74dc4eb9ffdfa1b3e57f5314f1455aaf7c77a1bf9475e59e",
+      "sha256_after": "4309aa57de940dfa74dc4eb9ffdfa1b3e57f5314f1455aaf7c77a1bf9475e59e",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260926-太平洋证券-华夏银行（600015.SH）：2026年中报点评，营收增速回升，加大减值计提力度.pdf",
+      "size_bytes": 497996,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 13714,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 13714,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3794,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1784,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 6562,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 752,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 822,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2178,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "e2fd290991e8ca5db896cabd02e8871ee1114fd890378dded7a952b63a28c4f3",
+      "sha256_after": "e2fd290991e8ca5db896cabd02e8871ee1114fd890378dded7a952b63a28c4f3",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260927-东吴证券-中国通号（688009.SH）：点评，中标三个铁路市场项目共9.76亿，轨交业务覆盖持续拓宽.pdf",
+      "size_bytes": 675695,
+      "status": "success",
+      "page_count": 3,
+      "non_empty_pages": 3,
+      "extracted_chars": 13410,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 3,
+        "extracted_chars": 13410,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 4171,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 7650,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1589,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1792,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "19d62a24eb139917b5791503a8292562b39a2024b333edefbe3263f7dbe46cd3",
+      "sha256_after": "19d62a24eb139917b5791503a8292562b39a2024b333edefbe3263f7dbe46cd3",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260927-东吴证券-科锐国际（300662.SZ）：业务优化+AI提效，业绩增长领先同行.pdf",
+      "size_bytes": 561069,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 15932,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 15932,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 4374,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1751,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1234,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 6984,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1589,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2218,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "570ead8c2edb6df44796e23c5c0d4715b8b644ea9f8b9ef7a7c184d88223950f",
+      "sha256_after": "570ead8c2edb6df44796e23c5c0d4715b8b644ea9f8b9ef7a7c184d88223950f",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260927-东吴证券-紫金龙净（600388.SH）：海外矿山光储项目加速落地，电价机制打开盈利空间.pdf",
+      "size_bytes": 520346,
+      "status": "success",
+      "page_count": 3,
+      "non_empty_pages": 3,
+      "extracted_chars": 13665,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 3,
+        "extracted_chars": 13665,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 4541,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 7535,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1589,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1902,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "a9ab0e6b09dcbfc0777aa5984e38343d3dec10ffbbfd794792bb49e8382fd224",
+      "sha256_after": "a9ab0e6b09dcbfc0777aa5984e38343d3dec10ffbbfd794792bb49e8382fd224",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260927-信达证券-玖龙纸业（2689.HK）：量价齐升，结构优化，涨价周期延续.pdf",
+      "size_bytes": 654504,
+      "status": "success",
+      "page_count": 5,
+      "non_empty_pages": 5,
+      "extracted_chars": 13758,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 5,
+        "extracted_chars": 13758,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3229,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1260,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 6891,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 679,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1699,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2136,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "9cbc0bc3791e766bbb04faf8171cf58df34b5af9ba0ff654c294a0072912cc8a",
+      "sha256_after": "9cbc0bc3791e766bbb04faf8171cf58df34b5af9ba0ff654c294a0072912cc8a",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260927-华福证券-影石创新（688775.SH）：26H1业绩点评，营收保持快增趋势，短期存储及新业务投入压制盈利表现.pdf",
+      "size_bytes": 394700,
+      "status": "success",
+      "page_count": 3,
+      "non_empty_pages": 3,
+      "extracted_chars": 13295,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 3,
+        "extracted_chars": 13295,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3797,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 7529,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 1969,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.1742,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "1416e3433ab614a134b4c22c00ff4bf045a2871e445fda3c13814cecf6c958ec",
+      "sha256_after": "1416e3433ab614a134b4c22c00ff4bf045a2871e445fda3c13814cecf6c958ec",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260927-国金证券-玖龙纸业（2689.HK）：浆纸持续布局，恢复分红回报股东.pdf",
+      "size_bytes": 1227117,
+      "status": "success",
+      "page_count": 4,
+      "non_empty_pages": 4,
+      "extracted_chars": 14753,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 4,
+        "extracted_chars": 14753,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3197,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 9105,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 294,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 2157,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.2151,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "8029e8bd0ba059387e21d4e2b4be6a14e675ceb678c581409f573bbd0d2a1d41",
+      "sha256_after": "8029e8bd0ba059387e21d4e2b4be6a14e675ceb678c581409f573bbd0d2a1d41",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260927-湘财证券-沃尔德（688028.SH）：精密工具为基，金刚石散热与微钻双轮驱动.pdf",
+      "size_bytes": 2224145,
+      "status": "success",
+      "page_count": 31,
+      "non_empty_pages": 31,
+      "extracted_chars": 208540,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 31,
+        "extracted_chars": 208540,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 6600,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 1771,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 46951,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 10905,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 2795,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 3560,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 3381,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 12166,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 2801,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 2822,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 2504,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 2787,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 3207,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 2968,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 5394,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 2179,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 3875,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 4881,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 24094,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 2949,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 2955,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 22,
+            "extraction_mode": "layout",
+            "extracted_chars": 3434,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 23,
+            "extraction_mode": "layout",
+            "extracted_chars": 4421,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 24,
+            "extraction_mode": "layout",
+            "extracted_chars": 4549,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 25,
+            "extraction_mode": "layout",
+            "extracted_chars": 3118,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 26,
+            "extraction_mode": "layout",
+            "extracted_chars": 3384,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 27,
+            "extraction_mode": "layout",
+            "extracted_chars": 16319,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 28,
+            "extraction_mode": "layout",
+            "extracted_chars": 4128,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 29,
+            "extraction_mode": "layout",
+            "extracted_chars": 12492,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 30,
+            "extraction_mode": "layout",
+            "extracted_chars": 3058,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 31,
+            "extraction_mode": "layout",
+            "extracted_chars": 2092,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.5456,
+      "library_warnings": {},
+      "library_warning_count": 0,
+      "sha256_before": "e25ae11005dd78dcce8590fd5a2e1e44c27198dd18caa9bfd84f1ec1107187e0",
+      "sha256_after": "e25ae11005dd78dcce8590fd5a2e1e44c27198dd18caa9bfd84f1ec1107187e0",
+      "source_unchanged": true
+    },
+    {
+      "filename": "20260928-开源证券-横店东磁（002056.SZ）：磁材提质，光伏企稳，高端磁性器件打开新增量.pdf",
+      "size_bytes": 3083495,
+      "status": "success",
+      "page_count": 32,
+      "non_empty_pages": 32,
+      "extracted_chars": 80538,
+      "empty_pages": [],
+      "fallback_pages": [],
+      "parser_metadata": {
+        "schema_version": 1,
+        "backend": "pypdf",
+        "backend_version": "6.13.1",
+        "page_count": 32,
+        "extracted_chars": 80538,
+        "empty_pages": [],
+        "fallback_pages": [],
+        "pages": [
+          {
+            "page_number": 1,
+            "extraction_mode": "layout",
+            "extracted_chars": 3585,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 2,
+            "extraction_mode": "layout",
+            "extracted_chars": 6696,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 3,
+            "extraction_mode": "layout",
+            "extracted_chars": 5021,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 4,
+            "extraction_mode": "layout",
+            "extracted_chars": 1821,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 5,
+            "extraction_mode": "layout",
+            "extracted_chars": 1872,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 6,
+            "extraction_mode": "layout",
+            "extracted_chars": 1516,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 7,
+            "extraction_mode": "layout",
+            "extracted_chars": 3512,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 8,
+            "extraction_mode": "layout",
+            "extracted_chars": 2425,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 9,
+            "extraction_mode": "layout",
+            "extracted_chars": 2110,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 10,
+            "extraction_mode": "layout",
+            "extracted_chars": 1663,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 11,
+            "extraction_mode": "layout",
+            "extracted_chars": 1092,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 12,
+            "extraction_mode": "layout",
+            "extracted_chars": 3475,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 13,
+            "extraction_mode": "layout",
+            "extracted_chars": 945,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 14,
+            "extraction_mode": "layout",
+            "extracted_chars": 1895,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 15,
+            "extraction_mode": "layout",
+            "extracted_chars": 1590,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 16,
+            "extraction_mode": "layout",
+            "extracted_chars": 2807,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 17,
+            "extraction_mode": "layout",
+            "extracted_chars": 2936,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 18,
+            "extraction_mode": "layout",
+            "extracted_chars": 2478,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 19,
+            "extraction_mode": "layout",
+            "extracted_chars": 1166,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 20,
+            "extraction_mode": "layout",
+            "extracted_chars": 1628,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 21,
+            "extraction_mode": "layout",
+            "extracted_chars": 3073,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 22,
+            "extraction_mode": "layout",
+            "extracted_chars": 889,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 23,
+            "extraction_mode": "layout",
+            "extracted_chars": 2779,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 24,
+            "extraction_mode": "layout",
+            "extracted_chars": 2297,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 25,
+            "extraction_mode": "layout",
+            "extracted_chars": 1433,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 26,
+            "extraction_mode": "layout",
+            "extracted_chars": 1311,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 27,
+            "extraction_mode": "layout",
+            "extracted_chars": 2611,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 28,
+            "extraction_mode": "layout",
+            "extracted_chars": 3786,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 29,
+            "extraction_mode": "layout",
+            "extracted_chars": 1410,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 30,
+            "extraction_mode": "layout",
+            "extracted_chars": 8005,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 31,
+            "extraction_mode": "layout",
+            "extracted_chars": 1199,
+            "fallback": false,
+            "warnings": []
+          },
+          {
+            "page_number": 32,
+            "extraction_mode": "layout",
+            "extracted_chars": 1512,
+            "fallback": false,
+            "warnings": []
+          }
+        ],
+        "requested_mode": "layout",
+        "ocr": false
+      },
+      "elapsed_seconds": 0.9764,
+      "library_warnings": {
+        "Rotated text discovered. Layout will be degraded.": 1
+      },
+      "library_warning_count": 1,
+      "sha256_before": "a900aa9ba5202735624ed4c25fba2c3185f3ce0e975d3081be41a8c1cd3f0505",
+      "sha256_after": "a900aa9ba5202735624ed4c25fba2c3185f3ce0e975d3081be41a8c1cd3f0505",
+      "source_unchanged": true
+    }
+  ]
+}

@@ -9,7 +9,7 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import conversation_store, db, main, market, research_workspace, screening_tools
+from apps.api.app import conversation_store, db, main, market, research_workspace, screening_tools, worker
 from apps.api.app.tool_protocol import ToolCall
 from apps.api.app.news_sources import NewsImport, import_items
 
@@ -49,11 +49,24 @@ def test_downloads_enforce_workspace_boundary_and_never_serve_executable_html_in
     manifest = research_workspace.prepare(cid, tid)
     output = Path(manifest["outputs"]) / "result.html"
     output.write_text("<script>test()</script>", encoding="utf-8")
+    conversation_store.finish_turn(cid, tid, 0, "succeeded", "研究完成", {})
     other = conversation_store.create_conversation("screening")["id"]
     with TestClient(main.app) as client:
         listing = client.get(f"/api/v1/conversations/{cid}/research-files").json()
-        response = client.get(listing["items"][0]["url"])
+        assert not any(item["name"] == "result.html.pdf" for item in listing["items"])
+        # Reading the list does not perform rendering. An explicit generation
+        # request discovers the old source and its worker creates the PDF.
+        requested = client.post(f"/api/v1/conversations/{cid}/research-pdf-jobs", json={"request_id": "generate-existing"})
+        assert requested.status_code == 200
+        for _ in range(10):
+            if not worker.execute_job(kinds=("research_pdf",)):
+                break
+        listing = client.get(f"/api/v1/conversations/{cid}/research-files").json()
+        item = next(item for item in listing["items"] if item["name"] == "result.html.pdf")
+        response = client.get(item["url"])
         assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert response.content.startswith(b"%PDF-")
         assert response.headers["content-disposition"].startswith("attachment")
         assert response.headers["x-content-type-options"] == "nosniff"
         assert client.get(f"/api/v1/conversations/{other}/research-files/result.html").status_code == 404
@@ -78,8 +91,15 @@ def test_advanced_mode_allows_larger_outputs_and_exposes_its_budget(research, mo
     output.write_bytes(b"x" * 2048)
     with pytest.raises(research_workspace.WorkspaceError, match="大小限制"):
         research_workspace.output_path(cid, "result.csv")
-    with db.connect() as connection:
-        connection.execute("UPDATE conversations SET research_mode='advanced' WHERE id=?", (cid,))
+    conversation_store.finish_turn(cid, tid, 0, "succeeded", "普通研究完成", {})
+    conversation_store.update_workflow(cid, research_depth="deep")
+    # The completed ordinary turn keeps its frozen depth; a new turn receives
+    # the independently selected deeper budget.
+    assert json.loads(codex_runtime._prompt(cid, tid, manifest))["research_depth"] == "standard"
+    message = conversation_store.add_user_message(cid, "deep-request", 0, "继续深入研究。")
+    tid = message["turn_id"]
+    conversation_store.start_turn(cid, tid)
+    manifest = research_workspace.prepare(cid, tid)
     assert research_workspace.output_path(cid, "result.csv") == output.resolve()
     prompt = json.loads(codex_runtime._prompt(cid, tid, manifest))
     assert prompt["research_mode"] == "advanced"
@@ -92,7 +112,7 @@ def test_open_research_reads_sources_without_screening_revision_and_enforces_req
     item = import_items(NewsImport.model_validate({"request_id": "news", "items": [{
         "title": "投产消息", "body": "已投产", "source": "合成",
         "available_at": "2026-09-15T10:00:00+08:00", "stock_codes": []}]}))["items"][0]
-    context = screening_tools.ToolContext(cid, tid, 0)
+    context = screening_tools.ToolContext(cid, tid, 0, workflow_type="research")
     args = dict(kind="news", source_id=item["id"], page_number=1, offset=0, limit=100, as_of=None)
     result = screening_tools.registry.dispatch(ToolCall("read", "read_research_source", args), context)
     assert result["ok"] and result["result"]["text"] == "已投产"
@@ -104,7 +124,7 @@ def test_open_research_reads_sources_without_screening_revision_and_enforces_req
 def test_research_can_exceed_twelve_calls_and_respects_explicit_budget(research, monkeypatch):
     cid, tid = research
     monkeypatch.setenv("LLMR_RESEARCH_MAX_TOOL_CALLS", "0")
-    context = screening_tools.ToolContext(cid, tid, 0)
+    context = screening_tools.ToolContext(cid, tid, 0, workflow_type="research")
     for index in range(15):
         result = screening_tools.registry.dispatch(ToolCall(f"call-{index}", "get_research_state", {}), context)
         assert result["ok"], result
@@ -120,7 +140,7 @@ def test_historical_source_discovery_uses_the_revision_available_at_the_cutoff(r
     original = import_items(NewsImport.model_validate({"request_id": "v1", "items": [first]}))["items"][0]
     later = {**first, "body": "已经投产", "available_at": "2026-09-20T10:00:00+08:00"}
     import_items(NewsImport.model_validate({"request_id": "v2", "items": [later]}), base_id=original["id"])
-    context = screening_tools.ToolContext(cid, tid, 0)
+    context = screening_tools.ToolContext(cid, tid, 0, workflow_type="research")
     result = screening_tools.registry.dispatch(ToolCall("search-history", "search_research_sources", {
         "kind": "news", "query": "投产", "stock_code": None, "as_of": "2026-09-14", "offset": 0, "limit": 20,
     }), context)
@@ -155,7 +175,7 @@ def test_data_discovery_exposes_actual_schema_and_unknown_units(research, tmp_pa
     }]), source)
     monkeypatch.setattr(market, "STOCK_FILE", source)
     result = screening_tools.registry.dispatch(ToolCall("discover", "discover_research_data", {}),
-                                               screening_tools.ToolContext(cid, tid, 0))
+                                               screening_tools.ToolContext(cid, tid, 0, workflow_type="research"))
     assert result["ok"], result
     data = result["result"]
     assert {item["name"]: item["type"] for item in data["market"]["columns"]}["close"] == "double"
@@ -170,7 +190,7 @@ def test_tushare_saves_the_complete_returned_page_without_credentials(research, 
     cid, tid = research
     monkeypatch.setattr(research_tools.tushare_sync, "create_client", lambda: object())
     monkeypatch.setattr(research_tools.tushare_sync, "_query", lambda *_args, **_kwargs: [{"close": index} for index in range(250)])
-    context = screening_tools.ToolContext(cid, tid, 0)
+    context = screening_tools.ToolContext(cid, tid, 0, workflow_type="research")
     call = ToolCall("external", "query_tushare", {"api_name": "daily", "params": {"trade_date": "20260914"}, "limit": 10})
     result = screening_tools.registry.dispatch(call, context)
     assert result["ok"], result

@@ -1,0 +1,8 @@
+{
+  "after": "cffd055816afb7d9c9ea37a8324677c4a2aeaba03463b44eef46f93fa057c7be",
+  "original_database_unchanged": true,
+  "test_active_tasks_before_stop": 0,
+  "audit_api_stopped": true,
+  "fixture_stopped": true,
+  "before": "cffd055816afb7d9c9ea37a8324677c4a2aeaba03463b44eef46f93fa057c7be"
+}

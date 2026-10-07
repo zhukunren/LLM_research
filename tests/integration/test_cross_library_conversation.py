@@ -62,7 +62,7 @@ def test_saved_shape_and_cross_library_logic_use_the_same_frozen_inputs(client, 
 def test_news_attachment_is_validated_and_watchlist_context_preserves_separate_source_scopes(client):
     item = news_sources.import_items(news_sources.NewsImport(request_id="source", items=[news_sources.NewsItemInput(
         title="资讯", body="正文", source="合成", stock_codes=["600000.SH"])]))["items"][0]
-    conversation = client.post("/api/v1/conversations", json={"entry_scope": "news"}).json()
+    conversation = client.post("/api/v1/conversations", json={"entry_scope": "news", "workflow_type": "screening"}).json()
     response = client.post(f"/api/v1/conversations/{conversation['id']}/messages", json=dict(
         client_message_id="with-source", base_revision=0, content="这条资讯并且形态相似",
         source_refs=[dict(kind="news_item", source_id=item["id"])]))

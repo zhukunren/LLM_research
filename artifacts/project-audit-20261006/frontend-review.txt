@@ -1,0 +1,49 @@
+前端审查记录（2026-10-06）
+
+范围：当前完整工作区 apps/web（含既有未提交修改），重点为导航、草稿恢复、研究/筛选/资料操作、运行任务与 API 请求失败。仅只读业务源码；新增本报告和隔离复现用例，运行既有前端测试、构建。未操作浏览器，未调用实际外部模型或付费任务。
+
+验证结果
+1. npm test：35 个测试文件 / 208 个测试全部通过。Vitest 88.61 秒，命令墙钟 89.74 秒，退出码 0。
+2. npm run build：通过。命令墙钟 12.82 秒，其中 Vite 7.08 秒。唯一警告为 ObservationPage chunk 638.25 kB（gzip 214.32 kB）超出 500 kB 提示阈值；不能仅据此认定功能故障。
+3. 审查新增隔离复现：1 个文件 / 4 条测试均暴露预期与当前行为不符，3.51 秒。这 4 条断言对应下面 3 个功能 bug，并非既有测试失败。所有 API 均为 mock，无真实数据库、模型或外部网络副作用。
+
+[P2] 成功保存后未持久化清除草稿，后续编辑/新笔记复用旧身份
+主证据：D:\项目\LLM_research\apps\web\src\pages\ResearchProjectsPage.tsx:87–88
+相关：D:\项目\LLM_research\apps\web\src\useSessionState.ts:13–14；同类 ProjectForm 清除在 ResearchProjectsPage.tsx:51–52。
+触发：编辑已有笔记，保存第一批内容；服务确认 revision 从 1 更新到 2；再打开同一笔记，修改并再次保存。
+当前：两次 PATCH 的 base_revision 为 [1,1]，预期 [1,2]，真实后端会提示版本冲突。成功新建笔记后再点“写研究笔记”，标题/正文和 request_id 仍为上一份成功保存的草稿，改内容保存会违反 create_note 的同 request_id 同内容约束。
+根因：setDrafts 删除键与 onSaved 在同一异步续体执行；父组件关闭编辑器导致持有 useSessionState 的组件卸载，负责 sessionStorage 落盘的 useEffect 不再执行；重开重新读取旧 sessionStorage。
+影响：正常保存后的继续编辑/连续写笔记无法按预期工作，出现无端冲突或重用旧笔记，草稿恢复语义也不正确。
+复现证据：frontend-repro.test.tsx:33–60 和 89–113；frontend-repro.log 的第 2、4 条失败。
+修复方向：清除已提交草稿需要在卸载前写入存储，或将草稿状态提升到不被关闭编辑器卸载的持有者，并保证重开使用已保存版本。
+
+[P2] 首次创建对话后消息保存失败，未发送问题从编辑器消失
+主证据：D:\项目\LLM_research\apps\web\src\components\conversation\ConversationWorkspace.tsx:877–878
+相关：ConversationWorkspace.tsx:249–251（草稿以 selectedId 为键）、914–918（失败分支未迁移草稿）。
+触发：从新研究输入问题；POST /conversations 成功生成 created；随后 POST /conversations/created/messages 返回失败（例如网络或服务问题）。
+当前：显示消息保存错误后输入框恢复可编辑，但内容为空。原问题只保留在 research:screening:new，当前已切换到 research:screening:created。不能在错误现场点击发送重试原文。
+预期：消息未被服务器接受时仍可直接修改或重试原问题。
+影响：首次发送失败时丢失可见输入，用户容易误以为草稿已丢失或需重新输入。
+复现证据：frontend-repro.test.tsx:17–31；frontend-repro.log 第 1 条失败（期望原文，实际空值）。
+修复方向：创建对话并选择它时同步迁移新草稿和相关来源，只有确认消息保存成功后再清空目标草稿。
+
+[P2] 新笔记修改后仍使用同一个 request_id，响应丢失后的重试永久 409
+主证据：D:\项目\LLM_research\apps\web\src\pages\ResearchProjectsPage.tsx:79
+相关：ResearchProjectsPage.tsx:82–85；D:\项目\LLM_research\apps\api\app\research_projects.py:230–232。
+触发：新建笔记并保存，服务已提交记录但返回响应丢失；编辑器显示错误后修改标题/正文再点击保存。
+当前：NoteEditor.change 只修改内容，不更新 request_id。两次 POST 内容不同而身份相同，后端返回“相同保存请求不能使用不同的笔记内容。”（409）。由于不是编辑已有 note，失败分支不会提供版本合并入口；关闭再打开也恢复相同 request_id。
+影响：恢复网络后仍无法保存修改的新笔记。单纯重试不能解决；需要核对已写入记录后切换为编辑或为新内容建立独立请求身份。
+复现证据：frontend-repro.test.tsx:62–87；frontend-repro.log 第 3 条失败（两次 request_id 相同）。mock 的 409 与真实 create_note 源码检查一致。
+修复方向：将幂等身份绑定到本次提交的完整内容；内容变更创建新身份，同时对未知保存结果提供恢复已创建笔记的路径以免产生重复。
+
+复现命令（从 apps/web 运行）
+npm exec vitest -- run --config ../../artifacts/project-audit-20261006/frontend-repro.config.mts
+
+日志与源码
+- frontend-test.log：完整既有单测输出。
+- frontend-build.log：完整生产构建输出。
+- frontend-repro.config.mts：审查用隔离 Vitest 配置，默认 npm test 不纳入这组额外断言。
+- frontend-repro.test.tsx：可重跑回归断言。
+- frontend-repro.log：缺陷复现输出。
+
+审查限制：本报告为源码和 jsdom 行为验证。真实浏览器/实际服务的实机验收由根任务执行；本报告不声称完成浏览器实机测试。

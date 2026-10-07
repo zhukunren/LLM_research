@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager, nullcontext
 from datetime import UTC, datetime, timedelta
+import hashlib
 import sqlite3
 from threading import Event, Thread
 
@@ -10,7 +11,7 @@ from uuid import uuid4
 
 from .db import connect, json_dump, json_load, utc_now
 from .execution_policy import denies_execution
-from .screening_contracts import ConversationSourceReference, ScreeningTaskRevision
+from .screening_contracts import ConversationSourceReference, ResearchScope, ScreeningTaskRevision, MAX_MESSAGE_CHARS
 
 
 class ConversationNotFound(KeyError):
@@ -132,7 +133,36 @@ def keep_turn_alive(conversation_id: str, turn_id: str):
         thread.join(timeout=1)
 
 
-def create_conversation(entry_scope: str, research_mode: str = "research", project_id: str | None = None) -> dict[str, Any]:
+def _legacy_mode(workflow_type: str, research_depth: str) -> str:
+    return "screening" if workflow_type == "screening" else "advanced" if research_depth == "deep" else "research"
+
+
+def _workflow_payload(row) -> dict[str, Any]:
+    return {
+        "workflow_type": row["workflow_type"],
+        "research_depth": row["research_depth"],
+        "workflow_revision": row["workflow_revision"],
+        "research_scope": ResearchScope.model_validate(json_load(row["research_scope_json"])).model_dump(mode="json"),
+        "research_scope_revision": row["research_scope_revision"],
+    }
+
+
+def _draft_payload(row) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    return {**json_load(row["source_snapshot_json"]), "request_id": row["request_id"],
+            "instructions": row["instructions"], "draft_prompt": row["draft_prompt"]}
+
+
+def create_conversation(entry_scope: str, research_mode: str = "research", project_id: str | None = None,
+                        *, workflow_type: str | None = None, research_depth: str | None = None) -> dict[str, Any]:
+    if research_mode not in {"research", "screening", "advanced"}:
+        raise ConversationStoreError("研究模式无效")
+    workflow_type = workflow_type or ("screening" if research_mode == "screening" else "research")
+    research_depth = research_depth or ("deep" if research_mode == "advanced" else "standard")
+    if workflow_type not in {"research", "screening"} or research_depth not in {"standard", "deep"}:
+        raise ConversationStoreError("工作流或研究深度无效")
+    research_mode = _legacy_mode(workflow_type, research_depth)
     conversation_id = str(uuid4())
     now = utc_now()
     with connect() as connection:
@@ -145,14 +175,21 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
                 raise ConversationStoreError(str(exc)) from exc
             _touch(connection, project_id)
         connection.execute(
-            "INSERT INTO conversations(id, entry_scope, research_mode, project_id, created_at, updated_at) VALUES(?,?,?,?,?,?)",
-            (conversation_id, entry_scope, research_mode, project_id, now, now),
+            """INSERT INTO conversations(id, entry_scope, research_mode, project_id, workflow_type,research_depth,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?,?)""",
+            (conversation_id, entry_scope, research_mode, project_id, workflow_type, research_depth, now, now),
         )
     return {
         "id": conversation_id,
-        "task_id": conversation_id,
+        "task_id": conversation_id if workflow_type == "screening" else None,
         "entry_scope": entry_scope,
         "research_mode": research_mode,
+        "workflow_type": workflow_type,
+        "research_depth": research_depth,
+        "workflow_revision": 0,
+        "research_scope": ResearchScope().model_dump(mode="json"),
+        "research_scope_revision": 0,
+        "screening_draft_source": None,
         "project_id": project_id,
         "task_revision": 0,
         "active_run_id": None,
@@ -162,39 +199,161 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
     }
 
 
-def list_conversations(entry_scope: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+def list_conversations(entry_scope: str | None = None, limit: int = 50, active_only: bool = False) -> list[dict[str, Any]]:
     recover_expired_turns()
     limit = max(1, min(int(limit), 100))
     with connect() as connection:
         rows = connection.execute(
             """SELECT c.id,c.entry_scope,c.research_mode,c.project_id,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
+                      c.workflow_type,c.research_depth,c.workflow_revision,c.research_scope_json,c.research_scope_revision,
                       (SELECT substr(m.content,1,120) FROM conversation_messages m
                        WHERE m.conversation_id=c.id AND m.role='user'
                        ORDER BY m.rowid LIMIT 1) AS title,
-                      (SELECT t.state FROM conversation_turns t WHERE t.conversation_id=c.id ORDER BY t.rowid DESC LIMIT 1) AS last_turn_state
+                      (SELECT t.state FROM conversation_turns t WHERE t.conversation_id=c.id ORDER BY t.rowid DESC LIMIT 1) AS last_turn_state,
+                      (SELECT r.status FROM screening_task_runs r WHERE r.conversation_id=c.id AND r.status IN ('queued','running') ORDER BY r.rowid DESC LIMIT 1) AS active_run_status
                FROM conversations c
                WHERE (? IS NULL OR c.entry_scope=?)
+                 AND (?=0 OR EXISTS (SELECT 1 FROM conversation_turns t WHERE t.conversation_id=c.id AND t.state IN ('awaiting_agent','running'))
+                      OR EXISTS (SELECT 1 FROM screening_task_runs r WHERE r.conversation_id=c.id AND r.status IN ('queued','running')))
                ORDER BY c.updated_at DESC,c.id DESC LIMIT ?""",
-            (entry_scope, entry_scope, limit),
+            (entry_scope, entry_scope, active_only, limit),
         ).fetchall()
-    return [dict(row) for row in rows]
+    items = []
+    for row in rows:
+        item = dict(row)
+        item.update(_workflow_payload(row))
+        item.pop("research_scope_json")
+        item["task_id"] = row["id"] if row["workflow_type"] == "screening" or row["task_revision"] else None
+        items.append(item)
+    return items
 
 
 def update_research_mode(conversation_id: str, research_mode: str) -> dict[str, Any]:
     if research_mode not in {"research", "screening", "advanced"}:
         raise ConversationStoreError("研究模式无效")
+    return update_workflow(conversation_id, "screening" if research_mode == "screening" else "research",
+                           None if research_mode == "screening" else "deep" if research_mode == "advanced" else "standard")
+
+
+def _require_idle_conversation(connection, conversation_id: str):
+    row = connection.execute("SELECT * FROM conversations WHERE id=?", (conversation_id,)).fetchone()
+    if not row:
+        raise ConversationNotFound(conversation_id)
+    if row["state"] != "active":
+        raise ConversationConflict("此对话已归档，不能修改")
+    if connection.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? AND state IN ('awaiting_agent','running')", (conversation_id,)).fetchone():
+        raise ConversationConflict("请等待当前研究结束后再切换模式或范围")
+    return row
+
+
+def update_workflow(conversation_id: str, workflow_type: str | None = None, research_depth: str | None = None,
+                    base_revision: int | None = None) -> dict[str, Any]:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute("SELECT state FROM conversations WHERE id=?", (conversation_id,)).fetchone()
-        if not row:
+        row = _require_idle_conversation(connection, conversation_id)
+        if base_revision is not None and base_revision != row["workflow_revision"]:
+            raise ConversationConflict("工作流版本已经变化，请读取最新状态")
+        workflow_type = workflow_type or row["workflow_type"]
+        research_depth = research_depth or row["research_depth"]
+        if workflow_type not in {"research", "screening"} or research_depth not in {"standard", "deep"}:
+            raise ConversationStoreError("工作流或研究深度无效")
+        changed = workflow_type != row["workflow_type"] or research_depth != row["research_depth"]
+        connection.execute(
+            """UPDATE conversations SET workflow_type=?,research_depth=?,research_mode=?,workflow_revision=workflow_revision+?,
+               pending_execute_message_id=CASE WHEN ?='research' THEN NULL ELSE pending_execute_message_id END,updated_at=? WHERE id=?""",
+            (workflow_type, research_depth, _legacy_mode(workflow_type, research_depth), int(changed), workflow_type, utc_now(), conversation_id),
+        )
+        current = connection.execute("SELECT * FROM conversations WHERE id=?", (conversation_id,)).fetchone()
+        return {"conversation_id": conversation_id, "research_mode": current["research_mode"], **_workflow_payload(current)}
+
+
+def update_research_scope(conversation_id: str, base_revision: int, scope: ResearchScope) -> dict[str, Any]:
+    updates = scope.model_dump(mode="json", exclude_unset=True)
+    with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = _require_idle_conversation(connection, conversation_id)
+        if row["workflow_type"] != "research":
+            raise ConversationStoreError("研究范围只能在投研工作流中修改；选股范围属于选股方案")
+        if base_revision != row["research_scope_revision"]:
+            raise ConversationConflict("研究范围版本已经变化，请读取最新状态")
+        value = {**_workflow_payload(row)["research_scope"], **updates}
+        connection.execute("UPDATE conversations SET research_scope_json=?,research_scope_revision=research_scope_revision+1,updated_at=? WHERE id=?",
+                           (json_dump(value), utc_now(), conversation_id))
+    return {"conversation_id": conversation_id, "research_scope": value, "research_scope_revision": base_revision + 1}
+
+
+def create_screening_draft(conversation_id: str, request_id: str, source_message_id: str,
+                           instructions: str) -> dict[str, Any]:
+    """Create an editable handoff only; no agent turn or execution grant exists."""
+    instructions = instructions.strip()
+    if not instructions or len(instructions) > 3000:
+        raise ConversationStoreError("请填写可操作的选股条件描述（最多3000字）")
+    request_hash = hashlib.sha256(json_dump({"source_message_id": source_message_id, "instructions": instructions}).encode("utf-8")).hexdigest()
+    with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        source_conversation = connection.execute("SELECT * FROM conversations WHERE id=?", (conversation_id,)).fetchone()
+        if not source_conversation:
             raise ConversationNotFound(conversation_id)
-        if row["state"] != "active":
-            raise ConversationConflict("此对话已归档，不能修改研究模式")
-        if connection.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? AND state IN ('awaiting_agent','running')", (conversation_id,)).fetchone():
-            raise ConversationConflict("请等待当前研究结束后再切换模式")
-        now = utc_now()
-        connection.execute("UPDATE conversations SET research_mode=?,updated_at=? WHERE id=?", (research_mode, now, conversation_id))
-    return {"conversation_id": conversation_id, "research_mode": research_mode}
+        previous = connection.execute("SELECT * FROM screening_draft_sources WHERE source_conversation_id=? AND request_id=?",
+                                      (conversation_id, request_id)).fetchone()
+        if previous:
+            if previous["request_hash"] != request_hash:
+                raise ConversationConflict("同一转换请求不能用于不同的来源或条件描述")
+            origin = _draft_payload(previous)
+            return {"conversation_id": previous["draft_conversation_id"], "turn_id": None,
+                    "draft_prompt": previous["draft_prompt"], "instructions": previous["instructions"],
+                    "source": origin, "idempotent_replay": True}
+        if source_conversation["state"] != "active" or source_conversation["workflow_type"] != "research":
+            raise ConversationStoreError("只有投研工作流可以转为选股草案")
+        source = connection.execute("SELECT * FROM conversation_messages WHERE id=? AND conversation_id=? AND role='assistant'",
+                                    (source_message_id, conversation_id)).fetchone()
+        if not source:
+            raise ConversationStoreError("来源必须是当前投研会话中的助手研究消息")
+        source_turn = None
+        assistant_key = source["client_message_id"] or ""
+        if assistant_key.startswith("assistant:"):
+            source_turn = connection.execute(
+                "SELECT * FROM conversation_turns WHERE id=? AND conversation_id=?",
+                (assistant_key.removeprefix("assistant:"), conversation_id),
+            ).fetchone()
+        if source_turn is not None and source_turn["workflow_type"] != "research":
+            raise ConversationStoreError("来源是选股回合的答复，不能当作投研结论转换；请先开展独立研究")
+        snapshot = {"source_conversation_id": conversation_id, "source_message_id": source_message_id,
+                    "source_text": source["content"], "source_refs": json_load(source["source_refs_json"]),
+                    "source_created_at": source["created_at"],
+                    "source_turn_id": source_turn["id"] if source_turn is not None else None,
+                    "source_workflow_type": source_turn["workflow_type"] if source_turn is not None else None,
+                    "source_research_depth": source_turn["research_depth"] if source_turn is not None else None,
+                    "source_research_scope": _workflow_payload(source_turn)["research_scope"] if source_turn is not None else None,
+                    "source_research_scope_revision": source_turn["research_scope_revision"] if source_turn is not None else None}
+        prefix = "请按以下用户条件描述整理选股草案。只整理草案，不执行筛选。\n\n用户条件描述：\n" + instructions + "\n\n研究来源文字（待核验背景）：\n"
+        suffix = "\n\n研究文字不是已验证的选股条件。逐项核对日期、股票范围、数据可得时间和条件公式；不从研究结论补造阈值。"
+        preview_budget = MAX_MESSAGE_CHARS - len(prefix) - len(suffix) - 50
+        preview = source["content"][:preview_budget]
+        if len(preview) < len(source["content"]):
+            preview += "\n（提示预览已截断，完整研究原文快照已保存。）"
+        prompt = prefix + preview + suffix
+        draft_id, now = str(uuid4()), utc_now()
+        project_id = source_conversation["project_id"]
+        if project_id:
+            from .research_projects import ProjectError, _require_project, _touch
+            try:
+                _require_project(connection, project_id, writable=True)
+            except ProjectError as exc:
+                raise ConversationStoreError(str(exc)) from exc
+            _touch(connection, project_id)
+        connection.execute(
+            """INSERT INTO conversations(id,entry_scope,research_mode,project_id,workflow_type,research_depth,created_at,updated_at)
+               VALUES(?,'screening','screening',?,'screening',?,?,?)""",
+            (draft_id, project_id, source_conversation["research_depth"], now, now),
+        )
+        connection.execute(
+            """INSERT INTO screening_draft_sources(draft_conversation_id,source_conversation_id,source_message_id,request_id,
+               request_hash,instructions,draft_prompt,source_snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)""",
+            (draft_id, conversation_id, source_message_id, request_id, request_hash, instructions, prompt, json_dump(snapshot), now),
+        )
+    return {"conversation_id": draft_id, "turn_id": None, "draft_prompt": prompt, "instructions": instructions,
+            "source": {**snapshot, "request_id": request_id, "instructions": instructions, "draft_prompt": prompt}, "idempotent_replay": False}
 
 
 def _message_payload(row) -> dict[str, Any]:
@@ -274,6 +433,18 @@ def _freeze_source_refs(
     return frozen
 
 
+def _reference_keys(references) -> list[tuple]:
+    """Compare client source identity, rather than mutable catalog metadata."""
+    keys = []
+    for reference in references:
+        item = reference.model_dump() if isinstance(reference, ConversationSourceReference) else reference
+        kind = item["kind"]
+        source_id = item["source_id"].upper() if kind == "security" else item["source_id"]
+        keys.append((kind, source_id, item.get("page_number") if kind == "report_page" else None,
+                     item.get("version") if kind in {"pattern", "condition"} else None))
+    return keys
+
+
 def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str, Any]:
     recover_expired_turns()
     message_limit = max(1, min(int(message_limit), 100))
@@ -292,7 +463,7 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
             (conversation_id, message_limit),
         ).fetchall()
         turns = connection.execute(
-            """SELECT id,user_message_id,base_revision,state,response_text,result_json,created_at,updated_at
+            """SELECT *
                FROM conversation_turns WHERE conversation_id=?
                ORDER BY rowid DESC LIMIT 20""",
             (conversation_id,),
@@ -300,13 +471,16 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
         turn_jobs = {row["turn_id"]: {key: row[key] for key in ("id", "state", "progress", "message")}
                      for row in connection.execute(
                          """SELECT r.turn_id,j.id,j.state,j.progress,j.message FROM research_turn_jobs r
-                            JOIN jobs j ON j.id=r.job_id WHERE r.conversation_id=?""", (conversation_id,))}
+                         JOIN jobs j ON j.id=r.job_id WHERE r.conversation_id=?""", (conversation_id,))}
+        draft_source = connection.execute("SELECT * FROM screening_draft_sources WHERE draft_conversation_id=?", (conversation_id,)).fetchone()
 
     return {
         "id": conversation["id"],
-        "task_id": conversation["id"],
+        "task_id": conversation["id"] if conversation["workflow_type"] == "screening" or conversation["task_revision"] else None,
         "entry_scope": conversation["entry_scope"],
         "research_mode": conversation["research_mode"],
+        **_workflow_payload(conversation),
+        "screening_draft_source": _draft_payload(draft_source),
         "project_id": conversation["project_id"],
         "task_revision": conversation["task_revision"],
         "active_run_id": conversation["active_run_id"],
@@ -320,6 +494,7 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
                 "id": row["id"],
                 "user_message_id": row["user_message_id"],
                 "base_revision": row["base_revision"],
+                **_workflow_payload(row),
                 "state": row["state"],
                 "response_text": row["response_text"],
                 "result": json_load(row["result_json"]),
@@ -339,6 +514,7 @@ def add_user_message(
     content: str,
     source_refs: list[ConversationSourceReference] | None = None,
     *,
+    research_scope_revision: int | None = None,
     _connection: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
     if _connection is None:
@@ -347,18 +523,16 @@ def add_user_message(
         if _connection is None:
             connection.execute("BEGIN IMMEDIATE")
         conversation = connection.execute(
-            "SELECT task_revision,state FROM conversations WHERE id=?", (conversation_id,)
+            "SELECT * FROM conversations WHERE id=?", (conversation_id,)
         ).fetchone()
         if not conversation:
             raise ConversationNotFound(conversation_id)
         if conversation["state"] != "active":
             raise ConversationConflict("此对话已归档，不能继续修改")
-        frozen_sources = _freeze_source_refs(connection, conversation_id, source_refs or [])
-        source_refs_json = json_dump(frozen_sources)
-
         existing = connection.execute(
             """SELECT m.id AS message_id,m.content AS content,m.source_refs_json AS source_refs_json,t.id AS turn_id,
-                      t.base_revision AS base_revision,t.state AS state
+                      t.base_revision AS base_revision,t.state AS state,t.workflow_type,t.research_depth,t.workflow_revision,
+                      t.research_scope_json,t.research_scope_revision,t.requested_research_scope_revision
                FROM conversation_messages m
                JOIN conversation_turns t ON t.user_message_id=m.id
                WHERE m.conversation_id=? AND m.role='user' AND m.client_message_id=?""",
@@ -367,22 +541,29 @@ def add_user_message(
         if existing:
             if (
                 existing["content"] != content
-                or existing["source_refs_json"] != source_refs_json
+                or _reference_keys(json_load(existing["source_refs_json"])) != _reference_keys(source_refs or [])
                 or existing["base_revision"] != base_revision
+                or existing["requested_research_scope_revision"] != research_scope_revision
             ):
                 raise ConversationConflict("相同消息ID不能提交不同内容、来源或条件版本")
             return {
                 "message_id": existing["message_id"],
                 "turn_id": existing["turn_id"],
                 "base_revision": existing["base_revision"],
+                **_workflow_payload(existing),
                 "state": existing["state"],
                 "source_refs": json_load(existing["source_refs_json"]),
                 "idempotent_replay": True,
             }
-        if base_revision != conversation["task_revision"]:
+        frozen_sources = _freeze_source_refs(connection, conversation_id, source_refs or [])
+        source_refs_json = json_dump(frozen_sources)
+        if conversation["workflow_type"] == "screening" and base_revision != conversation["task_revision"]:
             raise ConversationConflict(
                 f"当前条件已更新到版本 {conversation['task_revision']}，请先读取最新版本"
             )
+        if (conversation["workflow_type"] == "research" and research_scope_revision is not None
+                and research_scope_revision != conversation["research_scope_revision"]):
+            raise ConversationConflict("研究范围版本已经变化，请读取最新状态")
         active_turn = connection.execute(
             """SELECT id FROM conversation_turns
                WHERE conversation_id=? AND state IN ('awaiting_agent','running') LIMIT 1""",
@@ -401,9 +582,12 @@ def add_user_message(
         )
         connection.execute(
             """INSERT INTO conversation_turns(
-                   id,conversation_id,user_message_id,base_revision,state,created_at,updated_at
-               ) VALUES(?,?,?,?,'awaiting_agent',?,?)""",
-            (turn_id, conversation_id, message_id, base_revision, now, now),
+                   id,conversation_id,user_message_id,base_revision,state,workflow_type,research_depth,workflow_revision,
+                   research_scope_json,research_scope_revision,requested_research_scope_revision,created_at,updated_at
+               ) VALUES(?,?,?,?,'awaiting_agent',?,?,?,?,?,?,?,?)""",
+            (turn_id, conversation_id, message_id, base_revision, conversation["workflow_type"], conversation["research_depth"],
+             conversation["workflow_revision"], conversation["research_scope_json"], conversation["research_scope_revision"],
+             research_scope_revision, now, now),
         )
         connection.execute(
             """UPDATE conversations SET updated_at=?,
@@ -414,6 +598,7 @@ def add_user_message(
             "message_id": message_id,
             "turn_id": turn_id,
             "base_revision": base_revision,
+            **_workflow_payload(conversation),
             "state": "awaiting_agent",
             "source_refs": frozen_sources,
             "idempotent_replay": False,
@@ -424,8 +609,7 @@ def get_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
     recover_expired_turns()
     with connect() as connection:
         row = connection.execute(
-            """SELECT id,conversation_id,user_message_id,base_revision,state,response_text,result_json,
-                      created_at,updated_at
+            """SELECT *
                FROM conversation_turns WHERE id=? AND conversation_id=?""",
             (turn_id, conversation_id),
         ).fetchone()
@@ -440,6 +624,7 @@ def get_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
         "conversation_id": row["conversation_id"],
         "user_message_id": row["user_message_id"],
         "base_revision": row["base_revision"],
+        **_workflow_payload(row),
         "state": row["state"],
         "response_text": row["response_text"],
         "result": json_load(row["result_json"]),
@@ -472,12 +657,18 @@ def set_pending_execute_message(
         if turn_id is not None:
             require_running_turn(connection, conversation_id, turn_id)
         conversation = connection.execute(
-            "SELECT task_revision,state FROM conversations WHERE id=?", (conversation_id,)
+            "SELECT task_revision,state,workflow_type FROM conversations WHERE id=?", (conversation_id,)
         ).fetchone()
         if not conversation:
             raise ConversationNotFound(conversation_id)
         if conversation["state"] != "active":
             raise ConversationConflict("此对话已归档，不能授予执行授权")
+        if conversation["workflow_type"] != "screening":
+            raise ConversationStoreError("正式选股执行授权只能在选股工作流中授予")
+        if turn_id is not None:
+            turn = connection.execute("SELECT workflow_type FROM conversation_turns WHERE id=? AND conversation_id=?", (turn_id, conversation_id)).fetchone()
+            if not turn or turn["workflow_type"] != "screening":
+                raise ConversationStoreError("投研回合不能授予正式选股执行权限")
         if conversation["task_revision"] != expected_revision:
             raise ConversationConflict("任务版本已经变化，请重新读取当前研究状态")
         source = connection.execute(
@@ -533,7 +724,7 @@ def start_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
             "SELECT task_revision,state FROM conversations WHERE id=?", (conversation_id,)
         ).fetchone()
         turn = connection.execute(
-            """SELECT id,base_revision,state FROM conversation_turns
+            """SELECT id,base_revision,state,workflow_type FROM conversation_turns
                WHERE id=? AND conversation_id=?""",
             (turn_id, conversation_id),
         ).fetchone()
@@ -543,7 +734,7 @@ def start_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
             raise ConversationConflict("对话已归档，不能处理回合")
         if turn["state"] != "awaiting_agent":
             raise ConversationConflict("此回合已被领取或已经结束")
-        if turn["base_revision"] != conversation["task_revision"]:
+        if turn["workflow_type"] == "screening" and turn["base_revision"] != conversation["task_revision"]:
             raise ConversationConflict("处理期间条件版本已变化，请基于最新版本重新提交")
         now = utc_now()
         connection.execute(
@@ -584,14 +775,16 @@ def finish_turn(
             raise ConversationNotFound(conversation_id)
         if conversation["state"] != "active":
             raise ConversationConflict("对话已归档，不能发布回合结果")
-        if conversation["task_revision"] != expected_task_revision:
-            raise ConversationConflict("处理期间条件版本发生变化，助手结果未发布")
         turn = connection.execute(
-            "SELECT state,response_text,result_json,updated_at FROM conversation_turns WHERE id=? AND conversation_id=?",
+            "SELECT state,response_text,result_json,updated_at,workflow_type FROM conversation_turns WHERE id=? AND conversation_id=?",
             (turn_id, conversation_id),
         ).fetchone()
         if not turn:
             raise ConversationNotFound(turn_id)
+        if turn["workflow_type"] == "screening" and conversation["task_revision"] != expected_task_revision:
+            raise ConversationConflict("处理期间条件版本发生变化，助手结果未发布")
+        if turn["workflow_type"] == "research" and pending_execute_message_id is not None:
+            raise ConversationStoreError("投研回合不能授予正式选股执行权限")
 
         assistant_message_key = f"assistant:{turn_id}"
         previous_message = connection.execute(
@@ -669,12 +862,14 @@ def save_task_revision(
         if turn_id is not None:
             require_running_turn(connection, conversation_id, turn_id)
         conversation = connection.execute(
-            "SELECT task_revision,state FROM conversations WHERE id=?", (conversation_id,)
+            "SELECT task_revision,state,workflow_type FROM conversations WHERE id=?", (conversation_id,)
         ).fetchone()
         if not conversation:
             raise ConversationNotFound(conversation_id)
         if conversation["state"] != "active":
             raise ConversationConflict("此对话已归档，不能修改条件")
+        if conversation["workflow_type"] != "screening":
+            raise ConversationStoreError("请先将研究转为选股草案，再修改选股条件")
         source = connection.execute(
             """SELECT id FROM conversation_messages
                WHERE id=? AND conversation_id=? AND role='user'""",

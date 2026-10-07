@@ -35,7 +35,6 @@ function ClaimBuilder({ project, note, asOf, onSaved, onClose }: { project: Rese
     {code && date && <CompanySources key={`${code}:${date}`} projectId={project.id} code={code} asOf={date} onChoose={source => { setSelected(source); setReference(null) }} />}
     {selected && <ResearchSourceReader key={selected.source_id} projectId={project.id} code={code} asOf={date} source={selected} onQuote={(quote, start_hint, chunk) => setReference({ quote, start_hint, chunk })} />}
     {reference && <label>引用原文<textarea aria-label="引用原文" rows={3} value={reference.quote} maxLength={3000} onChange={event => setReference({ ...reference, quote: event.target.value, start_hint: null })} /></label>}
-    <p className="research-secondary">保存时核对公司、日期和原文位置；是否支持判断由你核对。判断将关联本次编辑所见的笔记版本。</p>
     {error && <p className="research-error" role="alert">{error}</p>}
     <div className="heading-actions"><button className="primary-button" type="button" onClick={() => void save()} disabled={busy || !reference?.quote.trim() || !statement.trim()}>{busy ? '正在保存…' : '保存判断与依据'}</button><button className="secondary-button" type="button" disabled={busy} onClick={onClose}>关闭依据编辑</button></div>
   </section>
@@ -68,12 +67,12 @@ export default function ResearchNoteEvidence({ project, note, asOf }: { project:
     catch (reason) { if (request === snapshotRequest.current) setError((reason as Error).message) }
   }
   return <details className="research-note-evidence" onToggle={event => { if (event.currentTarget === event.target) setOpen(event.currentTarget.open) }}><summary>判断与原文依据</summary>
-    {open && <><div className="research-section-heading"><p className="research-secondary">引用已定位到原文，不代表判断已被证实。</p>{project.status === 'active' && !editing && <button className="secondary-button" onClick={() => setEditing(true)}>添加判断与依据</button>}</div>
+    {open && <>{project.status === 'active' && !editing && <div className="research-section-heading"><button className="secondary-button" onClick={() => setEditing(true)}>添加判断与依据</button></div>}
       {editing && <ClaimBuilder project={project} note={note} asOf={asOf} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); setOffset(0); setReload(value => value + 1) }} />}
       {error && <p className="research-error" role="alert">{error}<button className="text-button" onClick={() => setReload(value => value + 1)}>重试依据加载</button></p>}
       {claims.map(claim => <article className="research-claim" key={claim.id}><div className="research-note-meta"><span>{claimKinds[claim.kind]}</span><span>关联第 {claim.note_revision} 版笔记</span><span>研究截至 {claim.as_of}</span></div><h4>{claim.statement}</h4>{claim.evidence.map((evidence, index) => <div className="research-citation" key={`${evidence.source_id}:${index}`}><span className="research-secondary">{evidenceStances[evidence.stance]} · {evidence.title}{evidence.source_type === 'report' ? ` · 第 ${evidence.page_number} 页` : ` · 第 ${evidence.source_version} 版`}</span><blockquote>{evidence.quote}</blockquote><button className="text-button" onClick={() => void readSnapshot(claim.id, index)}>定位原文</button></div>)}</article>)}
       {loading && <p className="research-secondary" role="status">正在读取已保存的依据…</p>}
-      {!loading && !claims.length && !editing && !error && <p className="research-secondary">还没有保存原文依据。可选择公司的资讯或研报，将判断关联到具体段落。</p>}
+      {!loading && !claims.length && !editing && !error && <p className="research-secondary">暂无原文依据。</p>}
       {(offset > 0 || next !== null) && <div className="heading-actions"><button className="text-button" disabled={!offset} onClick={() => setOffset(value => Math.max(0, value - 20))}>上一页判断</button><button className="text-button" disabled={next === null} onClick={() => setOffset(next!)}>下一页判断</button></div>}
       {snapshot && <><button className="text-button" onClick={() => { snapshotRequest.current++; setSnapshot(null) }}>收起原文</button><ResearchSourceReader projectId={project.id} snapshot={snapshot} /></>}
     </>}

@@ -1,0 +1,126 @@
+{
+  "date": "2026-10-05",
+  "checks": [
+    {
+      "name": "answer_csv_markdown_and_chart_are_all_pdf_deliverables",
+      "passed": true
+    },
+    {
+      "name": "download_0_is_pdf",
+      "passed": true
+    },
+    {
+      "name": "download_0_contains_brand_on_every_page",
+      "passed": true
+    },
+    {
+      "name": "download_1_is_pdf",
+      "passed": true
+    },
+    {
+      "name": "download_1_contains_brand_on_every_page",
+      "passed": true
+    },
+    {
+      "name": "download_2_is_pdf",
+      "passed": true
+    },
+    {
+      "name": "download_2_contains_brand_on_every_page",
+      "passed": true
+    },
+    {
+      "name": "download_3_is_pdf",
+      "passed": true
+    },
+    {
+      "name": "download_3_contains_brand_on_every_page",
+      "passed": true
+    },
+    {
+      "name": "original_rendering_inputs_are_retained",
+      "passed": true
+    },
+    {
+      "name": "project_note_download_is_pdf",
+      "passed": true
+    },
+    {
+      "name": "project_aggregates_reports_and_note_pdfs",
+      "passed": true
+    },
+    {
+      "name": "research_1440_no_horizontal_overflow",
+      "passed": true
+    },
+    {
+      "name": "projects_1440_no_horizontal_overflow",
+      "passed": true
+    },
+    {
+      "name": "research_390_no_horizontal_overflow",
+      "passed": true
+    },
+    {
+      "name": "projects_390_no_horizontal_overflow",
+      "passed": true
+    },
+    {
+      "name": "research_320_no_horizontal_overflow",
+      "passed": true
+    },
+    {
+      "name": "projects_320_no_horizontal_overflow",
+      "passed": true
+    },
+    {
+      "name": "no_page_errors",
+      "passed": true
+    },
+    {
+      "name": "no_console_errors",
+      "passed": true
+    },
+    {
+      "name": "no_processing_or_execution",
+      "passed": true
+    }
+  ],
+  "views": [
+    {
+      "view": "research",
+      "width": 1440,
+      "path": "D:\\项目\\LLM_research\\artifacts\\research-pdf-template-20261004\\pdf-research-1440.png"
+    },
+    {
+      "view": "projects",
+      "width": 1440,
+      "path": "D:\\项目\\LLM_research\\artifacts\\research-pdf-template-20261004\\pdf-projects-1440.png"
+    },
+    {
+      "view": "research",
+      "width": 390,
+      "path": "D:\\项目\\LLM_research\\artifacts\\research-pdf-template-20261004\\pdf-research-390.png"
+    },
+    {
+      "view": "projects",
+      "width": 390,
+      "path": "D:\\项目\\LLM_research\\artifacts\\research-pdf-template-20261004\\pdf-projects-390.png"
+    },
+    {
+      "view": "research",
+      "width": 320,
+      "path": "D:\\项目\\LLM_research\\artifacts\\research-pdf-template-20261004\\pdf-research-320.png"
+    },
+    {
+      "view": "projects",
+      "width": 320,
+      "path": "D:\\项目\\LLM_research\\artifacts\\research-pdf-template-20261004\\pdf-projects-320.png"
+    }
+  ],
+  "page_errors": [],
+  "console_errors": [],
+  "process_or_execute_requests": [],
+  "passed": true,
+  "qa_service_stopped": true
+}

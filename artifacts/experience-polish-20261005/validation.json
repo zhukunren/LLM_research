@@ -1,0 +1,11 @@
+{
+  "frontend_full_tests": 138,
+  "frontend_final_related_tests": 27,
+  "frontend_final_reading_tests": 18,
+  "backend_related_tests": 69,
+  "production_build": "passed",
+  "browser": "passed",
+  "historical_data": "unchanged",
+  "live_service": "http://127.0.0.1:5173",
+  "scope": "usability, reading, feedback, observation and responsive layout; no real model quality evaluation"
+}

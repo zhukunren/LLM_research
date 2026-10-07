@@ -125,6 +125,8 @@ def get_project(project_id: str) -> dict:
             associations.setdefault(row["note_id"], []).append(row["stock_code"])
         for note in project["notes"]:
             note["claim_stock_codes"] = associations.get(note["id"], [])
+            from .research_pdf_service import note_status
+            note["pdf"] = note_status(project_id, note["id"], note["revision"], connection=connection)
         return project
 
 
@@ -198,6 +200,8 @@ def _snapshot_note(connection, note_id: str) -> dict:
         "INSERT INTO research_note_versions(note_id,revision,snapshot_json,created_at) VALUES(?,?,?,?)",
         (note_id, note["revision"], json_dump(note), note["updated_at"]),
     )
+    from .research_pdf_service import enqueue_note
+    note["pdf"] = enqueue_note(note["project_id"], note_id, note["revision"], connection=connection)
     return note
 
 
@@ -206,9 +210,13 @@ def note_history(project_id: str, note_id: str) -> list[dict]:
         _require_project(connection, project_id)
         if not connection.execute("SELECT 1 FROM research_notes WHERE id=? AND project_id=?", (note_id, project_id)).fetchone():
             raise ProjectError("找不到研究笔记。", 404)
-        return [json_load(row[0]) for row in connection.execute(
+        versions = [json_load(row[0]) for row in connection.execute(
             "SELECT snapshot_json FROM research_note_versions WHERE note_id=? ORDER BY revision DESC", (note_id,)
         )]
+        from .research_pdf_service import note_status
+        for version in versions:
+            version["pdf"] = note_status(project_id, note_id, version["revision"], connection=connection)
+        return versions
 
 
 def create_note(project_id: str, payload: CreateNote) -> dict:
@@ -222,7 +230,8 @@ def create_note(project_id: str, payload: CreateNote) -> dict:
         if existing:
             if any(existing[key] != value for key, value in values.items()):
                 raise ProjectError("相同保存请求不能使用不同的笔记内容。", 409)
-            return dict(existing)
+            from .research_pdf_service import enqueue_note
+            return {**dict(existing), "pdf": enqueue_note(project_id, existing["id"], existing["revision"], connection=connection)}
         _validate_note_company(connection, project_id, payload.stock_code)
         note_id, now = str(uuid4()), utc_now()
         connection.execute(
@@ -257,7 +266,7 @@ def update_note(project_id: str, note_id: str, payload: UpdateNote) -> dict:
         return _snapshot_note(connection, note_id)
 
 
-def save_message(project_id: str, message_id: str) -> dict:
+def save_message(project_id: str, message_id: str, *, source_conversation_id: str | None = None) -> dict:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         _require_project(connection, project_id, writable=True)
@@ -265,13 +274,20 @@ def save_message(project_id: str, message_id: str) -> dict:
             "SELECT * FROM research_notes WHERE project_id=? AND source_message_id=?", (project_id, message_id)
         ).fetchone()
         if existing:
-            return dict(existing)
+            from .research_pdf_service import enqueue_note
+            return {**dict(existing), "pdf": enqueue_note(project_id, existing["id"], existing["revision"], connection=connection)}
         source = connection.execute(
-            """SELECT m.*,c.project_id FROM conversation_messages m JOIN conversations c ON c.id=m.conversation_id
-               WHERE m.id=? AND c.project_id=? AND m.role='assistant'""", (message_id, project_id)
+            """SELECT m.*,c.project_id,t.state turn_state FROM conversation_messages m
+               JOIN conversations c ON c.id=m.conversation_id
+               LEFT JOIN conversation_turns t ON m.client_message_id='assistant:'||t.id AND t.conversation_id=c.id
+               WHERE m.id=? AND m.role='assistant' AND
+                 ((? IS NULL AND c.project_id=?) OR (? IS NOT NULL AND c.id=?))""",
+            (message_id, source_conversation_id, project_id, source_conversation_id, source_conversation_id),
         ).fetchone()
         if not source:
             raise ProjectError("只能保存本项目中投研助手已完成的答复。", 404)
+        if source["turn_state"] in {"failed", "cancelled", "running", "awaiting_agent"}:
+            raise ProjectError("此消息不是已完成的研究答复，不能保存为研究笔记。")
         if len(source["content"]) > 100000:
             raise ProjectError("答复超过笔记长度上限，请将需要的部分另存为笔记。")
         title_row = connection.execute(
@@ -289,8 +305,32 @@ def save_message(project_id: str, message_id: str) -> dict:
         return _snapshot_note(connection, note_id)
 
 
+def save_conversation_message(conversation_id: str, message_id: str) -> dict:
+    """Save an independent answer without reassigning its conversation."""
+    with connect() as connection:
+        source = connection.execute(
+            """SELECT c.project_id,t.state turn_state FROM conversation_messages m
+               JOIN conversations c ON c.id=m.conversation_id
+               LEFT JOIN conversation_turns t ON m.client_message_id='assistant:'||t.id AND t.conversation_id=c.id
+               WHERE c.id=? AND m.id=? AND m.role='assistant'""", (conversation_id, message_id),
+        ).fetchone()
+        if not source:
+            raise ProjectError("找不到这份研究答复。", 404)
+        if source["turn_state"] in {"failed", "cancelled", "running", "awaiting_agent"}:
+            raise ProjectError("此消息不是已完成的研究答复，不能保存为研究笔记。")
+        inbox = connection.execute("SELECT id FROM research_projects WHERE request_id='system:research-inbox'").fetchone()
+    project_id = source["project_id"]
+    if not project_id:
+        project_id = inbox["id"] if inbox else create_project(CreateProject(
+            name="研究收件箱", objective="保存尚未归入专题项目的研究答复，后续可补充证据与验证计划。",
+            request_id="system:research-inbox",
+        ))["id"]
+    return save_message(project_id, message_id, source_conversation_id=conversation_id)
+
+
 def project_files(project_id: str) -> list[dict]:
-    from .research_workspace import list_outputs
+    from .research_pdf import list_deliverables
+    from .research_pdf_service import list_exports
     with connect() as connection:
         _require_project(connection, project_id)
         # Preserve access to source artifacts when a conversation is later reassigned.
@@ -299,8 +339,9 @@ def project_files(project_id: str) -> list[dict]:
                SELECT source_conversation_id FROM research_notes WHERE project_id=? AND source_conversation_id IS NOT NULL""",
             (project_id, project_id),
         )]
-    items = [{**item, "conversation_id": cid} for cid in ids for item in list_outputs(cid)]
-    return sorted(items, key=lambda item: (-item["modified_at"], item["conversation_id"], item["name"]))
+    items = [{**item, "conversation_id": cid} for cid in ids for item in list_deliverables(cid)]
+    items.extend(list_exports("project", project_id))
+    return sorted(items, key=lambda item: (-item["modified_at"], item.get("conversation_id") or "", item["name"], item.get("url") or "", item.get("id") or ""))
 
 
 def conversation_context(conversation_id: str) -> dict | None:

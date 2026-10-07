@@ -1,0 +1,8 @@
+{
+  "url": "http://127.0.0.1:8000/#/home",
+  "live_home_loaded": true,
+  "page_errors": [],
+  "mutating_requests": 0,
+  "overflow": false,
+  "user_mode_repeated_start": "reused healthy existing processes"
+}

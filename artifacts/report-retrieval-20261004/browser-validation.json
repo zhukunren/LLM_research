@@ -1,0 +1,44 @@
+{
+  "source": "live local indexed reports; catalog POST intercepted to avoid model calls",
+  "page_errors": [],
+  "checks": [
+    {
+      "width": 1440,
+      "mode_switch": true,
+      "ranked_first_report": true,
+      "original_page_jump": true,
+      "exact_total": 6
+    },
+    {
+      "width": 390,
+      "mode_switch": true,
+      "ranked_first_report": true,
+      "original_page_jump": true,
+      "exact_total": 6
+    },
+    {
+      "width": 320,
+      "mode_switch": true,
+      "ranked_first_report": true,
+      "original_page_jump": true,
+      "exact_total": 6
+    }
+  ],
+  "layouts": [
+    {
+      "width": 1440,
+      "document_width": 1430,
+      "smart_total": 18
+    },
+    {
+      "width": 390,
+      "document_width": 380,
+      "smart_total": 18
+    },
+    {
+      "width": 320,
+      "document_width": 310,
+      "smart_total": 18
+    }
+  ]
+}

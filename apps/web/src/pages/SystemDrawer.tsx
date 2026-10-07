@@ -68,12 +68,12 @@ export default function SystemDrawer({ data, onClose, onRefresh }: { data: DataS
           <div className="service-row"><div><b>文本模型</b><small>{settings?.text_model?.configured ? `${settings.text_model.model} · ${settings.text_model.api_mode}` : '未配置'}</small></div><span className={`status-pill ${settings?.text_model?.configured ? 'partial' : 'blocked_dependency'}`}>{settings?.text_model?.configured ? '已配置' : '待配置'}</span></div>
           <div className="model-test-row"><button className="secondary-button compact" disabled={checkingModel || !settings?.text_model?.configured} onClick={testModel}><Zap size={14} />{checkingModel ? '测试中…' : '测试连接'}</button>{modelCheck && <span role="status">{modelCheck}</span>}</div>
           <div className="model-test-row"><button className="secondary-button compact" disabled={checkingModel || !settings?.text_model?.configured} onClick={testModelTools}><Network size={14} />{checkingModel ? '测试中…' : '测试工具调用'}</button>{toolCheck && <span role="status">{toolCheck}</span>}</div>
-          <div className="service-row"><div><b>Tushare 中转</b><small>{settings?.tushare?.uses_adapter_default ? '使用适配器默认凭证；可在配置中覆盖' : '使用配置或环境变量凭证'}</small></div><span className={`status-pill ${settings?.tushare?.configured ? 'partial' : 'blocked_dependency'}`}>{settings?.tushare?.configured ? '可同步' : '不可用'}</span></div>
-          <div className="service-row"><div><b>资讯数据</b><small>同步后的快讯保存在本地资讯库；覆盖范围以同步结果为准</small></div><span className={`status-pill ${settings?.tushare?.news_access ? 'partial' : 'blocked_dependency'}`}>{settings?.tushare?.news_access ? '已接入' : '未接入'}</span></div>
-          <div className="credential-note"><KeyRound size={15} /><p>模型设置从项目 <code>config.ini</code> 读取，凭证不会回传或显示。连接测试和工具调用测试发送固定短提示与合成数字；研报评估会将所选范围内的页文本发送到该模型服务。变更该文件后重启本地服务生效。</p></div>
+          <div className="service-row"><div><b>Tushare 中转</b><small>{settings?.tushare?.uses_adapter_default ? '适配器默认配置' : '本地配置'}</small></div><span className={`status-pill ${settings?.tushare?.configured ? 'partial' : 'blocked_dependency'}`}>{settings?.tushare?.configured ? '可同步' : '不可用'}</span></div>
+          <div className="service-row"><div><b>资讯数据</b><small>本地资讯</small></div><span className={`status-pill ${settings?.tushare?.news_access ? 'partial' : 'blocked_dependency'}`}>{settings?.tushare?.news_access ? '已接入' : '未接入'}</span></div>
+          <div className="credential-note"><KeyRound size={15} /><p>模型配置：<code>config.ini</code></p></div>
         </div>
 
-        <div className="drawer-section drawer-footer-section"><h3>本地运行</h3><p>数据库和索引保存在项目的 runtime 目录。行情同步采用原子替换；PDF 原件与派生资料可分别重新索引。</p><a href="/docs" target="_blank" rel="noreferrer">打开 API 文档 <ExternalLink size={13} /></a></div>
+        <div className="drawer-section drawer-footer-section"><h3>本地运行</h3><a href="/docs" target="_blank" rel="noreferrer">打开 API 文档 <ExternalLink size={13} /></a></div>
         <div className="drawer-footer"><button className="secondary-button" onClick={onRefresh}><RefreshCw size={14} />刷新数据检查</button><button className="primary-button" onClick={onClose}>完成</button></div>
       </aside>
     </div>

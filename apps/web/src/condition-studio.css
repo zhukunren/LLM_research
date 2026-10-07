@@ -1,0 +1,126 @@
+/* Scoped to the condition workflow; research and resource pages keep their layouts. */
+.redesigned-workspace .condition-studio { max-width: 1540px; padding-top: 26px; }
+.condition-studio .workbench-heading { align-items: center; margin-bottom: 22px; }
+.condition-studio .workbench-heading h1 { font-size: 28px; letter-spacing: -.04em; }
+.condition-studio-description { font-size: 13px; color: var(--ui-text-muted); margin: 8px 0 0; line-height: 1.7; }
+.condition-studio-heading-meta { display: grid; justify-items: end; gap: 9px; flex-shrink: 0; }
+.condition-studio .workbench-data-status { display: flex; align-items: center; gap: 7px; color: var(--ui-text-muted); font-size: 11px; }
+.condition-studio-mode { color: var(--ui-primary); border: 1px solid #d2e1ee; background: #edf4fa; border-radius: 5px; padding: 4px 8px; font-size: 10px; }
+.condition-studio-nav { display: flex; align-items: center; gap: 4px; padding: 5px; background: #e9eef5; border: 1px solid #e0e7f0; border-radius: 11px; margin-bottom: 24px; }
+.condition-studio-nav > button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 10px 18px; background: transparent; border: 0; border-radius: 7px; color: var(--ui-text-muted); font-size: 13px; cursor: pointer; white-space: nowrap; }
+.condition-studio-nav > button:nth-child(4) { margin-left: auto; }
+.condition-studio-nav > button.active { background: white; color: var(--ui-primary); font-weight: 600; box-shadow: 0 2px 6px #19304709; }
+.condition-studio-nav > button:hover:not(:disabled):not(.active) { color: var(--ui-primary); background: #ffffff60; }
+.condition-studio-nav b { display: grid; place-items: center; font-weight: 500; font-variant-numeric: tabular-nums; font-size: 10px; min-width: 19px; height: 19px; padding-inline: 4px; background: #dce6f0; color: #59718c; border-radius: 4px; }
+.condition-studio-nav .active b { background: var(--ui-primary-soft); color: var(--ui-primary); }
+.condition-studio .section-title-row h2 { font-size: 17px; letter-spacing: -.02em; }
+.condition-studio .intent-prompt-card { padding: 26px 28px; }
+.condition-studio .condition-draft-progress { gap: 24px; font-size: 12px; margin-bottom: 24px; }
+.condition-studio .intent-textarea { min-height: 164px; background: #f8fafd; font-size: 15px; border-color: #dbe4ee; line-height: 1.9; }
+.condition-studio .intent-textarea:focus { background: white; border-color: var(--ui-primary-border); }
+.condition-studio .prompt-bottom { align-items: center; margin-top: 14px; }
+.condition-studio .prompt-bottom > span { font-size: 11px; }
+.condition-starter-examples { padding-top: 22px; margin-top: 22px; border-top: 1px solid var(--ui-border-subtle); }
+.condition-starter-caption { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 13px; font-size: 12px; color: var(--ui-text-muted); }
+.condition-starter-caption small { font-size: 11px; color: var(--ui-text-faint); }
+.condition-starter-examples > div:last-child { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.condition-starter-examples button { position: relative; display: grid; grid-template-columns: 24px minmax(0,1fr); column-gap: 10px; row-gap: 5px; align-items: center; padding: 17px 15px; border: 1px solid var(--ui-border); border-radius: 9px; background: white; text-align: left; cursor: pointer; transition: border-color 150ms, background 150ms; }
+.condition-starter-examples button:hover { border-color: var(--ui-primary-border); background: #f8fbfe; }
+.condition-starter-examples button > svg:first-child { grid-row: 1 / 3; color: var(--ui-primary); }
+.condition-starter-examples strong { font-size: 13px; font-weight: 600; }
+.condition-starter-examples button > span { font-size: 11px; color: var(--ui-text-faint); }
+.condition-starter-examples button > svg:last-child { position: absolute; right: 11px; top: 19px; color: #8da1b7; }
+.condition-studio .compose-workspace { grid-template-columns: minmax(0,1fr) 300px; gap: 20px; align-items: start; }
+.condition-studio .compose-main { padding: 24px; }
+.condition-studio .compose-main > header { margin-bottom: 22px; }
+.condition-studio .compose-main .workbench-help { font-size: 12px; margin-bottom: 0; }
+.condition-studio .compose-main .form-grid { padding: 16px; border-radius: 8px; background: #f8fafd; }
+.condition-studio .composition-status { font-size: 12px; margin-block: 6px 10px; }
+.condition-studio .strategy-node { border-left-width: 3px; background: #f6f9fd; }
+.condition-studio .strategy-reference { padding: 16px; box-shadow: 0 1px 2px #19304705; }
+.condition-studio .run-setup { padding: 22px; border-top: 3px solid var(--ui-primary); gap: 20px; }
+.condition-studio .run-setup-heading > span { text-transform: uppercase; letter-spacing: .05em; color: var(--ui-primary); }
+.condition-studio .run-setup-heading h2 { font-size: 18px; margin-top: 7px; }
+.condition-studio .run-setup .run-button { min-height: 44px; }
+.condition-studio .screening-editor-fields > label { font-size: 12px; font-weight: 500; gap: 8px; }
+.condition-studio .library-workspace { padding: 25px; }
+.condition-studio .library-filters { display: flex; flex-wrap: wrap; align-items: center; margin-top: 22px; padding: 14px; background: #f7f9fc; border-radius: 9px; gap: 10px; }
+.condition-studio .library-filters .search-input { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; min-width: 0; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: 7px; background: white; }
+.condition-studio .library-filters .search-input > svg { color: var(--ui-text-faint); flex-shrink: 0; }
+.condition-studio .library-filters .search-input input { flex: 1; width: 100%; min-width: 0; border: 0; background: transparent; padding-inline: 0; }
+.condition-studio .library-filters .search-input > button { flex-shrink: 0; width: 26px; height: 26px; }
+.condition-library-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; padding: 17px 0 21px; font-size: 12px; color: var(--ui-text-muted); }
+.condition-library-overview > div { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.condition-library-overview button:not(.text-button) { display: flex; align-items: center; gap: 7px; padding: 5px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; font-size: 11px; color: var(--ui-text-muted); cursor: pointer; }
+.condition-library-overview button[aria-pressed=true] { color: var(--ui-primary); border-color: #d4e2ef; background: var(--ui-primary-soft); }
+.condition-library-overview b { font-size: 10px; font-weight: 500; color: var(--ui-text-faint); }
+.condition-studio .condition-library-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+.condition-studio .saved-condition-card { display: flex; flex-direction: column; padding: 19px; border-color: #e0e7ef; box-shadow: none; }
+.condition-studio .saved-condition-card:hover { border-color: #b8cdde; }
+.condition-studio .saved-condition-card h3 { font-size: 15px; line-height: 1.65; }
+.condition-studio .saved-condition-card > p { flex: 1; }
+.condition-studio .saved-condition-card > small { margin-bottom: 16px; }
+.condition-studio .saved-condition-card .card-actions { margin-top: auto; gap: 8px; }
+.condition-studio .saved-condition-card .card-actions > button { flex: 1; min-height: 34px; padding-inline: 7px; font-size: 11px; }
+.condition-load-more { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 24px; font-size: 11px; color: var(--ui-text-faint); }
+.condition-studio .condition-inspector { border-top: 3px solid var(--ui-primary); scroll-margin-top: 85px; margin-top: 24px; background: #f8fbfe; }
+.condition-studio .history-workspace { grid-template-columns: 268px minmax(0,1fr); gap: 18px; align-items: start; }
+.condition-studio .run-history { position: sticky; top: 83px; padding: 15px; max-height: calc(100dvh - 110px); }
+.condition-studio .run-history .section-title-row { margin-bottom: 16px; }
+.condition-studio .run-history h2 { font-size: 14px; }
+.condition-studio .run-history > button { padding: 14px 11px; border-bottom: 0; margin-bottom: 4px; border-left: 2px solid transparent; border-radius: 7px; gap: 7px; }
+.condition-studio .run-history > button.selected { border-left-color: var(--ui-primary); }
+.condition-studio .run-history > button:hover { background: var(--ui-surface-hover); }
+.condition-studio .run-history > button strong { font-size: 12px; }
+.condition-studio .run-history > button small { display: flex; align-items: center; gap: 5px; font-size: 10px; }
+.history-status-dot { width: 5px; height: 5px; border-radius: 50%; background: #98a9bc; flex-shrink: 0; }
+.history-status-dot.succeeded { background: var(--ui-success); }
+.history-status-dot.partial, .history-status-dot.running, .history-status-dot.queued { background: var(--ui-warning); }
+.history-status-dot.failed { background: var(--ui-danger); }
+.condition-studio .run-history .history-show-more { display: flex; justify-content: center; color: var(--ui-primary); font-size: 12px; }
+.condition-studio .run-results { min-height: 390px; padding: 24px; }
+.condition-studio .result-counts > div, .condition-studio .result-counts > button { background: #f7f9fc; padding: 18px; border: 1px solid #e8edf4; }
+.condition-studio .result-counts > button.selected { border-color: #b4cedf; background: #eef5fc; }
+.condition-studio .result-counts strong { font-size: 28px; }
+.condition-studio .decision-summary { padding-block: 17px; }
+.condition-studio .decision-table-head { padding-block: 12px; font-size: 11px; }
+.condition-studio .decision-summary strong > small { font-size: 10px; margin-top: 5px; }
+.condition-studio .workbench-empty { min-height: 275px; gap: 12px; }
+.condition-studio .workbench-empty h3 { font-size: 16px; }
+.condition-studio .workbench-empty p { max-width: 350px; line-height: 1.8; font-size: 12px; }
+@media (max-width: 1200px) {
+  .condition-studio-nav > button { padding-inline: 12px; }
+  .condition-studio .condition-library-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 1000px) {
+  .condition-studio .compose-workspace { grid-template-columns: minmax(0,1fr); }
+  .condition-studio .run-setup { position: static; }
+  .condition-studio .run-setup .screening-editor-fields { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .condition-studio .history-workspace { grid-template-columns: 220px minmax(0,1fr); }
+}
+@media (max-width: 720px) {
+  .redesigned-workspace .condition-studio { padding-top: 18px; }
+  .condition-studio .workbench-heading { align-items: flex-start; gap: 14px; }
+  .condition-studio .workbench-heading h1 { font-size: 25px; }
+  .condition-studio-description { font-size: 12px; }
+  .condition-studio-heading-meta { justify-items: start; }
+  .condition-studio-mode { display: none; }
+  .condition-studio-nav { overflow-x: auto; gap: 3px; margin-bottom: 18px; padding: 4px; }
+  .condition-studio-nav > button { flex-shrink: 0; min-height: 39px; padding: 8px 11px; font-size: 12px; gap: 6px; }
+  .condition-studio-nav > button:nth-child(4) { margin-left: 0; }
+  .condition-studio-nav b { display: none; }
+  .condition-studio .intent-prompt-card, .condition-studio .library-workspace, .condition-studio .compose-main, .condition-studio .run-setup, .condition-studio .run-results { padding: 18px; }
+  .condition-studio .condition-draft-progress { gap: 14px; font-size: 11px; }
+  .condition-studio .intent-textarea { font-size: 16px; }
+  .condition-starter-examples > div:last-child { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .condition-starter-examples button { padding: 13px 14px; }
+  .condition-studio .run-setup .screening-editor-fields { grid-template-columns: minmax(0,1fr); }
+  .condition-studio .condition-library-grid { grid-template-columns: minmax(0,1fr); }
+  .condition-studio .library-filters > select { flex: 1; min-width: 0; }
+  .condition-library-overview { gap: 10px; }
+  .condition-library-overview > div { flex-basis: 100%; order: 1; }
+  .condition-studio .history-workspace { grid-template-columns: minmax(0,1fr); }
+  .condition-studio .run-history { position: static; max-height: 300px; }
+  .condition-studio .run-results { min-height: 260px; }
+  .condition-studio .result-counts strong { font-size: 24px; }
+}

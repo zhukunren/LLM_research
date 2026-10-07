@@ -1,5 +1,7 @@
 from apps.api.app import screening_tools
 from apps.api.app.research_tools import TushareQueryArgs
+import pytest
+from pydantic import ValidationError
 
 
 def test_registered_tools_expose_codex_mcp_schemas():
@@ -27,11 +29,30 @@ def test_tool_definitions_do_not_accept_extra_arguments():
     schema = market.tool.input_schema
 
     assert schema["additionalProperties"] is False
-    assert set(schema["required"]) == set(schema["properties"])
+    assert set(schema["required"]) == {"stock_code", "limit"}
+    assert set(schema["properties"]) == {"stock_code", "limit", "as_of"}
+    assert schema["properties"]["as_of"]["default"] is None
+    assert {item["type"] for item in schema["properties"]["as_of"]["anyOf"]} == {"string", "null"}
+    assert screening_tools.ReadMarketWindowArgs.model_validate({"stock_code": "600000.SH", "limit": 1}).as_of is None
+    with pytest.raises(ValidationError):
+        screening_tools.ReadMarketWindowArgs.model_validate({"stock_code": "600000.SH", "limit": 1, "unknown": True})
 
 
-def test_codex_mcp_keeps_optional_objects_and_tool_annotations():
+def test_codex_mcp_keeps_optional_objects_and_tool_annotations(tmp_path, monkeypatch):
     from apps.api.app.codex_mcp_server import _tools
+    from apps.api.app import db, capability_service, market
+
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "tool-metadata.db")
+    monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "no-market.parquet")
+    for name in ("LLMR_CODEX_CONVERSATION_ID", "LLMR_CODEX_TURN_ID", "LLMR_CODEX_TASK_REVISION"):
+        monkeypatch.delenv(name, raising=False)
+    # This test concerns schema and annotations, independent of installed data
+    # and configuration. Capability availability has a separate test below.
+    monkeypatch.setattr(capability_service, "screening_capability_manifest", lambda: {
+        "capabilities": [{"id": registration.capability_id, "availability": "available"}
+                         for registration in screening_tools.registry._registrations.values() if registration.capability_id]
+    })
+    db.init_db()
 
     definitions = {tool["name"]: tool for tool in _tools()}
     tushare = definitions["query_tushare"]
@@ -43,10 +64,10 @@ def test_codex_mcp_keeps_optional_objects_and_tool_annotations():
 
 
 def test_codex_only_receives_tools_whose_service_capability_is_available(monkeypatch):
-    from apps.api.app import main
+    from apps.api.app import capability_service
 
     monkeypatch.setattr(
-        main,
+        capability_service,
         "screening_capability_manifest",
         lambda: {
             "capabilities": [

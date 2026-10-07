@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-04",
+  "tests": {
+    "files": 29,
+    "passed": 118
+  },
+  "build": "passed",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "pageOverflow": false
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "pageOverflow": false
+    }
+  ],
+  "browserErrors": [],
+  "manualChecks": [
+    "筛选示例填入与按钮启用",
+    "观察池无匹配提示和清除筛选",
+    "桌面与手机响应式布局"
+  ]
+}
