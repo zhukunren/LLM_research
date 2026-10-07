@@ -17,3 +17,4 @@ data/research_report/
 data/derived/
 data/uploads/
 *.log
+artifacts/**/live/app.db
