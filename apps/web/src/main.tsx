@@ -27,6 +27,8 @@ import './experience-polish.css'
 import './task-progress.css'
 import './task-guidance.css'
 import './chat-layout.css'
+import './minimalist-workspace.css'
+import './library-minimal.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

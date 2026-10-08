@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
@@ -45,14 +45,12 @@ it('saves an independent answer to the inbox without changing project membership
   expect(screen.getByText('独立研究')).toBeInTheDocument()
 })
 
-it('opens supporting sections from the answer outline while keeping findings and code intact', async () => {
+it('keeps long research answers readable without opening nested sections', async () => {
   const content = `## 核心结论\n经营判断需要进一步核对。\n\n## 原文依据\n${'来自经营公告的证据。'.repeat(150)}\n\n## 反证与风险\n现金流可能恶化。\n\n\`\`\`python\n# 这不是章节\nprint(1)\n\`\`\``
-  const user = userEvent.setup()
   const { container } = render(<ResearchAnswer conversationId="research" messageId="answer" content={content} />)
-  const evidence = container.querySelectorAll('.answer-section')[1]
-  expect(evidence).not.toHaveAttribute('open')
-  await user.click(screen.getByRole('button', { name: '原文依据' }))
-  await waitFor(() => expect(evidence).toHaveAttribute('open'))
+  expect(container.querySelector('.answer-section')).toBeNull()
+  expect(screen.getByRole('heading', { name: '原文依据' })).toBeVisible()
+  expect(screen.getByText(/来自经营公告的证据/)).toBeVisible()
   expect(screen.getByText(/现金流可能恶化/)).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '这不是章节' })).not.toBeInTheDocument()
   expect(screen.getByText('代码与数据').closest('details')).not.toHaveAttribute('open')

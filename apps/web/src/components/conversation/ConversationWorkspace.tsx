@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { AlertCircle, ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, Copy, FileSearch, GitCompareArrows, History, LoaderCircle, Pencil, Play, Plus, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, Copy, FileSearch, GitCompareArrows, History, LoaderCircle, Pencil, Play, Plus, RefreshCw, Search, X } from 'lucide-react'
 import {
   api,
   conversationWorkflow,
@@ -24,6 +24,7 @@ import { TaskLogic, taskUniverseLabel } from './TaskBrief'
 import SavedTaskLibrary from './SavedTaskLibrary'
 import ScreeningTemplates, { type ScreeningTemplate } from './ScreeningTemplates'
 import ScreeningReadiness from './ScreeningReadiness'
+import './screening-simple.css'
 import ResearchPanel from './ResearchPanel'
 import ResearchAnswer from './ResearchAnswer'
 import ResearchResultActions, { type ResearchResultRequest } from './ResearchResultActions'
@@ -1262,7 +1263,7 @@ export default function ConversationWorkspace({
       </aside>
 
       <section className="conversation-main" aria-label={isResearch ? '研究对话' : '选股对话'}>{isResearch && !conversation?.messages.length && !loadingConversation && <div className="chat-empty-heading"><h1>开始研究</h1><p>输入公司、行业或你想核实的问题</p></div>}
-        {!isResearch && !screeningStarted && <div className="screening-entry-heading"><span className="screening-entry-icon"><SlidersHorizontal size={20} /></span><h2>选股条件</h2><button type="button" className="text-button" onClick={() => { setLibraryTab('saved'); setSessionsOpen(true) }}><Bookmark size={14} />复用已保存方案</button></div>}
+        {!isResearch && !screeningStarted && <div className="screening-entry-heading"><h2>想筛选什么样的股票？</h2><button type="button" className="text-button" onClick={() => { setLibraryTab('saved'); setSessionsOpen(true) }}><Bookmark size={14} />复用已保存方案</button></div>}
         {!isResearch && <ScreeningReadiness onOpenData={onOpenDataServices} data={data} scope={scope} task={task} asOf={scopeDate} selectedUniverseLabel={scopePool === 'all' ? '全部A股' : watchlists.find(item => item.id === scopePool)?.name || '指定股票池'} />}
         {error && (isExecutionFailure(error) ? <ResearchFailure content={error} /> : <div className="conversation-error" role="alert"><AlertCircle size={17} /><span>{error}</span><button className="icon-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={15} /></button></div>)}
         {notice && <div className="conversation-notice" role="status"><Check size={16} /><span>{notice}</span>{savedNoteProject && onOpenProject && <button className="text-button" onClick={() => onOpenProject(savedNoteProject)}>查看笔记</button>}<button className="icon-button" aria-label="关闭保存提示" onClick={() => { setNotice(''); setSavedNoteProject('') }}><X size={15} /></button></div>}
@@ -1287,7 +1288,7 @@ export default function ConversationWorkspace({
                 <div className="conversation-message-meta">
                   <strong>{message.role === 'user' ? '你' : message.role === 'assistant' ? isResearch ? '投研助手' : '选股助手' : '工具'}</strong>
                   <time dateTime={message.created_at}>{shortTime(message.created_at)}</time>
-                  {turn && <span className={`conversation-turn-state ${stateClass(turn.state)}`}>{stateLabels[turn.state] ?? turn.state}</span>}
+                  {turn && !['succeeded'].includes(turn.state) && <span className={`conversation-turn-state ${stateClass(turn.state)}`}>{stateLabels[turn.state] ?? turn.state}</span>}
                   {turn?.assistant && turn.assistant.id !== 'general' && <span className="conversation-assistant-tag" title={`助手版本 ${turn.assistant.revision}`}>{turn.assistant.name}</span>}
                 </div>
                 {failed ? <ResearchFailure content={message.content} disabled={busy || turnInProgress} onRetry={canRetryAnswer ? () => void submitMessage(retryQuestion.content) : undefined} /> : message.role === 'assistant' ? <ResearchAnswer content={message.content} conversationId={conversation.id} messageId={message.id} /> : <p className="conversation-plain-message">{message.content}</p>}
@@ -1322,7 +1323,7 @@ export default function ConversationWorkspace({
             {isResearch && <ResearchAssistantSelect value={assistantId} snapshot={conversation?.assistant} disabled={busy || saving || assistantSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={id => void changeAssistant(id)} />}
             <label className="studio-mode-select"><span>{isResearch ? '研究深度' : '条件核验'}</span><select aria-label="研究深度" value={researchDepth} disabled={busy || saving || modeSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={event => void changeResearchDepth(event.target.value as ResearchDepth)}>{Object.entries(depthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{modeSaving && <LoaderCircle size={14} className="spin" />}</label>
             <span>{draft.length >= 7000 ? `${draft.length}/8000` : ''}</span>
-            <button className="primary-button" type="submit" disabled={busy || saving || assistantSaving || modeSaving || researchScopeSaving || (isResearch ? !!researchScopeIssue || researchScopeDirty : scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || !conversationReady || loadingConversation || loadingSessions || !draft.trim()}>
+            <button className={!isResearch && task ? "secondary-button" : "primary-button"} type="submit" disabled={busy || saving || assistantSaving || modeSaving || researchScopeSaving || (isResearch ? !!researchScopeIssue || researchScopeDirty : scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || !conversationReady || loadingConversation || loadingSessions || !draft.trim()}>
               {busy ? <LoaderCircle size={15} className="spin" /> : <ArrowUp size={16} />}
               {busy ? '处理中…' : isResearch ? '发送' : screeningStarted ? '发送修改' : '生成筛选方案'}
             </button>
@@ -1334,7 +1335,7 @@ export default function ConversationWorkspace({
       {isResearch && resultsOpen && <div className="research-results-backdrop" onClick={() => setResultsOpen(false)} aria-hidden="true" />}
       <aside ref={taskPanelRef} id={isResearch ? 'research-results-drawer' : undefined} className={'conversation-task-panel ' + (isResearch ? 'research-results-drawer' : '')} role={isResearch ? 'dialog' : undefined} aria-modal={isResearch ? true : undefined} aria-label={isResearch ? '研究成果' : '当前筛选任务和结果'} hidden={!showTaskPanel} onKeyDown={event => { if (!isResearch) return; if (event.key === 'Escape') { event.stopPropagation(); setResultsOpen(false) }; trapDialogTab(event) }}>
         {isResearch && <button ref={resultsCloseRef} type="button" className="icon-button research-results-close" aria-label="关闭研究成果" onClick={() => setResultsOpen(false)}><X size={19} /></button>}
-        <div className="studio-results-heading"><div><span className="studio-eyebrow">{isResearch ? '本次研究' : '本次选股'}</span><h2>{isResearch ? '研究成果' : '方案与结果'}</h2></div>{!isResearch && task && <span className={`screening-plan-status ${canExecute ? 'ready' : ''}`}>{canExecute ? '条件就绪' : '待补全'}</span>}</div>
+        <div className="studio-results-heading">{isResearch && <h2>研究成果</h2>}</div>
         {conversation?.id === selectedId && <ResearchPanel key={conversation.id} conversationId={conversation.id} turnActive={turnInProgress} refreshKey={refreshIndex + conversation.messages.length} onContentChange={setHasResearchResults} showGenerate={isResearch && conversation.messages.some(message => message.role === 'assistant' && !isExecutionFailure(message.content)) && !conversation.turns.every(turn => turn.state === 'failed' || turn.state === 'cancelled')} />}
         {!isResearch && task && <section className="conversation-task-section">
           <div className="conversation-panel-heading">
@@ -1356,16 +1357,17 @@ export default function ConversationWorkspace({
               </>}
             </div>
             {task.unresolved.map((item, index) => <p className="conversation-unresolved" key={`${item.source_quote}-${index}`}>{item.question}</p>)}
-            <div className="scope-picker">
+            <details className="screening-plan-edit"><summary>修改范围与日期</summary><div className="scope-picker">
               <label>股票范围<select aria-label="调整股票范围" value={scopePool} disabled={busy || turnInProgress || scopeSaveState === 'saving'} onChange={event => { setScopePool(event.target.value); setScopeEdited(true); setScopeSaveState('idle') }}><option value="all">全部A股</option>{task.scope.universe?.kind === 'explicit' && <option value="explicit">当前指定股票</option>}{watchlists.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
               <label>行情日期<input aria-label="调整行情日期" type="date" value={scopeDate} max={data?.last_date} disabled={busy || turnInProgress || scopeSaveState === 'saving'} onChange={event => { setScopeDate(event.target.value); setScopeEdited(true); setScopeSaveState('idle') }} /></label>
               {data?.last_date && <button className="text-button" disabled={busy || turnInProgress || scopeSaveState === 'saving'} onClick={() => { setScopeDate(data.last_date!); setScopeEdited(true); setScopeSaveState('idle') }}>选用最新行情日</button>}
               {(scopeDirty && scopeEdited || scopeSaveState !== 'idle') && <span className="scope-save-status conversation-muted" role="status">{scopeSaveState === 'saving' ? '正在自动保存…' : scopeSaveState === 'saved' ? '范围和日期已自动保存' : scopeSaveState === 'error' ? '自动保存失败' : '等待自动保存'}{scopeSaveState === 'error' && <button className="icon-button" title="重试保存范围和日期" aria-label="重试保存范围和日期" onClick={() => void applyScope()}><RefreshCw size={14} /></button>}</span>}
             </div>
+            </details>
             <p className="conversation-muted">本地日线 · 复权口径未核实</p>
             <div className="conversation-task-actions">
               {canExecute ? <button className="primary-button" disabled={busy || saving || turnInProgress || loadingConversation || runInProgress || !!pendingTurn || !!draft.trim() || !executableTurn} onClick={() => void startScreening()}><Play size={15} />{runInProgress ? '正在筛选…' : taskHasRun ? '按当前条件再筛一次' : '确认并开始筛选'}</button> : <button className="secondary-button" disabled={busy || saving || turnInProgress} onClick={focusComposer}>补充筛选要求</button>}
-              <button className="secondary-button" disabled={!canSave || busy || saving || turnInProgress || scopeDirty || scopeSaveState === 'saving'} title={!canSave ? '请先补充完整条件和股票范围' : undefined} onClick={() => void saveTask(suggestedName)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Bookmark size={14} />}{saving ? '保存中…' : '保存方案'}</button>
+              <button className="text-button" disabled={!canSave || busy || saving || turnInProgress || scopeDirty || scopeSaveState === 'saving'} title={!canSave ? '请先补充完整条件和股票范围' : undefined} onClick={() => void saveTask(suggestedName)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Bookmark size={14} />}{saving ? '保存中…' : '保存方案'}</button>
               <button className="icon-button" disabled={!canSave || busy || saving || turnInProgress} title="设置方案名称" aria-label="设置方案名称" aria-expanded={saveOpen} onClick={() => { setSaveName(suggestedName); setSaveOpen(value => !value) }}><Pencil size={15} /></button>
             </div>
             {!canExecute && !task.unresolved.length && <p className="conversation-muted">请先{scopeDirty && scopeEdited ? '等待范围与日期自动保存' : missingTaskInfo || '完整条件'}。</p>}

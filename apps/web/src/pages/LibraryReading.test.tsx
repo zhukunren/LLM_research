@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { api } from '../api'
@@ -42,6 +42,11 @@ it('keeps drawing and uploads in description, and defaults saved patterns to rea
   expect(screen.getByLabelText('形态需求描述')).toBeInTheDocument()
   expect(screen.getByText('上传截图')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '手绘输入' })).toBeInTheDocument()
+  const matching = screen.getByText(/匹配设置 ·/).closest('details')!
+  expect(matching).not.toHaveAttribute('open')
+  await user.click(within(matching).getByText(/匹配设置 ·/))
+  expect(matching).toHaveAttribute('open')
+  expect(screen.getByRole('spinbutton', { name: '最低相似度' })).toBeVisible()
   expect(screen.queryByText('行情对照')).not.toBeInTheDocument()
 })
 

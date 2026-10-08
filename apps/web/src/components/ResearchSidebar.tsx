@@ -60,13 +60,13 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
 
   return <>
     {mobileOpen && <div className="chat-sidebar-backdrop" onClick={onClose} aria-hidden="true" />}
-    <aside className="chat-sidebar" role={mobileOpen ? 'dialog' : undefined} aria-modal={mobileOpen ? true : undefined} aria-label="工作导航" onKeyDown={event => {
+    <aside id="workspace-navigation" className="chat-sidebar" role={mobileOpen ? 'dialog' : undefined} aria-modal={mobileOpen ? true : undefined} aria-label="工作导航" onKeyDown={event => {
       if (!mobileOpen) return
       if (event.key === 'Escape') { event.stopPropagation(); onClose() }
       trapDialogTab(event)
     }}>
       <div className="chat-brand"><img className="chat-brand-full" src="/brand/soochow-blue.png" alt="东吴证券 SOOCHOW SECURITIES" /><img className="chat-brand-symbol" src="/brand/soochow-symbol-blue.png" alt="东吴证券" /><button ref={close} className="icon-button chat-sidebar-close" aria-label="关闭工作导航" onClick={onClose}><X size={19} /></button></div>
-      <div className="chat-workspace-name">投研工作台<span>张家港营业部</span></div>
+      <div className="chat-workspace-name">投研工作台</div>
       <nav className="chat-navigation" aria-label="主菜单">
         <button className="chat-nav-button chat-new" aria-label="开始选股" title="开始选股" aria-current={page === 'conditions' ? 'page' : undefined} onClick={onNewScreening}><ListFilter size={19} /><span>开始选股</span></button>
         <button className="chat-nav-button" aria-label="开始新研究" title="开始新研究" onClick={onNewResearch}><Plus size={19} /><span>新研究</span></button>

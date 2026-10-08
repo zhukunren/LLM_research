@@ -114,8 +114,8 @@ describe('ResearchProjectsPage', () => {
       throw new Error(path)
     })
     render(<ResearchProjectsPage onOpenConversation={open} />)
-    await screen.findByRole('button', { name: '创建第一个项目' })
-    await user.click(screen.getByRole('button', { name: '创建第一个项目' }))
+    await screen.findByRole('heading', { name: '暂无研究项目' })
+    await user.click(screen.getByRole('button', { name: '新建项目' }))
     await user.type(screen.getByRole('textbox', { name: '项目名称' }), '白酒盈利改善')
     await user.type(screen.getByRole('textbox', { name: '研究目标' }), '核对经营兑现')
     await user.click(screen.getByRole('button', { name: '保存项目' }))
@@ -207,7 +207,7 @@ it('combines note content and opinion status filters and offers a complete reset
   expect(screen.getByRole('heading', { name: '收入兑现' })).toBeInTheDocument()
 })
 
-it('opens pending judgments from the project overview and changes note order without losing reading controls', async () => {
+it('filters pending judgments directly and changes note order without losing reading controls', async () => {
   const user = userEvent.setup()
   const project = existing()
   const base: ResearchNote = { id: 'n1', project_id: project.id, title: 'A 订单', body: '待核对交付', stock_code: null, validation_plan: '', invalidation_condition: '', status: 'watching', revision: 1, source_conversation_id: null, source_message_id: null, updated_at: '2026-10-03T08:00:00Z' }
@@ -216,10 +216,12 @@ it('opens pending judgments from the project overview and changes note order wit
   render(<ResearchProjectsPage onOpenConversation={vi.fn()} />)
   const recent = await screen.findByRole('button', { name: 'B 收入' })
   expect(recent).toHaveAttribute('aria-expanded', 'true')
-  await user.click(screen.getByRole('button', { name: '查看待验证判断' }))
+  expect(screen.queryByRole('group', { name: '项目概览' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: '观点与验证' })).not.toBeInTheDocument()
+  await user.selectOptions(screen.getByLabelText('筛选笔记状态'), 'watching')
   expect(screen.queryByRole('button', { name: 'B 收入' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'A 订单' })).toHaveAttribute('aria-expanded', 'true')
-  await user.click(screen.getByRole('button', { name: '查看全部研究笔记' }))
+  await user.selectOptions(screen.getByLabelText('筛选笔记状态'), '')
   await user.selectOptions(screen.getByLabelText('笔记排序'), 'title')
   const titles = screen.getAllByRole('button', { name: /^(A 订单|B 收入)$/ })
   expect(titles.map(button => button.textContent)).toEqual(['A 订单', 'B 收入'])

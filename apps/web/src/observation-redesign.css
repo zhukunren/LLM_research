@@ -213,3 +213,27 @@
 @media (prefers-reduced-motion: reduce) {
   .observation-redesigned .observation-loading > svg, .observation-redesigned .observation-running > svg { animation: none; }
 }
+
+/* Quiet controls and plain rows keep attention on the records and their risks. */
+.observation-redesigned .observation-page-heading h1,
+.observation-redesigned h2 { color: var(--ui-text); }
+.observation-redesigned .observation-tabs button { min-width: 0; padding: 12px 10px; border-radius: 0; }
+.observation-redesigned .observation-tabs button:hover,
+.observation-redesigned .observation-tabs button[aria-selected=true] { background: transparent; }
+.observation-redesigned .observation-card { border: 0; border-radius: 0; padding: 16px 0; box-shadow: none; }
+.observation-redesigned .observation-detail { padding-left: 20px; border-left: 1px solid var(--ui-border-subtle); }
+.observation-redesigned .observation-batch-controls { padding: 0 0 18px; border: 0; border-bottom: 1px solid var(--ui-border-subtle); border-radius: 0; }
+.observation-redesigned .observation-batch-fields { margin-top: 0; }
+.observation-redesigned .observation-performance { padding: 16px 0; border: 0; border-block: 1px solid var(--ui-border-subtle); border-radius: 0; }
+.observation-redesigned .observation-stat strong { font-size: 20px; letter-spacing: 0; }
+.observation-redesigned .observation-search,
+.observation-redesigned .observation-summary-toolbar select,
+.observation-redesigned .observation-results th { background: var(--ui-surface-subtle); }
+.observation-redesigned .observation-results tr.selected { background: var(--ui-surface-subtle); box-shadow: inset 2px 0 var(--ui-text-muted); }
+.observation-redesigned .observation-list-heading h2 > span { background: var(--ui-surface-subtle); color: var(--ui-text-muted); }
+.observation-redesigned .observation-status.priority { background: var(--ui-surface-subtle); color: var(--ui-text); font-weight: 600; }
+.observation-redesigned .observation-detail-metrics { border: 0; border-radius: 0; background: transparent; }
+.observation-redesigned .observation-methodology { color: var(--ui-text-muted); font-size: 12px; }
+@media (max-width: 1100px) {
+  .observation-redesigned .observation-detail { padding-left: 0; border-left: 0; border-top: 1px solid var(--ui-border-subtle); }
+}

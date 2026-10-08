@@ -70,6 +70,19 @@ describe('独立研究候选跟踪', () => {
     expect(fetcher.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true)
   })
 
+  it('来源日期和未知范围在展开原答复前可见', async () => {
+    const legacy = { ...original, as_of: null, source_scope_status: 'unknown', source_scope_revision: null }
+    vi.stubGlobal('fetch', vi.fn(async () => json({ items: [legacy], total: 1 })))
+    render(<ObservationPage data={null} />)
+    await screen.findByRole('complementary', { name: '研究候选详情' })
+    const sourceWarning = screen.getByText(/来源未记录截止日.*旧来源的研究范围未知/)
+    expect(sourceWarning).toBeVisible()
+    expect(sourceWarning.closest('details')).toBeNull()
+    expect(screen.queryByText('RESEARCH WATCHLIST')).not.toBeInTheDocument()
+    expect(screen.queryByText('下一步验证')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('失效条件')).toHaveValue('现金流恶化')
+  })
+
   it('较旧revision保存冲突时保留草稿并提示重新加载', async () => {
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => init?.method === 'PATCH' ? json({ detail: '观察记录已更新，请重新加载后再保存' }, 409) : json({ items: [original], total: 1 })))
     const user = userEvent.setup()

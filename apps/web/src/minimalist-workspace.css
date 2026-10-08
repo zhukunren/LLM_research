@@ -1,0 +1,55 @@
+/* Shared finish for the quiet, conversation-first workspace.
+   Page layouts stay in their own stylesheets; this layer owns common controls. */
+html { scrollbar-gutter: auto; }
+body { font-size: 14px; line-height: 1.65; }
+.redesigned-workspace.chat-layout { color: var(--ui-text); }
+.chat-layout.tool-page .page-frame { background: var(--ui-surface); }
+.redesigned-workspace .page-content { --workspace-gutter: 36px; padding: 30px var(--workspace-gutter) 44px; }
+.redesigned-workspace .page-heading,
+.redesigned-workspace .library-heading { margin-bottom: 24px; gap: 16px; }
+.redesigned-workspace .page-heading h1,
+.redesigned-workspace .library-title h1 { font-size: 25px; font-weight: 600; line-height: 1.4; letter-spacing: -.025em; color: var(--ui-text); }
+.redesigned-workspace .page-description { color: var(--ui-text-muted); max-width: 64ch; font-size: 13px; line-height: 1.75; }
+.redesigned-workspace .workspace-eyebrow::before { display: none; }
+.redesigned-workspace .primary-button,
+.redesigned-workspace .secondary-button { min-height: 38px; padding: 8px 14px; border-radius: 9px; font-weight: 500; box-shadow: none; }
+.redesigned-workspace .primary-button { background: var(--ui-primary); border-color: var(--ui-primary); color: var(--ui-on-primary); }
+.redesigned-workspace .primary-button:hover:not(:disabled) { background: var(--ui-primary-hover); border-color: var(--ui-primary-hover); }
+.redesigned-workspace .secondary-button { background: var(--ui-surface); border-color: var(--ui-border); color: var(--ui-text); }
+.redesigned-workspace .secondary-button:hover:not(:disabled) { background: var(--ui-surface-hover); border-color: var(--ui-border-strong); }
+.redesigned-workspace .icon-button { border-radius: 8px; }
+.redesigned-workspace .workspace-filter-bar { background: transparent; border: 0; border-radius: 0; padding: 0; }
+.redesigned-workspace .workspace-search { border-color: var(--ui-border); border-radius: 9px; background: var(--ui-surface); }
+.redesigned-workspace .workspace-search:focus-within { border-color: var(--ui-border-strong); box-shadow: var(--ui-focus-shadow); }
+.redesigned-workspace .workbench-tabs { background: transparent; border: 0; border-bottom: 1px solid var(--ui-border); border-radius: 0; gap: 20px; padding: 0; }
+.redesigned-workspace .workbench-tabs > button { border-radius: 0; border-bottom: 2px solid transparent; padding: 10px 0; color: var(--ui-text-muted); }
+.redesigned-workspace .workbench-tabs > button.active { border-bottom-color: var(--ui-text); color: var(--ui-text); background: transparent; box-shadow: none; }
+.redesigned-workspace .workbench-tabs > button:hover { color: var(--ui-text); }
+.chat-layout .header-data-status { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; padding: 8px; background: transparent; }
+.chat-layout .header-data-status:hover { background: var(--ui-surface-hover); }
+.chat-layout .active-tasks-launch { color: var(--ui-text-muted); border-radius: 8px; padding-inline: 8px; }
+.chat-layout .active-tasks-launch:hover { background: var(--ui-surface-hover); }
+.chat-page .research-studio .conversation-composer textarea { background: transparent; }
+.chat-page .research-studio .conversation-message.assistant { border: 0; background: transparent; box-shadow: none; }
+.chat-page .research-studio .research-answer { color: var(--ui-text); font-size: 15px; line-height: 1.9; }
+.chat-page .research-studio .research-answer h2,
+.chat-page .research-studio .research-answer h3 { color: var(--ui-text); }
+.chat-page .research-studio .conversation-suggestions > button { background: white; border-color: var(--ui-border); border-radius: 12px; }
+.chat-page .research-studio .conversation-suggestions > button:hover { background: var(--ui-surface-subtle); border-color: var(--ui-border-strong); }
+.chat-page .research-studio .suggestion-icon { background: transparent; color: var(--ui-text-muted); }
+.chat-layout .chat-menu-toggle { width: 34px; height: 34px; }
+.chat-layout .chat-header-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1100px) {
+  .redesigned-workspace .page-content { --workspace-gutter: 24px; }
+}
+@media (max-width: 600px) {
+  .redesigned-workspace .page-content { --workspace-gutter: 18px; padding-block: 22px 32px; }
+  .redesigned-workspace .page-heading h1,
+  .redesigned-workspace .library-title h1 { font-size: 23px; }
+  .redesigned-workspace .primary-button,
+  .redesigned-workspace .secondary-button { min-height: 42px; }
+  .chat-layout .header-data-status { display: none; }
+  .chat-layout .research-header-actions { gap: 2px; }
+  .chat-layout .active-tasks-launch { padding-inline: 5px; font-size: 12px; }
+  .redesigned-workspace .workbench-tabs { gap: 16px; }
+}

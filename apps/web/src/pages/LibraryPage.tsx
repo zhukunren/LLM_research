@@ -222,7 +222,7 @@ export default function LibraryPage({ library }: { library: Library }) {
   }
 
   return (
-    <div className="page-content">
+    <div className="page-content legacy-condition-library">
       <div className="page-heading"><div><h1>{copy.title}</h1></div></div>
       <div className="library-layout">
         <aside className="asset-rail">

@@ -1,6 +1,6 @@
 /**
  * tokens.css - Design Tokens for LLM Research Platform
- * Shared visual tokens aligned with the quantitative research workspace.
+ * Shared neutral surfaces with semantic colors reserved for research data.
  */
 :root {
   --ui-font-sans: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
@@ -10,32 +10,32 @@
   color-scheme: light;
 
   /* Surfaces & Canvas */
-  --ui-canvas: #f3f6fa;
+  --ui-canvas: #ffffff;
   --ui-surface: #ffffff;
-  --ui-surface-subtle: #f7f9fc;
-  --ui-surface-hover: #eef4fa;
-  --ui-surface-active: #e8f0f8;
+  --ui-surface-subtle: #f7f7f7;
+  --ui-surface-hover: #f0f0f0;
+  --ui-surface-active: #ebebeb;
 
   /* Typography Colors */
-  --ui-text: #203249;
-  --ui-text-muted: #5e7186;
-  --ui-text-faint: #6b7e92;
-  --ui-text-disabled: #a0b0c0;
+  --ui-text: #242424;
+  --ui-text-muted: #666666;
+  --ui-text-faint: #777777;
+  --ui-text-disabled: #aaaaaa;
 
   /* Borders & Dividers */
-  --ui-border: #dfe7ef;
-  --ui-border-subtle: #edf1f5;
-  --ui-border-strong: #b9c9d8;
+  --ui-border: #e5e5e5;
+  --ui-border-subtle: #eeeeee;
+  --ui-border-strong: #c9c9c9;
 
-  /* Palette shared with the reference quantitative research workspace. */
-  --ui-brand: #174f78;
+  /* Quiet interface palette; chart and market colors remain distinct. */
+  --ui-brand: #242424;
   --ui-brand-navy: var(--ui-brand);
-  --ui-accent: #087e8b;
-  --ui-primary: #174f78;
-  --ui-primary-hover: #123f61;
-  --ui-primary-active: #103652;
-  --ui-primary-soft: #eaf2fa;
-  --ui-primary-border: #b8cfe3;
+  --ui-accent: #555555;
+  --ui-primary: #242424;
+  --ui-primary-hover: #3b3b3b;
+  --ui-primary-active: #111111;
+  --ui-primary-soft: #f2f2f2;
+  --ui-primary-border: #d6d6d6;
   --ui-on-primary: #ffffff;
   --ui-chart-line: #32839b;
   --ui-chart-area: rgba(50, 131, 155, 0.09);
@@ -60,12 +60,12 @@
   --ui-danger-border: #efc3c5;
 
   /* Sidebar Tokens */
-  --ui-sidebar: #f3f6fa;
-  --ui-sidebar-border: #dfe7ef;
-  --ui-sidebar-text: #334f69;
-  --ui-sidebar-muted: #667e95;
-  --ui-sidebar-hover: #e9f0f7;
-  --ui-sidebar-active: #e3edf7;
+  --ui-sidebar: #f8f8f8;
+  --ui-sidebar-border: #e5e5e5;
+  --ui-sidebar-text: #333333;
+  --ui-sidebar-muted: #777777;
+  --ui-sidebar-hover: #ebebeb;
+  --ui-sidebar-active: #e6e6e6;
 
   /* Corner Radii */
   --ui-radius-xs: 6px;
@@ -76,13 +76,13 @@
 
   /* Shadows */
   --ui-shadow-sm: 0 1px 2px rgba(25, 52, 80, 0.025);
-  --ui-shadow-panel: 0 2px 5px rgba(25, 52, 80, 0.025), 0 8px 24px rgba(25, 52, 80, 0.025);
+  --ui-shadow-panel: none;
   --ui-shadow-raised: 0 8px 30px rgba(25, 52, 80, 0.09);
   --ui-shadow-overlay: 0 20px 65px rgba(27, 57, 83, 0.18);
 
   /* Focus & Controls */
-  --ui-focus-outline: rgba(10, 99, 143, 0.46);
-  --ui-focus-shadow: 0 0 0 3px rgba(10, 99, 143, 0.13);
+  --ui-focus-outline: rgba(36, 36, 36, 0.5);
+  --ui-focus-shadow: 0 0 0 3px rgba(36, 36, 36, 0.08);
   --ui-control-sm: 30px;
   --ui-control-md: 40px;
   --ui-control-lg: 40px;

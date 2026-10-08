@@ -35,8 +35,8 @@ export default function ResearchAssistantsPage({ onUse }: { onUse: (id: string) 
       const Icon = icons[item.id as keyof typeof icons] || MessageCircle
       return <article key={item.id} className="assistant-card" aria-label={item.name}>
         <header><span className="assistant-card-icon"><Icon size={22} strokeWidth={1.6} /></span><div><h2>{item.name}</h2><p>{item.description}</p></div></header>
-        <p className="assistant-card-use">{uses[item.id] || '使用预设研究方法处理你的问题'}</p>
-        <footer><details><summary>研究方法</summary><div className="assistant-method"><ReactMarkdown remarkPlugins={[remarkGfm]}>{item.instructions.replace(/^# [^\n]+\n+/, '')}</ReactMarkdown></div></details><button type="button" className="primary-button" aria-label={`使用${item.name}`} onClick={() => onUse(item.id)}>开始研究<ArrowRight size={15} /></button></footer>
+
+        <footer><details><summary>研究方法</summary><div className="assistant-method"><p>{uses[item.id] || '使用预设研究方法处理你的问题'}</p><ReactMarkdown remarkPlugins={[remarkGfm]}>{item.instructions.replace(/^# [^\n]+\n+/, '')}</ReactMarkdown></div></details><button type="button" className="secondary-button" aria-label={`使用${item.name}`} onClick={() => onUse(item.id)}>开始研究<ArrowRight size={15} /></button></footer>
       </article>
     })}</div>
     {!loading && !error && !items.length && <p className="page-description">助手暂不可用，请重新读取。<button className="text-button" onClick={() => setReload(value => value + 1)}>重试</button></p>}

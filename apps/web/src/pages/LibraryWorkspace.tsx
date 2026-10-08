@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { BookOpen, FilePlus2, FolderOpen, ListFilter, MessageCircle, MoreHorizontal, Upload } from 'lucide-react'
+import { BookOpen, FilePlus2, FolderOpen, ListFilter, MessageCircle, Upload } from 'lucide-react'
 import type { ConversationSourceReference, DataStatus, Filter, WorkflowType } from '../api'
 import { libraryCopy, type LibraryScope, type LibrarySeed } from '../libraryContext'
 import WorkbenchPage, { type Section } from './WorkbenchPage'
@@ -14,7 +14,6 @@ export default function LibraryWorkspace({ scope, data, onCompose, onConversatio
   const copy = libraryCopy[scope]
   const [tab, setTab] = useSessionState<'browse' | 'create' | 'library' | 'assess'>(`library.${scope}.tab`, 'browse', (value): value is 'browse' | 'create' | 'library' | 'assess' => ['browse', 'create', 'library', ...(scope === 'report' ? ['assess'] : [])].includes(String(value)))
   const [seed, setSeed] = useState<LibrarySeed>()
-  const [moreOpen, setMoreOpen] = useState(false)
   const [newsImportOpen, setNewsImportOpen] = useState(false)
   const [evaluationFilter, setEvaluationFilter] = useState<Filter>()
   const [advancedOpen, setAdvancedOpen] = useState(tab !== 'browse')
@@ -34,9 +33,8 @@ export default function LibraryWorkspace({ scope, data, onCompose, onConversatio
     setAdvancedOpen(value => !value)
   }
   return <div className={`page-content library-shell library-redesign scope-${scope}`}>
-    <div className="library-heading"><div className="library-title"><h1>{copy.title}</h1></div><div className={`library-heading-actions ${moreOpen ? 'library-actions-expanded' : ''}`}>{scope === 'news' && <button className="secondary-button" onClick={() => { setTab('browse'); setNewsImportOpen(true) }}><Upload size={15} />导入资讯</button>}{advancedOpen && scope !== 'report' && <button className="secondary-button" onClick={() => defineCondition()}>定义选股条件</button>}<button className="secondary-button library-main-action" onClick={() => onConversation(scope, undefined, undefined, 'research')}><MessageCircle size={15} />发起研究</button><button type="button" className="secondary-button library-more-action" aria-label="更多资料操作" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}><MoreHorizontal size={17} />更多</button></div></div>
-    <div className="library-tool-actions"><button type="button" className="text-button" aria-expanded={advancedOpen} aria-controls={`library-${scope}-tools`} onClick={toggleAdvanced}>{advancedOpen ? '收起高级工具' : '选股与条件工具'}</button></div>
-    <label className="library-mobile-tools">当前视图<select aria-label="资料库视图" value={tab} onChange={event => setTab(event.target.value as LibraryTab)}>{visibleTabs.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+    <div className="library-heading"><div className="library-title"><h1>{copy.title}</h1></div><div className="library-heading-actions">{scope === 'news' && <button className="secondary-button" onClick={() => { setTab('browse'); setNewsImportOpen(true) }}><Upload size={15} />导入资讯</button>}{advancedOpen && scope !== 'report' && <button className="secondary-button" onClick={() => defineCondition()}>定义选股条件</button>}<button className="secondary-button library-main-action" onClick={() => onConversation(scope, undefined, undefined, 'research')}><MessageCircle size={15} />发起研究</button><button type="button" className="text-button library-tool-toggle" aria-expanded={advancedOpen} aria-controls={`library-${scope}-panel`} onClick={toggleAdvanced}>{advancedOpen ? '收起高级工具' : '选股与条件工具'}</button></div></div>
+    {advancedOpen && <><label className="library-mobile-tools">当前视图<select tabIndex={advancedOpen ? 0 : -1} aria-label="资料库视图" value={tab} onChange={event => setTab(event.target.value as LibraryTab)}>{visibleTabs.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
     <nav id={`library-${scope}-tools`} className="library-viewbar" role="tablist" aria-label={`${copy.title}功能`} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
       event.preventDefault()
@@ -45,9 +43,9 @@ export default function LibraryWorkspace({ scope, data, onCompose, onConversatio
       setTab(visibleTabs[index].id)
       event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index]?.focus()
     }}>
-      {visibleTabs.map(({ id, label, icon: Icon }, index) => <span key={id} className={id === 'browse' ? 'library-primary-tab' : 'library-tool-tab'}>{index === 1 && <span className="library-tools-label">条件工具</span>}<button id={`library-${scope}-${id}`} role="tab" aria-selected={tab === id} aria-controls={`library-${scope}-panel`} tabIndex={tab === id ? 0 : -1} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={15} />{label}</button></span>)}
-    </nav>
-    <div className={`library-workspace-panel ${tab === 'browse' ? 'is-browsing' : 'is-tool'}`} id={`library-${scope}-panel`} role="tabpanel" aria-labelledby={`library-${scope}-${tab}`}>
+      {visibleTabs.map(({ id, label, icon: Icon }, index) => <span key={id} className={id === 'browse' ? 'library-primary-tab' : 'library-tool-tab'}>{index === 1 && <span className="library-tools-label">条件工具</span>}<button id={`library-${scope}-${id}`} role="tab" aria-selected={tab === id} aria-controls={`library-${scope}-panel`} tabIndex={advancedOpen && tab === id ? 0 : -1} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={15} />{label}</button></span>)}
+    </nav></>}
+    <div className={`library-workspace-panel ${tab === 'browse' ? 'is-browsing' : 'is-tool'}`} id={`library-${scope}-panel`} role={advancedOpen ? 'tabpanel' : 'region'} aria-labelledby={advancedOpen ? `library-${scope}-${tab}` : undefined} aria-label={advancedOpen ? undefined : copy.browse}>
     <Suspense fallback={<div className="library-panel-loading" role="status">正在加载资料…</div>}>
       {tab === 'browse' && scope === 'technical' && <TechnicalBrowser data={data} onDescribe={defineCondition} />}
       {tab === 'browse' && scope === 'report' && <ReportPage contentOnly onDescribe={describe} onDefineCondition={defineCondition} />}

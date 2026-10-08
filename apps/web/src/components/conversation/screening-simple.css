@@ -1,0 +1,40 @@
+/* Root specificity keeps this layout independent of eager/lazy stylesheet order.
+   One reading column for the request, reviewable plan, and its results. */
+.conversation-product.research-studio.screening-studio { width:100%; max-width:900px; margin-inline:auto; }
+.conversation-product.research-studio.screening-studio .conversation-workspace { display:grid; grid-template-columns:minmax(0,1fr); width:100%; min-width:0; gap:24px; }
+.conversation-product.research-studio.screening-studio .conversation-main { position:static; top:auto; width:100%; min-width:0; height:auto; min-height:0; border:0; border-radius:0; box-shadow:none; background:transparent; }
+.conversation-product.research-studio.screening-studio .conversation-message-list { max-height:none; min-height:0; padding:16px 0; }
+.conversation-product.research-studio.screening-studio .conversation-task-panel { position:static; top:auto; grid-column:1; width:100%; min-width:0; max-height:none; overflow:visible; padding:24px 0 0; border:0; border-top:1px solid var(--ui-border); border-radius:0; background:transparent; box-shadow:none; }
+.conversation-product.research-studio.screening-studio .studio-results-heading:empty { display:none; }
+.conversation-product.research-studio.screening-studio .conversation-task-conditions { padding:0; background:transparent; border:0; }
+.conversation-product.research-studio.screening-studio .conversation-task-section { border:0; padding:0; }
+.conversation-product.research-studio.screening-studio .conversation-task-scope { max-width:620px; }
+.conversation-product.research-studio.screening-studio .screening-plan-edit { margin:8px 0 12px; }
+.conversation-product.research-studio.screening-studio .screening-plan-edit > summary { cursor:pointer; color:var(--ui-text-muted); font-size:12px; }
+.conversation-product.research-studio.screening-studio .screening-plan-edit .scope-picker { margin-top:12px; }
+.conversation-product.research-studio.screening-studio .conversation-composer, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer { border:1px solid var(--ui-border); border-radius:20px; background:var(--ui-surface-subtle); box-shadow:none; padding:16px 20px; }
+.conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer:focus-within { border-color:var(--ui-border-strong); box-shadow:none; }
+.conversation-product.research-studio.screening-studio .conversation-composer textarea, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer textarea { min-height:80px; background:transparent; }
+.conversation-product.research-studio.screening-studio .screening-entry-heading h2 { font-size:22px; font-weight:500; }
+.conversation-product.research-studio.screening-studio .conversation-heading-title h2 { font-size:14px; color:var(--ui-text-muted); }
+.conversation-product.research-studio.screening-studio .screening-path { border:0; padding-bottom:0; gap:12px; }
+.conversation-product.research-studio.screening-studio .screening-path > button > span { width:auto; height:auto; border:0; background:transparent; color:inherit; }
+.conversation-product.research-studio.screening-studio .screening-path > button.active { color:var(--ui-text); }
+.conversation-product.research-studio.screening-studio .screening-path-date { display:none; }
+.conversation-product.research-studio.screening-studio .conversation-suggestions { display:flex; flex-wrap:wrap; gap:8px; }
+.conversation-product.research-studio.screening-studio .conversation-suggestions > button { min-height:36px; flex-direction:row; align-items:center; padding:8px 12px; border-radius:18px; gap:8px; background:transparent; }
+.conversation-product.research-studio.screening-studio .suggestion-icon, .conversation-product.research-studio.screening-studio .suggestion-arrow { display:none; }
+.conversation-product.research-studio.screening-studio .screening-example-tabs { border:0; background:transparent; padding:8px 0; }
+.conversation-product.research-studio.screening-studio .studio-project { padding:0; }
+@media(max-width:600px) {
+  .conversation-product.research-studio.screening-studio .screening-entry-heading { flex-wrap:wrap; }
+  .conversation-product.research-studio.screening-studio .screening-entry-heading > button { margin-left:0; padding-left:0; }
+  .conversation-product.research-studio.screening-studio .screening-entry-heading h2 { font-size:20px; }
+  .conversation-product.research-studio.screening-studio .conversation-composer, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer { padding:14px; }
+}
+.conversation-product.research-studio.screening-studio .task-library-label { background:transparent; padding:0; color:var(--ui-text-muted); }
+.conversation-product.research-studio.screening-studio .task-execution-rule strong { font-weight:500; }
+
+.conversation-product.research-studio.screening-studio .conversation-message-stage { flex:none; min-height:0; max-height:none; overflow:visible; background:transparent; }
+.conversation-product.research-studio.screening-studio .conversation-composer { width:100%; min-width:0; max-width:none; box-sizing:border-box; }
+.conversation-product.research-studio.screening-studio .screening-path { flex-wrap:wrap; }

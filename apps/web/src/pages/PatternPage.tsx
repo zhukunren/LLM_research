@@ -340,9 +340,11 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
               <label className="field"><span>目标交易日数</span><input type="number" min={10} max={250} value={targetBars} disabled={mode === 'ohlc_sequence'} onChange={(event) => { setTargetBars(Number(event.target.value)); setDirty(true) }} /></label>
               {mode === 'price_path' && <button className="icon-text-button" onClick={() => { setRawPoints([]); setQuality(null); setDirty(true) }} title="清除走势"><Trash2 size={15} />清除</button>}
               {mode === 'ohlc_sequence' && <button className="secondary-button compact" onClick={addCandle}><Plus size={14} />添加蜡烛</button>}
+              <details className="pattern-match-settings"><summary>匹配设置 · {minSimilarity} 分 · {matchMode === 'current' ? '当前窗口' : '近期窗口'}</summary><div className="pattern-match-fields">
               <label className="field pattern-threshold"><span>最低相似度（分）</span><div><input aria-label="最低相似度滑块" type="range" min={0} max={100} step={1} value={minSimilarity} onChange={e => { setMinSimilarity(Number(e.target.value)); setDirty(true) }} /><input aria-label="最低相似度" type="number" min={0} max={100} step={1} value={minSimilarity} onChange={e => { setMinSimilarity(Number(e.target.value)); setDirty(true) }} /></div></label>
               <label className="field"><span>匹配窗口</span><select aria-label="形态匹配窗口" value={matchMode} onChange={e => { setMatchMode(e.target.value as 'current' | 'recent'); setDirty(true) }}><option value="current">当前窗口</option><option value="recent">近期最相近窗口</option></select></label>
               {matchMode === 'recent' && <label className="field"><span>近期回看（根）</span><input aria-label="近期回看交易日数" type="number" min={1} max={120} value={recentBars} onChange={e => { setRecentBars(Number(e.target.value)); setDirty(true) }} /></label>}
+              </div></details>
               <button className="primary-button" disabled={busy || (!dirty && !!activeId) || (mode === 'price_path' && pointValues.length < 10)} onClick={save}><Save size={15} />{source === 'natural_language' ? '确认并保存形态' : '保存模板'}</button><button className="secondary-button" disabled={busy || !activeId || dirty} onClick={() => usePattern()}>用于组合<ArrowRight size={14} /></button>
             </div>
 

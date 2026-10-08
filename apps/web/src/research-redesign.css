@@ -153,3 +153,22 @@
  .redesigned-workspace .research-onboarding-icon { width: 54px; height: 54px; margin-bottom: 20px; }
  .redesigned-workspace .research-onboarding-steps li { padding: 18px 0; }
 }
+
+/* Keep the project workspace a directory and a reading surface, not a dashboard. */
+.redesigned-workspace .research-project-list { padding: 8px 12px 12px 0; border: 0; border-radius: 0; }
+.redesigned-workspace .research-project-detail { padding: 8px 0 24px 24px; border: 0; border-left: 1px solid var(--ui-border-subtle); border-radius: 0; box-shadow: none; }
+.redesigned-workspace .research-project-layout-solo .research-project-detail { padding-left: 0; border-left: 0; }
+.redesigned-workspace .research-project-heading h2 { font-size: 21px; }
+.redesigned-workspace .research-project-objective { display: block; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.redesigned-workspace .research-project-objective > span { display: block; margin-bottom: 4px; }
+.redesigned-workspace .research-project-companies { padding: 12px 0 18px; }
+.redesigned-workspace .research-content-heading { justify-content: flex-end; margin-bottom: 12px; }
+.redesigned-workspace .research-content-heading:empty { display: none; }
+.redesigned-workspace .research-note { padding: 16px 0; border: 0; border-bottom: 1px solid var(--ui-border-subtle); border-radius: 0; margin-top: 0; }
+.redesigned-workspace .research-note-open { box-shadow: none; }
+.redesigned-workspace .research-note:last-child { border-bottom-color: var(--ui-border-subtle); }
+.redesigned-workspace .research-note-checks { background: var(--ui-surface-subtle); }
+@media (max-width: 960px) {
+  .redesigned-workspace .research-project-list { border-bottom: 1px solid var(--ui-border-subtle); padding: 0 0 16px; }
+  .redesigned-workspace .research-project-detail { border: 0; padding: 8px 0 24px; }
+}

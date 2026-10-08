@@ -1,4 +1,4 @@
-.screening-readiness { padding: 12px 14px; border: 1px solid var(--ui-border, #e1e7ef); border-radius: 10px; background: var(--ui-surface-subtle, #f8fafc); font-size: 12px; line-height: 1.6; }
+.screening-readiness { padding: 8px 0; border: 0; background: transparent; font-size: 12px; line-height: 1.6; }
 .screening-readiness-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
 .screening-readiness-summary strong { color: var(--ui-text, #25354b); font-size: 13px; }
 .screening-readiness-summary span, .screening-readiness p { color: var(--ui-text-muted, #566579); }

@@ -77,7 +77,7 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
     }}>
       <div className="drawer-header"><h2>数据与服务</h2><button ref={closeButton} className="secondary-button compact" onClick={onClose}>关闭</button></div>
       {error && <p role="alert" className="library-error">{error}<button className="text-button" onClick={() => { setError(''); setPoll(i => i + 1); onRefresh() }}>重新检查</button></p>}
-      <section className="drawer-section service-summary"><h3>我的数据</h3><strong>{data?.available ? `行情更新至 ${data.last_date}` : '暂时没有可用行情'}</strong>
+      <section className="drawer-section service-summary"><h3>我的数据</h3><strong>{data?.available ? data.last_date ? `行情更新至 ${data.last_date}` : '行情可用，日期待确认' : '暂时没有可用行情'}</strong>
         <p>{data?.quality_status === 'issues_found' ? '部分行情有异常，涉及这些行情的条件会显示“数据不足”。' : data?.available ? '本地行情可供查询。' : '尚无可用行情。'}{data?.formal_blockers?.length ? '价格复权及量额口径仍需维护者核实。' : ''}</p>
         <button className="primary-button" disabled={updating || submitting} onClick={() => void updateData()}>{updating || submitting ? '正在更新…' : '更新股票名称、行情和资讯'}</button>
         {updating && <progress aria-label="数据更新进度" max={1} value={job!.progress} />}
@@ -87,9 +87,9 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
       <section className="drawer-section service-summary"><h3>智能助手</h3><p>{!settings ? (error ? '暂时无法读取连接设置。' : '正在读取助手设置…') : settings.text_model.configured ? '已完成连接设置。' : '尚未配置智能助手。'}</p>
         <button className="secondary-button" disabled={checking} onClick={() => void checkConnection()}>{checking ? '正在检查…' : '检查助手连接'}</button>{modelResult && <p role="status">{modelResult}</p>}
       </section>
-      <section className="drawer-section service-summary"><h3>诊断信息</h3><button className="secondary-button" onClick={downloadDiagnostics}>保存诊断信息</button></section>
-      <details className="drawer-section support-details"><summary>维护者信息</summary><p>模型：{settings?.text_model.model || '未配置'} · {settings?.text_model.api_mode || '未配置'}</p><p>行情记录 {data?.rows?.toLocaleString() || '—'} 条，证券 {data?.securities?.toLocaleString() || '—'} 只。</p>{data?.formal_blockers?.map(item => <p key={item}>{item}</p>)}</details>
-      <div className="drawer-footer"><button className="secondary-button" onClick={() => { onRefresh(); setPoll(i => i + 1) }}>重新检查状态</button><button className="primary-button" onClick={onClose}>完成</button></div>
+
+      <details className="drawer-section support-details"><summary>诊断与维护信息</summary><button className="secondary-button compact" onClick={downloadDiagnostics}>保存诊断信息</button><p>模型：{settings?.text_model.model || '未配置'} · {settings?.text_model.api_mode || '未配置'}</p><p>行情记录 {data?.rows?.toLocaleString() || '—'} 条，证券 {data?.securities?.toLocaleString() || '—'} 只。</p>{data?.formal_blockers?.map(item => <p key={item}>{item}</p>)}</details>
+      <div className="drawer-footer"><button className="secondary-button" onClick={() => { onRefresh(); setPoll(i => i + 1) }}>重新检查状态</button></div>
     </aside>
   </div>
 }

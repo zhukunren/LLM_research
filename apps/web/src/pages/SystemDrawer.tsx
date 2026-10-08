@@ -56,7 +56,7 @@ export default function SystemDrawer({ data, onClose, onRefresh }: { data: DataS
   return (
     <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <aside className="system-drawer" aria-label="系统设置">
-        <div className="drawer-header"><div><p className="eyebrow">本地服务与数据</p><h2>系统设置</h2></div><button className="icon-button" aria-label="关闭设置" onClick={onClose}><X size={18} /></button></div>
+        <div className="drawer-header"><div><h2>系统设置</h2></div><button className="icon-button" aria-label="关闭设置" onClick={onClose}><X size={18} /></button></div>
         <div className="drawer-section"><div className="section-title-row"><h3><Database size={16} />数据状态</h3><button className="table-action" title="刷新数据状态" onClick={onRefresh}><RefreshCw size={14} /></button></div>
           <div className="status-grid"><StatusLine label="本地行情文件" ok={Boolean(data?.available)} value={data?.available ? '已挂载' : '不可用'} /><StatusLine label="行数" value={data?.rows?.toLocaleString() ?? '—'} /><StatusLine label="证券代码" value={data?.securities?.toLocaleString() ?? '—'} /><StatusLine label="行情水位" value={data?.last_date ?? '—'} /><StatusLine label="基础质量检查" ok={data?.quality_status === 'basic_checks_passed'} value={data?.quality_status === 'basic_checks_passed' ? '通过' : data?.quality_status === 'issues_found' ? '发现问题' : '待检查'} /></div>
           <div className="market-counts">{Object.entries(data?.markets ?? {}).map(([market, count]) => <span key={market}>{market} <b>{count.toLocaleString()}</b></span>)}</div>
@@ -74,7 +74,7 @@ export default function SystemDrawer({ data, onClose, onRefresh }: { data: DataS
         </div>
 
         <div className="drawer-section drawer-footer-section"><h3>本地运行</h3><a href="/docs" target="_blank" rel="noreferrer">打开 API 文档 <ExternalLink size={13} /></a></div>
-        <div className="drawer-footer"><button className="secondary-button" onClick={onRefresh}><RefreshCw size={14} />刷新数据检查</button><button className="primary-button" onClick={onClose}>完成</button></div>
+        <div className="drawer-footer"><button className="secondary-button" onClick={onRefresh}><RefreshCw size={14} />刷新数据检查</button></div>
       </aside>
     </div>
   )
