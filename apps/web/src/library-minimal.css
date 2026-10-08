@@ -9,7 +9,7 @@
 .redesigned-workspace .library-shell .library-viewbar,
 .redesigned-workspace .pattern-library .library-tabs { background:transparent; border-radius:0; padding:0 0 10px; border-bottom:1px solid var(--library-line); gap:4px; box-shadow:none; }
 .redesigned-workspace .library-shell .library-viewbar button.active,
-.redesigned-workspace .pattern-library .library-tabs > button.active { background:#f2f2f2; border-color:transparent; color:#242424; box-shadow:none; }
+.redesigned-workspace .pattern-library .library-tabs > button.active { background:var(--ui-primary-soft); border-color:transparent; color:var(--ui-primary); box-shadow:none; }
 .redesigned-workspace .library-shell .library-primary-tab { border:0; padding:0; margin:0; }
 .redesigned-workspace .library-shell .library-tools-label { display:none; }
 .redesigned-workspace .library-shell :is(.indicator-browser,.local-news-grid,.report-reading-layout,.pattern-layout) { border:0; border-top:1px solid var(--library-line); border-radius:0; background:#fff; }
@@ -20,7 +20,7 @@
 .redesigned-workspace .library-shell .library-catalog-rows > button:hover,
 .redesigned-workspace .library-shell .local-news-list > button:hover { background:#f7f7f7; }
 .redesigned-workspace .library-shell .library-catalog-rows > button:is(.selected,.active),
-.redesigned-workspace .library-shell .local-news-list > button.selected { background:#f1f1f1; border-color:transparent; color:#242424; }
+.redesigned-workspace .library-shell .local-news-list > button.selected { background:var(--ui-primary-soft); border-color:transparent; color:var(--ui-primary); }
 .redesigned-workspace .library-shell :is(.library-search,.workspace-search) { background:#fafafa; box-shadow:none; border-color:var(--library-line); }
 .redesigned-workspace .library-shell .indicator-controls { background:transparent; border:0; border-bottom:1px solid var(--library-line); border-radius:0; padding:0 0 18px; }
 .redesigned-workspace .library-shell .report-info-details { background:transparent; border:0; border-bottom:1px solid var(--library-line); border-radius:0; padding:0 0 12px; }
@@ -28,7 +28,7 @@
 .redesigned-workspace .library-shell .report-import-actions > :first-child { border-color:transparent; background:transparent; color:var(--library-muted); }
 .redesigned-workspace .library-shell .report-reading-meta { margin-bottom:14px; }
 .redesigned-workspace .library-shell :is(.news-source-badge,.news-security-tag,.pattern-detail-summary span) { background:transparent; border-color:var(--library-line); color:var(--library-muted); }
-.redesigned-workspace .library-shell .news-research-action .primary-button { background:#fff; color:#242424; border:1px solid var(--library-line); box-shadow:none; }
+.redesigned-workspace .library-shell .news-research-action .primary-button { background:var(--ui-primary); color:var(--ui-on-primary); border:1px solid var(--ui-primary); box-shadow:none; }
 .redesigned-workspace .library-shell .library-workspace-panel.is-tool { padding:20px 0; border:0; border-top:1px solid var(--library-line); border-radius:0; }
 .redesigned-workspace .library-shell .report-assessment-panel > h2 { font-size:18px; margin:0 0 20px; }
 .redesigned-workspace .library-shell .report-proof { background:#fff; box-shadow:none; border:0; border-top:1px solid var(--library-line); border-radius:0; padding:20px 0; }
@@ -45,7 +45,7 @@
   .redesigned-workspace .library-shell .library-catalog-pane { padding:18px 0; border:0; }
   .redesigned-workspace .library-shell .library-reader-pane { padding:20px 0; }
   .redesigned-workspace .library-shell .library-mobile-switch { background:#f5f5f5; }
-  .redesigned-workspace .library-shell .library-mobile-switch button[aria-pressed=true] { color:#242424; box-shadow:none; }
+  .redesigned-workspace .library-shell .library-mobile-switch button[aria-pressed=true] { color:var(--ui-primary); background:var(--ui-primary-soft); box-shadow:none; }
   .redesigned-workspace .library-shell .library-heading-actions { width:auto; }
 }
 @media(max-width:600px) {
@@ -60,10 +60,15 @@
 .redesigned-workspace .library-shell .news-body { color:#303030; }
 .redesigned-workspace .library-shell .news-metadata,
 .redesigned-workspace .library-shell .local-news-list .news-item-meta :is(span,small) { color:var(--library-muted); }
-.redesigned-workspace .library-shell .news-research-action .primary-button:hover { background:#f5f5f5; border-color:#d8d8d8; }
+.redesigned-workspace .library-shell .news-research-action .primary-button:hover:not(:disabled) { background:var(--ui-primary-hover); border-color:var(--ui-primary-hover); }
 .redesigned-workspace .library-shell :is(.news-market-icon,.news-chart-count,.news-market-badge,.news-period-badge) { color:#626262; background:#f5f5f5; }
 .redesigned-workspace .library-shell :is(.news-chart-heading h2,.news-company-identity h3,.news-company-quote strong) { color:#303030; }
 .redesigned-workspace .library-shell .news-company-candles { border-color:var(--library-line); border-radius:8px; box-shadow:none; }
 .redesigned-workspace .library-shell .news-company-card-header { background:#fff; }
 .redesigned-workspace .library-shell .news-chart-controls .segmented { background:#f5f5f5; border-color:var(--library-line); }
-.redesigned-workspace .library-shell .news-chart-controls .segmented button.selected { color:#303030; box-shadow:none; }
+.redesigned-workspace .library-shell .news-chart-controls .segmented button.selected { color:var(--ui-primary); background:var(--ui-primary-soft); box-shadow:none; }
+
+/* Selection and focus keep their brand cues above the reading-surface overrides. */
+.redesigned-workspace .library-shell .local-news-list > button.selected strong { color:var(--ui-primary); }
+.redesigned-workspace .library-shell :is(.library-search,.workspace-search):focus-within { border-color:var(--ui-primary); box-shadow:var(--ui-focus-shadow); }
+.redesigned-workspace .library-shell .news-research-action .primary-button:active:not(:disabled) { background:var(--ui-primary-active); border-color:var(--ui-primary-active); }

@@ -27,15 +27,15 @@
   --ui-border-subtle: #eeeeee;
   --ui-border-strong: #c9c9c9;
 
-  /* Quiet interface palette; chart and market colors remain distinct. */
-  --ui-brand: #242424;
+  /* Official-site-derived Soochow blues; quiet surfaces and data semantics stay separate. */
+  --ui-brand: #00337a;
   --ui-brand-navy: var(--ui-brand);
-  --ui-accent: #555555;
-  --ui-primary: #242424;
-  --ui-primary-hover: #3b3b3b;
-  --ui-primary-active: #111111;
-  --ui-primary-soft: #f2f2f2;
-  --ui-primary-border: #d6d6d6;
+  --ui-accent: #0079c2;
+  --ui-primary: #00337a;
+  --ui-primary-hover: #004493;
+  --ui-primary-active: #00265c;
+  --ui-primary-soft: #edf3fa;
+  --ui-primary-border: #c5d6eb;
   --ui-on-primary: #ffffff;
   --ui-chart-line: #32839b;
   --ui-chart-area: rgba(50, 131, 155, 0.09);
@@ -65,7 +65,7 @@
   --ui-sidebar-text: #333333;
   --ui-sidebar-muted: #777777;
   --ui-sidebar-hover: #ebebeb;
-  --ui-sidebar-active: #e6e6e6;
+  --ui-sidebar-active: #e7eff9;
 
   /* Corner Radii */
   --ui-radius-xs: 6px;
@@ -81,8 +81,8 @@
   --ui-shadow-overlay: 0 20px 65px rgba(27, 57, 83, 0.18);
 
   /* Focus & Controls */
-  --ui-focus-outline: rgba(36, 36, 36, 0.5);
-  --ui-focus-shadow: 0 0 0 3px rgba(36, 36, 36, 0.08);
+  --ui-focus-outline: #0079c2;
+  --ui-focus-shadow: 0 0 0 3px rgba(0, 121, 194, 0.12);
   --ui-control-sm: 30px;
   --ui-control-md: 40px;
   --ui-control-lg: 40px;

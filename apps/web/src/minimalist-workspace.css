@@ -15,15 +15,16 @@ body { font-size: 14px; line-height: 1.65; }
 .redesigned-workspace .secondary-button { min-height: 38px; padding: 8px 14px; border-radius: 9px; font-weight: 500; box-shadow: none; }
 .redesigned-workspace .primary-button { background: var(--ui-primary); border-color: var(--ui-primary); color: var(--ui-on-primary); }
 .redesigned-workspace .primary-button:hover:not(:disabled) { background: var(--ui-primary-hover); border-color: var(--ui-primary-hover); }
+.redesigned-workspace .primary-button:active:not(:disabled) { background: var(--ui-primary-active); border-color: var(--ui-primary-active); }
 .redesigned-workspace .secondary-button { background: var(--ui-surface); border-color: var(--ui-border); color: var(--ui-text); }
 .redesigned-workspace .secondary-button:hover:not(:disabled) { background: var(--ui-surface-hover); border-color: var(--ui-border-strong); }
 .redesigned-workspace .icon-button { border-radius: 8px; }
 .redesigned-workspace .workspace-filter-bar { background: transparent; border: 0; border-radius: 0; padding: 0; }
 .redesigned-workspace .workspace-search { border-color: var(--ui-border); border-radius: 9px; background: var(--ui-surface); }
-.redesigned-workspace .workspace-search:focus-within { border-color: var(--ui-border-strong); box-shadow: var(--ui-focus-shadow); }
+.redesigned-workspace .workspace-search:focus-within { border-color: var(--ui-primary); box-shadow: var(--ui-focus-shadow); }
 .redesigned-workspace .workbench-tabs { background: transparent; border: 0; border-bottom: 1px solid var(--ui-border); border-radius: 0; gap: 20px; padding: 0; }
 .redesigned-workspace .workbench-tabs > button { border-radius: 0; border-bottom: 2px solid transparent; padding: 10px 0; color: var(--ui-text-muted); }
-.redesigned-workspace .workbench-tabs > button.active { border-bottom-color: var(--ui-text); color: var(--ui-text); background: transparent; box-shadow: none; }
+.redesigned-workspace .workbench-tabs > button.active { border-bottom-color: var(--ui-primary); color: var(--ui-primary); background: transparent; box-shadow: none; }
 .redesigned-workspace .workbench-tabs > button:hover { color: var(--ui-text); }
 .chat-layout .header-data-status { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; padding: 8px; background: transparent; }
 .chat-layout .header-data-status:hover { background: var(--ui-surface-hover); }

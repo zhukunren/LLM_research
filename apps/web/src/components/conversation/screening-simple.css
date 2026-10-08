@@ -13,13 +13,14 @@
 .conversation-product.research-studio.screening-studio .screening-plan-edit > summary { cursor:pointer; color:var(--ui-text-muted); font-size:12px; }
 .conversation-product.research-studio.screening-studio .screening-plan-edit .scope-picker { margin-top:12px; }
 .conversation-product.research-studio.screening-studio .conversation-composer, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer { border:1px solid var(--ui-border); border-radius:20px; background:var(--ui-surface-subtle); box-shadow:none; padding:16px 20px; }
-.conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer:focus-within { border-color:var(--ui-border-strong); box-shadow:none; }
+.conversation-product.research-studio.screening-studio .conversation-composer:focus-within,
+.conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer:focus-within { border-color:var(--ui-primary); box-shadow:var(--ui-focus-shadow); }
 .conversation-product.research-studio.screening-studio .conversation-composer textarea, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer textarea { min-height:80px; background:transparent; }
 .conversation-product.research-studio.screening-studio .screening-entry-heading h2 { font-size:22px; font-weight:500; }
 .conversation-product.research-studio.screening-studio .conversation-heading-title h2 { font-size:14px; color:var(--ui-text-muted); }
 .conversation-product.research-studio.screening-studio .screening-path { border:0; padding-bottom:0; gap:12px; }
 .conversation-product.research-studio.screening-studio .screening-path > button > span { width:auto; height:auto; border:0; background:transparent; color:inherit; }
-.conversation-product.research-studio.screening-studio .screening-path > button.active { color:var(--ui-text); }
+.conversation-product.research-studio.screening-studio .screening-path > button.active { color:var(--ui-primary); }
 .conversation-product.research-studio.screening-studio .screening-path-date { display:none; }
 .conversation-product.research-studio.screening-studio .conversation-suggestions { display:flex; flex-wrap:wrap; gap:8px; }
 .conversation-product.research-studio.screening-studio .conversation-suggestions > button { min-height:36px; flex-direction:row; align-items:center; padding:8px 12px; border-radius:18px; gap:8px; background:transparent; }
