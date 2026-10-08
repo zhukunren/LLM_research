@@ -1,5 +1,4 @@
 /* Shared search, reading rhythm and responsive page controls. */
-:root { --ui-radius-md: 10px; --ui-radius-lg: 12px; }
 .skip-to-content { position: fixed; top: 8px; left: 16px; z-index: 100; padding: 10px 16px; color: white; background: var(--ui-primary); border-radius: 6px; transform: translateY(-160%); }
 .skip-to-content:focus { transform: none; }
 .main-shell:focus { outline: none; }

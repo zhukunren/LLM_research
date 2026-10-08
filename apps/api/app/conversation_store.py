@@ -138,12 +138,15 @@ def _legacy_mode(workflow_type: str, research_depth: str) -> str:
 
 
 def _workflow_payload(row) -> dict[str, Any]:
+    from .research_assistants import metadata
     return {
         "workflow_type": row["workflow_type"],
         "research_depth": row["research_depth"],
         "workflow_revision": row["workflow_revision"],
         "research_scope": ResearchScope.model_validate(json_load(row["research_scope_json"])).model_dump(mode="json"),
         "research_scope_revision": row["research_scope_revision"],
+        "assistant": metadata(json_load(row["assistant_snapshot_json"])) if "assistant_snapshot_json" in row.keys() else metadata({}),
+        "assistant_revision": row["assistant_revision"] if "assistant_revision" in row.keys() else 0,
     }
 
 
@@ -155,7 +158,8 @@ def _draft_payload(row) -> dict[str, Any] | None:
 
 
 def create_conversation(entry_scope: str, research_mode: str = "research", project_id: str | None = None,
-                        *, workflow_type: str | None = None, research_depth: str | None = None) -> dict[str, Any]:
+                        *, workflow_type: str | None = None, research_depth: str | None = None, assistant_id: str = "general") -> dict[str, Any]:
+    from .research_assistants import AssistantError, metadata, selection_snapshot
     if research_mode not in {"research", "screening", "advanced"}:
         raise ConversationStoreError("研究模式无效")
     workflow_type = workflow_type or ("screening" if research_mode == "screening" else "research")
@@ -163,21 +167,27 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
     if workflow_type not in {"research", "screening"} or research_depth not in {"standard", "deep"}:
         raise ConversationStoreError("工作流或研究深度无效")
     research_mode = _legacy_mode(workflow_type, research_depth)
+    if workflow_type == "screening" and assistant_id != "general":
+        raise ConversationStoreError("研究助手只能用于研究对话")
     conversation_id = str(uuid4())
     now = utc_now()
     with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            assistant = selection_snapshot(connection, assistant_id)
+        except AssistantError as exc:
+            raise ConversationStoreError(str(exc)) from exc
         if project_id:
             from .research_projects import ProjectError, _require_project, _touch
-            connection.execute("BEGIN IMMEDIATE")
             try:
                 _require_project(connection, project_id, writable=True)
             except ProjectError as exc:
                 raise ConversationStoreError(str(exc)) from exc
             _touch(connection, project_id)
         connection.execute(
-            """INSERT INTO conversations(id, entry_scope, research_mode, project_id, workflow_type,research_depth,created_at,updated_at)
-               VALUES(?,?,?,?,?,?,?,?)""",
-            (conversation_id, entry_scope, research_mode, project_id, workflow_type, research_depth, now, now),
+            """INSERT INTO conversations(id, entry_scope, research_mode, project_id, workflow_type,research_depth,created_at,updated_at,assistant_snapshot_json)
+               VALUES(?,?,?,?,?,?,?,?,?)""",
+            (conversation_id, entry_scope, research_mode, project_id, workflow_type, research_depth, now, now, json_dump(assistant)),
         )
     return {
         "id": conversation_id,
@@ -186,6 +196,8 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
         "research_mode": research_mode,
         "workflow_type": workflow_type,
         "research_depth": research_depth,
+        "assistant": metadata(assistant),
+        "assistant_revision": 0,
         "workflow_revision": 0,
         "research_scope": ResearchScope().model_dump(mode="json"),
         "research_scope_revision": 0,
@@ -205,7 +217,7 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50, active_o
     with connect() as connection:
         rows = connection.execute(
             """SELECT c.id,c.entry_scope,c.research_mode,c.project_id,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
-                      c.workflow_type,c.research_depth,c.workflow_revision,c.research_scope_json,c.research_scope_revision,
+                      c.workflow_type,c.research_depth,c.workflow_revision,c.research_scope_json,c.research_scope_revision,c.assistant_snapshot_json,c.assistant_revision,
                       (SELECT substr(m.content,1,120) FROM conversation_messages m
                        WHERE m.conversation_id=c.id AND m.role='user'
                        ORDER BY m.rowid LIMIT 1) AS title,
@@ -223,6 +235,7 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50, active_o
         item = dict(row)
         item.update(_workflow_payload(row))
         item.pop("research_scope_json")
+        item.pop("assistant_snapshot_json")
         item["task_id"] = row["id"] if row["workflow_type"] == "screening" or row["task_revision"] else None
         items.append(item)
     return items
@@ -258,6 +271,8 @@ def update_workflow(conversation_id: str, workflow_type: str | None = None, rese
         if workflow_type not in {"research", "screening"} or research_depth not in {"standard", "deep"}:
             raise ConversationStoreError("工作流或研究深度无效")
         changed = workflow_type != row["workflow_type"] or research_depth != row["research_depth"]
+        if workflow_type == "screening" and row["workflow_type"] != "screening":
+            connection.execute("UPDATE conversations SET assistant_snapshot_json='{}',assistant_revision=assistant_revision+1 WHERE id=?", (conversation_id,))
         connection.execute(
             """UPDATE conversations SET workflow_type=?,research_depth=?,research_mode=?,workflow_revision=workflow_revision+?,
                pending_execute_message_id=CASE WHEN ?='research' THEN NULL ELSE pending_execute_message_id END,updated_at=? WHERE id=?""",
@@ -515,6 +530,7 @@ def add_user_message(
     source_refs: list[ConversationSourceReference] | None = None,
     *,
     research_scope_revision: int | None = None,
+    assistant_revision: int | None = None,
     _connection: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
     if _connection is None:
@@ -532,7 +548,7 @@ def add_user_message(
         existing = connection.execute(
             """SELECT m.id AS message_id,m.content AS content,m.source_refs_json AS source_refs_json,t.id AS turn_id,
                       t.base_revision AS base_revision,t.state AS state,t.workflow_type,t.research_depth,t.workflow_revision,
-                      t.research_scope_json,t.research_scope_revision,t.requested_research_scope_revision
+                      t.research_scope_json,t.research_scope_revision,t.requested_research_scope_revision,t.assistant_snapshot_json,t.assistant_revision,t.requested_assistant_revision
                FROM conversation_messages m
                JOIN conversation_turns t ON t.user_message_id=m.id
                WHERE m.conversation_id=? AND m.role='user' AND m.client_message_id=?""",
@@ -544,6 +560,7 @@ def add_user_message(
                 or _reference_keys(json_load(existing["source_refs_json"])) != _reference_keys(source_refs or [])
                 or existing["base_revision"] != base_revision
                 or existing["requested_research_scope_revision"] != research_scope_revision
+                or existing["requested_assistant_revision"] != assistant_revision
             ):
                 raise ConversationConflict("相同消息ID不能提交不同内容、来源或条件版本")
             return {
@@ -564,6 +581,9 @@ def add_user_message(
         if (conversation["workflow_type"] == "research" and research_scope_revision is not None
                 and research_scope_revision != conversation["research_scope_revision"]):
             raise ConversationConflict("研究范围版本已经变化，请读取最新状态")
+        if (conversation["workflow_type"] == "research" and assistant_revision is not None
+                and assistant_revision != conversation["assistant_revision"]):
+            raise ConversationConflict("研究助手已经变化，请读取最新状态后再发送")
         active_turn = connection.execute(
             """SELECT id FROM conversation_turns
                WHERE conversation_id=? AND state IN ('awaiting_agent','running') LIMIT 1""",
@@ -573,6 +593,8 @@ def add_user_message(
             raise ConversationConflict("上一条消息仍在处理，请等待完成后再继续")
 
         now = utc_now()
+        from .research_assistants import selection_snapshot
+        frozen_assistant = json_load(conversation["assistant_snapshot_json"]) or selection_snapshot(connection)
         message_id, turn_id = str(uuid4()), str(uuid4())
         connection.execute(
             """INSERT INTO conversation_messages(
@@ -583,11 +605,12 @@ def add_user_message(
         connection.execute(
             """INSERT INTO conversation_turns(
                    id,conversation_id,user_message_id,base_revision,state,workflow_type,research_depth,workflow_revision,
-                   research_scope_json,research_scope_revision,requested_research_scope_revision,created_at,updated_at
-               ) VALUES(?,?,?,?,'awaiting_agent',?,?,?,?,?,?,?,?)""",
+                   research_scope_json,research_scope_revision,requested_research_scope_revision,created_at,updated_at,
+                   assistant_snapshot_json,assistant_revision,requested_assistant_revision
+               ) VALUES(?,?,?,?,'awaiting_agent',?,?,?,?,?,?,?,?,?,?,?)""",
             (turn_id, conversation_id, message_id, base_revision, conversation["workflow_type"], conversation["research_depth"],
              conversation["workflow_revision"], conversation["research_scope_json"], conversation["research_scope_revision"],
-             research_scope_revision, now, now),
+             research_scope_revision, now, now, json_dump(frozen_assistant), conversation["assistant_revision"], assistant_revision),
         )
         connection.execute(
             """UPDATE conversations SET updated_at=?,

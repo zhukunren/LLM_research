@@ -43,7 +43,7 @@ include = ["apps.api*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-"apps.api" = ["assets/research-pdf/*"]
+"apps.api" = ["assets/research-pdf/*", "skills/*/SKILL.md"]
 
 [tool.ruff]
 line-length = 100

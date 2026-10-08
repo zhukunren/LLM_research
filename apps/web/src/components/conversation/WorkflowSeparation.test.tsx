@@ -6,6 +6,22 @@ import type { Conversation } from '../../api'
 import { SecuritiesProvider } from '../StockSearch'
 
 vi.mock('./ProjectMembership', () => ({ default: () => <span>项目归属</span> }))
+
+it('fills a new research cutoff when market data arrives late and preserves a manually chosen or cleared date', async () => {
+  const fetcher = vi.fn(async () => new Response(JSON.stringify({ items: [] })))
+  vi.stubGlobal('fetch', fetcher)
+  const view = render(<ConversationWorkspace initialWorkflowType="research" initialNewDraft data={null} />)
+  await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+  expect(screen.getByLabelText('研究截止日')).toHaveValue('')
+  view.rerender(<ConversationWorkspace initialWorkflowType="research" initialNewDraft data={{ available: true, last_date: '2026-09-28' }} />)
+  await waitFor(() => expect(screen.getByLabelText('研究截止日')).toHaveValue('2026-09-28'))
+  fireEvent.change(screen.getByLabelText('研究截止日'), { target: { value: '2026-09-18' } })
+  view.rerender(<ConversationWorkspace initialWorkflowType="research" initialNewDraft data={{ available: true, last_date: '2026-09-29' }} />)
+  expect(screen.getByLabelText('研究截止日')).toHaveValue('2026-09-18')
+  fireEvent.change(screen.getByLabelText('研究截止日'), { target: { value: '' } })
+  view.rerender(<ConversationWorkspace initialWorkflowType="research" initialNewDraft data={{ available: true, last_date: '2026-09-30' }} />)
+  expect(screen.getByLabelText('研究截止日')).toHaveValue('')
+})
 const date = '2026-10-04T08:00:00Z'
 const research = (): Conversation => ({ id: 'research', task_id: 'legacy', entry_scope: 'report', workflow_type: 'research', research_depth: 'standard', task_revision: 4, active_run_id: 'old-run', pending_execution: true,
   research_scope: { as_of: '2026-09-14', stock_codes: ['600000.SH'] }, research_scope_revision: 7,

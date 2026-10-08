@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse, FileResponse
 
-from . import codex_runtime, codex_store, conversation_store, research_workspace, research_turn_service, research_pdf, research_pdf_service
+from . import codex_runtime, codex_store, conversation_store, research_workspace, research_turn_service, research_pdf, research_pdf_service, research_assistants
+from .research_assistant_api import assistant_error
 from pydantic import BaseModel, Field
 from .settings import default_research_mode
 from .screening_contracts import (
@@ -150,7 +151,7 @@ def _store_error(exc: Exception) -> None:
 def create_conversation(payload: CreateConversationRequest):
     try:
         return conversation_store.create_conversation(payload.entry_scope, payload.research_mode or default_research_mode(), payload.project_id,
-                                                       workflow_type=payload.workflow_type, research_depth=payload.research_depth)
+                                                       workflow_type=payload.workflow_type, research_depth=payload.research_depth, assistant_id=payload.assistant_id)
     except conversation_store.ConversationStoreError as exc:
         _store_error(exc)
 
@@ -193,6 +194,7 @@ def add_user_message(conversation_id: str, payload: AddUserMessageRequest):
             payload.content,
             payload.source_refs,
             research_scope_revision=payload.research_scope_revision,
+            assistant_revision=payload.assistant_revision,
         )
     except (
         conversation_store.ConversationNotFound,
@@ -220,6 +222,21 @@ def update_research_scope(conversation_id: str, payload: UpdateResearchScopeRequ
         scope = ResearchScope.model_validate(payload.model_dump(exclude={"base_revision"}, exclude_unset=True))
         return conversation_store.update_research_scope(conversation_id, payload.base_revision, scope)
     except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
+
+
+class SelectAssistantRequest(BaseModel):
+    assistant_id: str = Field(min_length=1, max_length=100)
+    base_revision: int = Field(ge=0)
+
+
+@router.patch("/{conversation_id}/assistant")
+def select_assistant(conversation_id: str, payload: SelectAssistantRequest):
+    try:
+        return research_assistants.update_selection(conversation_id, payload.assistant_id, payload.base_revision)
+    except research_assistants.AssistantError as exc:
+        assistant_error(exc)
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict) as exc:
         _store_error(exc)
 
 

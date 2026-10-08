@@ -5,36 +5,37 @@
 :root {
   --ui-font-sans: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
   --ui-font-mono: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
+  --ui-reading-size: 15px;
 
   color-scheme: light;
 
   /* Surfaces & Canvas */
   --ui-canvas: #f3f6fa;
   --ui-surface: #ffffff;
-  --ui-surface-subtle: #f8fafc;
-  --ui-surface-hover: #f1f6fb;
-  --ui-surface-active: #edf4fa;
+  --ui-surface-subtle: #f7f9fc;
+  --ui-surface-hover: #eef4fa;
+  --ui-surface-active: #e8f0f8;
 
   /* Typography Colors */
   --ui-text: #203249;
-  --ui-text-muted: #566b82;
-  --ui-text-faint: #6b7d90;
+  --ui-text-muted: #5e7186;
+  --ui-text-faint: #6b7e92;
   --ui-text-disabled: #a0b0c0;
 
   /* Borders & Dividers */
   --ui-border: #dfe7ef;
-  --ui-border-subtle: #e9eef3;
+  --ui-border-subtle: #edf1f5;
   --ui-border-strong: #b9c9d8;
 
   /* Palette shared with the reference quantitative research workspace. */
   --ui-brand: #174f78;
   --ui-brand-navy: var(--ui-brand);
   --ui-accent: #087e8b;
-  --ui-primary: var(--ui-brand);
-  --ui-primary-hover: #095679;
-  --ui-primary-active: #074762;
+  --ui-primary: #174f78;
+  --ui-primary-hover: #123f61;
+  --ui-primary-active: #103652;
   --ui-primary-soft: #eaf2fa;
-  --ui-primary-border: #afd0df;
+  --ui-primary-border: #b8cfe3;
   --ui-on-primary: #ffffff;
   --ui-chart-line: #32839b;
   --ui-chart-area: rgba(50, 131, 155, 0.09);
@@ -59,18 +60,18 @@
   --ui-danger-border: #efc3c5;
 
   /* Sidebar Tokens */
-  --ui-sidebar: #ffffff;
-  --ui-sidebar-border: #dce5ee;
-  --ui-sidebar-text: #3e5a73;
-  --ui-sidebar-muted: #718599;
-  --ui-sidebar-hover: #f0f5fa;
-  --ui-sidebar-active: #edf4fa;
+  --ui-sidebar: #f3f6fa;
+  --ui-sidebar-border: #dfe7ef;
+  --ui-sidebar-text: #334f69;
+  --ui-sidebar-muted: #667e95;
+  --ui-sidebar-hover: #e9f0f7;
+  --ui-sidebar-active: #e3edf7;
 
   /* Corner Radii */
   --ui-radius-xs: 6px;
   --ui-radius-sm: 8px;
-  --ui-radius-md: 8px;
-  --ui-radius-lg: 8px;
+  --ui-radius-md: 10px;
+  --ui-radius-lg: 14px;
   --ui-radius-pill: 999px;
 
   /* Shadows */
@@ -83,9 +84,9 @@
   --ui-focus-outline: rgba(10, 99, 143, 0.46);
   --ui-focus-shadow: 0 0 0 3px rgba(10, 99, 143, 0.13);
   --ui-control-sm: 30px;
-  --ui-control-md: 36px;
+  --ui-control-md: 40px;
   --ui-control-lg: 40px;
-  --ui-header-height: 64px;
+  --ui-header-height: 60px;
   --ui-transition: 150ms ease;
 
   /* Backward Compatibility Aliases */

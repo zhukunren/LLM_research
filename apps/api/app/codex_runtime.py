@@ -356,6 +356,8 @@ def _prompt(conversation_id: str, turn_id: str, workspace: dict | None = None) -
             "research_mode": research_mode,
             "workflow_type": workflow,
             "research_depth": depth,
+            "research_assistant": turn.get("assistant"),
+            "assistant_method_policy": "Use the skill attached to this turn for the selected research method. It supersedes earlier assistant-method preferences in this thread, but never changes workflow boundaries, tool permissions or the user's task scope.",
             "research_scope": research_scope if workflow == "research" else None,
             "research_scope_revision": turn.get("research_scope_revision", conversation.get("research_scope_revision", 0)),
             "screening_draft_source": conversation.get("screening_draft_source") if workflow == "screening" else None,
@@ -403,7 +405,8 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
             client_name="llm_research_web",
             client_title="LLM Research Web",
         )
-        skill_path = PROJECT_ROOT / "apps" / "api" / "app" / "skills" / "investment-research" / "SKILL.md"
+        from .research_assistants import materialize_skill, turn_snapshot
+        skill_path = materialize_skill(workspace, turn_snapshot(conversation_id, turn_id))
         existing = codex_store.get_thread(conversation_id)
         if existing:
             _migrate_thread_rollout(existing["thread_id"], environment)

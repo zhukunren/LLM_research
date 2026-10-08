@@ -96,6 +96,8 @@ export type ConversationScope = 'technical' | 'news' | 'report' | 'pattern' | 's
 export type ResearchMode = 'research' | 'screening' | 'advanced'
 export type WorkflowType = 'research' | 'screening'
 export type ResearchDepth = 'standard' | 'deep'
+export type AssistantSelection = { id: string; name: string; description: string; revision: number; builtin: boolean; skill_hash: string }
+export type ResearchAssistant = AssistantSelection & { instructions: string; enabled: boolean }
 export type ResearchScope = {
   as_of: string | null; stock_codes: string[]; report_lookback_calendar_days?: number | null
   news_lookback_calendar_days?: number | null; price_basis?: string | null
@@ -121,6 +123,8 @@ export type ConversationMessage = {
   created_at: string
 }
 export type ConversationTurn = {
+  assistant?: AssistantSelection
+  assistant_revision?: number
   id: string
   user_message_id: string
   base_revision: number
@@ -139,6 +143,8 @@ export type ConversationTurn = {
   updated_at: string
 }
 export type Conversation = {
+  assistant?: AssistantSelection
+  assistant_revision?: number
   project_id?: string | null
   id: string
   task_id: string

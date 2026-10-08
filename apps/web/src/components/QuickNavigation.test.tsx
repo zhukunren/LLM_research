@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest'
 import { api } from '../api'
 import QuickNavigation from './QuickNavigation'
 
-vi.mock('../api', () => ({ api: vi.fn() }))
+vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
 const callbacks = () => ({ onClose: vi.fn(), onNavigate: vi.fn(), onProject: vi.fn(), onConversation: vi.fn(), onNewResearch: vi.fn(), onSettings: vi.fn() })
 
 it('finds a saved project and opens it by keyboard while restoring focus on close', async () => {
@@ -45,4 +45,20 @@ it('keeps navigation usable when recent resource reads fail and recovers from no
   await user.type(input, '研报库')
   await user.keyboard('{Enter}')
   expect(props.onNavigate).toHaveBeenCalledWith('reports')
+})
+
+it('keeps page shortcuts visible with many projects and finds screening conversations using multiple keywords', async () => {
+  vi.mocked(api).mockImplementation(async path => path === '/research-projects'
+    ? { items: Array.from({ length: 30 }, (_, index) => ({ id: `p${index}`, name: `项目 ${index}`, status: 'active' })) } as never
+    : { items: [{ id: 'c1', title: '订单兑现', workflow_type: 'screening', entry_scope: 'report' }] } as never)
+  const props = callbacks(), user = userEvent.setup()
+  render(<QuickNavigation {...props} />)
+  await screen.findByRole('option', { name: /订单兑现/ })
+  expect(screen.getByRole('option', { name: /研报库/ })).toBeInTheDocument()
+  expect(screen.getByRole('option', { name: /数据与服务/ })).toBeInTheDocument()
+  await user.type(screen.getByRole('combobox'), '订单 选股')
+  expect(screen.getAllByRole('option')).toHaveLength(1)
+  expect(screen.getByRole('option')).toHaveTextContent('继续选股对话')
+  await user.keyboard('{Enter}')
+  expect(props.onConversation).toHaveBeenCalledWith('c1', 'report')
 })

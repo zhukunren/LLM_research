@@ -37,6 +37,7 @@ class CreateConversationRequest(ContractModel):
     project_id: str | None = Field(default=None, min_length=1, max_length=100)
     workflow_type: WorkflowType | None = None
     research_depth: ResearchDepth | None = None
+    assistant_id: str = Field(default="general", min_length=1, max_length=100)
 
 
 class UpdateResearchModeRequest(ContractModel):
@@ -124,6 +125,7 @@ class AddUserMessageRequest(ContractModel):
     content: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
     source_refs: list[ConversationSourceReference] = Field(default_factory=list, max_length=8)
     research_scope_revision: int | None = Field(default=None, ge=0)
+    assistant_revision: int | None = Field(default=None, ge=0)
 
 
 class IntentProposal(ContractModel):

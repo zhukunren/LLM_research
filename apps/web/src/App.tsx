@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react'
-import { AlertCircle, BookOpen, ChevronRight, Database, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Settings2 } from 'lucide-react'
+import { AlertCircle, Database, Menu, PanelLeftClose, PanelLeftOpen, RefreshCw } from 'lucide-react'
 import { api, conversationWorkflow, type Conversation, type ConversationScope, type ConversationSourceReference, type DataStatus, type WorkflowType } from './api'
 const ObservationPage = lazy(() => import('./pages/ObservationPage'))
 const ResearchWorkspace = lazy(() => import('./pages/ResearchWorkspace'))
@@ -7,14 +7,15 @@ const ScreeningWorkspace = lazy(() => import('./pages/ScreeningWorkspace'))
 const PatternPage = lazy(() => import('./pages/PatternPage'))
 const LibraryWorkspace = lazy(() => import('./pages/LibraryWorkspace'))
 const ResearchProjectsPage = lazy(() => import('./pages/ResearchProjectsPage'))
-const WorkspaceHome = lazy(() => import('./pages/WorkspaceHome'))
+const ResearchAssistantsPage = lazy(() => import('./pages/ResearchAssistantsPage'))
+import ResearchSidebar from './components/ResearchSidebar'
 import SystemDrawer from './pages/DataServicesPanel'
-import QuickNavigation, { ResourceNavigation } from './components/QuickNavigation'
+import QuickNavigation from './components/QuickNavigation'
 import ActiveTasks from './components/ActiveTasks'
 import type { Section } from './pages/WorkbenchPage'
-import { useSessionState } from './useSessionState'
-import { navigateTabs } from './keyboard'
-import { workspaceMenus as menus, workspacePrimaryMenus, workspaceLibraryMenus, type PageId } from './navigation'
+import { isText, useSessionState } from './useSessionState'
+
+import { workspaceMenus as menus, type PageId } from './navigation'
 import { useWorkspaceRoute } from './useWorkspaceRoute'
 import { storedConversationScope, storedScreeningView, type WorkspaceRoute } from './workspaceRoute'
 export default function App() {
@@ -22,22 +23,25 @@ export default function App() {
   const [data, setData] = useState<DataStatus | null>(null)
   const [systemOpen, setSystemOpen] = useState(false)
   const [quickNavigationOpen, setQuickNavigationOpen] = useState(false)
-  const [resourceNavigationOpen, setResourceNavigationOpen] = useState(false)
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
+  const [sidebarRevision, setSidebarRevision] = useState(0)
+  const [homeDraft, setHomeDraft] = useSessionState('home.researchDraft', '', isText)
   const [newResearchKey, setNewResearchKey] = useState(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useSessionState('app.sidebarCollapsed', false, (value): value is boolean => typeof value === 'boolean')
   const [loadError, setLoadError] = useState('')
   const conversationNavigation = useRef(0)
   const [conversationPrompt, setConversationPrompt] = useState<string | undefined>()
+  const [conversationAssistant, setConversationAssistant] = useState<string | undefined>()
   const [conversationSource, setConversationSource] = useState<{ reference: ConversationSourceReference; label: string } | null>(null)
   const { route, navigate } = useWorkspaceRoute(() => {
     ++conversationNavigation.current
     setConversationPrompt(undefined)
+    setConversationAssistant(undefined)
     setConversationSource(null)
     setNewResearchKey(0)
   })
   const page = route.page
   const previousPage = useRef(page)
-  const [researchPage, setResearchPage] = useSessionState<'screening' | 'research'>('app.researchPage', page === 'research' ? 'research' : 'screening', (value): value is 'screening' | 'research' => value === 'screening' || value === 'research')
   const conversationScope = route.scope ?? 'screening'
   const conditionsSection = route.view ?? 'conversation'
   const [resolvedConversation, setResolvedConversation] = useState<{ id: string; scope: ConversationScope; workflow: WorkflowType } | null>(null)
@@ -49,8 +53,7 @@ export default function App() {
   const conversationReady = !needsConversation || (resolvedConversation?.id === route.conversationId && resolvedConversation?.workflow === (page === 'conditions' ? 'screening' : 'research') && resolvedConversation?.scope === conversationScope)
 
   function navigateRoute(next: WorkspaceRoute, replace = false) {
-    setResourceNavigationOpen(false)
-    if (next.page === 'screening' || next.page === 'research') setResearchPage(next.page)
+    setMobileNavigationOpen(false)
     startNavigation(() => navigate(next, { replace }))
   }
 
@@ -61,6 +64,7 @@ export default function App() {
   function navigateFromMenu(nextPage: PageId) {
     ++conversationNavigation.current
     setConversationPrompt(undefined)
+    setConversationAssistant(undefined)
     setConversationSource(null)
     navigatePage(nextPage)
   }
@@ -90,6 +94,7 @@ export default function App() {
     previousPage.current = page
     // Reset before painting the new page, including when its data arrives later.
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    document.querySelector('.page-frame')?.scrollTo?.({ top: 0, left: 0, behavior: 'instant' })
   }, [page])
 
   function handleConversationScopeChange(scope: ConversationScope) {
@@ -97,10 +102,11 @@ export default function App() {
     navigateRoute({ page, scope, ...(page === 'conditions' ? { view: 'conversation' as const } : {}) })
   }
 
-  function openConversation(scope: ConversationScope, source?: { reference: ConversationSourceReference; label: string }, prompt?: string, workflow: WorkflowType = 'research') {
+  function openConversation(scope: ConversationScope, source?: { reference: ConversationSourceReference; label: string }, prompt?: string, workflow: WorkflowType = 'research', assistantId?: string) {
     ++conversationNavigation.current
     setNewResearchKey(value => prompt ? 0 : value + 1)
     setConversationPrompt(prompt)
+    setConversationAssistant(assistantId)
     setConversationSource(source ?? null)
     navigateRoute({ page: workflow === 'screening' ? 'conditions' : 'screening', scope, newDraft: true, ...(workflow === 'screening' ? { view: 'conversation' as const } : {}) })
   }
@@ -147,16 +153,8 @@ export default function App() {
     navigateRoute({ page: 'research', ...(id ? { projectId: id } : {}) })
   }
 
-  function openCandidate(id: string) {
-    navigateRoute({ page: 'watchlist', observationTab: 'candidates', ...(id ? { candidateId: id } : {}) })
-  }
-
   function startNewResearch() {
     openConversation('screening')
-  }
-
-  function openObservation(id: string) {
-    navigateRoute({ page: 'watchlist', observationTab: 'batches', runId: id })
   }
 
   const refreshStatus = () => {
@@ -168,11 +166,19 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const media = window.matchMedia?.('(max-width: 900px)')
+    if (!media) return
+    const closeOnDesktop = () => { if (!media.matches) setMobileNavigationOpen(false) }
+    media.addEventListener('change', closeOnDesktop)
+    return () => media.removeEventListener('change', closeOnDesktop)
+  }, [])
+
+  useEffect(() => {
     const open = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         if (document.querySelector('[role="dialog"][aria-modal="true"]:not([hidden])') && !document.querySelector('.quick-navigation')) return
-        setResourceNavigationOpen(false)
+        setMobileNavigationOpen(false)
         setSystemOpen(false)
         setQuickNavigationOpen(value => !value)
       }
@@ -184,40 +190,21 @@ export default function App() {
   const active = menus.find((item) => item.id === page)!
   const inResearch = page === 'screening' || page === 'research'
   return (
-    <div className={`app-shell redesigned-workspace ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`app-shell redesigned-workspace chat-layout ${page === 'screening' ? 'chat-page' : 'tool-page'} ${mobileNavigationOpen ? 'mobile-navigation-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <a className="skip-to-content" href="#workspace-main" onClick={event => { event.preventDefault(); document.getElementById('workspace-main')?.focus() }}>跳到页面内容</a>
-      <aside className="sidebar">
-        <div className="research-brand"><img src="/brand/soochow-white.png" alt="东吴证券 SOOCHOW SECURITIES" width="160" height="35" /><img className="sidebar-brand-symbol" src="/brand/soochow-symbol-white.png" alt="东吴证券" width="90" height="70" /></div>
-        <div className="branch-name">投研工作台<span>张家港营业部</span></div>
-        <button className="sidebar-new-research" onClick={startNewResearch} title="开始新研究" aria-label="开始新研究"><Plus size={18} /><span>开始新研究</span></button>
-        <nav className="workspace-navigation" aria-label="主菜单">
-          <div className="navigation-group">
-            <div className="workspace-label">工作空间</div>
-            {workspacePrimaryMenus.map(({ id, label, mobileLabel, icon: Icon }) => {
-              const selected = id === 'screening' ? inResearch : page === id
-              return <button className={'nav-item ' + (selected ? 'active' : '')} key={id} aria-label={label} title={label} aria-current={selected ? 'page' : undefined} onClick={() => navigateFromMenu(id === 'screening' ? researchPage : id)}><Icon size={19} strokeWidth={1.75} /><span className="nav-label">{label}</span><span className="nav-mobile-label" aria-hidden="true">{mobileLabel}</span></button>
-            })}
-          </div>
-          <div className="navigation-group desktop-library-navigation">
-            <div className="workspace-label">资料资源</div>
-            {workspaceLibraryMenus.map(({ id, label, mobileLabel, icon: Icon }) => <button className={'nav-item ' + (page === id ? 'active' : '')} key={id} aria-label={label} title={label} aria-current={page === id ? 'page' : undefined} onClick={() => navigateFromMenu(id)}><Icon size={19} strokeWidth={1.75} /><span className="nav-label">{label}</span><span className="nav-mobile-label" aria-hidden="true">{mobileLabel}</span></button>)}
-          </div>
-          <button className={'nav-item mobile-library-launch ' + (workspaceLibraryMenus.some(item => item.id === page) ? 'active' : '')} aria-label="打开资料库" aria-expanded={resourceNavigationOpen} onClick={() => setResourceNavigationOpen(true)}><BookOpen size={20} /><span className="nav-mobile-label">资料</span></button>
-        </nav>
-        <div className="sidebar-bottom"><div className="research-data-status"><span className={'status-dot ' + (loadError ? 'warning' : data?.available ? 'good' : 'warning')} />{loadError ? '服务连接异常' : data ? data.available ? '行情可供查询' : '待添加行情数据' : '正在检查数据'}</div><button className="research-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务" title="数据与服务"><Settings2 size={17} /><span>数据与服务</span><ChevronRight size={14} className="settings-chevron" /></button></div>
-      </aside>
+      <ResearchSidebar onAssistant={id => openConversation('screening', undefined, undefined, 'research', id)} page={page} conversationId={route.conversationId} revision={sidebarRevision} mobileOpen={mobileNavigationOpen} onClose={() => setMobileNavigationOpen(false)} onNavigate={navigateFromMenu} onNewResearch={startNewResearch} onConversation={resumeResearch} onSearch={() => { setMobileNavigationOpen(false); setQuickNavigationOpen(true) }} onSettings={() => { setMobileNavigationOpen(false); setSystemOpen(true) }} />
       <main id="workspace-main" tabIndex={-1} className="main-shell" aria-busy={isNavigating}>
         {isNavigating && <div className="page-navigation-progress" role="status" aria-label="正在切换页面" />}
-        <header className="research-header"><div className="workspace-header-leading"><button className="icon-button sidebar-toggle" onClick={() => setSidebarCollapsed(value => !value)} aria-label={sidebarCollapsed ? '展开导航' : '收起导航'} title={sidebarCollapsed ? '展开导航' : '收起导航'}>{sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}</button><img className="mobile-header-brand" src="/brand/soochow-symbol-blue.png" alt="东吴证券" width="30" height="26" /><div className="research-breadcrumb"><span>研究空间</span><ChevronRight size={13} /><strong>{active.label}</strong></div></div><button className="workspace-command-launch" aria-label="搜索与快速导航" aria-keyshortcuts="Control+k Meta+k" onClick={() => setQuickNavigationOpen(true)}><Search size={16} /><span>查找项目、对话或页面</span><kbd>Ctrl K</kbd></button><div className="research-header-actions"><ActiveTasks onConversation={resumeResearch} onProject={openProject} onNavigate={navigateFromMenu} onSettings={() => setSystemOpen(true)} />{data?.last_date && <button className="header-data-status" onClick={() => setSystemOpen(true)} aria-label={`行情截至 ${data.last_date}，查看数据状态`} title="查看数据状态"><Database size={14} /><span><time>{data.last_date}</time></span></button>}<span className="mode-badge"><span className="status-dot warning" />探索模式</span><button className="research-settings mobile-settings" onClick={() => setSystemOpen(true)} aria-label="数据与服务" title="数据与服务"><Settings2 size={18} /></button></div></header>
+        <header className="research-header"><div className="workspace-header-leading"><button className="icon-button chat-menu-toggle" onClick={() => { if (window.matchMedia?.('(max-width: 900px)').matches) setMobileNavigationOpen(value => !value); else setSidebarCollapsed(value => !value) }} aria-label="切换工作导航" title="切换工作导航"><Menu className="mobile-menu-icon" size={20} />{sidebarCollapsed ? <PanelLeftOpen className="desktop-menu-icon" size={19} /> : <PanelLeftClose className="desktop-menu-icon" size={19} />}</button><span className="chat-header-title">{page === 'screening' ? '东吴投研' : active.label}</span></div><div className="research-header-actions"><ActiveTasks onConversation={resumeResearch} onProject={openProject} onNavigate={navigateFromMenu} onSettings={() => setSystemOpen(true)} />{data?.last_date && <button className="header-data-status" onClick={() => setSystemOpen(true)} aria-label={`行情截至 ${data.last_date}，查看数据状态`} title="查看数据状态"><Database size={14} /><time>{data.last_date}</time></button>}</div></header>
         {loadError && <div className="global-alert" role="alert"><AlertCircle size={16} /><span>暂时无法连接服务，请检查本地服务是否已启动。</span><button onClick={refreshStatus}><RefreshCw size={14} />重试</button></div>}
         <section className="page-frame">
           <Suspense fallback={<div className="page-content page-loading" role="status">正在加载页面…<div className="page-loading-placeholder" aria-hidden="true" /></div>}>
-          {page === 'home' && <WorkspaceHome onCandidate={openCandidate} data={data} onNavigate={navigateFromMenu} onNewResearch={startNewResearch} onResearch={prompt => openConversation('screening', undefined, prompt)} onProject={openProject} onConversation={resumeResearch} onObservation={openObservation} onSettings={() => setSystemOpen(true)} />}
+          {page === 'assistants' && <ResearchAssistantsPage onUse={id => openConversation('screening', undefined, undefined, 'research', id)} />}
           {inResearch && <div className="research-space">
-            <div className="research-space-nav" role="tablist" aria-label="研究工作区" onKeyDown={event => navigateTabs(event, ['screening', 'research'] as const, page === 'research' ? 'research' : 'screening', navigateFromMenu)}>{([['screening', '研究对话'], ['research', '研究项目']] as const).map(([id, label]) => <button key={id} type="button" role="tab" id={`research-space-tab-${id}`} aria-controls={`research-space-panel-${id}`} aria-selected={page === id} tabIndex={page === id ? 0 : -1} onClick={() => navigateFromMenu(id)}>{label}</button>)}</div>
-            <div role="tabpanel" id={`research-space-panel-${page}`} aria-labelledby={`research-space-tab-${page}`}>
+            <div className={'research-space-panel research-space-panel-' + page}>
               {page === 'research' && <ResearchProjectsPage initialProjectId={route.projectId} onLocationChange={id => navigateRoute({ page: 'research', projectId: id }, !route.projectId)} onOpenConversation={resumeResearch} />}
-              {page === 'screening' && (conversationReady ? <ResearchWorkspace data={data} initialConversationId={route.conversationId} initialNewDraft={route.newDraft} onOpenProject={openProject} newResearchKey={newResearchKey} onNewResearchConsumed={() => setNewResearchKey(0)} initialPrompt={conversationPrompt} onPromptConsumed={() => setConversationPrompt(undefined)} initialScope={conversationScope} onScopeChange={handleConversationScopeChange} initialSource={conversationSource} onSourceChange={setConversationSource} onOpenConversation={resumeResearch} onLocationChange={conversationLocation} /> : <div className="page-content" role={routeError ? 'alert' : 'status'}>{routeError ? <><p>{routeError}</p><button className="secondary-button" onClick={() => setRouteRetry(value => value + 1)}>重新读取对话</button></> : '正在读取研究对话…'}</div>)}
+              {page === 'screening' && homeDraft.trim() && <div className="legacy-draft-notice"><span>还有一个之前保存的问题</span><button className="text-button" onClick={() => { openConversation('screening', undefined, homeDraft.trim()); setHomeDraft('') }}>继续未发送的问题</button></div>}
+              {page === 'screening' && (conversationReady ? <ResearchWorkspace initialAssistantId={conversationAssistant} shellNavigation onHistoryChange={() => setSidebarRevision(value => value + 1)} data={data} initialConversationId={route.conversationId} initialNewDraft={route.newDraft} onOpenProject={openProject} newResearchKey={newResearchKey} onNewResearchConsumed={() => { setNewResearchKey(0); setConversationAssistant(undefined) }} initialPrompt={conversationPrompt} onPromptConsumed={() => setConversationPrompt(undefined)} initialScope={conversationScope} onScopeChange={handleConversationScopeChange} initialSource={conversationSource} onSourceChange={setConversationSource} onOpenConversation={resumeResearch} onLocationChange={conversationLocation} /> : <div className="page-content" role={routeError ? 'alert' : 'status'}>{routeError ? <><p>{routeError}</p><button className="secondary-button" onClick={() => setRouteRetry(value => value + 1)}>重新读取对话</button></> : '正在读取研究对话…'}</div>)}
             </div>
           </div>}
           {page === 'watchlist' && <ObservationPage initialRunId={route.runId} initialCandidateId={route.candidateId} initialTab={route.observationTab} onLocationChange={(tab, id) => navigateRoute({ page: 'watchlist', observationTab: tab, ...(id ? tab === 'batches' ? { runId: id } : { candidateId: id } : {}) }, !route.runId && !route.candidateId)} onStartResearch={startNewResearch} data={data} onNavigateScreening={() => openConversation('screening', undefined, undefined, 'screening')} onOpenResearch={id => void resumeResearch(id, 'screening', 'research')} />}
@@ -229,7 +216,6 @@ export default function App() {
       </main>
       {systemOpen && <SystemDrawer data={data} onClose={() => setSystemOpen(false)} onRefresh={refreshStatus} />}
       {quickNavigationOpen && <QuickNavigation onClose={() => setQuickNavigationOpen(false)} onNavigate={navigateFromMenu} onProject={openProject} onConversation={resumeResearch} onNewResearch={startNewResearch} onSettings={() => setSystemOpen(true)} />}
-      {resourceNavigationOpen && <ResourceNavigation onClose={() => setResourceNavigationOpen(false)} onNavigate={navigateFromMenu} />}
     </div>
   )
 }

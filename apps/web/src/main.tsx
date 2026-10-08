@@ -24,9 +24,9 @@ import './screening-conversation.css'
 import './observation-redesign.css'
 import './news-reading-polish.css'
 import './experience-polish.css'
-import './home-onboarding.css'
 import './task-progress.css'
 import './task-guidance.css'
+import './chat-layout.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

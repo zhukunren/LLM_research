@@ -8,7 +8,7 @@ afterEach(() => window.history.replaceState(null, '', '/'))
 
 describe('stable workspace URLs', () => {
   it.each<WorkspaceRoute>([
-    { page: 'home' }, { page: 'screening', conversationId: 'one', scope: 'report' },
+    { page: 'screening', newDraft: true }, { page: 'screening', conversationId: 'one', scope: 'report' },
     { page: 'conditions', conversationId: 'task-1', scope: 'news', view: 'conversation' },
     { page: 'conditions', view: 'compose' }, { page: 'research', projectId: 'project-1' },
     { page: 'watchlist', candidateId: 'candidate-1', observationTab: 'candidates' },
@@ -17,11 +17,31 @@ describe('stable workspace URLs', () => {
   ])('round-trips an explicit location %#', route => expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route))
 
   it('keeps new drafts separate from saved objects and legacy page IDs', () => {
+    expect(parseWorkspaceRoute('#/home')).toEqual({ page: 'screening', newDraft: true })
+    expect(legacyWorkspaceRoute()).toEqual({ page: 'screening', newDraft: true })
     expect(parseWorkspaceRoute('#/research/new')).toEqual({ page: 'screening', newDraft: true })
     expect(parseWorkspaceRoute('#/screening/new')).toEqual({ page: 'conditions', newDraft: true, view: 'conversation' })
     expect(workspaceRouteHash({ page: 'screening' })).toBe('#/research')
     expect(workspaceRouteHash({ page: 'research' })).toBe('#/projects')
     expect(workspaceRouteHash({ page: 'conditions', view: 'library' })).toBe('#/screening?view=library')
+  })
+
+  it('replaces the old home bookmark without adding a Back step or clearing a draft', () => {
+    window.history.replaceState(null, '', '#/home')
+    sessionStorage.setItem('conversation.drafts', JSON.stringify({ 'research:screening:new': '未发送的研究问题' }))
+    const historyLength = window.history.length
+    renderHook(() => useWorkspaceRoute())
+    expect(window.location.hash).toBe('#/research/new')
+    expect(window.history.length).toBe(historyLength)
+    expect(JSON.parse(sessionStorage.getItem('conversation.drafts')!)['research:screening:new']).toBe('未发送的研究问题')
+  })
+
+  it('normalizes a legacy home navigation into a new research route', () => {
+    window.history.replaceState(null, '', '#/projects')
+    const { result } = renderHook(() => useWorkspaceRoute())
+    act(() => result.current.navigate({ page: 'home' }))
+    expect(result.current.route).toEqual({ page: 'screening', newDraft: true })
+    expect(window.location.hash).toBe('#/research/new')
   })
 
   it.each(['#workspace-main', '#/unknown', '#/research/a/b', '#/research/%2f', '#/research/%', '#/projects/..', '#/screening?view=unknown', '#/research?scope=invalid', '#/observation/batches/a/b'])('rejects malformed or unrelated locations %s', hash => {
