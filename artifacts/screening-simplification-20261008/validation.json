@@ -1,0 +1,50 @@
+{
+  "repository": "zhukunren/LLM_research",
+  "branch": "main",
+  "baseline": "8094ce5c650005f697840da71bcfd03193858f29",
+  "scope": "Frontend screening simplification, regression tests, README, and validation evidence",
+  "preservation": {
+    "initial_tracked_changes": false,
+    "existing_untracked_artifact_directories_preserved": true,
+    "backend_code_changed": false,
+    "business_data_written": false,
+    "other_branches_merged": false,
+    "deployed": false
+  },
+  "checks": [
+    { "command": "npm test -- --reporter=default --reporter=json --outputFile.json=../../artifacts/screening-simplification-20261008/frontend-tests.json", "status": "passed", "files": 56, "tests": 397, "failed": 0, "report": "frontend-tests.json" },
+    { "command": "npm test -- src/components/conversation/ScreeningExperience.test.tsx", "status": "passed", "tests": 9, "note": "Rerun after correcting the new fixture's required unresolved.kind field" },
+    { "command": "npm test -- src/components/ScreeningResultView.test.tsx src/components/conversation/ScreeningReadiness.test.tsx src/components/conversation/ScreeningSettings.test.tsx", "status": "passed", "tests": 28, "note": "Final affected tests, including a menu with all actions disabled" },
+    { "command": "npx tsc -b --pretty false", "status": "passed" },
+    { "command": "npm run build", "status": "passed", "note": "Includes final TypeScript check and production assets; existing large chunk warning remains" },
+    { "command": "git diff --check", "status": "passed" }
+  ],
+  "browser": {
+    "browser": "Chrome on the user's Windows machine",
+    "preview": "http://127.0.0.1:5174",
+    "status": "passed",
+    "actual_css_widths_checked": [390, 320],
+    "desktop_default_viewport_checked": true,
+    "checks": [
+      "Input first, three short deterministic template entries, preview and editable parameters",
+      "Default source availability as one row without repeated scope/date",
+      "Settings expand/collapse, nested model menu, End/Escape and focus restoration",
+      "Unavailable account models remain disabled with reasons",
+      "Unsent screening draft survives navigation to saved schemes, browser back and forward",
+      "New screening closes old controls and starts an empty draft",
+      "Advanced tools remain available behind their disclosure",
+      "Screening conversations and all screening run history retain separate URLs",
+      "Existing partial run displays zero confirmed matches, coverage and failures without a zero-match conclusion",
+      "Result menu retains copy/export scopes, disabled empty-page copy and keyboard closing",
+      "Settings label and panel remain visible at 390 and 320 CSS pixels after narrow-screen positioning fix"
+    ],
+    "screenshots_reviewed_in_browser_tool": true,
+    "live_write_operations": "not run",
+    "note": "No real plan generation, execution, save, copy or export was submitted. Mutation paths and failure/unknown/cancelled/loading states are covered by mocked frontend tests. Temporary viewport override was reset."
+  },
+  "limitations": [
+    "Backend suite not run because backend code is unchanged",
+    "Live business-data write paths intentionally not run",
+    "No repository deployment performed"
+  ]
+}

@@ -11,9 +11,11 @@ type Props = {
   onChange: (selection: ModelSelection) => void
   onAvailabilityChange?: (available: boolean) => void
   portalTargetId?: string
+  visible?: boolean
+  onCatalogError?: (error: string) => void
 }
 
-export default function ResearchModelPicker({ value, disabled, onChange, onAvailabilityChange, portalTargetId }: Props) {
+export default function ResearchModelPicker({ value, disabled, onChange, onAvailabilityChange, portalTargetId, visible = true, onCatalogError }: Props) {
   const [catalog, setCatalog] = useState<ResearchModelCatalog | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -26,6 +28,9 @@ export default function ResearchModelPicker({ value, disabled, onChange, onAvail
   const id = useId()
   const availabilityCallback = useRef(onAvailabilityChange)
   availabilityCallback.current = onAvailabilityChange
+  const errorCallback = useRef(onCatalogError)
+  errorCallback.current = onCatalogError
+  useEffect(() => { errorCallback.current?.(error) }, [error])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -64,6 +69,7 @@ export default function ResearchModelPicker({ value, disabled, onChange, onAvail
   }, [])
 
   useEffect(() => { if (disabled) close(false) }, [disabled, close])
+  useEffect(() => { if (!visible) close(false) }, [visible, close])
 
   useLayoutEffect(() => {
     if (!open) return

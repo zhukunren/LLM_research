@@ -25,6 +25,7 @@ import { TaskLogic, taskUniverseLabel } from './TaskBrief'
 import SavedTaskLibrary from './SavedTaskLibrary'
 import ScreeningTemplates, { type ScreeningTemplate } from './ScreeningTemplates'
 import ScreeningReadiness from './ScreeningReadiness'
+import ScreeningSettings from './ScreeningSettings'
 import './screening-simple.css'
 import ResearchPanel from './ResearchPanel'
 import ResearchAnswer from './ResearchAnswer'
@@ -240,6 +241,7 @@ export default function ConversationWorkspace({
   const modelSelection = conversation ? { model_id: conversation.model_id, reasoning_effort: conversation.reasoning_effort } : modelPreference ?? undefined
   const modelSelectionKey = JSON.stringify([modelSelection?.model_id, modelSelection?.reasoning_effort])
   const [modelAvailability, setModelAvailability] = useState<{ key: string; available: boolean } | null>(null)
+  const [modelCatalogError, setModelCatalogError] = useState('')
   const modelUnavailable = modelAvailability?.key === modelSelectionKey && !modelAvailability.available
   const conversationReady = !selectedId || conversation?.id === selectedId
   const workflowType = conversation ? conversationWorkflow(conversation, initialWorkflowType) : initialWorkflowType
@@ -305,6 +307,7 @@ export default function ConversationWorkspace({
   const [loadingSessions, setLoadingSessions] = useState(true)
   const [loadingConversation, setLoadingConversation] = useState(false)
   const [loadingRun, setLoadingRun] = useState(false)
+  const [runError, setRunError] = useState('')
   const [loadingDecisions, setLoadingDecisions] = useState(false)
   const [error, setError] = useState('')
   const [refreshIndex, setRefreshIndex] = useState(0)
@@ -728,6 +731,7 @@ export default function ConversationWorkspace({
   useEffect(() => {
     if (isResearch || !conversation || !viewingRunId) {
       setRun(null)
+      setRunError('')
       setDecisions([])
       setDecisionTotal(0)
       return
@@ -737,6 +741,7 @@ export default function ConversationWorkspace({
     let completed = false
     let timer = 0
     setRun(null)
+    setRunError('')
     const load = async () => {
       if (pending || completed) return
       pending = true
@@ -744,12 +749,13 @@ export default function ConversationWorkspace({
         const next = await api<TaskRun>(`/conversations/${conversation.id}/screening-runs/${viewingRunId}`)
         if (active) {
           setRun(next)
+          setRunError('')
           setRuns(items => items.map(item => item.id === next.id ? { ...item, status: next.status } : item))
           completed = !['queued', 'running'].includes(next.status)
           if (completed) globalThis.clearInterval(timer)
         }
       } catch (reason) {
-        if (active) setError((reason as Error).message)
+        if (active) setRunError((reason as Error).message)
       } finally {
         pending = false
         if (active) setLoadingRun(false)
@@ -1222,9 +1228,13 @@ export default function ConversationWorkspace({
 
   function openModelPicker() {
     const container = composerRef.current
-    const trigger = container?.querySelector<HTMLButtonElement>('.research-model-trigger')
-    trigger?.focus()
-    if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click()
+    const settings = container?.querySelector<HTMLButtonElement>('.screening-settings-trigger')
+    if (settings?.getAttribute('aria-expanded') === 'false') settings.click()
+    requestAnimationFrame(() => {
+      const trigger = container?.querySelector<HTMLButtonElement>('.research-model-trigger')
+      trigger?.focus()
+      if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click()
+    })
   }
 
   const SuggestionContainer = 'details'
@@ -1358,7 +1368,6 @@ export default function ConversationWorkspace({
         <button type="button" className={screeningStep === 3 ? 'active' : ''} aria-current={screeningStep === 3 ? 'step' : undefined} disabled={!runs.length && !pendingTurn} onClick={() => runSectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}><span>3</span><strong>查看结果</strong></button>
         <span className="screening-path-date">{data?.last_date ? `行情截至 ${data.last_date}` : '行情日期待指定'}</span>
       </nav>}
-      {!isResearch && conversation && <details className="studio-project"><summary>{conversation.project_id ? '已归入研究项目' : '独立选股'}<span>项目归属</span></summary><ProjectMembership conversationId={conversation.id} projectId={conversation.project_id} disabled={busy || saving || turnInProgress} onChange={projectId => setConversation(current => current?.id === conversation.id ? { ...current, project_id: projectId } : current)} onError={setError} onOpenProject={onOpenProject} /></details>}
       <div className={`conversation-workspace ${showTaskPanel && !isResearch ? '' : 'conversation-workspace-start'} ${!conversation?.messages.length && !task ? 'conversation-workspace-empty' : ''}`}>
       {sessionsOpen && <div className="studio-library-backdrop" onClick={() => setSessionsOpen(false)} aria-hidden="true" />}
       <aside ref={sessionsRef} id="screening-sessions" role="dialog" aria-modal="true" hidden={!sessionsOpen} onKeyDown={onSessionsKeyDown} className={`conversation-sessions ${sessionsOpen ? 'sessions-open' : ''}`} aria-label={isResearch ? '最近研究对话' : '历史与方案'}>
@@ -1399,7 +1408,7 @@ export default function ConversationWorkspace({
 
       <section className="conversation-main" aria-label={isResearch ? '研究对话' : '选股对话'}>{isResearch && !conversation?.messages.length && !loadingConversation && <div className="chat-empty-heading"><h1>开始研究</h1><p>输入公司、行业或你想核实的问题</p></div>}
         {!isResearch && !screeningStarted && <div className="screening-entry-heading"><h2>想筛选什么样的股票？</h2><button type="button" className="text-button" onClick={() => { setLibraryTab('saved'); setSessionsOpen(true) }}><Bookmark size={14} />复用已保存方案</button></div>}
-        {!isResearch && <ScreeningReadiness onOpenData={onOpenDataServices} data={data} scope={scope} task={task} asOf={scopeDate} selectedUniverseLabel={scopePool === 'all' ? '全部A股' : watchlists.find(item => item.id === scopePool)?.name || '指定股票池'} />}
+        {!isResearch && <ScreeningReadiness showScope={false} onOpenData={onOpenDataServices} data={data} scope={scope} task={task} asOf={scopeDate} />}
         {error && (isExecutionFailure(error) ? <ResearchFailure content={error} /> : <div className="conversation-error" role="alert"><AlertCircle size={17} /><span>{error}</span><button className="icon-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={15} /></button></div>)}
         {notice && <div className="conversation-notice" role="status"><Check size={16} /><span>{notice}</span>{savedNoteProject && onOpenProject && <button className="text-button" onClick={() => onOpenProject(savedNoteProject)}>查看笔记</button>}<button className="icon-button" aria-label="关闭保存提示" onClick={() => { setNotice(''); setSavedNoteProject('') }}><X size={15} /></button></div>}
         {loadingConversation && <div className="conversation-loading"><LoaderCircle size={16} className="spin" />正在恢复对话…</div>}
@@ -1407,7 +1416,6 @@ export default function ConversationWorkspace({
           <div className="conversation-message-list" ref={messageListRef} role="log" aria-live="polite" aria-relevant="additions" onScroll={onMessageListScroll}>
             {!conversation?.messages.length && !task && !loadingConversation && (
               <div className="conversation-empty">
-                {!isResearch && <ScreeningTemplates disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions || !scopeDate} onSelect={(template, parameters) => void selectTemplate(template, parameters)} />}
                 <SuggestionContainer className={isResearch ? 'research-examples' : 'screening-examples'}><summary>{isResearch ? '示例问题' : '更多条件示例（需要模型解析）'}</summary>{!isResearch && <div className="screening-example-tabs" role="group" aria-label="选股示例分类">{Object.entries(screeningSuggestionLabels).map(([value, label]) => <button key={value} type="button" aria-pressed={suggestionScope === value} onClick={() => setSuggestionScope(value as ConversationScope)}>{label}</button>)}</div>}<div className="conversation-suggestions" aria-label={isResearch ? '常用研究问题' : '常用选股条件'}>
                   {(isResearch ? researchSuggestions[scope] : promptSuggestions[suggestionScope]).map((item, index) => { const Icon = suggestionIcons[index % suggestionIcons.length]; return <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-icon"><Icon size={20} strokeWidth={1.6} /></span><span className="suggestion-copy"><span className="suggestion-title">{item.label}</span>{isResearch && <span className="suggestion-description">{item.prompt}</span>}</span><ArrowUpRight size={16} className="suggestion-arrow" /></button> })}
                 </div></SuggestionContainer>
@@ -1439,6 +1447,7 @@ export default function ConversationWorkspace({
           {showLatest && <button type="button" className="conversation-latest-button" onClick={() => scrollToLatest()}><ArrowDown size={14} />查看最新</button>}
         </div>
         <form className="conversation-composer" ref={composerRef} onSubmit={(event) => { event.preventDefault(); void submitMessage() }}>
+          {!isResearch && modelCatalogError && <div className="conversation-pending-source" role="alert"><span>模型目录暂不可用：{modelCatalogError}。当前选择保留，请检查设置。</span><button type="button" className="text-button" onClick={openModelPicker}>检查模型设置</button></div>}
           {modelUnavailable && <div className="conversation-pending-source" role="status"><span>当前模型或推理档位不可用，请切换后发送。</span><button type="button" className="text-button" disabled={busy || modelSaving || turnInProgress} onClick={openModelPicker}>切换模型</button></div>}
           {conversation?.screening_draft_source && <div className="conversation-pending-source"><span>来源：研究答复</span><button type="button" className="text-button" onClick={() => onOpenConversation?.(conversation.screening_draft_source!.source_conversation_id, 'screening', 'research')}>查看原研究</button></div>}
           <label htmlFor="conversation-input">{isResearch ? '研究要求' : '选股要求'}</label>
@@ -1462,10 +1471,13 @@ export default function ConversationWorkspace({
               disabled={busy || saving || assistantSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions}
               launchDisabled={attachments.hasUnready} onChange={id => void changeAssistant(id)} onUpload={files => void attachments.upload(files)}
               onLaunchAssistant={onLaunchAssistant} />
-            {!isResearch && <label className="studio-mode-select"><span>条件核验</span><select aria-label="研究深度" value={researchDepth} disabled={busy || saving || modeSaving || modelSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={event => void changeResearchDepth(event.target.value as ResearchDepth)}>{Object.entries(depthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{modeSaving && <LoaderCircle size={14} className="spin" />}</label>}
+            {!isResearch && <ScreeningSettings key={`${draftKey}:${newResearchKey || 0}`}>{open => <>
+              <label className="studio-mode-select"><span>条件核验</span><select aria-label="研究深度" value={researchDepth} disabled={busy || saving || modeSaving || modelSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={event => void changeResearchDepth(event.target.value as ResearchDepth)}>{Object.entries(depthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{modeSaving && <LoaderCircle size={14} className="spin" />}</label>
+              <ResearchModelPicker visible={open} value={modelSelection} disabled={busy || saving || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} onCatalogError={setModelCatalogError} />
+            </>}</ScreeningSettings>}
             <span>{draft.length >= 7000 ? `${draft.length}/8000` : ''}</span>
-            <div className="conversation-composer-model"><ResearchModelPicker value={modelSelection} disabled={busy || saving || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions}
-              onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} /></div>
+            {isResearch && <div className="conversation-composer-model"><ResearchModelPicker value={modelSelection} disabled={busy || saving || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions}
+              onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} /></div>}
             <button className={!isResearch && task ? "secondary-button" : "primary-button"} type="submit" disabled={busy || saving || assistantSaving || modeSaving || modelSaving || modelUnavailable || attachments.hasUnready || (!isResearch && scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || !conversationReady || loadingConversation || loadingSessions || (!draft.trim() && !attachments.ready.length)}>
               {busy ? <LoaderCircle size={15} className="spin" /> : <ArrowUp size={16} />}
               {busy ? '处理中…' : isResearch ? '发送' : screeningStarted ? '发送修改' : '生成筛选方案'}
@@ -1473,6 +1485,8 @@ export default function ConversationWorkspace({
           </div>
           <p className="composer-keyboard-hint"><span>Enter 发送 · Shift + Enter 换行</span></p>
         </form>
+        {!isResearch && !conversation?.messages.length && !task && !loadingConversation && <ScreeningTemplates key={`${draftKey}:${newResearchKey || 0}`} disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions || !scopeDate} onSelect={(template, parameters) => void selectTemplate(template, parameters)} />}
+        {!isResearch && conversation && !task && <details className="screening-plan-secondary"><summary>项目归属</summary><ProjectMembership conversationId={conversation.id} projectId={conversation.project_id} disabled={busy || saving || turnInProgress} onChange={projectId => setConversation(current => current?.id === conversation.id ? { ...current, project_id: projectId } : current)} onError={setError} onOpenProject={onOpenProject} /></details>}
       </section>
 
       {isResearch && resultsOpen && <div className="research-results-backdrop" onClick={() => setResultsOpen(false)} aria-hidden="true" />}
@@ -1490,6 +1504,7 @@ export default function ConversationWorkspace({
             <div className="conversation-task-scope">
               <span>范围</span><strong>{taskUniverseLabel(task)}</strong>
               <span>截止日</span><strong>{task.scope.as_of ?? '未确定'}</strong>
+              {task.conditions.some(item => ['technical', 'pattern'].includes(item.library)) && data?.last_date && data.last_date !== task.scope.as_of && <><span>本地行情覆盖至</span><strong>{data.last_date}</strong></>}
               {task.scope.report_lookback_calendar_days != null && <><span>研报回溯</span><strong>近 {task.scope.report_lookback_calendar_days} 个自然日</strong></>}
               {task.scope.news_lookback_calendar_days != null && <><span>资讯回溯</span><strong>近 {task.scope.news_lookback_calendar_days} 个自然日</strong></>}
               {task.scope.ranking && <>
@@ -1499,7 +1514,7 @@ export default function ConversationWorkspace({
                 <span>缺失处理</span><strong>{task.scope.ranking.missing_policy === 'exclude_with_notice' ? '排除缺失并说明' : '范围不完整时保留未知'}</strong>
               </>}
             </div>
-            {task.unresolved.map((item, index) => <p className="conversation-unresolved" key={`${item.source_quote}-${index}`}>{item.question}</p>)}
+            {!!task.unresolved.length && <section aria-label="待澄清问题"><h3>待澄清问题</h3>{task.unresolved.map((item, index) => <p className="conversation-unresolved" key={`${item.source_quote}-${index}`}>{item.question}</p>)}</section>}
             <details className="screening-plan-edit"><summary>修改范围与日期</summary><div className="scope-picker">
               <label>股票范围<select aria-label="调整股票范围" value={scopePool} disabled={busy || turnInProgress || scopeSaveState === 'saving'} onChange={event => { setScopePool(event.target.value); setScopeEdited(true); setScopeSaveState('idle') }}><option value="all">全部A股</option>{task.scope.universe?.kind === 'explicit' && <option value="explicit">当前指定股票</option>}{watchlists.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
               <label>行情日期<input aria-label="调整行情日期" type="date" value={scopeDate} max={data?.last_date} disabled={busy || turnInProgress || scopeSaveState === 'saving'} onChange={event => { setScopeDate(event.target.value); setScopeEdited(true); setScopeSaveState('idle') }} /></label>
@@ -1507,19 +1522,23 @@ export default function ConversationWorkspace({
               {(scopeDirty && scopeEdited || scopeSaveState !== 'idle') && <span className="scope-save-status conversation-muted" role="status">{scopeSaveState === 'saving' ? '正在自动保存…' : scopeSaveState === 'saved' ? '范围和日期已自动保存' : scopeSaveState === 'error' ? '自动保存失败' : '等待自动保存'}{scopeSaveState === 'error' && <button className="icon-button" title="重试保存范围和日期" aria-label="重试保存范围和日期" onClick={() => void applyScope()}><RefreshCw size={14} /></button>}</span>}
             </div>
             </details>
-            <p className="conversation-muted">本地日线 · 复权口径未核实</p>
+            {task.conditions.some(item => ['technical', 'pattern'].includes(item.library)) && <p className="conversation-muted">本地日线 · {({ unadjusted: '不复权', forward_adjusted: '前复权', back_adjusted: '后复权' } as Record<string, string>)[task.scope.price_basis || 'unknown'] || '复权口径未核实'}</p>}
             <div className="conversation-task-actions">
               {canExecute ? <button className="primary-button" disabled={busy || saving || turnInProgress || loadingConversation || runInProgress || !!pendingTurn || !!draft.trim() || !executableTurn} onClick={() => void startScreening()}><Play size={15} />{runInProgress ? '正在筛选…' : taskHasRun ? '按当前条件再筛一次' : '确认并开始筛选'}</button> : <button className="secondary-button" disabled={busy || saving || turnInProgress} onClick={focusComposer}>补充筛选要求</button>}
-              <button className="text-button" disabled={!canSave || busy || saving || turnInProgress || scopeDirty || scopeSaveState === 'saving'} title={!canSave ? '请先补充完整条件和股票范围' : undefined} onClick={() => void saveTask(suggestedName)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Bookmark size={14} />}{saving ? '保存中…' : '保存方案'}</button>
-              <button className="icon-button" disabled={!canSave || busy || saving || turnInProgress} title="设置方案名称" aria-label="设置方案名称" aria-expanded={saveOpen} onClick={() => { setSaveName(suggestedName); setSaveOpen(value => !value) }}><Pencil size={15} /></button>
+              <button className="text-button" disabled={busy || saving || turnInProgress} onClick={focusComposer}>修改条件</button>
             </div>
             {!canExecute && !task.unresolved.length && <p className="conversation-muted">请先{scopeDirty && scopeEdited ? '等待范围与日期自动保存' : missingTaskInfo || '完整条件'}。</p>}
             {canExecute && !!draft.trim() && <p className="conversation-muted">输入框中还有未发送的内容，请先发送或清空，再确认筛选。</p>}
+            <details className="screening-plan-secondary"><summary>保存方案与项目归属</summary>
+              <button className="text-button" disabled={!canSave || busy || saving || turnInProgress || scopeDirty || scopeSaveState === 'saving'} title={!canSave ? '请先补充完整条件和股票范围' : undefined} onClick={() => void saveTask(suggestedName)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Bookmark size={14} />}{saving ? '保存中…' : '保存方案'}</button>
+              <button className="icon-button" disabled={!canSave || busy || saving || turnInProgress} title="设置方案名称" aria-label="设置方案名称" aria-expanded={saveOpen} onClick={() => { setSaveName(suggestedName); setSaveOpen(value => !value) }}><Pencil size={15} /></button>
+              {conversation && <ProjectMembership conversationId={conversation.id} projectId={conversation.project_id} disabled={busy || saving || turnInProgress} onChange={projectId => setConversation(current => current?.id === conversation.id ? { ...current, project_id: projectId } : current)} onError={setError} onOpenProject={onOpenProject} />}
             {saveOpen && <form className="conversation-save-form" onSubmit={event => { event.preventDefault(); void saveTask() }}>
               <label htmlFor="saved-task-name">方案名称</label>
               <input id="saved-task-name" autoFocus value={saveName} maxLength={120} disabled={saving} onChange={event => setSaveName(event.target.value)} placeholder="方案名称" />
               <div><button className="primary-button compact" disabled={saving || !saveName.trim()} type="submit">{saving ? '保存中…' : '确认保存'}</button><button className="text-button" type="button" disabled={saving} onClick={() => setSaveOpen(false)}>取消</button></div>
             </form>}
+            </details>
           </>
         </section>}
 
@@ -1536,10 +1555,13 @@ export default function ConversationWorkspace({
           </div>}
           {!runs.length ? (
             <p className="conversation-muted">尚无筛选运行</p>
+          ) : runError ? (
+            <div role="alert" className="saved-task-empty"><strong>筛选运行加载失败</strong><p>{runError}</p><p>尚未读取运行状态，不能据此判断是否匹配。</p><button type="button" className="secondary-button compact" onClick={() => setRefreshIndex(value => value + 1)}>重新加载筛选运行</button></div>
           ) : loadingRun || !run ? (
-            <p className="conversation-muted"><LoaderCircle size={14} className="spin" />正在读取运行…</p>
+            <p className="conversation-muted" role="status"><LoaderCircle size={14} className="spin" />正在读取运行…</p>
           ) : (
             <ScreeningResultView
+              key={run.id}
               asOf={run.as_of}
               revision={run.task_revision}
               status={run.status}

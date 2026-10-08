@@ -6,6 +6,28 @@ import ResearchSidebar from './ResearchSidebar'
 
 vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
 const props = () => ({ page: 'screening' as const, revision: 0, mobileOpen: false, onClose: vi.fn(), onNavigate: vi.fn(), onNewResearch: vi.fn(), onNewScreening: vi.fn(), onSearch: vi.fn(), onConversation: vi.fn(), onAssistant: vi.fn(), onSettings: vi.fn() })
+
+it('puts advanced tools behind a disclosure and keeps conversations separate from all screening runs', async () => {
+  vi.mocked(api).mockResolvedValue({ items: [{ id: 'screen-one', title: '旧选股对话', entry_scope: 'technical', workflow_type: 'screening' }] } as never)
+  const callbacks = props(), onScreeningView = vi.fn(), user = userEvent.setup()
+  const view = render(<ResearchSidebar {...callbacks} page="conditions" onScreeningView={onScreeningView} />)
+  expect(screen.queryByRole('button', { name: '我的条件' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '高级组合' })).not.toBeInTheDocument()
+  const history = screen.getByRole('region', { name: '最近选股' })
+  await user.click(await within(history).findByRole('button', { name: '继续选股：旧选股对话' }))
+  expect(callbacks.onConversation).toHaveBeenCalledWith('screen-one', 'technical', 'screening')
+  await user.click(within(history).getByRole('button', { name: '全部筛选记录' }))
+  expect(onScreeningView).toHaveBeenCalledWith('history')
+  await user.click(screen.getByRole('button', { name: '我的方案' }))
+  expect(onScreeningView).toHaveBeenCalledWith('saved')
+  const advanced = screen.getByRole('button', { name: '高级工具' })
+  advanced.focus(); await user.keyboard('{Enter}')
+  await user.click(screen.getByRole('button', { name: '高级组合' }))
+  expect(onScreeningView).toHaveBeenCalledWith('compose')
+  await user.click(advanced)
+  view.rerender(<ResearchSidebar {...callbacks} page="conditions" screeningView="library" onScreeningView={onScreeningView} />)
+  expect(screen.getByRole('button', { name: '我的条件' })).toHaveAttribute('aria-current', 'page')
+})
 const assistants: ResearchAssistant[] = [
   ['general', '通用投研'], ['financial', '财报分析'], ['reports', '研报解读'],
   ['supply-chain', '产业链研究'], ['risk', '风险复核'],
@@ -134,7 +156,7 @@ it.each([false, true])('offers one primary screening start independently of tool
   expect(menu.queryByRole('button', { name: '条件选股' })).not.toBeInTheDocument()
   expect(menu.queryByRole('button', { name: '开始新研究' })).not.toBeInTheDocument()
   expect(menu.queryByRole('button', { name: '研究助手' })).not.toBeInTheDocument()
-  expect(menu.getByRole('button', { name: '已保存方案' })).toBeInTheDocument()
+  expect(menu.getByRole('button', { name: '我的方案' })).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '切换到研究' }))
   expect(callbacks.onNavigate).toHaveBeenCalledWith('screening')
 })

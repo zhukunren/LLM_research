@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Copy, Download, LoaderCircle, RotateCcw, Search, Star, TrendingUp } from 'lucide-react'
 import { StockName } from './StockSearch'
+import ScreeningResultMenu from './ScreeningResultMenu'
 
 export type UnifiedConditionDecision = {
   reference_id?: string
@@ -117,6 +118,7 @@ export default function ScreeningResultView({
 }: ScreeningResultViewProps) {
   const [copying, setCopying] = useState(false)
   const [copyNotice, setCopyNotice] = useState('')
+  const copyLock = useRef(false)
 
   const isRunning = status === 'queued' || status === 'running'
   const resolvedCount = coverage ? coverage.true_count + coverage.false_count : 0
@@ -133,10 +135,11 @@ export default function ScreeningResultView({
   }
 
   async function copyCodes() {
-    if (!decisions.length) return
+    if (copyLock.current || loading || error || !decisions.length) return
     const target = decisions
     const codes = target.map(d => d.stock_code).join('\n')
     if (!codes) return
+    copyLock.current = true
     try {
       if (!navigator.clipboard?.writeText) throw new Error('复制不可用')
       await navigator.clipboard.writeText(codes)
@@ -148,7 +151,7 @@ export default function ScreeningResultView({
       }, 2000)
     } catch {
       setCopyNotice('复制未成功，请允许浏览器复制或使用导出按钮。')
-    }
+    } finally { copyLock.current = false }
   }
 
   return (
@@ -175,12 +178,11 @@ export default function ScreeningResultView({
       {coverage && (
         <section aria-label="本次运行覆盖情况">
           <div className="conversation-run-counts">
-            <div><span>目标</span><strong>{coverage.target_total}</strong></div>
             <div><span>符合</span><strong>{coverage.true_count}</strong></div>
-            <div><span>不符合</span><strong>{coverage.false_count}</strong></div>
-            <div><span>尚无法判断</span><strong>{coverage.unknown_count}</strong></div>
+            <div><span>已判断覆盖</span><strong>{resolvedCount} / {coverage.target_total}</strong></div>
+            <div><span>数据不足</span><strong>{Math.max(0, coverage.unknown_count - (coverage.failed_count ?? 0) - (coverage.not_evaluated_count ?? 0))}</strong></div>
           </div>
-          <p className="conversation-coverage-note">已有明确判断 {resolvedCount} / {coverage.target_total} 只；尚无法判断包含 {coverage.failed_count ?? 0} 只处理失败、{coverage.not_evaluated_count ?? 0} 只未处理。</p>
+          <p className="conversation-coverage-note">已有明确判断 {resolvedCount} / {coverage.target_total} 只；不符合 {coverage.false_count} 只。尚无法判断共 {coverage.unknown_count} 只，包含 {coverage.failed_count ?? 0} 只处理失败、{coverage.not_evaluated_count ?? 0} 只未处理。</p>
           {coverage.unknown_count > 0 && <p className="conversation-coverage-note">结果覆盖不完整，未能判断的股票不等于不符合。</p>}
         </section>
       )}
@@ -207,27 +209,31 @@ export default function ScreeningResultView({
                 placeholder="名称、拼音或代码"
               />
             </label>}
-            <button
+            <ScreeningResultMenu context={JSON.stringify([status, revision, asOf, offset, stateFilter, query, loading, error])}>{closeMenu => <><button
               type="button"
+              role="menuitem"
               className="secondary-button compact conversation-copy-button"
               title="仅复制当前页显示的股票代码，包含本页全部判断状态；不包含其他页"
               disabled={loading || !!error || !decisions.length}
-              onClick={() => void copyCodes()}
+              onClick={() => { closeMenu(); void copyCodes() }}
             >
               <Copy size={13} />
               <span>{copying ? '已复制' : '复制本页代码'}</span>
             </button>
-            {onCopyAll && <button className="secondary-button compact" onClick={onCopyAll}>{query ? '复制搜索范围全部符合项' : '复制全部符合项'}</button>}
+            {onCopyAll && <button type="button" role="menuitem" className="secondary-button compact" onClick={() => { closeMenu(); onCopyAll() }}>{query ? '复制搜索范围全部符合项' : '复制全部符合项'}</button>}
             {onExportUrl && (
               <a
+                role="menuitem"
                 className="secondary-button compact"
                 href={onExportUrl}
                 title="按当前状态和搜索条件导出所有页，不限当前页"
+                onClick={closeMenu}
               >
                 <Download size={13} />
                 <span>{exportLabel}</span>
               </a>
             )}
+            </>}</ScreeningResultMenu>
             {onRetry && ['failed', 'cancelled', 'partial'].includes(status) && (
               <button
                 type="button"
@@ -243,7 +249,7 @@ export default function ScreeningResultView({
 
           {copyNotice && <div className="inline-feedback-badge">{copyNotice}</div>}
 
-          {completeNoMatches && (
+          {!loading && !error && completeNoMatches && (
             <div className="conversation-result-guidance">
               <strong>本次没有找到符合条件的股票</strong>
               <p>目标范围内的股票均已有明确判断。可查看不符合项的条件明细，再决定是否调整要求。</p>
@@ -252,7 +258,7 @@ export default function ScreeningResultView({
             </div>
           )}
 
-          {incompleteNoMatches && (
+          {!loading && !error && incompleteNoMatches && (
             <div className="conversation-result-guidance">
               <strong>{coverage?.target_total === 0 ? '本次没有可筛选的股票' : '暂未确认符合项，仍有未完成的判断'}</strong>
               <p>{coverage?.target_total === 0 ? '请检查目标范围后再运行。' : '当前结果不能说明目标范围内没有符合项。请查看数据不足、处理失败或未处理的记录及原因。'}</p>
@@ -261,7 +267,7 @@ export default function ScreeningResultView({
             </div>
           )}
 
-          {['failed', 'cancelled'].includes(status) && (
+          {!loading && !error && ['failed', 'cancelled'].includes(status) && (
             <div className="conversation-result-guidance">
               <strong>{status === 'failed' ? '这次筛选未能完成' : '这次筛选已取消'}</strong>
               {progress?.message && <p>{progress.message}</p>}
@@ -277,7 +283,7 @@ export default function ScreeningResultView({
               </p>
             ) : error ? (
               <div className="saved-task-empty" role="alert">
-                <p>{error}</p>
+                <strong>筛选结果加载失败</strong><p>{error}</p><p>结果尚未读取成功，请重新加载；这不是零匹配结论。</p>
                 {onReload && (
                   <button type="button" className="secondary-button compact" onClick={onReload}>
                     重新加载结果
@@ -361,7 +367,7 @@ export default function ScreeningResultView({
               ))
             )}
 
-            {!loading && !error && !decisions.length && (
+            {!loading && !error && !decisions.length && !completeNoMatches && !incompleteNoMatches && !['failed', 'cancelled'].includes(status) && (
               <div className="saved-task-empty">
                 <p>
                   {query || stateFilter

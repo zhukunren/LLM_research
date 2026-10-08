@@ -2,7 +2,7 @@
    One reading column for the request, reviewable plan, and its results. */
 .conversation-product.research-studio.screening-studio { width:100%; max-width:900px; margin-inline:auto; }
 .conversation-product.research-studio.screening-studio .conversation-workspace { display:grid; grid-template-columns:minmax(0,1fr); width:100%; min-width:0; gap:24px; }
-.conversation-product.research-studio.screening-studio .conversation-main { position:static; top:auto; width:100%; min-width:0; height:auto; min-height:0; border:0; border-radius:0; box-shadow:none; background:transparent; }
+.conversation-product.research-studio.screening-studio .conversation-main { position:static; top:auto; width:100%; min-width:0; height:auto; min-height:0; overflow:visible; border:0; border-radius:0; box-shadow:none; background:transparent; }
 .conversation-product.research-studio.screening-studio .conversation-message-list { max-height:none; min-height:0; padding:16px 0; }
 .conversation-product.research-studio.screening-studio .conversation-task-panel { position:static; top:auto; grid-column:1; width:100%; min-width:0; max-height:none; overflow:visible; padding:24px 0 0; border:0; border-top:1px solid var(--ui-border); border-radius:0; background:transparent; box-shadow:none; }
 .conversation-product.research-studio.screening-studio .studio-results-heading:empty { display:none; }
@@ -37,5 +37,20 @@
 .conversation-product.research-studio.screening-studio .task-execution-rule strong { font-weight:500; }
 
 .conversation-product.research-studio.screening-studio .conversation-message-stage { flex:none; min-height:0; max-height:none; overflow:visible; background:transparent; }
+.conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-main { gap:12px; }
+.conversation-product.research-studio.screening-studio .conversation-workspace-empty .screening-templates { order:-1; padding:0; }
+.conversation-product.research-studio.screening-studio .conversation-workspace-empty .screening-template-entries { margin:0; }
+.conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-message-list { padding:0; }
+.screening-settings { position:relative; }
+.screening-settings-panel { position:absolute; bottom:calc(100% + 10px); left:0; z-index:21; width:260px; max-width:calc(100vw - 60px); box-sizing:border-box; padding:14px; border:1px solid var(--ui-border); border-radius:10px; background:var(--ui-surface,white); box-shadow:0 4px 16px #00286814; }
+.screening-settings-panel:not([hidden]) { display:flex; flex-direction:column; gap:12px; }
+.screening-settings-panel .studio-mode-select { justify-content:space-between; }
+.conversation-product.research-studio.screening-studio .screening-settings-panel .studio-mode-select > span { display:inline; }
+.screening-plan-secondary { margin-top:14px; color:var(--ui-text-muted); font-size:12px; }
+.screening-plan-secondary > summary { cursor:pointer; margin-bottom:8px; }
+@media(max-width:600px) {
+  .screening-settings { position:static; }
+  .screening-settings-panel { top:14px; bottom:auto; left:12px; right:12px; width:auto; max-width:none; }
+}
 .conversation-product.research-studio.screening-studio .conversation-composer { width:100%; min-width:0; max-width:none; box-sizing:border-box; }
 .conversation-product.research-studio.screening-studio .screening-path { flex-wrap:wrap; }

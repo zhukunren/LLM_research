@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import ScreeningResultView, { type CoverageCounts } from './ScreeningResultView'
@@ -81,23 +81,32 @@ it('labels copy and export scopes and copies exactly displayed rows', async () =
     { stock_code: '600000.SH', state: 'true', conditions: [] },
     { stock_code: '000001.SZ', state: 'false', conditions: [] },
   ]} onCopyAll={copyAll} onExportUrl="/export?state=&query=银行" />)
-  await user.click(screen.getByRole('button', { name: '复制本页代码' }))
+  await user.click(screen.getByRole('button', { name: '复制与导出' }))
+  await user.click(screen.getByRole('menuitem', { name: '复制本页代码' }))
   expect(copy).toHaveBeenCalledWith('600000.SH\n000001.SZ')
   expect(screen.getByText(/包含本页显示的全部判断状态/)).toBeVisible()
-  await user.click(screen.getByRole('button', { name: '复制搜索范围全部符合项' }))
+  await user.click(screen.getByRole('button', { name: '复制与导出' }))
+  await user.click(screen.getByRole('menuitem', { name: '复制搜索范围全部符合项' }))
   expect(copyAll).toHaveBeenCalledOnce()
-  expect(screen.getByRole('link', { name: '导出当前筛选全部页' })).toHaveAttribute('href', '/export?state=&query=银行')
+  await user.click(screen.getByRole('button', { name: '复制与导出' }))
+  expect(screen.getByRole('menuitem', { name: '导出当前筛选全部页' })).toHaveAttribute('href', '/export?state=&query=银行')
   rerender(<ScreeningResultView status="succeeded" decisions={[{ stock_code: '600000.SH', state: 'true', conditions: [] }]} />)
-  await user.click(screen.getByRole('button', { name: '已复制' }))
+  await user.click(screen.getByRole('button', { name: '复制与导出' }))
+  await user.click(screen.getByRole('menuitem', { name: '已复制' }))
   expect(copy).toHaveBeenLastCalledWith('600000.SH')
 })
 
 it('blocks stale page copy while results are loading or failed to load', () => {
   const decisions = [{ stock_code: '600000.SH', state: 'true', conditions: [] }]
   const { rerender } = render(<ScreeningResultView status="succeeded" loading decisions={decisions} />)
-  expect(screen.getByRole('button', { name: '复制本页代码' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '复制与导出' }))
+  expect(screen.getByRole('menuitem', { name: '复制本页代码' })).toBeDisabled()
+  expect(screen.getByRole('menu', { name: '复制与导出' })).toHaveFocus()
   rerender(<ScreeningResultView status="succeeded" error="加载失败" decisions={decisions} />)
-  expect(screen.getByRole('button', { name: '复制本页代码' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '复制与导出' }))
+  expect(screen.getByRole('menuitem', { name: '复制本页代码' })).toBeDisabled()
+  fireEvent.keyDown(screen.getByRole('menu', { name: '复制与导出' }), { key: 'Escape' })
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })
 
 
@@ -113,5 +122,57 @@ it('shows actual false-condition evidence for a true result without assuming AND
 it('does not equate data insufficiency with no matches even when the run reports success', () => {
   render(<ScreeningResultView status="succeeded" coverage={{ target_total: 10, true_count: 0, false_count: 0, unknown_count: 10 }} decisions={[]} />)
   expect(screen.getByText('暂未确认符合项，仍有未完成的判断')).toBeVisible()
+  expect(screen.queryByText('本次没有找到符合条件的股票')).not.toBeInTheDocument()
+})
+
+it('supports menu keyboard navigation, Escape, Tab, outside clicks, repeated toggles and context changes', async () => {
+  const user = userEvent.setup()
+  const props = { status: 'succeeded', decisions: [{ stock_code: '600000.SH', state: 'true', conditions: [] }], onCopyAll: vi.fn(), onExportUrl: '/export' }
+  const view = render(<ScreeningResultView {...props} />)
+  const trigger = screen.getByRole('button', { name: '复制与导出' })
+  await user.click(trigger); await user.click(trigger)
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  trigger.focus(); await user.keyboard('{ArrowDown}')
+  expect(screen.getByRole('menuitem', { name: '复制本页代码' })).toHaveFocus()
+  await user.keyboard('{End}')
+  expect(screen.getByRole('menuitem', { name: '导出当前筛选全部页' })).toHaveFocus()
+  await user.keyboard('{Home}{ArrowDown}')
+  expect(screen.getByRole('menuitem', { name: '复制全部符合项' })).toHaveFocus()
+  await user.keyboard('{Escape}')
+  expect(trigger).toHaveFocus()
+  await user.click(trigger); await user.keyboard('{Tab}')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  await user.click(trigger); await user.click(screen.getByText('数据截止日：未提供'))
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  await user.click(trigger)
+  view.rerender(<ScreeningResultView {...props} query="新的搜索" />)
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+})
+
+it('does not issue duplicate clipboard writes while the first copy is pending', async () => {
+  const user = userEvent.setup()
+  let finish!: () => void
+  const copy = vi.spyOn(navigator.clipboard, 'writeText').mockImplementation(() => new Promise<void>(resolve => { finish = resolve }))
+  render(<ScreeningResultView status="succeeded" decisions={[{ stock_code: '600000.SH', state: 'true', conditions: [] }]} />)
+  for (let index = 0; index < 2; index++) {
+    await user.click(screen.getByRole('button', { name: '复制与导出' }))
+    await user.click(screen.getByRole('menuitem', { name: '复制本页代码' }))
+  }
+  expect(copy).toHaveBeenCalledOnce()
+  await act(async () => finish())
+})
+
+it.each(['failed', 'cancelled'])('shows one empty-result explanation for %s', status => {
+  render(<ScreeningResultView status={status} decisions={[]} />)
+  expect(screen.getByText(status === 'failed' ? '这次筛选未能完成' : '这次筛选已取消')).toBeVisible()
+  expect(screen.queryByText('本次运行暂无逐股记录。')).not.toBeInTheDocument()
+})
+
+it('does not present stale zero-match coverage as a conclusion during result loading or load failures', () => {
+  const props = { status: 'succeeded', coverage: { target_total: 1, true_count: 0, false_count: 1, unknown_count: 0 }, decisions: [] }
+  const view = render(<ScreeningResultView {...props} loading />)
+  expect(screen.queryByText('本次没有找到符合条件的股票')).not.toBeInTheDocument()
+  view.rerender(<ScreeningResultView {...props} error="网络连接失败" />)
+  expect(screen.getByText('筛选结果加载失败')).toBeVisible()
   expect(screen.queryByText('本次没有找到符合条件的股票')).not.toBeInTheDocument()
 })

@@ -42,13 +42,16 @@ it('copies the explicitly labelled current page without silently filtering or cl
     { stock_code: '600000.SH', state: 'true', conditions: [] },
     { stock_code: '000001.SZ', state: 'false', conditions: [] },
   ]} />)
-  await user.click(screen.getByRole('button', { name: '复制本页代码' }))
+  await user.click(screen.getByRole('button', { name: '复制与导出' }))
+  await user.click(screen.getByRole('menuitem', { name: '复制本页代码' }))
   expect(copy).toHaveBeenCalledWith('600000.SH\n000001.SZ')
   expect(screen.getByText(/包含本页显示的全部判断状态/)).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '复制全部符合项' }))
+  await user.click(screen.getByRole('button', { name: '复制与导出' }))
+  await user.click(screen.getByRole('menuitem', { name: '复制全部符合项' }))
   expect(all).toHaveBeenCalledTimes(1)
   copy.mockRejectedValueOnce(new Error('denied'))
-  await user.click(screen.getByRole('button', { name: '已复制' }))
+  await user.click(screen.getByRole('button', { name: '复制与导出' }))
+  await user.click(screen.getByRole('menuitem', { name: '已复制' }))
   expect(await screen.findByText(/复制未成功/)).toBeInTheDocument()
 })
 

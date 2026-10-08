@@ -1,4 +1,13 @@
 .screening-templates { width:100%; text-align:left; padding:4px 0 12px; }
+.screening-template-entries { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.screening-template-entries button { border-radius:18px; font-weight:400; }
+.screening-template-entries button[aria-expanded="true"] { color:var(--ui-primary); border-color:var(--ui-primary); }
+.screening-template-preview { padding:16px 0; border-block:1px solid var(--ui-border); }
+.screening-template-preview p { color:var(--ui-text-muted); font-size:12px; line-height:1.6; }
+.screening-template-preview > button { margin-top:12px; }
+.screening-template-preview > small { display:block; color:var(--ui-danger); }
+.screening-template-explanation { margin-top:8px; color:var(--ui-text-muted); font-size:12px; }
+.screening-template-explanation summary { cursor:pointer; }
 .screening-templates h3 { margin:0 0 4px; font-size:14px; font-weight:500; }
 .screening-templates > div > p, .screening-templates > small { color:var(--ui-text-muted); font-size:12px; line-height:1.6; }
 .screening-template-grid { display:flex; flex-direction:column; margin:12px 0; }

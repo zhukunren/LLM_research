@@ -41,7 +41,7 @@ it('flags cutoff outside actual coverage and never substitutes a date', () => {
 it('shows real defaults and honest unsupported/unknown coverage without raw diagnostics', async () => {
   vi.mocked(api).mockResolvedValue(manifest)
   render(<ScreeningReadiness data={data} scope="technical" />)
-  await screen.findByText('基础数据可用')
+  await screen.findByText('数据来源已接入')
   expect(screen.getByText(/全部 A 股（默认范围）/)).toHaveTextContent('2025-01-02（默认最新行情日）')
   await userEvent.setup().click(screen.getByText('查看数据范围与限制'))
   expect(screen.getByText(/暂不支持：历史财务与估值、分钟行情/)).toBeVisible()
@@ -56,7 +56,7 @@ it('keeps conditions intact and recovers from a capability read failure', async 
   await screen.findByText('数据状态待确认')
   expect(screen.queryByText(/traceback/)).not.toBeInTheDocument()
   await userEvent.setup().click(screen.getByRole('button', { name: '重新检查' }))
-  await screen.findByText('基础数据可用')
+  await screen.findByText('数据来源已接入')
   expect(JSON.stringify(value)).toBe(before)
 })
 
@@ -73,7 +73,7 @@ it('refreshes unavailable source status after an import without remounting', asy
   render(<ScreeningReadiness data={data} scope="report" />)
   await screen.findByText('所需数据暂不可用')
   await userEvent.setup().click(screen.getByRole('button', { name: '重新检查' }))
-  await screen.findByText('基础数据可用')
+  await screen.findByText('数据来源已接入')
   expect(screen.queryByRole('button', { name: '重新检查' })).not.toBeInTheDocument()
 })
 it('refreshes when meaningful market status changes', async () => {
@@ -82,6 +82,16 @@ it('refreshes when meaningful market status changes', async () => {
   await screen.findByText('所需数据暂不可用')
   const calls = vi.mocked(api).mock.calls.length
   view.rerender(<ScreeningReadiness data={data} scope="technical" />)
-  await screen.findByText('基础数据可用')
+  await screen.findByText('数据来源已接入')
   expect(vi.mocked(api).mock.calls.length).toBe(calls + 1)
+})
+
+it('collapses a healthy state to one row without duplicating the composer scope and date', async () => {
+  vi.mocked(api).mockResolvedValue(manifest)
+  render(<ScreeningReadiness data={data} scope="technical" showScope={false} onOpenData={vi.fn()} />)
+  await screen.findByText('数据来源已接入')
+  expect(screen.queryByText(/全部 A 股/)).not.toBeInTheDocument()
+  expect(screen.getByText(/本地行情截至/)).not.toBeVisible()
+  expect(screen.getByRole('button', { name: '查看数据范围与限制' })).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.queryByRole('button', { name: '检查数据与服务' })).not.toBeInTheDocument()
 })

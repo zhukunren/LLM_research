@@ -7,12 +7,20 @@ import type { Conversation, ScreeningTaskRevision } from '../../api'
 
 const template = { id: 'above_sma', version: 1, name: '收盘价在均线上方', formula: '收盘价 > 最近 N 个交易日均价（含当日）', parameters: { window: { label: '均线周期 N', default: 20, min: 2, max: 250, step: 1 } } }
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
+async function openStarter() {
+  const button = await screen.findByRole('button', { name: '选择基础方案：收盘价高于20日均线' })
+  await waitFor(() => expect(button).toBeEnabled())
+  await userEvent.click(button)
+}
 
 it('shows exact formula, validates edits and sends numbers without model parsing', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => json({ items: [template] })))
   const selected = vi.fn()
   render(<ScreeningTemplates disabled={false} onSelect={selected} />)
+  await openStarter()
   const input = await screen.findByLabelText('收盘价在均线上方：均线周期 N')
+  expect(screen.getByText(template.formula)).not.toBeVisible()
+  await userEvent.click(screen.getByText('公式与说明'))
   expect(screen.getByText(template.formula)).toBeVisible()
   expect(input.closest('details')).not.toHaveAttribute('open')
   await userEvent.click(screen.getByText('调整参数'))
@@ -29,6 +37,7 @@ it('recovers catalog errors without hiding free-text fallback', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => ++reads === 1 ? json({ message: 'unavailable' }, 503) : json({ items: [template] })))
   render(<ScreeningTemplates disabled={false} onSelect={vi.fn()} />)
   await userEvent.click(await screen.findByRole('button', { name: '重试读取基础方案' }))
+  await openStarter()
   expect(await screen.findByRole('button', { name: '查看方案：收盘价在均线上方' })).toBeEnabled()
 })
 
@@ -56,6 +65,7 @@ it('publishes an atomic template plan, retries stable identity, and never calls 
     return json({ items: [] })
   }))
   render(<ConversationWorkspace initialWorkflowType="screening" initialNewDraft data={{ available: true, last_date: '2026-09-30' }} />)
+  await openStarter()
   const button = await screen.findByRole('button', { name: '查看方案：收盘价在均线上方' })
   await waitFor(() => expect(button).toBeEnabled())
   fireEvent.change(screen.getByLabelText('收盘价在均线上方：均线周期 N'), { target: { value: '10' } })
@@ -83,6 +93,7 @@ it('does not reclaim the screen when a template finishes after navigation to res
     return json({ items: [] })
   }))
   const view = render(<ConversationWorkspace initialWorkflowType="screening" initialNewDraft data={{ available: true, last_date: '2026-09-30' }} onLocationChange={location} />)
+  await openStarter()
   const button = await screen.findByRole('button', { name: '查看方案：收盘价在均线上方' })
   await waitFor(() => expect(button).toBeEnabled())
   await userEvent.click(button)
@@ -109,6 +120,7 @@ it('ignores an old template response when a new empty screening draft is request
   }))
   const props = { initialWorkflowType: 'screening' as const, initialNewDraft: true, data: { available: true, last_date: '2026-09-30' }, onLocationChange: location, onNewResearchConsumed: consumed }
   const view = render(<ConversationWorkspace {...props} newResearchKey={0} />)
+  await openStarter()
   const button = await screen.findByRole('button', { name: '查看方案：收盘价在均线上方' })
   await waitFor(() => expect(button).toBeEnabled())
   await userEvent.click(button)
@@ -119,6 +131,6 @@ it('ignores an old template response when a new empty screening draft is request
   view.rerender(<ConversationWorkspace {...props} newResearchKey={0} />)
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
   expect(location.mock.calls.some(call => call[0] === 'previous-draft')).toBe(false)
-  expect(screen.getByRole('button', { name: '查看方案：收盘价在均线上方' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '选择基础方案：收盘价高于20日均线' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: '确认并开始筛选' })).not.toBeInTheDocument()
 })

@@ -15,7 +15,7 @@ const task: ScreeningTaskRevision = {
   scope: { universe: { kind: 'all_a_shares', stock_codes: [] }, as_of: '2026-09-30', report_lookback_calendar_days: null, news_lookback_calendar_days: null, price_basis: null, ranking: null }, unresolved: [],
 }
 
-function mockScreening(restored?: Conversation) {
+function mockScreening(restored?: Conversation, plan = task) {
   let stored = restored ?? { ...baseConversation }
   const calls: { path: string; method: string; body: Record<string, unknown> }[] = []
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -31,7 +31,7 @@ function mockScreening(restored?: Conversation) {
     }
     if (path.endsWith('/process')) return json({ id: 'turn', state: 'succeeded', result: { ready_to_execute: true, execution_authorized: false } })
     if (path === '/conversations/screening') return json(stored)
-    if (path.endsWith('/revisions/1')) return json(task)
+    if (path.endsWith('/revisions/1')) return json(plan)
     return json({ items: [] })
   }))
   return calls
@@ -142,4 +142,41 @@ it('restores the confirmation phase and keeps execution unavailable while edits 
   expect(execute).toBeDisabled()
   expect(screen.getByRole('button', { name: '发送修改' })).toBeEnabled()
   expect(calls.every(call => call.method === 'GET')).toBe(true)
+})
+
+it('keeps ranking scope, ties, missing policy and unresolved questions prominent while saving stays secondary', async () => {
+  const stored: Conversation = { ...baseConversation, task_revision: 1 }
+  const ranked: ScreeningTaskRevision = { ...task, scope: { ...task.scope, as_of: '2026-09-29', ranking: { ranking_universe: 'industry', top_n: 10, ties_policy: 'include_all', missing_policy: 'exclude_with_notice' } }, unresolved: [{ kind: 'ambiguous', source_quote: '行业内排名', question: '使用哪个行业分类？' }] }
+  const calls = mockScreening(stored, ranked)
+  render(<ConversationWorkspace initialWorkflowType="screening" initialConversationId="screening" data={{ available: true, last_date: '2026-09-30' }} />)
+  expect(await screen.findByText('行业内')).toBeVisible()
+  expect(screen.getByText('前 10 名')).toBeVisible()
+  expect(screen.getByText('保留全部并列')).toBeVisible()
+  expect(screen.getByText('排除缺失并说明')).toBeVisible()
+  expect(screen.getByRole('region', { name: '待澄清问题' })).toHaveTextContent('使用哪个行业分类？')
+  expect(screen.getByText('本地行情覆盖至')).toBeVisible()
+  expect(screen.getByText('保存方案与项目归属').closest('details')).not.toHaveAttribute('open')
+  expect(screen.queryByRole('button', { name: '确认并开始筛选' })).not.toBeInTheDocument()
+  expect(calls.every(call => call.method === 'GET')).toBe(true)
+})
+
+it('shows a failed run read with a reload action instead of an endless loading or zero-match conclusion', async () => {
+  const stored = { ...baseConversation, task_revision: 1, active_run_id: 'old-run' }
+  let reads = 0
+  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input), 'http://localhost').pathname.replace('/api/v1', '')
+    if (path === '/conversations') return json({ items: [stored] })
+    if (path === '/conversations/screening') return json(stored)
+    if (path.endsWith('/revisions/1')) return json(task)
+    if (path.endsWith('/screening-runs')) return json({ items: [{ id: 'old-run', task_revision: 1, as_of: '2026-09-30', status: 'succeeded' }] })
+    if (path.endsWith('/screening-runs/old-run')) { reads++; return new Response(JSON.stringify({ message: '读取运行中断' }), { status: 503, headers: { 'Content-Type': 'application/json' } }) }
+    return json({ items: [] })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const user = userEvent.setup()
+  render(<ConversationWorkspace initialWorkflowType="screening" initialConversationId="screening" />)
+  expect(await screen.findByText('筛选运行加载失败')).toBeVisible()
+  expect(screen.queryByText('本次没有找到符合条件的股票')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '重新加载筛选运行' }))
+  await waitFor(() => expect(reads).toBeGreaterThan(1))
 })

@@ -23,6 +23,8 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
   const [retry, setRetry] = useState(0)
   const [limit, setLimit] = useState(12)
   const [toolsOpen, setToolsOpen] = useState(toolMenus.some(item => item.id === page))
+  const [advancedOpen, setAdvancedOpen] = useState(page === 'conditions' && ['library', 'create', 'compose'].includes(screeningView || ''))
+  useEffect(() => { if (page === 'conditions' && ['library', 'create', 'compose'].includes(screeningView || '')) setAdvancedOpen(true) }, [page, screeningView])
   const [assistantsOpen, setAssistantsOpen] = useState(page === 'assistants')
   const [assistants, setAssistants] = useState<ResearchAssistant[]>([])
   const [assistantsLoading, setAssistantsLoading] = useState(false)
@@ -103,10 +105,12 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
         </div>
         </>}
         {!isResearch && <>
-          <button className="chat-nav-button" aria-label="已保存方案" aria-current={page === 'conditions' && screeningView === 'saved' ? 'page' : undefined} onClick={() => onScreeningView?.('saved')}><Bookmark size={18} /><span>已保存方案</span></button>
-          <button className="chat-nav-button" aria-label="筛选记录" aria-current={page === 'conditions' && screeningView === 'history' ? 'page' : undefined} onClick={() => onScreeningView?.('history')}><History size={18} /><span>筛选记录</span></button>
+          <button className="chat-nav-button" aria-label="我的方案" aria-current={page === 'conditions' && screeningView === 'saved' ? 'page' : undefined} onClick={() => onScreeningView?.('saved')}><Bookmark size={18} /><span>我的方案</span></button>
+          <button className="chat-nav-button chat-tools-toggle" aria-label="高级工具" aria-expanded={advancedOpen} aria-controls="screening-advanced-links" onClick={() => setAdvancedOpen(value => !value)}><Wrench size={18} /><span>高级工具</span><ChevronDown size={14} /></button>
+          <div id="screening-advanced-links" className="chat-tool-links" hidden={!advancedOpen}>
           <button className="chat-nav-button" aria-label="我的条件" aria-current={page === 'conditions' && ['library', 'create'].includes(screeningView || '') ? 'page' : undefined} onClick={() => onScreeningView?.('library')}><ListFilter size={18} /><span>我的条件</span></button>
           <button className="chat-nav-button" aria-label="高级组合" aria-current={page === 'conditions' && screeningView === 'compose' ? 'page' : undefined} onClick={() => onScreeningView?.('compose')}><ChartNoAxesCombined size={18} /><span>高级组合</span></button>
+          </div>
         </>}
         <div className="workspace-shared-label">共享资料</div>
         <button className="chat-nav-button" aria-label="观察池" title="观察池" aria-current={page === 'watchlist' ? 'page' : undefined} onClick={() => onNavigate('watchlist')}><Star size={18} /><span>观察池</span></button>
@@ -121,6 +125,7 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
           return <button key={item.id} className="chat-history-item" title={item.title || '未命名对话'} aria-label={`继续${screening ? '选股' : '研究'}：${item.title || '未命名对话'}`} aria-current={conversationId === item.id ? 'page' : undefined} onClick={() => onConversation(item.id, item.entry_scope, conversationWorkflow(item))}>{screening && <ListFilter size={13} />}<span>{item.title?.trim() || '未命名对话'}</span>{['failed', 'awaiting_user', 'running', 'awaiting_agent'].includes(item.last_turn_state || '') && <i className={item.last_turn_state === 'failed' || item.last_turn_state === 'awaiting_user' ? 'needs-attention' : 'in-progress'} aria-label={item.last_turn_state === 'failed' ? '需重试' : item.last_turn_state === 'awaiting_user' ? '待补充' : '处理中'} />}</button>
         })}
         {limit < visibleItems.length && <button className="chat-history-more" onClick={() => setLimit(value => value + 12)}>更多记录</button>}
+        {!isResearch && <button className="chat-nav-button" aria-label="全部筛选记录" title="查看全部筛选运行记录" aria-current={page === 'conditions' && screeningView === 'history' ? 'page' : undefined} onClick={() => onScreeningView?.('history')}><History size={16} /><span>全部筛选记录</span></button>}
       </section>
       <button className="chat-settings chat-nav-button" aria-label="数据与服务" title="数据与服务" onClick={onSettings}><Settings2 size={18} /><span>数据与服务</span></button>
     </aside>
