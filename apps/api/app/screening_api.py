@@ -6,8 +6,10 @@ from typing import Literal
 
 from . import screening_service
 from .screening_contracts import ContractModel
+from .screening_templates import router as templates_router
 
 router = APIRouter(prefix="/api/v1", tags=["对话筛选运行"])
+router.include_router(templates_router)
 
 
 class ExecuteTurnRequest(ContractModel):

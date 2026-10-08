@@ -5,7 +5,7 @@ import { api, type ResearchAssistant } from '../api'
 import ResearchSidebar from './ResearchSidebar'
 
 vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
-const props = () => ({ page: 'screening' as const, revision: 0, mobileOpen: false, onClose: vi.fn(), onNavigate: vi.fn(), onNewResearch: vi.fn(), onSearch: vi.fn(), onConversation: vi.fn(), onAssistant: vi.fn(), onSettings: vi.fn() })
+const props = () => ({ page: 'screening' as const, revision: 0, mobileOpen: false, onClose: vi.fn(), onNavigate: vi.fn(), onNewResearch: vi.fn(), onNewScreening: vi.fn(), onSearch: vi.fn(), onConversation: vi.fn(), onAssistant: vi.fn(), onSettings: vi.fn() })
 const assistants: ResearchAssistant[] = [
   ['general', '通用投研'], ['financial', '财报分析'], ['reports', '研报解读'],
   ['supply-chain', '产业链研究'], ['risk', '风险复核'],
@@ -106,4 +106,23 @@ it('focuses the mobile close button and returns focus after closing', async () =
   view.rerender(<ResearchSidebar {...callbacks} />)
   await waitFor(() => expect(previous).toHaveFocus())
   previous.remove()
+})
+
+it.each([false, true])('offers one primary screening start independently of tools (mobile: %s)', async mobileOpen => {
+  vi.mocked(api).mockResolvedValue({ items: [] } as never)
+  const callbacks = props(), user = userEvent.setup()
+  render(<ResearchSidebar {...callbacks} mobileOpen={mobileOpen} page="conditions" />)
+  const menu = within(screen.getByRole('navigation', { name: '主菜单' }))
+  const start = menu.getByRole('button', { name: '开始选股' })
+  expect(start).toHaveAttribute('aria-current', 'page')
+  expect(menu.getByRole('button', { name: '资料与工具' })).toHaveAttribute('aria-expanded', 'false')
+  await user.click(start)
+  expect(callbacks.onNewScreening).toHaveBeenCalledOnce()
+  expect(callbacks.onNewResearch).not.toHaveBeenCalled()
+  expect(callbacks.onNavigate).not.toHaveBeenCalled()
+  await user.click(menu.getByRole('button', { name: '资料与工具' }))
+  expect(menu.getAllByRole('button', { name: '开始选股' })).toHaveLength(1)
+  expect(menu.queryByRole('button', { name: '条件选股' })).not.toBeInTheDocument()
+  await user.click(menu.getByRole('button', { name: '开始新研究' }))
+  expect(callbacks.onNewResearch).toHaveBeenCalledOnce()
 })

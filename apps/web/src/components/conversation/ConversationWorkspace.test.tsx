@@ -421,7 +421,8 @@ describe('ConversationWorkspace', () => {
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('为什么这次选中了600000.SH？')
     expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1)
-    expect(screen.getByText('当前运行 · v1 · 2026-09-14')).toBeInTheDocument()
+    expect(screen.getByText('当前运行 · v1')).toBeInTheDocument()
+    expect(screen.getByText('数据截止日：2026-09-14')).toBeInTheDocument()
   })
 
   it('attaches a report page reference to the first message from a report page', async () => {

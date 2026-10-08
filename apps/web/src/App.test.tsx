@@ -16,7 +16,7 @@ vi.mock('./pages/LibraryWorkspace', () => ({ default: () => <h1>资料阅读</h1
 vi.mock('./pages/ObservationPage', () => ({ default: ({ initialRunId, initialCandidateId, onLocationChange }: { initialRunId?: string; initialCandidateId?: string; onLocationChange: (tab: 'candidates' | 'batches', id: string) => void }) => <><h1>观察定位：{initialRunId || initialCandidateId || '目录'}</h1><button onClick={() => onLocationChange('candidates', 'candidate-two')}>选择第二候选</button><button onClick={() => onLocationChange('batches', 'run-two')}>选择第二批次</button></> }))
 vi.mock('./pages/WorkbenchPage', async () => {
   const { default: Workspace } = await import('./components/conversation/ConversationWorkspace')
-  return { default: ({ conversationId, conversationPrompt, onPromptConsumed, newResearchKey, onNewResearchConsumed, conversationWorkflowType, workflowOnly, onLocationChange, conversationNewDraft }: { conversationId?: string; conversationPrompt?: string; onPromptConsumed?: () => void; newResearchKey?: number; onNewResearchConsumed?: () => void; conversationWorkflowType?: 'research' | 'screening'; workflowOnly?: boolean; conversationNewDraft?: boolean; onLocationChange?: (id: string, scope: 'technical' | 'news' | 'report' | 'pattern' | 'screening', workflow: 'research' | 'screening') => void }) => <Workspace initialWorkflowType={workflowOnly ? 'screening' : conversationWorkflowType} initialConversationId={conversationId} initialNewDraft={conversationNewDraft} initialPrompt={conversationPrompt} onPromptConsumed={onPromptConsumed} newResearchKey={newResearchKey} onNewResearchConsumed={onNewResearchConsumed} onLocationChange={onLocationChange} /> }
+  return { default: ({ conversationId, conversationPrompt, onPromptConsumed, newResearchKey, onNewResearchConsumed, conversationWorkflowType, workflowOnly, onLocationChange, conversationNewDraft, onOpenDataServices }: { onOpenDataServices?: () => void; conversationId?: string; conversationPrompt?: string; onPromptConsumed?: () => void; newResearchKey?: number; onNewResearchConsumed?: () => void; conversationWorkflowType?: 'research' | 'screening'; workflowOnly?: boolean; conversationNewDraft?: boolean; onLocationChange?: (id: string, scope: 'technical' | 'news' | 'report' | 'pattern' | 'screening', workflow: 'research' | 'screening') => void }) => <Workspace onOpenDataServices={onOpenDataServices} initialWorkflowType={workflowOnly ? 'screening' : conversationWorkflowType} initialConversationId={conversationId} initialNewDraft={conversationNewDraft} initialPrompt={conversationPrompt} onPromptConsumed={onPromptConsumed} newResearchKey={newResearchKey} onNewResearchConsumed={onNewResearchConsumed} onLocationChange={onLocationChange} /> }
 })
 
 it('opens research by default and moves projects and optional tools into the sidebar without starting jobs', async () => {
@@ -59,7 +59,7 @@ it('opens a saved screening conversation in condition screening instead of the r
   render(<App />)
   await user.click(await screen.findByRole('button', { name: '打开项目对话' }))
   expect(await screen.findByRole('heading', { name: '新建选股方案' }, { timeout: 5000 })).toBeInTheDocument()
-  expect(await screen.findByRole('button', { name: '条件选股' })).toHaveAttribute('aria-current', 'page')
+  expect(await screen.findByRole('button', { name: '开始选股' })).toHaveAttribute('aria-current', 'page')
   expect(screen.getByLabelText('选股要求')).toBeInTheDocument()
   expect(screen.queryByLabelText('研究要求')).not.toBeInTheDocument()
 })
@@ -370,4 +370,92 @@ it('allows a pending sidebar resume to complete after automatic project location
   await act(async () => { finish(new Response(JSON.stringify(conversationResponse('slow')))); await pending })
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 slow'))
   expect(window.location.hash).toBe('#/research/slow')
+})
+
+it.each(['#/research/existing', '#/screening/previous', '#/screening/new', '#/screening?view=compose'])('starts a fresh screening draft from the primary entry at %s without changing existing research', async origin => {
+  window.history.replaceState(null, '', origin)
+  sessionStorage.setItem('conversation.drafts', JSON.stringify({ 'screening:screening:new': '旧选股条件', 'research:screening:new': '保留研究草稿' }))
+  localStorage.setItem('conversation.active.screening.screening', 'previous')
+  const fetcher = stubRouteApi(origin.includes('/research/') ? 'research' : 'screening'), user = userEvent.setup()
+  render(<App />)
+  if (origin.includes('/research/')) await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 existing'))
+  else if (origin.endsWith('/previous')) await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 previous'))
+  else await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
+  const menu = within(screen.getByRole('navigation', { name: '主菜单' }))
+  await user.click(menu.getByRole('button', { name: '开始选股' }))
+  await waitFor(() => expect(screen.getByLabelText('选股要求')).toHaveValue(''))
+  expect(window.location.hash).toBe('#/screening/new')
+  expect(screen.queryByLabelText('研究要求')).not.toBeInTheDocument()
+  expect(screen.getByRole('log')).not.toHaveTextContent('已有研究')
+  expect(JSON.parse(sessionStorage.getItem('conversation.drafts') || '{}')['research:screening:new']).toBe('保留研究草稿')
+  await user.type(screen.getByLabelText('选股要求'), '另一份选股草稿')
+  await user.click(menu.getByRole('button', { name: '开始选股' }))
+  await waitFor(() => expect(screen.getByLabelText('选股要求')).toHaveValue(''))
+  expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
+})
+
+it('keeps the new screening draft when an older research resume resolves late', async () => {
+  window.history.replaceState(null, '', '#/projects')
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  let finish!: (response: Response) => void
+  const pending = new Promise<Response>(resolve => { finish = resolve })
+  const fetcher = vi.fn(async (input: RequestInfo | URL, _options?: RequestInit) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    if (path === '/api/v1/conversations/slow') return pending
+    return new Response(JSON.stringify(path === '/api/v1/conversations' ? { items: [{ ...conversationResponse('slow'), title: '慢速研究' }] } : { items: [] }))
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(await screen.findByRole('button', { name: '继续研究：慢速研究' }))
+  await user.click(screen.getByRole('button', { name: '开始选股' }))
+  await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
+  await act(async () => { finish(new Response(JSON.stringify(conversationResponse('slow')))); await pending })
+  expect(window.location.hash).toBe('#/screening/new')
+  expect(screen.getByLabelText('选股要求')).toHaveValue('')
+  expect(screen.getByRole('log')).not.toHaveTextContent('已有研究')
+  expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
+})
+
+it('starts screening from the mobile navigation and closes the navigation dialog', async () => {
+  window.history.replaceState(null, '', '#/research/existing')
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+  const fetcher = stubRouteApi(), user = userEvent.setup()
+  render(<App />)
+  await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 existing'))
+  await user.click(screen.getByRole('button', { name: '切换工作导航' }))
+  const navigation = within(screen.getByRole('dialog', { name: '工作导航' }))
+  await user.click(navigation.getByRole('button', { name: '开始选股' }))
+  await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
+  expect(screen.queryByRole('dialog', { name: '工作导航' })).not.toBeInTheDocument()
+  expect(window.location.hash).toBe('#/screening/new')
+  expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
+})
+
+it('opens existing data services from screening readiness without navigating or losing its draft', async () => {
+  window.history.replaceState(null, '', '#/screening/new')
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  const fetcher = vi.fn(async (input: RequestInfo | URL, _options?: RequestInit) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    const result = path.endsWith('/data/status') ? { available: false }
+      : path.endsWith('/screening-capabilities') ? { capabilities: [{ id: 'market.daily_bars', title: '日线行情', availability: 'unavailable' }] }
+        : path.endsWith('/settings/status') ? { text_model: { configured: false, model: null }, tushare: { configured: false } }
+          : path.endsWith('/maintenance/status') ? { job: null } : { items: [] }
+    return new Response(JSON.stringify(result))
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const user = userEvent.setup()
+  render(<App />)
+  await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
+  await user.type(screen.getByLabelText('选股要求'), '保留这份待补数据的选股草稿')
+  const readiness = within(screen.getByRole('region', { name: '筛选数据准备情况' }))
+  await readiness.findByText('所需数据暂不可用')
+  await user.click(readiness.getByRole('button', { name: '检查数据与服务' }))
+  const panel = within(await screen.findByRole('dialog', { name: '数据与服务' }))
+  expect(panel.getByText('暂时没有可用行情')).toBeInTheDocument()
+  expect(window.location.hash).toBe('#/screening/new')
+  await user.click(panel.getByRole('button', { name: '关闭' }))
+  expect(screen.queryByRole('dialog', { name: '数据与服务' })).not.toBeInTheDocument()
+  expect(screen.getByLabelText('选股要求')).toHaveValue('保留这份待补数据的选股草稿')
+  expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
 })

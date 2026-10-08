@@ -98,7 +98,7 @@ export default function ScreeningResultView({
   total = 0,
   offset = 0,
   pageSize = 20,
-  stateFilter = '',
+  stateFilter = 'true',
   query = '',
   onStateFilterChange,
   onQueryChange,
@@ -106,7 +106,7 @@ export default function ScreeningResultView({
   onCancel,
   onRetry,
   onExportUrl,
-  exportLabel = '导出当前筛选全部结果',
+  exportLabel = '导出当前筛选全部页',
   onCopyAll,
   onAskStock,
   onAddToWatchlist,
@@ -119,6 +119,18 @@ export default function ScreeningResultView({
   const [copyNotice, setCopyNotice] = useState('')
 
   const isRunning = status === 'queued' || status === 'running'
+  const resolvedCount = coverage ? coverage.true_count + coverage.false_count : 0
+  const completeNoMatches = status === 'succeeded' && coverage && coverage.target_total > 0
+    && coverage.true_count === 0 && coverage.unknown_count === 0
+    && resolvedCount === coverage.target_total && !coverage.failed_count && !coverage.not_evaluated_count
+  const incompleteNoMatches = coverage?.true_count === 0 && !completeNoMatches
+    && ['succeeded', 'partial'].includes(status)
+
+  function showAllResults() {
+    onQueryChange?.('')
+    onStateFilterChange?.('')
+    onPageChange?.(0)
+  }
 
   async function copyCodes() {
     if (!decisions.length) return
@@ -142,9 +154,11 @@ export default function ScreeningResultView({
   return (
     <div className="screening-result-view">
       <div className="conversation-run-title">
-        <span>{title || `${isCurrent ? '当前运行' : '历史运行'} · v${revision ?? 1}${asOf ? ` · ${asOf}` : ''}`}</span>
+        <span>{title || `${isCurrent ? '当前运行' : '历史运行'} · v${revision ?? 1}`}</span>
         <span className={`conversation-turn-state ${stateClass(status)}`}>{stateLabels[status] ?? status}</span>
       </div>
+
+      <p className="conversation-result-date">数据截止日：{asOf || '未提供'}</p>
 
       {isRunning && progress && (
         <div className="conversation-run-progress">
@@ -159,12 +173,16 @@ export default function ScreeningResultView({
       )}
 
       {coverage && (
-        <div className="conversation-run-counts">
-          <div><span>目标</span><strong>{coverage.target_total}</strong></div>
-          <div><span>符合</span><strong>{coverage.true_count}</strong></div>
-          <div><span>不符合</span><strong>{coverage.false_count}</strong></div>
-          <div><span>数据不足</span><strong>{coverage.unknown_count}</strong></div>
-        </div>
+        <section aria-label="本次运行覆盖情况">
+          <div className="conversation-run-counts">
+            <div><span>目标</span><strong>{coverage.target_total}</strong></div>
+            <div><span>符合</span><strong>{coverage.true_count}</strong></div>
+            <div><span>不符合</span><strong>{coverage.false_count}</strong></div>
+            <div><span>尚无法判断</span><strong>{coverage.unknown_count}</strong></div>
+          </div>
+          <p className="conversation-coverage-note">已有明确判断 {resolvedCount} / {coverage.target_total} 只；尚无法判断包含 {coverage.failed_count ?? 0} 只处理失败、{coverage.not_evaluated_count ?? 0} 只未处理。</p>
+          {coverage.unknown_count > 0 && <p className="conversation-coverage-note">结果覆盖不完整，未能判断的股票不等于不符合。</p>}
+        </section>
       )}
 
       {!isRunning && (
@@ -178,7 +196,7 @@ export default function ScreeningResultView({
               <option value="">全部判断</option>
               <option value="true">符合</option>
               <option value="false">不符合</option>
-              <option value="unknown">数据不足</option>
+              <option value="unknown">尚无法判断（含失败 / 未处理）</option>
             </select>}
             {onQueryChange && <label className="conversation-search">
               <Search size={14} />
@@ -192,19 +210,19 @@ export default function ScreeningResultView({
             <button
               type="button"
               className="secondary-button compact conversation-copy-button"
-              title="复制当前页显示的所有股票，保留当前结果状态"
-              disabled={!decisions.length}
+              title="仅复制当前页显示的股票代码，包含本页全部判断状态；不包含其他页"
+              disabled={loading || !!error || !decisions.length}
               onClick={() => void copyCodes()}
             >
               <Copy size={13} />
               <span>{copying ? '已复制' : '复制本页代码'}</span>
             </button>
-            {onCopyAll && <button className="secondary-button compact" onClick={onCopyAll}>复制全部符合项</button>}
+            {onCopyAll && <button className="secondary-button compact" onClick={onCopyAll}>{query ? '复制搜索范围全部符合项' : '复制全部符合项'}</button>}
             {onExportUrl && (
               <a
                 className="secondary-button compact"
                 href={onExportUrl}
-                title="导出运行 CSV"
+                title="按当前状态和搜索条件导出所有页，不限当前页"
               >
                 <Download size={13} />
                 <span>{exportLabel}</span>
@@ -225,21 +243,21 @@ export default function ScreeningResultView({
 
           {copyNotice && <div className="inline-feedback-badge">{copyNotice}</div>}
 
-          {!!(coverage?.failed_count || coverage?.not_evaluated_count) && (
-            <p className="conversation-unknown-note">
-              {coverage?.failed_count ?? 0} 只处理失败，{coverage?.not_evaluated_count ?? 0} 只未处理。
-            </p>
-          )}
-
-          {coverage?.true_count === 0 && ['succeeded', 'partial'].includes(status) && (
+          {completeNoMatches && (
             <div className="conversation-result-guidance">
               <strong>本次没有找到符合条件的股票</strong>
-              {!!coverage.unknown_count && <p>部分股票数据不足。</p>}
-              {onAdjustRequirements && (
-                <button type="button" className="text-button" onClick={onAdjustRequirements}>
-                  调整筛选要求
-                </button>
-              )}
+              <p>目标范围内的股票均已有明确判断。可查看不符合项的条件明细，再决定是否调整要求。</p>
+              {onStateFilterChange && <button type="button" className="text-button" onClick={showAllResults}>查看全部判断与原因</button>}
+              {onAdjustRequirements && <button type="button" className="text-button" onClick={onAdjustRequirements}>调整筛选要求</button>}
+            </div>
+          )}
+
+          {incompleteNoMatches && (
+            <div className="conversation-result-guidance">
+              <strong>{coverage?.target_total === 0 ? '本次没有可筛选的股票' : '暂未确认符合项，仍有未完成的判断'}</strong>
+              <p>{coverage?.target_total === 0 ? '请检查目标范围后再运行。' : '当前结果不能说明目标范围内没有符合项。请查看数据不足、处理失败或未处理的记录及原因。'}</p>
+              {onStateFilterChange && <button type="button" className="text-button" onClick={showAllResults}>查看全部判断与原因</button>}
+              {onAdjustRequirements && coverage?.target_total === 0 && <button type="button" className="text-button" onClick={onAdjustRequirements}>检查筛选范围</button>}
             </div>
           )}
 
@@ -247,6 +265,8 @@ export default function ScreeningResultView({
             <div className="conversation-result-guidance">
               <strong>{status === 'failed' ? '这次筛选未能完成' : '这次筛选已取消'}</strong>
               {progress?.message && <p>{progress.message}</p>}
+              <p>这不是零匹配结论。请先检查运行信息；已有记录可在全部判断中查看。</p>
+              {onStateFilterChange && <button type="button" className="text-button" onClick={showAllResults}>查看全部判断与原因</button>}
             </div>
           )}
 
@@ -268,14 +288,21 @@ export default function ScreeningResultView({
               decisions.map((decision) => (
                 <details key={decision.stock_code} className="conversation-decision-row">
                   <summary>
-                    <div className="decision-summary-left">
-                      <StockName code={decision.stock_code} />
-                      {typeof decision.close === 'number' && (
-                        <span className="stock-close-value">¥{decision.close.toFixed(2)}</span>
-                      )}
-                      {typeof decision.score === 'number' && decision.score > 0 && (
-                        <span className="stock-score-value">分值 {decision.score.toFixed(1)}</span>
-                      )}
+                    <div className="decision-summary-content">
+                      <div className="decision-summary-left">
+                        <StockName code={decision.stock_code} />
+                        {typeof decision.close === 'number' && (
+                          <span className="stock-close-value">¥{decision.close.toFixed(2)}</span>
+                        )}
+                      </div>
+                      <div className="decision-evidence-preview">
+                        {decision.conditions.filter(condition => condition.explanation || condition.actual != null).slice(0, 2).map((condition, index) => (
+                          <p key={condition.reference_id ?? index}>
+                            {condition.name}（{stateLabels[condition.state] ?? condition.state}）：{condition.explanation || `实际值 ${condition.actual}`}
+                          </p>
+                        ))}
+                        <small>{decision.conditions.length ? '展开查看全部条件与证据' : '未提供条件明细；展开查看操作'}</small>
+                      </div>
                     </div>
                     <span className={`conversation-turn-state ${stateClass(decision.state)}`}>
                       {stateLabels[decision.state] ?? decision.state}
@@ -287,7 +314,9 @@ export default function ScreeningResultView({
                       <strong>
                         {condition.name} · {stateLabels[condition.state] ?? condition.state}
                       </strong>
-                      <p>{condition.explanation}</p>
+                      <p>{condition.explanation || '未提供判断说明'}</p>
+                      {condition.actual != null && <small>实际值：{condition.actual}</small>}
+                      {condition.threshold != null && <small>条件阈值：{condition.threshold}</small>}
                       {condition.citation && (
                         <small className="result-citation">{condition.citation}</small>
                       )}
@@ -343,11 +372,7 @@ export default function ScreeningResultView({
                   <button
                     type="button"
                     className="text-button"
-                    onClick={() => {
-                      onQueryChange?.('')
-                      onStateFilterChange?.('')
-                      onPageChange?.(0)
-                    }}
+                    onClick={showAllResults}
                   >
                     查看全部结果
                   </button>

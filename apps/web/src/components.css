@@ -703,3 +703,30 @@ label {
 .saved-task-empty p {
   margin: 0;
 }
+
+/* Screening results keep coverage and evidence readable before expanding a row. */
+.conversation-result-date,
+.conversation-coverage-note {
+  margin: 6px 0;
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.decision-summary-content { min-width: 0; }
+.decision-summary-content .decision-summary-left { flex-wrap: wrap; }
+.decision-evidence-preview { margin-top: 6px; color: var(--ui-text-muted); }
+.decision-evidence-preview p {
+  margin: 3px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.decision-evidence-preview small { color: var(--ui-text-faint); }
+.conversation-decision-row > summary { gap: 12px; align-items: flex-start; }
+@media (max-width: 600px) {
+  .conversation-run-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

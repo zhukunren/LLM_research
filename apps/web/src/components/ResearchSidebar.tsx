@@ -5,12 +5,12 @@ import { workspaceMenus, type PageId } from '../navigation'
 import { trapDialogTab } from '../keyboard'
 
 type Recent = { id: string; title: string | null; entry_scope: ConversationScope; workflow_type?: WorkflowType; research_mode?: string; task_revision?: number; last_turn_state?: string }
-const toolMenus = workspaceMenus.filter(item => ['conditions', 'reports', 'news', 'technical', 'patterns'].includes(item.id))
+const toolMenus = workspaceMenus.filter(item => ['reports', 'news', 'technical', 'patterns'].includes(item.id))
 const assistantIcons = { general: MessageCircle, financial: ChartNoAxesCombined, reports: BookOpen, 'supply-chain': Network, risk: ShieldCheck }
 
-export default function ResearchSidebar({ page, conversationId, revision, mobileOpen, onClose, onNavigate, onNewResearch, onSearch, onConversation, onSettings, onAssistant }: {
+export default function ResearchSidebar({ page, conversationId, revision, mobileOpen, onClose, onNavigate, onNewResearch, onNewScreening, onSearch, onConversation, onSettings, onAssistant }: {
   page: PageId; conversationId?: string; revision: number; mobileOpen: boolean; onClose: () => void
-  onNavigate: (page: PageId) => void; onNewResearch: () => void; onSearch: () => void
+  onNavigate: (page: PageId) => void; onNewResearch: () => void; onNewScreening: () => void; onSearch: () => void
   onConversation: (id: string, scope: ConversationScope, workflow?: WorkflowType) => void; onSettings: () => void
   onAssistant: (id: string) => void
 }) {
@@ -68,7 +68,8 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
       <div className="chat-brand"><img className="chat-brand-full" src="/brand/soochow-blue.png" alt="东吴证券 SOOCHOW SECURITIES" /><img className="chat-brand-symbol" src="/brand/soochow-symbol-blue.png" alt="东吴证券" /><button ref={close} className="icon-button chat-sidebar-close" aria-label="关闭工作导航" onClick={onClose}><X size={19} /></button></div>
       <div className="chat-workspace-name">投研工作台<span>张家港营业部</span></div>
       <nav className="chat-navigation" aria-label="主菜单">
-        <button className="chat-nav-button chat-new" aria-label="开始新研究" title="开始新研究" onClick={onNewResearch}><Plus size={19} /><span>新研究</span></button>
+        <button className="chat-nav-button chat-new" aria-label="开始选股" title="开始选股" aria-current={page === 'conditions' ? 'page' : undefined} onClick={onNewScreening}><ListFilter size={19} /><span>开始选股</span></button>
+        <button className="chat-nav-button" aria-label="开始新研究" title="开始新研究" onClick={onNewResearch}><Plus size={19} /><span>新研究</span></button>
         <button className="chat-nav-button" aria-label="搜索与快速导航" title="搜索与快速导航" onClick={onSearch}><Search size={18} /><span>搜索记录</span><kbd>Ctrl K</kbd></button>
         <button className="chat-nav-button" aria-label="研究对话" title="研究对话" aria-current={page === 'screening' ? 'page' : undefined} onClick={() => onNavigate('screening')}><MessageCircle size={18} /><span>研究对话</span></button>
         <button className="chat-nav-button" aria-label="研究项目" title="研究项目" aria-current={page === 'research' ? 'page' : undefined} onClick={() => onNavigate('research')}><FolderOpen size={18} /><span>研究项目</span></button>

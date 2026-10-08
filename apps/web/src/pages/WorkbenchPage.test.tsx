@@ -7,7 +7,7 @@ import type { Node } from './StrategyPage'
 
 vi.mock('../api', () => ({ api: vi.fn() }))
 vi.mock('../components/StockSearch', () => ({ default: () => <span>股票选择</span>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
-vi.mock('../components/conversation/ConversationWorkspace', () => ({ default: () => <p>描述目标并核对选股方案</p> }))
+vi.mock('../components/conversation/ConversationWorkspace', () => ({ default: ({ onOpenDataServices }: { onOpenDataServices?: () => void }) => <><p>描述目标并核对选股方案</p>{onOpenDataServices && <button onClick={onOpenDataServices}>打开筛选数据服务</button>}</> }))
 const filter: Filter = { id: 'f1', version: 1, library: 'technical', name: '价格条件', description: '收盘价大于10', expression: { op: 'field_compare', field: 'close', operator: 'gt', value: 10 }, parameters: { value: { label: '阈值', type: 'number', min: 0, max: 1000 } }, contract: { summary: '收盘价大于10', notes: [], availability: 'market', availability_label: '行情可计算' }, created_at: '2026-10-04T08:00:00Z' }
 const tree: Node = { op: 'all', children: [{ op: 'filter_ref', filter_id: 'f1', version: 1, score_weight: 1 }] }
 const data = { available: true, last_date: '2026-09-28' }
@@ -233,4 +233,11 @@ it('shows a recoverable record error instead of an endless loading message', asy
   await screen.findByText('等待筛选')
   expect(reads).toBe(2)
   expect(screen.queryByRole('heading', { name: '暂时无法读取记录' })).not.toBeInTheDocument()
+})
+
+it('forwards the data services action into the screening conversation', async () => {
+  const onOpenDataServices = vi.fn(), user = userEvent.setup()
+  render(<WorkbenchPage workflowOnly data={data} onReports={vi.fn()} onOpenDataServices={onOpenDataServices} />)
+  await user.click(await screen.findByRole('button', { name: '打开筛选数据服务' }))
+  expect(onOpenDataServices).toHaveBeenCalledOnce()
 })

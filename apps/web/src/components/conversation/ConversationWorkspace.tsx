@@ -22,6 +22,8 @@ import { useSessionState } from '../../useSessionState'
 import { trapDialogTab } from '../../keyboard'
 import { TaskLogic, taskUniverseLabel } from './TaskBrief'
 import SavedTaskLibrary from './SavedTaskLibrary'
+import ScreeningTemplates, { type ScreeningTemplate } from './ScreeningTemplates'
+import ScreeningReadiness from './ScreeningReadiness'
 import ResearchPanel from './ResearchPanel'
 import ResearchAnswer from './ResearchAnswer'
 import ResearchResultActions, { type ResearchResultRequest } from './ResearchResultActions'
@@ -109,8 +111,8 @@ const promptSuggestions: Record<ConversationScope, PromptSuggestion[]> = {
     { label: '研报证据', prompt: '从已有研报中找出有订单增长实际证据的公司，区分已实现与预测，并列出原文。' },
   ],
   technical: [
-    { label: '强势突破', prompt: '筛选收盘价高于20日均线，且近5个交易日涨幅大于3%的股票。' },
-    { label: '超跌回升', prompt: '筛选RSI14小于30，且收盘价低于10日均线的股票。' },
+    { label: '均线上方且上涨', prompt: '筛选收盘价高于20日均线，且近5个交易日涨幅大于3%的股票。' },
+    { label: '低 RSI 且低于均线', prompt: '筛选RSI14小于30，且收盘价低于10日均线的股票。' },
     { label: '缩量回调', prompt: '找出处于20日均线上方、近5个交易日缩量回调的股票。' },
   ],
   report: [
@@ -189,7 +191,7 @@ export default function ConversationWorkspace({
   initialWorkflowType = 'research',
   onOpenConversation,
   onLocationChange,
-  shellNavigation = false, onHistoryChange,
+  shellNavigation = false, onHistoryChange, onOpenDataServices,
 }: {
   data?: DataStatus | null
   initialConversationId?: string
@@ -209,6 +211,7 @@ export default function ConversationWorkspace({
   onLocationChange?: (id: string, scope: ConversationScope, workflow: WorkflowType) => void
   shellNavigation?: boolean
   onHistoryChange?: () => void
+  onOpenDataServices?: () => void
 }) {
   const historyChangeRef = useRef(onHistoryChange)
   historyChangeRef.current = onHistoryChange
@@ -236,7 +239,7 @@ export default function ConversationWorkspace({
   const [viewingRunId, setViewingRunId] = useState('')
   const [run, setRun] = useState<TaskRun | null>(null)
   const [decisions, setDecisions] = useState<ScreeningTaskDecision[]>([])
-  const [decisionState, setDecisionState] = useState('')
+  const [decisionState, setDecisionState] = useState('true')
   const [decisionQuery, setDecisionQuery] = useState('')
   const [decisionOffset, setDecisionOffset] = useState(0)
   const [decisionTotal, setDecisionTotal] = useState(0)
@@ -334,6 +337,23 @@ export default function ConversationWorkspace({
   const followLatestRef = useRef(true)
   const saveAttemptRef = useRef<{ taskKey: string; assetId: string; requestId: string } | null>(null)
   const reuseAttemptRef = useRef<{ key: string; conversation?: Conversation; messageId?: string; clientId: string } | null>(null)
+  const templateGenerationRef = useRef(0)
+  const templateNewKeyRef = useRef(newResearchKey)
+  const templateMountedRef = useRef(true)
+  if (newResearchKey !== templateNewKeyRef.current) {
+    // Consuming a request resets its key to zero; only a new positive request
+    // invalidates pending starter work, even if the empty draft id is unchanged.
+    if (newResearchKey && newResearchKey > 0) templateGenerationRef.current += 1
+    templateNewKeyRef.current = newResearchKey
+  }
+  useEffect(() => {
+    templateMountedRef.current = true
+    return () => { templateMountedRef.current = false; templateGenerationRef.current += 1 }
+  }, [])
+  const templateOwnerRef = useRef('')
+  templateOwnerRef.current = `${initialWorkflowType}:${scope}:${selectedId}`
+  const templateBusyRef = useRef(false)
+  const templateAttemptRef = useRef<{ key: string; ownerKey: string; conversation?: Conversation; clientId: string } | null>(null)
   const executionAttempts = useRef(new Map<string, Promise<{ run_id: string }>>())
 
   useEffect(() => {
@@ -431,7 +451,7 @@ export default function ConversationWorkspace({
       if (!result.items.length) { setNotice('当前搜索范围没有符合项可复制。'); return }
       if (!navigator.clipboard?.writeText) throw new Error('浏览器未开放复制权限，请使用导出按钮。')
       await navigator.clipboard.writeText(result.items.join('\n'))
-      setNotice(`已复制全部 ${result.items.length} 只符合条件的股票代码。`)
+      setNotice(`已复制当前搜索范围全部 ${result.items.length} 只符合条件的股票代码。`)
     } catch (reason) { setError((reason as Error).message) }
   }
 
@@ -729,7 +749,7 @@ export default function ConversationWorkspace({
     return () => { active = false; globalThis.clearInterval(timer) }
   }, [conversation?.id, viewingRunId, refreshIndex, isResearch])
 
-  useEffect(() => { setDecisionOffset(0); setDecisionQuery(''); setDecisionState(''); setDecisionError('') }, [viewingRunId])
+  useEffect(() => { setDecisionOffset(0); setDecisionQuery(''); setDecisionState('true'); setDecisionError('') }, [viewingRunId])
   useEffect(() => { setSaveOpen(false); setNotice('') }, [selectedId, task?.revision])
 
   useEffect(() => {
@@ -810,6 +830,8 @@ export default function ConversationWorkspace({
 
   function createConversation(nextAssistant = 'general') {
     if (busy || modeSaving || scopeSavingRef.current) return
+    templateGenerationRef.current += 1
+    templateAttemptRef.current = null
     setScopePool('all'); setScopeDate(data?.last_date ?? ''); setScopeOverrides({ pool: false, date: false })
     researchDateEdited.current = false
     setResearchDate(data?.last_date ?? ''); setResearchCodesInput('')
@@ -843,6 +865,37 @@ export default function ConversationWorkspace({
       setLibraryTab('recent')
     } catch (reason) { setError((reason as Error).message) }
     finally { setSaving(false) }
+  }
+
+  async function selectTemplate(template: ScreeningTemplate, parameters: Record<string, number>) {
+    if (templateBusyRef.current || busy || saving || modeSaving || turnInProgress || !scopeDate || !conversationReady) return
+    templateBusyRef.current = true
+    const generation = templateGenerationRef.current
+    const isCurrent = () => templateMountedRef.current && templateGenerationRef.current === generation
+    const ownerKey = templateOwnerRef.current
+    const key = JSON.stringify([template.id, template.version, parameters, scopePool, scopeDate, ownerKey])
+    if (templateAttemptRef.current?.key !== key) templateAttemptRef.current = { key, ownerKey, clientId: crypto.randomUUID(), conversation: templateAttemptRef.current?.ownerKey === ownerKey ? templateAttemptRef.current.conversation : undefined }
+    const attempt = templateAttemptRef.current
+    setBusy(true); setError('')
+    try {
+      if (!attempt.conversation) attempt.conversation = conversation ?? await api<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ entry_scope: scope, workflow_type: 'screening', research_depth: researchDepth }) })
+      const current = attempt.conversation
+      if (!isCurrent() || templateOwnerRef.current !== ownerKey) return
+      const published = await api<{ task: ScreeningTaskRevision }>(`/conversations/${current.id}/screening-templates/${template.id}`, {
+        method: 'POST', body: JSON.stringify({ base_revision: current.task_revision, client_message_id: attempt.clientId, version: template.version, parameters, as_of: scopeDate, universe: scopePool === 'all' ? { kind: 'all_a_shares' } : { kind: 'watchlist', watchlist_id: scopePool } }),
+      })
+      templateAttemptRef.current = null
+      if (!isCurrent() || templateOwnerRef.current !== ownerKey) return
+      selectConversation(current.id)
+      setDrafts(currentDrafts => ({ ...currentDrafts, [`${initialWorkflowType}:${scope}:${current.id}`]: '' }))
+      setConversation(null); setTask(published.task); setRun(null); setRuns([]); setViewingRunId('')
+      setSource(null, `${initialWorkflowType}:${scope}:${current.id}`)
+      try { await reloadConversation(current.id, isCurrent) }
+      catch { if (isCurrent()) setError('基础方案已保存，尚未执行；暂时无法读取对话，请刷新后核对方案。') }
+      api<{ items: SessionSummary[] }>(`/conversations?scope=${scope}&limit=50`).then(({ items }) => { if (isCurrent() && selectedIdRef.current === current.id) setSessions(items) }).catch(() => {})
+      globalThis.setTimeout(() => { if (isCurrent() && selectedIdRef.current === current.id) taskPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }) }, 100)
+    } catch (reason) { if (isCurrent() && templateOwnerRef.current === ownerKey) setError(`基础方案尚未完成：${(reason as Error).message}。可修改参数或范围后重试；若连接中断，保持参数不变再次点击可恢复。`) }
+    finally { templateBusyRef.current = false; if (templateMountedRef.current) setBusy(false) }
   }
 
   async function reuseTask(saved: SavedScreeningTask, useLatest = false) {
@@ -1123,7 +1176,7 @@ export default function ConversationWorkspace({
     finally { setAssistantSaving(false) }
   }
 
-  const SuggestionContainer = isResearch ? 'details' : 'div'
+  const SuggestionContainer = 'details'
 
   async function submitResearchResult(messageId: string, action: ResearchResultRequest) {
     if (!conversation || !isResearch || answerActionSaving || busy || turnInProgress) return false
@@ -1210,6 +1263,7 @@ export default function ConversationWorkspace({
 
       <section className="conversation-main" aria-label={isResearch ? '研究对话' : '选股对话'}>{isResearch && !conversation?.messages.length && !loadingConversation && <div className="chat-empty-heading"><h1>开始研究</h1><p>输入公司、行业或你想核实的问题</p></div>}
         {!isResearch && !screeningStarted && <div className="screening-entry-heading"><span className="screening-entry-icon"><SlidersHorizontal size={20} /></span><h2>选股条件</h2><button type="button" className="text-button" onClick={() => { setLibraryTab('saved'); setSessionsOpen(true) }}><Bookmark size={14} />复用已保存方案</button></div>}
+        {!isResearch && <ScreeningReadiness onOpenData={onOpenDataServices} data={data} scope={scope} task={task} asOf={scopeDate} selectedUniverseLabel={scopePool === 'all' ? '全部A股' : watchlists.find(item => item.id === scopePool)?.name || '指定股票池'} />}
         {error && (isExecutionFailure(error) ? <ResearchFailure content={error} /> : <div className="conversation-error" role="alert"><AlertCircle size={17} /><span>{error}</span><button className="icon-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={15} /></button></div>)}
         {notice && <div className="conversation-notice" role="status"><Check size={16} /><span>{notice}</span>{savedNoteProject && onOpenProject && <button className="text-button" onClick={() => onOpenProject(savedNoteProject)}>查看笔记</button>}<button className="icon-button" aria-label="关闭保存提示" onClick={() => { setNotice(''); setSavedNoteProject('') }}><X size={15} /></button></div>}
         {loadingConversation && <div className="conversation-loading"><LoaderCircle size={16} className="spin" />正在恢复对话…</div>}
@@ -1217,8 +1271,8 @@ export default function ConversationWorkspace({
           <div className="conversation-message-list" ref={messageListRef} role="log" aria-live="polite" aria-relevant="additions" onScroll={onMessageListScroll}>
             {!conversation?.messages.length && !task && !loadingConversation && (
               <div className="conversation-empty">
-                {!isResearch && <div className="screening-example-tabs" role="group" aria-label="选股示例分类">{Object.entries(screeningSuggestionLabels).map(([value, label]) => <button key={value} type="button" aria-pressed={suggestionScope === value} onClick={() => setSuggestionScope(value as ConversationScope)}>{label}</button>)}</div>}
-                <SuggestionContainer className={isResearch ? 'research-examples' : 'screening-examples'}>{isResearch && <summary>示例问题</summary>}<div className="conversation-suggestions" aria-label={isResearch ? '常用研究问题' : '常用选股条件'}>
+                {!isResearch && <ScreeningTemplates disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions || !scopeDate} onSelect={(template, parameters) => void selectTemplate(template, parameters)} />}
+                <SuggestionContainer className={isResearch ? 'research-examples' : 'screening-examples'}><summary>{isResearch ? '示例问题' : '更多条件示例（需要模型解析）'}</summary>{!isResearch && <div className="screening-example-tabs" role="group" aria-label="选股示例分类">{Object.entries(screeningSuggestionLabels).map(([value, label]) => <button key={value} type="button" aria-pressed={suggestionScope === value} onClick={() => setSuggestionScope(value as ConversationScope)}>{label}</button>)}</div>}<div className="conversation-suggestions" aria-label={isResearch ? '常用研究问题' : '常用选股条件'}>
                   {(isResearch ? researchSuggestions[scope] : promptSuggestions[suggestionScope]).map((item, index) => { const Icon = suggestionIcons[index % suggestionIcons.length]; return <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-icon"><Icon size={20} strokeWidth={1.6} /></span><span className="suggestion-copy"><span className="suggestion-title">{item.label}</span>{isResearch && <span className="suggestion-description">{item.prompt}</span>}</span><ArrowUpRight size={16} className="suggestion-arrow" /></button> })}
                 </div></SuggestionContainer>
               </div>
@@ -1345,7 +1399,7 @@ export default function ConversationWorkspace({
               revision={run.task_revision}
               status={run.status}
               isCurrent={Boolean(activeRun)}
-              progress={['queued', 'running'].includes(run.status) ? { message: run.job.message, percent: run.job.progress } : undefined}
+              progress={{ message: run.job.message, percent: run.job.progress }}
               coverage={coverage ?? undefined}
               decisions={unifiedDecisions}
               loading={loadingDecisions}
