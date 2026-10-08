@@ -52,7 +52,10 @@ export default function App() {
   const needsConversation = (page === 'screening' || page === 'conditions') && !!route.conversationId
   const conversationReady = !needsConversation || (resolvedConversation?.id === route.conversationId && resolvedConversation?.workflow === (page === 'conditions' ? 'screening' : 'research') && resolvedConversation?.scope === conversationScope)
 
-  function navigateRoute(next: WorkspaceRoute, replace = false) {
+  function navigateRoute(next: WorkspaceRoute, replace = false, userNavigation = true) {
+    // Explicit navigation supersedes any pending conversation lookup. Route
+    // canonicalization only publishes resolved identity and must not cancel it.
+    if (userNavigation) ++conversationNavigation.current
     setMobileNavigationOpen(false)
     startNavigation(() => navigate(next, { replace }))
   }
@@ -78,7 +81,7 @@ export default function App() {
       if (controller.signal.aborted || request !== conversationNavigation.current) return
       const workflow = conversationWorkflow(current)
       setResolvedConversation({ id, scope: current.entry_scope, workflow })
-      navigateRoute({ page: workflow === 'screening' ? 'conditions' : 'screening', conversationId: id, scope: current.entry_scope, ...(workflow === 'screening' ? { view: 'conversation' as const } : {}) }, true)
+      navigateRoute({ page: workflow === 'screening' ? 'conditions' : 'screening', conversationId: id, scope: current.entry_scope, ...(workflow === 'screening' ? { view: 'conversation' as const } : {}) }, true, false)
     }).catch(reason => { if (!controller.signal.aborted && request === conversationNavigation.current) setRouteError((reason as Error).message) })
     return () => controller.abort()
   }, [needsConversation, route.conversationId, resolvedConversation?.id, routeRetry])
@@ -86,7 +89,7 @@ export default function App() {
   useEffect(() => {
     if (!needsConversation || !resolvedConversation || resolvedConversation.id !== route.conversationId) return
     const targetPage = resolvedConversation.workflow === 'screening' ? 'conditions' : 'screening'
-    if (page !== targetPage || conversationScope !== resolvedConversation.scope) navigateRoute({ page: targetPage, conversationId: resolvedConversation.id, scope: resolvedConversation.scope, ...(targetPage === 'conditions' ? { view: 'conversation' as const } : {}) }, true)
+    if (page !== targetPage || conversationScope !== resolvedConversation.scope) navigateRoute({ page: targetPage, conversationId: resolvedConversation.id, scope: resolvedConversation.scope, ...(targetPage === 'conditions' ? { view: 'conversation' as const } : {}) }, true, false)
   }, [needsConversation, route.conversationId, page, conversationScope, resolvedConversation])
 
   useLayoutEffect(() => {
@@ -135,7 +138,7 @@ export default function App() {
     const actualWorkflow = type ?? 'research'
     startNavigation(() => {
       setResolvedConversation({ id, scope, workflow: actualWorkflow })
-      navigateRoute({ page: actualWorkflow === 'screening' ? 'conditions' : 'screening', conversationId: id, scope, ...(actualWorkflow === 'screening' ? { view: 'conversation' as const } : {}) })
+      navigateRoute({ page: actualWorkflow === 'screening' ? 'conditions' : 'screening', conversationId: id, scope, ...(actualWorkflow === 'screening' ? { view: 'conversation' as const } : {}) }, false, false)
     })
   }
 
@@ -145,7 +148,7 @@ export default function App() {
     const next: WorkspaceRoute = { page: workflow === 'screening' ? 'conditions' : 'screening', scope, ...(id ? { conversationId: id } : { newDraft: true }), ...(workflow === 'screening' ? { view: 'conversation' as const } : {}) }
     startNavigation(() => {
       if (id) setResolvedConversation({ id, scope, workflow })
-      navigateRoute(next, !current.conversationId && !current.newDraft)
+      navigateRoute(next, !current.conversationId && !current.newDraft, false)
     })
   }
 
@@ -202,12 +205,12 @@ export default function App() {
           {page === 'assistants' && <ResearchAssistantsPage onUse={id => openConversation('screening', undefined, undefined, 'research', id)} />}
           {inResearch && <div className="research-space">
             <div className={'research-space-panel research-space-panel-' + page}>
-              {page === 'research' && <ResearchProjectsPage initialProjectId={route.projectId} onLocationChange={id => navigateRoute({ page: 'research', projectId: id }, !route.projectId)} onOpenConversation={resumeResearch} />}
+              {page === 'research' && <ResearchProjectsPage initialProjectId={route.projectId} onLocationChange={(id, userNavigation = true) => navigateRoute({ page: 'research', projectId: id }, !route.projectId, userNavigation)} onOpenConversation={resumeResearch} />}
               {page === 'screening' && homeDraft.trim() && <div className="legacy-draft-notice"><span>还有一个之前保存的问题</span><button className="text-button" onClick={() => { openConversation('screening', undefined, homeDraft.trim()); setHomeDraft('') }}>继续未发送的问题</button></div>}
               {page === 'screening' && (conversationReady ? <ResearchWorkspace initialAssistantId={conversationAssistant} shellNavigation onHistoryChange={() => setSidebarRevision(value => value + 1)} data={data} initialConversationId={route.conversationId} initialNewDraft={route.newDraft} onOpenProject={openProject} newResearchKey={newResearchKey} onNewResearchConsumed={() => { setNewResearchKey(0); setConversationAssistant(undefined) }} initialPrompt={conversationPrompt} onPromptConsumed={() => setConversationPrompt(undefined)} initialScope={conversationScope} onScopeChange={handleConversationScopeChange} initialSource={conversationSource} onSourceChange={setConversationSource} onOpenConversation={resumeResearch} onLocationChange={conversationLocation} /> : <div className="page-content" role={routeError ? 'alert' : 'status'}>{routeError ? <><p>{routeError}</p><button className="secondary-button" onClick={() => setRouteRetry(value => value + 1)}>重新读取对话</button></> : '正在读取研究对话…'}</div>)}
             </div>
           </div>}
-          {page === 'watchlist' && <ObservationPage initialRunId={route.runId} initialCandidateId={route.candidateId} initialTab={route.observationTab} onLocationChange={(tab, id) => navigateRoute({ page: 'watchlist', observationTab: tab, ...(id ? tab === 'batches' ? { runId: id } : { candidateId: id } : {}) }, !route.runId && !route.candidateId)} onStartResearch={startNewResearch} data={data} onNavigateScreening={() => openConversation('screening', undefined, undefined, 'screening')} onOpenResearch={id => void resumeResearch(id, 'screening', 'research')} />}
+          {page === 'watchlist' && <ObservationPage initialRunId={route.runId} initialCandidateId={route.candidateId} initialTab={route.observationTab} onLocationChange={(tab, id, userNavigation = true) => navigateRoute({ page: 'watchlist', observationTab: tab, ...(id ? tab === 'batches' ? { runId: id } : { candidateId: id } : {}) }, !route.runId && !route.candidateId, userNavigation)} onStartResearch={startNewResearch} data={data} onNavigateScreening={() => openConversation('screening', undefined, undefined, 'screening')} onOpenResearch={id => void resumeResearch(id, 'screening', 'research')} />}
           {page === 'conditions' && (conversationReady ? <ScreeningWorkspace conversationId={route.conversationId} conversationNewDraft={route.newDraft} newResearchKey={newResearchKey} onNewResearchConsumed={() => setNewResearchKey(0)} conversationPrompt={conversationPrompt} onPromptConsumed={() => setConversationPrompt(undefined)} conversationScope={conversationScope} conversationSource={conversationSource} onConversationScopeChange={handleConversationScopeChange} onConversationSourceChange={setConversationSource} onLocationChange={conversationLocation} data={data} view={conditionsSection} onViewChange={(section: Section) => navigateRoute({ page: 'conditions', view: section, scope: conversationScope, ...(section === 'conversation' && route.conversationId ? { conversationId: route.conversationId } : {}) })} onReports={() => navigatePage('reports')} onCompose={openComposition} onCreateCondition={openConditionDescription} onResumeConversation={resumeResearch} onConversation={openConversation} /> : <div className="page-content" role={routeError ? 'alert' : 'status'}>{routeError ? <><p>{routeError}</p><button className="secondary-button" onClick={() => setRouteRetry(value => value + 1)}>重新读取对话</button></> : '正在读取选股方案…'}</div>)}
           {page === 'patterns' && <PatternPage onCompose={openComposition} onDiscuss={(id, version, name) => openConversation('pattern', { reference: { kind: 'pattern', source_id: id, version }, label: name })} />}
           {(page === 'technical' || page === 'news' || page === 'reports') && <LibraryWorkspace key={page} scope={page === 'reports' ? 'report' : page} data={data} onCompose={openComposition} onConversation={openConversation} onSettings={() => setSystemOpen(true)} />}

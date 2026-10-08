@@ -11,7 +11,7 @@ const assistants = [
 beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => window.history.replaceState(null, '', '/'))
 
-vi.mock('./pages/ResearchProjectsPage', () => ({ default: ({ onOpenConversation, initialProjectId }: { onOpenConversation: (id: string, scope: 'screening') => void; initialProjectId?: string }) => <><p>项目定位：{initialProjectId || '目录'}</p><button onClick={() => onOpenConversation('one', 'screening')}>打开项目对话</button></> }))
+vi.mock('./pages/ResearchProjectsPage', () => ({ default: ({ onOpenConversation, initialProjectId, onLocationChange }: { onOpenConversation: (id: string, scope: 'screening') => void; initialProjectId?: string; onLocationChange: (id: string, userNavigation?: boolean) => void }) => <><p>项目定位：{initialProjectId || '目录'}</p><button onClick={() => onOpenConversation('one', 'screening')}>打开项目对话</button><button onClick={() => onLocationChange(initialProjectId || 'project-one', false)}>发布项目定位</button></> }))
 vi.mock('./pages/LibraryWorkspace', () => ({ default: () => <h1>资料阅读</h1> }))
 vi.mock('./pages/ObservationPage', () => ({ default: ({ initialRunId, initialCandidateId, onLocationChange }: { initialRunId?: string; initialCandidateId?: string; onLocationChange: (tab: 'candidates' | 'batches', id: string) => void }) => <><h1>观察定位：{initialRunId || initialCandidateId || '目录'}</h1><button onClick={() => onLocationChange('candidates', 'candidate-two')}>选择第二候选</button><button onClick={() => onLocationChange('batches', 'run-two')}>选择第二批次</button></> }))
 vi.mock('./pages/WorkbenchPage', async () => {
@@ -59,7 +59,7 @@ it('opens a saved screening conversation in condition screening instead of the r
   render(<App />)
   await user.click(await screen.findByRole('button', { name: '打开项目对话' }))
   expect(await screen.findByRole('heading', { name: '新建选股方案' }, { timeout: 5000 })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: '条件选股' })).toHaveAttribute('aria-current', 'page')
+  expect(await screen.findByRole('button', { name: '条件选股' })).toHaveAttribute('aria-current', 'page')
   expect(screen.getByLabelText('选股要求')).toBeInTheDocument()
   expect(screen.queryByLabelText('研究要求')).not.toBeInTheDocument()
 })
@@ -313,4 +313,61 @@ it('publishes the new conversation URL after an explicit message without restart
   expect(writes.filter(item => item.path.endsWith('/process'))).toHaveLength(1)
   expect(writes.filter(item => item.path === '/api/v1/conversations')).toHaveLength(1)
   expect(writes.some(item => item.path.endsWith('/execute'))).toBe(false)
+})
+
+it.each(['project', 'candidate', 'batch'])('keeps newer %s navigation after a slow sidebar conversation lookup completes', async target => {
+  window.history.replaceState(null, '', target === 'project' ? '#/projects/project-one' : '#/observation')
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  let finish!: (response: Response) => void
+  const pending = new Promise<Response>(resolve => { finish = resolve })
+  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    if (path === '/api/v1/conversations/slow') return pending
+    const result = path === '/api/v1/conversations' ? { items: [{ ...conversationResponse('slow'), title: '慢速研究' }] }
+      : path === '/api/v1/research-projects' ? { items: [{ id: 'project-two', name: '第二项目', objective: '', status: 'active' }] }
+        : { items: [] }
+    return new Response(JSON.stringify(result))
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(await screen.findByRole('button', { name: '继续研究：慢速研究' }))
+  await waitFor(() => expect(fetcher.mock.calls.some(([input]) => String(input).endsWith('/conversations/slow'))).toBe(true))
+  if (target === 'project') {
+    await user.keyboard('{Control>}k{/Control}')
+    await user.type(await screen.findByRole('combobox', { name: '搜索页面、项目或对话' }), '第二项目')
+    await user.click(await screen.findByRole('option', { name: /第二项目/ }))
+    await screen.findByText('项目定位：project-two')
+  } else {
+    await user.click(await screen.findByRole('button', { name: target === 'candidate' ? '选择第二候选' : '选择第二批次' }))
+    await screen.findByRole('heading', { name: `观察定位：${target === 'candidate' ? 'candidate-two' : 'run-two'}` })
+  }
+  const expectedHash = window.location.hash
+  await act(async () => { finish(new Response(JSON.stringify(conversationResponse('slow')))); await pending })
+  expect(window.location.hash).toBe(expectedHash)
+  expect(screen.queryByRole('log')).not.toBeInTheDocument()
+})
+
+
+it('allows a pending sidebar resume to complete after automatic project location publication', async () => {
+  window.history.replaceState(null, '', '#/projects/project-one')
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  let finish!: (response: Response) => void
+  let resumed = false
+  const pending = new Promise<Response>(resolve => { finish = resolve })
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    if (path === '/api/v1/conversations/slow') {
+      if (!resumed) { resumed = true; return pending }
+      return new Response(JSON.stringify(conversationResponse('slow')))
+    }
+    return new Response(JSON.stringify(path === '/api/v1/conversations' ? { items: [{ ...conversationResponse('slow'), title: '慢速研究' }] } : { items: [] }))
+  }))
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(await screen.findByRole('button', { name: '继续研究：慢速研究' }))
+  await user.click(await screen.findByRole('button', { name: '发布项目定位' }))
+  await act(async () => { finish(new Response(JSON.stringify(conversationResponse('slow')))); await pending })
+  await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 slow'))
+  expect(window.location.hash).toBe('#/research/slow')
 })

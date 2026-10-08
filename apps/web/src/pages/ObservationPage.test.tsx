@@ -45,10 +45,10 @@ describe('观察池来源分类与跟踪', () => {
     const view = render(<ObservationPage data={data} initialRunId="run-2" initialTab="batches" onLocationChange={location} />)
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600001.SH'))
     expect(screen.getByLabelText('选择选股批次')).toHaveValue('run-2')
-    expect(location).toHaveBeenCalledWith('batches', 'run-2')
+    expect(location).toHaveBeenCalledWith('batches', 'run-2', false)
     view.rerender(<ObservationPage data={data} initialRunId="run-1" initialTab="batches" onLocationChange={location} />)
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600000.SH'))
-    expect(location).toHaveBeenLastCalledWith('batches', 'run-1')
+    expect(location).toHaveBeenLastCalledWith('batches', 'run-1', false)
     expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true)
   })
 

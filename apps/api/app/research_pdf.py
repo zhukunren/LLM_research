@@ -33,7 +33,7 @@ from reportlab.platypus import (
 from . import conversation_store, db, research_workspace
 from .settings import PROJECT_ROOT, research_mode_settings
 
-TEMPLATE_VERSION = "soochow-zhangjiagang-research-v1"
+TEMPLATE_VERSION = "soochow-zhangjiagang-research-v1.1"
 ASSETS = PROJECT_ROOT / "apps" / "api" / "assets" / "research-pdf"
 LOGO = ASSETS / "soochow-blue.png"
 BRANCH = "张家港营业部"
@@ -196,23 +196,39 @@ class _Content:
                 pass
         return [Paragraph(f"图表未能嵌入：{_text(label)}。引用位置：{_text(url)}", _style("missing_image", fontSize=9, leading=14))]
 
+    def paragraph(self, children: list[dict], *, prefix: str = "") -> list:
+        """Render text and images identically in prose and list paragraphs."""
+        story = []
+        text_nodes = []
+        pending_prefix = prefix
+
+        def flush(*, before_image=False):
+            nonlocal text_nodes, pending_prefix
+            if not text_nodes and not pending_prefix:
+                return
+            style = (_style("list", leftIndent=10, firstLineIndent=-9 if pending_prefix else 0,
+                            keepWithNext=before_image)
+                     if prefix else _style("body"))
+            story.append(Paragraph(_text(pending_prefix) + self.inline(text_nodes), style))
+            text_nodes = []
+            pending_prefix = ""
+
+        for child in children:
+            if child["type"] == "image":
+                flush(before_image=True)
+                story.extend(self.image(child))
+            else:
+                text_nodes.append(child)
+        flush()
+        return story
+
     def blocks(self, nodes: list[dict]) -> list:
         story = []
         for node in nodes:
             kind = node["type"]
             children = node.get("children", [])
             if kind in {"paragraph", "block_text"}:
-                text_nodes = []
-                for child in children:
-                    if child["type"] == "image":
-                        if text_nodes:
-                            story.append(Paragraph(self.inline(text_nodes), _style("body")))
-                            text_nodes = []
-                        story.extend(self.image(child))
-                    else:
-                        text_nodes.append(child)
-                if text_nodes:
-                    story.append(Paragraph(self.inline(text_nodes), _style("body")))
+                story.extend(self.paragraph(children))
             elif kind == "heading":
                 level = node.get("attrs", {}).get("level", 2)
                 story.append(Paragraph(self.inline(children), _style("heading", fontName="ResearchSansBold", fontSize=16 if level <= 2 else 12, leading=23 if level <= 2 else 19, textColor=BLUE, spaceBefore=14, keepWithNext=True)))
@@ -222,7 +238,7 @@ class _Content:
                     prefix = f"{start + index}. " if node.get("attrs", {}).get("ordered") else "• "
                     parts = child.get("children", [])
                     if parts and parts[0]["type"] in {"paragraph", "block_text"}:
-                        story.append(Paragraph(_text(prefix) + self.inline(parts[0].get("children", [])), _style("list", leftIndent=10, firstLineIndent=-9)))
+                        story.extend(self.paragraph(parts[0].get("children", []), prefix=prefix))
                         story.extend(self.blocks(parts[1:]))
                     else:
                         story.extend(self.blocks(parts))

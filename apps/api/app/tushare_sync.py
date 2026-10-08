@@ -7,6 +7,7 @@ Parquet file or commits news records to SQLite.
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import os
 import re
@@ -37,6 +38,7 @@ NEWS_ENDPOINT_SOURCES = (
 SOURCE_ZONE = timezone(timedelta(hours=8))
 DAILY_PAGE_SIZE = 1_000
 DAILY_MAX_PAGES = 20
+MARKET_DAYS_PER_SYNC = 30
 SOURCE_DELAY_SECONDS = 0.15
 STOCK_CODE_PATTERN = re.compile(r"(?<!\d)(\d{6})\.(SH|SZ|BJ)(?![A-Z])", re.I)
 
@@ -127,13 +129,54 @@ def _query(client: Any, api_name: str, **params: Any) -> list[dict[str, Any]]:
     return _payload_rows(payload, api_name)
 
 
+def _market_bounds() -> tuple[date | None, date | None]:
+    if not STOCK_FILE.is_file():
+        return None, None
+    with duckdb.connect(database=":memory:") as connection:
+        row = connection.execute(
+            f"SELECT MIN(trade_date)::DATE, MAX(trade_date)::DATE FROM read_parquet({_literal_path(STOCK_FILE)})"
+        ).fetchone()
+    return (row[0], row[1]) if row else (None, None)
+
+
 def _market_watermark() -> date | None:
+    return _market_bounds()[1]
+
+
+def _market_signature() -> list[int] | None:
     if not STOCK_FILE.is_file():
         return None
-    literal = "'" + str(STOCK_FILE).replace("'", "''") + "'"
-    with duckdb.connect(database=":memory:") as connection:
-        row = connection.execute(f"SELECT MAX(trade_date)::DATE FROM read_parquet({literal})").fetchone()
-    return row[0] if row and row[0] else None
+    stat = STOCK_FILE.stat()
+    return [stat.st_size, stat.st_mtime_ns]
+
+
+def _market_completion() -> dict[str, Any]:
+    # The ledger is published AFTER the parquet. A crash, restore, or external
+    # writer invalidates it and causes safe revalidation, never skipped days.
+    try:
+        state = json.loads(STOCK_FILE.with_suffix(".sync.json").read_text(encoding="utf-8"))
+        if isinstance(state, dict) and state.get("version") == 1 and state.get("signature") == _market_signature():
+            date.fromisoformat(state["start"])
+            if isinstance(state.get("complete_days"), list):
+                return state
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return {}
+
+
+def _save_market_completion(start: date, complete_days: set[str], retry_days: set[str]) -> None:
+    STOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    target = STOCK_FILE.with_suffix(".sync.json")
+    staged = target.with_name(f".{target.name}.{uuid4().hex}.tmp")
+    try:
+        staged.write_text(json.dumps({
+            "version": 1, "signature": _market_signature(),
+            "start": start.isoformat(), "complete_days": sorted(complete_days),
+            "retry_days": sorted(retry_days),
+        }), encoding="utf-8")
+        os.replace(staged, target)
+    finally:
+        staged.unlink(missing_ok=True)
 
 
 def _open_days(client: Any, start: date, end: date) -> list[date]:
@@ -148,7 +191,7 @@ def _open_days(client: Any, start: date, end: date) -> list[date]:
     for row in rows:
         is_open = str(row.get("is_open", "")).strip().lower() in {"1", "1.0", "true"}
         day = _source_date(row.get("cal_date"))
-        if is_open and day is not None:
+        if is_open and day is not None and start <= day <= end:
             output.append(day)
     return sorted(set(output))
 
@@ -295,12 +338,18 @@ def _write_market_update(rows: list[dict[str, Any]]) -> tuple[int, int]:
 def sync_market_data(client: Any, *, as_of: date, initial_days: int = 30) -> dict[str, Any]:
     """Append missing A-share daily bars without publishing partial days."""
 
-    previous_watermark = _market_watermark()
-    first_requested = (
-        previous_watermark + timedelta(days=1)
-        if previous_watermark is not None
-        else as_of - timedelta(days=max(1, initial_days) - 1)
+    earliest, previous_watermark = _market_bounds()
+    state = _market_completion()
+    # MAX is only a display watermark, not evidence that preceding days are
+    # complete. Legacy parquet files have no completion proof and are retried.
+    first_requested = date.fromisoformat(state["start"]) if state else (
+        earliest or as_of - timedelta(days=max(1, initial_days) - 1)
     )
+    if as_of < first_requested:
+        first_requested = as_of - timedelta(days=max(1, initial_days) - 1)
+    complete_days = set(state.get("complete_days", []))
+    retry_days = set(state.get("retry_days", []))
+    today = datetime.now(SOURCE_ZONE).date()
     result: dict[str, Any] = {
         "source": "tushare.daily",
         "previous_watermark": previous_watermark.isoformat() if previous_watermark else None,
@@ -321,8 +370,21 @@ def sync_market_data(client: Any, *, as_of: date, initial_days: int = 30) -> dic
 
     open_days = _open_days(client, first_requested, as_of)
     result["open_days"] = [item.isoformat() for item in open_days]
+    pending_days = [day for day in open_days if day.isoformat() not in complete_days or day >= today]
+    def priority(day: date) -> tuple[int, date]:
+        if day >= today or (previous_watermark is not None and day > previous_watermark):
+            return 0, day
+        if day.isoformat() in retry_days:
+            return 1, day
+        return 2, day
+
+    pending_days.sort(key=priority)
+    # Revalidate legacy files incrementally rather than making years of daily
+    # requests in one run. Unprocessed days remain absent from the ledger and
+    # will be resumed on subsequent syncs.
+    result["deferred_days"] = [day.isoformat() for day in pending_days[MARKET_DAYS_PER_SYNC:]]
     updates: list[dict[str, Any]] = []
-    for trade_day in open_days:
+    for trade_day in pending_days[:MARKET_DAYS_PER_SYNC]:
         try:
             source_rows = _daily_rows(client, trade_day)
         except RelaySyncError as exc:
@@ -334,29 +396,37 @@ def sync_market_data(client: Any, *, as_of: date, initial_days: int = 30) -> dic
         for source_row in source_rows:
             try:
                 normalized = _daily_record(source_row)
+                if normalized is not None and normalized["trade_date"].date() != trade_day:
+                    raise ValueError("返回了其他交易日的行情")
             except ValueError:
                 rejected += 1
                 continue
             if normalized is not None:
                 valid_for_day.append(normalized)
         result["rows_rejected"] += rejected
-        if not valid_for_day:
+        if rejected or not valid_for_day:
             result["missing_or_failed_days"].append(
-                {"date": trade_day.isoformat(), "reason": "未收到可用的 A 股日线"}
+                {"date": trade_day.isoformat(), "reason": "日线含无效记录，整日待重试" if rejected else "未收到可用的 A 股日线"}
             )
             continue
         unique_for_day = {(item["stock_code"], item["trade_date"]): item for item in valid_for_day}
         updates.extend(unique_for_day.values())
         result["updated_days"].append(trade_day.isoformat())
         result["rows_valid"] += len(unique_for_day)
+        # Same-day bars can still be incomplete or corrected after close.
+        if trade_day < today:
+            complete_days.add(trade_day.isoformat())
         time.sleep(SOURCE_DELAY_SECONDS)
 
     rows_written, bytes_written = _write_market_update(updates)
+    retry_days.difference_update(result["updated_days"])
+    retry_days.update(item["date"] for item in result["missing_or_failed_days"])
+    _save_market_completion(first_requested, complete_days, retry_days)
     result["rows_written"] = rows_written
     result["bytes_written"] = bytes_written or None
     new_watermark = _market_watermark()
     result["new_watermark"] = new_watermark.isoformat() if new_watermark else None
-    result["status"] = "partial" if result["missing_or_failed_days"] else ("updated" if rows_written else "no_new_rows")
+    result["status"] = "partial" if result["missing_or_failed_days"] or result.get("deferred_days") else ("updated" if rows_written else "no_new_rows")
     return result
 
 

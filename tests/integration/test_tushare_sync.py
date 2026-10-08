@@ -119,3 +119,120 @@ def test_full_sync_imports_news_without_claiming_missing_history(isolated_store)
     saved = news_sources.list_news_sources("000001.SZ", "2026-09-15")
     assert saved["total"] == 1
     assert "Tushare news/eastmoney" in news_sources.get_item(saved["items"][0]["source_id"])["source"]
+
+
+def test_failed_day_retried_after_later_day_advances_watermark(isolated_store):
+    class FailingRelay(FakeRelay):
+        def raw_query(self, api_name, **params):
+            if api_name == "daily" and params["trade_date"] == "20260915":
+                raise RuntimeError("temporary outage")
+            return super().raw_query(api_name, **params)
+
+    first = tushare_sync.sync_market_data(FailingRelay(), as_of=datetime(2026, 9, 16).date())
+    assert first["status"] == "partial"
+    assert first["new_watermark"] == "2026-09-16"
+    relay = FakeRelay()
+    second = tushare_sync.sync_market_data(relay, as_of=datetime(2026, 9, 16).date())
+    assert second["updated_days"] == ["2026-09-15"]
+    assert second["rows_written"] == 3
+    assert second["missing_or_failed_days"] == []
+    assert all(p["trade_date"] != "20260916" for api, p in relay.calls if api == "daily")
+
+
+@pytest.mark.parametrize("bad_field,bad_value", [("close", -1), ("trade_date", "20260914")])
+def test_invalid_or_wrong_day_rejected_atomically_and_retried(isolated_store, bad_field, bad_value):
+    class InvalidRelay(FakeRelay):
+        def raw_query(self, api_name, **params):
+            response = super().raw_query(api_name, **params)
+            if api_name == "daily" and params["trade_date"] == "20260915" and params.get("offset") == 0:
+                response["data"]["items"][0][response["data"]["fields"].index(bad_field)] = bad_value
+            return response
+
+    first = tushare_sync.sync_market_data(InvalidRelay(), as_of=datetime(2026, 9, 16).date())
+    assert first["status"] == "partial"
+    assert first["rows_written"] == 1
+    assert first["rows_rejected"] == 1
+    assert first["updated_days"] == ["2026-09-16"]
+    second = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date())
+    assert second["updated_days"] == ["2026-09-15"]
+    assert second["rows_written"] == 3
+
+
+def test_legacy_partial_day_is_revalidated_not_skipped(isolated_store):
+    row = tushare_sync._daily_record({"ts_code": "000001.SZ", "trade_date": "20260916", "open": 10, "high": 11, "low": 9, "close": 10, "vol": 10, "amount": 100})
+    tushare_sync._write_market_update([row])
+    result = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date())
+    assert result["updated_days"] == ["2026-09-16"]
+    assert result["rows_written"] == 1
+    with duckdb.connect(database=":memory:") as connection:
+        assert connection.execute("SELECT close FROM read_parquet(?)", [str(tushare_sync.STOCK_FILE)]).fetchone()[0] == 11
+
+
+def test_current_day_never_sealed_as_complete(isolated_store, monkeypatch):
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 9, 16, 16, tzinfo=tz)
+
+    monkeypatch.setattr(tushare_sync, "datetime", Clock)
+    tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date())
+    second = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date())
+    assert second["updated_days"] == ["2026-09-16"]
+
+
+def test_failed_initial_window_survives_without_parquet(isolated_store):
+    class EmptyRelay(FakeRelay):
+        def raw_query(self, api_name, **params):
+            if api_name == "daily":
+                return payload([], [])
+            return super().raw_query(api_name, **params)
+
+    first = tushare_sync.sync_market_data(EmptyRelay(), as_of=datetime(2026, 9, 16).date(), initial_days=2)
+    assert first["status"] == "partial"
+    second = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 10, 16).date(), initial_days=2)
+    assert second["requested_start"] == "2026-09-15"
+    assert second["updated_days"] == ["2026-09-15", "2026-09-16"]
+
+
+def test_migration_budget_resumes_unprocessed_days(isolated_store, monkeypatch):
+    monkeypatch.setattr(tushare_sync, "MARKET_DAYS_PER_SYNC", 1)
+    first = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date())
+    assert first["updated_days"] == ["2026-09-15"]
+    assert first["deferred_days"] == ["2026-09-16"]
+    assert first["status"] == "partial"
+    second = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date())
+    assert second["updated_days"] == ["2026-09-16"]
+    assert second["deferred_days"] == []
+
+
+def test_sync_supports_earlier_requested_history(isolated_store):
+    first = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date(), initial_days=1)
+    assert first["updated_days"] == ["2026-09-16"]
+    second = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 15).date(), initial_days=1)
+    assert second["updated_days"] == ["2026-09-15"]
+
+
+def test_external_parquet_change_invalidates_completion(isolated_store):
+    tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date())
+    row = tushare_sync._daily_record({"ts_code": "000001.SZ", "trade_date": "20260916", "open": 10, "high": 11, "low": 9, "close": 10, "vol": 10, "amount": 100})
+    tushare_sync._write_market_update([row])
+    result = tushare_sync.sync_market_data(FakeRelay(), as_of=datetime(2026, 9, 16).date())
+    assert result["updated_days"] == ["2026-09-15", "2026-09-16"]
+
+
+def test_new_session_prioritized_over_legacy_backlog(isolated_store, monkeypatch):
+    from datetime import date, timedelta
+    first_day = date(2020, 1, 1)
+    latest = date(2026, 9, 14)
+    def record(day):
+        return {"ts_code": "000001.SZ", "trade_date": day.isoformat(), "open": 10, "high": 11, "low": 9, "close": 10, "vol": 10, "amount": 100}
+    tushare_sync._write_market_update([tushare_sync._daily_record(record(first_day)), tushare_sync._daily_record(record(latest))])
+    old_days = [first_day + timedelta(days=i) for i in range(60)]
+    new_day = date(2026, 9, 15)
+    monkeypatch.setattr(tushare_sync, "_open_days", lambda *a: old_days + [latest, new_day])
+    monkeypatch.setattr(tushare_sync, "_daily_rows", lambda client, day: [record(day)])
+    result = tushare_sync.sync_market_data(object(), as_of=new_day)
+    assert result["updated_days"][0] == new_day.isoformat()
+    assert len(result["updated_days"]) == tushare_sync.MARKET_DAYS_PER_SYNC
+    assert len(result["deferred_days"]) == 32
+    assert result["status"] == "partial"

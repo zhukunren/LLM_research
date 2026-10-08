@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,7 @@ from uuid import uuid4
 from .db import connect, json_dump, utc_now
 from .settings import REPORT_DIR, REPORT_UPLOAD_DIR, report_parser_settings
 from .report_parser import parse_report
-from . import report_search
+from . import db, report_search
 
 
 SECURITY_PATTERN = re.compile(r"(?<!\d)(\d{4,6})\.(SH|SZ|BJ|HK|KS)\b", re.I)
@@ -23,6 +24,59 @@ def _metadata(filename: str) -> tuple[str | None, str | None, str | None]:
     date_match = DATE_PATTERN.search(filename)
     date = f"{date_match.group(1)[:4]}-{date_match.group(1)[4:6]}-{date_match.group(1)[6:8]}" if date_match else None
     return date, market, security
+
+
+class DocumentIntegrityError(ValueError):
+    """The original PDF no longer matches the indexed evidence."""
+
+
+def _snapshot_path(digest: str) -> Path:
+    if not re.fullmatch(r"[a-f0-9]{64}", digest):
+        raise DocumentIntegrityError("研报 PDF 原件校验值无效")
+    return db.DB_PATH.parent / "report-originals" / f"{digest}.pdf"
+
+
+def _verified_bytes(path: Path, digest: str) -> bytes:
+    if path.is_symlink():
+        raise DocumentIntegrityError("研报 PDF 原件不能使用链接")
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise DocumentIntegrityError("研报 PDF 原件已变化，与已索引证据不一致，请恢复原件或重新导入")
+    return data
+
+
+def _verify_original(path: Path, digest: str) -> None:
+    if path.is_symlink():
+        raise DocumentIntegrityError("研报 PDF 原件不能使用链接")
+    with path.open("rb") as stream:
+        actual = hashlib.file_digest(stream, "sha256").hexdigest()
+    if actual != digest:
+        raise DocumentIntegrityError("研报 PDF 原件已变化，与已索引证据不一致，请恢复原件或重新导入")
+
+
+def _store_original(data: bytes, digest: str) -> Path:
+    """Publish complete originals; a concurrent publisher has identical bytes."""
+    path = _snapshot_path(digest)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{digest}-{uuid4().hex}.partial")
+    try:
+        with temporary.open("xb") as stream:
+            stream.write(data)
+        if not path.exists() and not path.is_symlink():
+            os.replace(temporary, path)
+        _verify_original(path, digest)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path
+
+
+def original_snapshot(source_path: str, digest: str) -> Path:
+    """Resolve legacy rows only after verification; never relabel changed bytes."""
+    snapshot = _snapshot_path(digest)
+    if snapshot.exists() or snapshot.is_symlink():
+        _verify_original(snapshot, digest)
+        return snapshot
+    return _store_original(_verified_bytes(Path(source_path), digest), digest)
 
 
 def import_local_reports(*, paths: list[Path] | None = None) -> dict[str, Any]:
@@ -41,16 +95,19 @@ def import_local_reports(*, paths: list[Path] | None = None) -> dict[str, Any]:
                 display_filename = path.name.split("--", 1)[1]
             data = path.read_bytes()
             digest = hashlib.sha256(data).hexdigest()
+            snapshot = _store_original(data, digest)
+            del data
             with connect() as connection:
                 existing = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()
+                if existing:
+                    connection.execute("UPDATE documents SET source_path=? WHERE sha256=?", (str(snapshot), digest))
             if existing:
                 results.append({"id": existing[0], "sha256": digest, "filename": display_filename, "status": "already_imported"})
                 continue
             doc_id = str(uuid4())
             publication_date, market, stock_code = _metadata(display_filename)
-            parsed = parse_report(path, **report_parser_settings())
-            if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
-                raise ValueError("研报 PDF 在解析期间发生变化，请重新导入。")
+            parsed = parse_report(snapshot, **report_parser_settings())
+            _verify_original(snapshot, digest)
             # Parse outside the write transaction; OCR must not hold the writer
             # lock. A failed insert rolls back every page of this document.
             page_texts = parsed.page_texts
@@ -61,7 +118,7 @@ def import_local_reports(*, paths: list[Path] | None = None) -> dict[str, Any]:
                     """INSERT INTO documents
                        (id,sha256,filename,title,publication_date,market,stock_code,pages,extracted_chars,parse_status,source_path,imported_at,available_at,parser_metadata_json)
                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sha256) DO NOTHING""",
-                    (doc_id, digest, display_filename, Path(display_filename).stem, publication_date, market, stock_code, len(page_texts), chars, status, str(path), utc_now(), publication_date, json_dump(parsed.metadata)),
+                    (doc_id, digest, display_filename, Path(display_filename).stem, publication_date, market, stock_code, len(page_texts), chars, status, str(snapshot), utc_now(), publication_date, json_dump(parsed.metadata)),
                 )
                 if not inserted.rowcount:
                     existing = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()

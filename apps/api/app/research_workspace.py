@@ -12,7 +12,7 @@ import sys
 from typing import Any
 from urllib.parse import quote
 
-from . import conversation_store, db, market
+from . import conversation_store, db, documents, market
 from .settings import PROJECT_ROOT, research_mode_settings
 
 
@@ -28,6 +28,24 @@ def directory(conversation_id: str) -> Path:
     if not target.resolve().is_relative_to(root):
         raise WorkspaceError("研究目录越界")
     return target
+
+
+def _report_original_path(source_path: str | None, digest: str) -> str | None:
+    try:
+        return str(documents.original_snapshot(source_path or "", digest))
+    except (OSError, documents.DocumentIntegrityError):
+        # Keep frozen indexed text, but never expose changed original bytes.
+        return None
+
+
+def _freeze_snapshot_originals(path: Path) -> None:
+    """Repair pre-snapshot PDF references without refreshing historical evidence."""
+    with closing(sqlite3.connect(path)) as connection, connection:
+        rows = connection.execute("SELECT id,source_path,sha256 FROM reports").fetchall()
+        for document_id, source_path, digest in rows:
+            frozen = _report_original_path(source_path, digest)
+            if frozen != source_path:
+                connection.execute("UPDATE reports SET source_path=? WHERE id=?", (frozen, document_id))
 
 
 def _snapshot(path: Path) -> dict[str, int]:
@@ -48,7 +66,15 @@ def _snapshot(path: Path) -> dict[str, int]:
             column_sql = ",".join(f'"{name}" {types[name]}' for name in columns)
             target.execute(f"CREATE TABLE {table} ({column_sql})")
             placeholders = ",".join("?" for _ in columns)
-            target.executemany(f"INSERT INTO {table} VALUES ({placeholders})", cursor)
+            if table == "reports":
+                rows = []
+                for row in cursor:
+                    item = dict(row)
+                    item["source_path"] = _report_original_path(item["source_path"], item["sha256"])
+                    rows.append(tuple(item[name] for name in columns))
+                target.executemany(f"INSERT INTO {table} VALUES ({placeholders})", rows)
+            else:
+                target.executemany(f"INSERT INTO {table} VALUES ({placeholders})", cursor)
             counts[table] = target.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         target.execute("CREATE INDEX report_page_lookup ON report_pages(document_id,page_number)")
         target.execute("CREATE INDEX news_versions ON news(root_id,version)")
@@ -61,6 +87,7 @@ def describe_inputs(conversation_id: str, turn_id: str) -> dict[str, Any]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else None
     if not manifest or manifest.get("turn_id") != turn_id:
         manifest = prepare(conversation_id, turn_id)
+    _freeze_snapshot_originals(Path(manifest["sources"]["sqlite"]))
     with closing(sqlite3.connect(f"{Path(manifest['sources']['sqlite']).as_uri()}?mode=ro", uri=True)) as connection:
         schemas = {name: [{"name": row[1], "type": row[2]} for row in connection.execute(f"PRAGMA table_info({name})")]
                    for name in ("reports", "report_pages", "news")}
@@ -111,6 +138,7 @@ def prepare(conversation_id: str, turn_id: str) -> dict[str, Any]:
         counts = _snapshot(temporary)
         os.replace(temporary, snapshot)
     else:
+        _freeze_snapshot_originals(snapshot)
         with closing(sqlite3.connect(f"{snapshot.as_uri()}?mode=ro", uri=True)) as connection:
             counts = {name: connection.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
                       for name in ("reports", "report_pages", "news")}
@@ -142,7 +170,7 @@ def prepare(conversation_id: str, turn_id: str) -> dict[str, Any]:
                    "fingerprint": list(fingerprint) if fingerprint else None,
                    "format": "parquet", "price_basis": "unknown", "volume_unit": "unknown"},
         "sources": {"sqlite": str(snapshot), "counts": counts,
-                    "tables": {"reports": "报告元数据、原始PDF路径及日期/证券归属确认状态",
+                    "tables": {"reports": "报告元数据、已校验原始PDF路径（缺失或校验不符时为NULL）及日期/证券归属确认状态",
                                "report_pages": "document_id / page_number / text（完整原文）",
                                "news": "全部资讯版本；当前研究通常选择每个root_id最大version，历史研究须按available_at选择当时可用版本"}},
         "notes": ["这是研究输入快照；原始行情在工作目录外，只读访问。",

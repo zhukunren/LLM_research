@@ -1,9 +1,10 @@
 """Separate cache for benchmark indices; indices never enter the stock universe."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
 import json
 import os
+import time
 import requests
 
 from .market import _bar_quality
@@ -12,6 +13,31 @@ from .tushare_sync import create_client, _payload_rows, _source_date
 
 INDEX_FILE = DATA_ROOT / "market_index" / "000001.SH.json"
 _lock = Lock()
+# No weekday heuristic can prove an exchange holiday or a fully published
+# session. Cache an observation briefly, never a promise of range completeness.
+CACHE_TTL_SECONDS = 300
+SOURCE_ZONE = timezone(timedelta(hours=8))
+
+
+def _read_cache() -> dict:
+    try:
+        cached = json.loads(INDEX_FILE.read_text(encoding="utf-8"))
+        if isinstance(cached, dict) and isinstance(cached.get("bars"), list):
+            return cached
+    except (OSError, ValueError, TypeError):
+        pass
+    return {}
+
+
+def _cache_fresh(cached: dict, start: date, cutoff: date) -> bool:
+    try:
+        age = time.time() - float(cached["fetched_at"])
+        return (0 <= age < CACHE_TTL_SECONDS
+                and cached.get("requested_start", "9999") <= start.isoformat()
+                and cached.get("requested_end", "") >= cutoff.isoformat())
+    except (KeyError, TypeError, ValueError):
+        return False
+
 
 
 def _fetch(start: date, cutoff: date) -> tuple[list[dict], str]:
@@ -29,11 +55,11 @@ def _fetch(start: date, cutoff: date) -> tuple[list[dict], str]:
 
 
 def get_bars(as_of: str | None = None, limit: int = 500) -> list[dict]:
-    cutoff = date.fromisoformat(as_of) if as_of else date.today()
+    cutoff = date.fromisoformat(as_of) if as_of else datetime.now(SOURCE_ZONE).date()
     with _lock:
-        cached = json.loads(INDEX_FILE.read_text(encoding="utf-8")) if INDEX_FILE.is_file() else {}
+        cached = _read_cache()
         start = cutoff - timedelta(days=1100)
-        if not (cached.get("requested_start", "9999") <= start.isoformat() and cached.get("requested_end", "") >= cutoff.isoformat()):
+        if not _cache_fresh(cached, start, cutoff):
             try:
                 rows, source = _fetch(start, cutoff)
                 bars = []
@@ -51,7 +77,16 @@ def get_bars(as_of: str | None = None, limit: int = 500) -> list[dict]:
                     raise ValueError("数据源尚未返回上证指数行情")
                 unique = {bar["trade_date"]: bar for bar in cached.get("bars", [])}
                 unique.update({bar["trade_date"]: bar for bar in bars})
-                cached = {"requested_start": min(start.isoformat(), cached.get("requested_start", "9999")), "requested_end": max(cutoff.isoformat(), cached.get("requested_end", "")), "bars": sorted(unique.values(), key=lambda bar: bar["trade_date"])}
+                cached = {
+                    # Bounds describe this fetch, not inferred completeness or
+                    # the union of potentially disjoint historical requests.
+                    "requested_start": start.isoformat(),
+                    "requested_end": cutoff.isoformat(),
+                    "fetched_at": time.time(),
+                    "observed_start": min(bar["trade_date"] for bar in bars),
+                    "observed_end": max(bar["trade_date"] for bar in bars),
+                    "bars": sorted(unique.values(), key=lambda bar: bar["trade_date"]),
+                }
                 INDEX_FILE.parent.mkdir(parents=True, exist_ok=True)
                 staged = INDEX_FILE.with_suffix(".tmp")
                 staged.write_text(json.dumps(cached), encoding="utf-8")

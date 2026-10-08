@@ -18,3 +18,6 @@ data/derived/
 data/uploads/
 *.log
 artifacts/**/live/app.db
+
+# Daily ingestion completion ledger (local operational state)
+*.sync.json

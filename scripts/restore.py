@@ -40,6 +40,13 @@ def main() -> None:
         path = verified_path(backup, relative, item["sha256"])
         if item.get("original_path"):
             relocated[item["original_path"]] = str(destination / path.relative_to(backup))
+    for item in manifest.get("report_originals", []):
+        relative = str(Path("runtime") / "report-originals" / item["name"])
+        path = verified_path(backup, relative, item["sha256"])
+        if path.stem != item["sha256"]:
+            raise ValueError(f"Report original filename does not match checksum: {item['name']}")
+        if item.get("original_path"):
+            relocated[item["original_path"]] = str(destination / path.relative_to(backup))
     for item in manifest.get("source_references", []):
         if item.get("backup_copy"):
             path = verified_path(backup, item["backup_copy"], item["sha256"])

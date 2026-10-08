@@ -158,7 +158,7 @@ function NoteEditor({ project, note, onSaved, onCancel }: { project: ResearchPro
   </form>
 }
 
-export default function ResearchProjectsPage({ initialProjectId, onOpenConversation, onLocationChange }: { initialProjectId?: string; onOpenConversation: (id: string, scope: ConversationScope) => void; onLocationChange?: (id: string) => void }) {
+export default function ResearchProjectsPage({ initialProjectId, onOpenConversation, onLocationChange }: { initialProjectId?: string; onOpenConversation: (id: string, scope: ConversationScope) => void; onLocationChange?: (id: string, userNavigation?: boolean) => void }) {
   const [projects, setProjects] = useState<ResearchProjectSummary[]>([])
   const [selectedId, setSelectedId] = useSessionState('research.selectedProject', '', isText)
   const locationCallback = useRef(onLocationChange)
@@ -179,7 +179,13 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
   const [noteStatus, setNoteStatus] = useState<ResearchNote['status'] | ''>('')
   const [noteSort, setNoteSort] = useState<'updated' | 'title'>('updated')
   const [openNoteId, setOpenNoteId] = useState<string | null>('')
-  useEffect(() => { setNoteQuery(''); setNoteStatus(''); setCompanyFilter(''); setOpenNoteId('') }, [selectedId])
+  useEffect(() => {
+    // Browser history changes selection without going through select(). Editors
+    // belong to the previous project; their drafts remain in session storage.
+    setEditing(null); setForm(null); setFormProject(undefined)
+    setCompany(''); setNotice(''); setError('')
+    setNoteQuery(''); setNoteStatus(''); setCompanyFilter(''); setOpenNoteId('')
+  }, [selectedId])
   const [includeArchived, setIncludeArchived] = useState(false)
   const [reload, setReload] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -206,7 +212,7 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
     if (!selectedId) { setProject(null); setFiles([]); setProjectLoading(false); setProjectError(''); return }
     const controller = new AbortController()
     setProject(current => current?.id === selectedId ? current : null); setFiles([]); setProjectError(''); setFileError(''); setFilesLoading(true); setProjectLoading(true)
-    api<ResearchProject>(`/research-projects/${selectedId}`, { signal: controller.signal }).then(value => { if (!controller.signal.aborted) { setProject(value); locationCallback.current?.(value.id) } })
+    api<ResearchProject>(`/research-projects/${selectedId}`, { signal: controller.signal }).then(value => { if (!controller.signal.aborted) { setProject(value); locationCallback.current?.(value.id, false) } })
       .catch(reason => { if (!controller.signal.aborted) setProjectError((reason as Error).message) })
       .finally(() => { if (!controller.signal.aborted) setProjectLoading(false) })
     api<{ items: ResearchFile[] }>(`/research-projects/${selectedId}/files`, { signal: controller.signal }).then(result => { if (!controller.signal.aborted) setFiles(result.items) })
@@ -238,8 +244,8 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
     } catch (reason) { setError((reason as Error).message) }
     finally { setReportBusy('') }
   }
-  function select(id: string) { setSelectedId(id); locationCallback.current?.(id); setEditing(null); setForm(null); setCompany(''); setCompanyFilter(''); setNotice(''); setError('') }
-  function saved(id: string) { setSelectedId(id); locationCallback.current?.(id); setForm(null); setReload(value => value + 1); setNotice('研究项目已保存。') }
+  function select(id: string) { setSelectedId(id); locationCallback.current?.(id, true); setEditing(null); setForm(null); setCompany(''); setCompanyFilter(''); setNotice(''); setError('') }
+  function saved(id: string) { setSelectedId(id); locationCallback.current?.(id, true); setForm(null); setReload(value => value + 1); setNotice('研究项目已保存。') }
   async function mutate(path: string, init: RequestInit, message: string) {
     setBusy(true); setError('')
     try { await api(path, init); setReload(value => value + 1); setNotice(message); return true }
@@ -305,7 +311,7 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
 
               {!editing && <div className="workspace-filter-bar research-note-filters"><SearchField label="搜索研究笔记" placeholder="搜索标题、正文或验证事项" value={noteQuery} onChange={setNoteQuery} /><select aria-label="筛选笔记状态" value={noteStatus} onChange={event => setNoteStatus(event.target.value as typeof noteStatus)}><option value="">全部观点状态</option>{Object.entries(noteStatuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label="笔记排序" value={noteSort} onChange={event => setNoteSort(event.target.value as typeof noteSort)}><option value="updated">最近更新</option><option value="title">按标题排序</option></select><span className="workspace-result-count" aria-live="polite">{visibleNotes.length} / {project.notes.length} 份笔记</span>{notesFiltered && <button className="text-button" onClick={clearNoteFilters}>重置笔记筛选</button>}</div>}
               {companyFilter && <p>只看 <StockName code={companyFilter} /> 的笔记 <button className="text-button" onClick={() => setCompanyFilter('')}>查看全部</button></p>}
-              {editing && writable ? <NoteEditor key={typeof editing === 'string' ? `${project.id}:new` : editing.id} project={project} note={typeof editing === 'string' ? undefined : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setReload(value => value + 1); setNotice('研究笔记已保存。') }} /> : visibleNotes.map(note => <article className={'research-note ' + (activeNoteId === note.id ? 'research-note-open' : '')} key={note.id}><div className="research-note-heading"><h3><button className="research-note-disclosure" aria-expanded={activeNoteId === note.id} aria-controls={'research-note-body-' + note.id} onClick={() => setOpenNoteId(activeNoteId === note.id ? null : note.id)}><ChevronDown size={16} /><span>{note.title}</span></button></h3><div className="heading-actions"><span className={`research-note-status ${note.status}`}>{noteStatuses[note.status]}</span>{writable && <button className="icon-button" aria-label={`编辑笔记 ${note.title}`} onClick={() => setEditing(note)}><Pencil size={15} /></button>}</div></div><div className="research-note-meta">{note.stock_code && <StockName code={note.stock_code} />}<ResearchNotePDF projectId={project.id} noteId={note.id} revision={note.revision} pdf={note.pdf} /><time>{time(note.updated_at)}</time>{note.source_conversation_id && <button className="text-button" onClick={() => {
+              {editing && writable ? <NoteEditor key={`${project.id}:${typeof editing === 'string' ? 'new' : editing.id}`} project={project} note={typeof editing === 'string' ? undefined : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setReload(value => value + 1); setNotice('研究笔记已保存。') }} /> : visibleNotes.map(note => <article className={'research-note ' + (activeNoteId === note.id ? 'research-note-open' : '')} key={note.id}><div className="research-note-heading"><h3><button className="research-note-disclosure" aria-expanded={activeNoteId === note.id} aria-controls={'research-note-body-' + note.id} onClick={() => setOpenNoteId(activeNoteId === note.id ? null : note.id)}><ChevronDown size={16} /><span>{note.title}</span></button></h3><div className="heading-actions"><span className={`research-note-status ${note.status}`}>{noteStatuses[note.status]}</span>{writable && <button className="icon-button" aria-label={`编辑笔记 ${note.title}`} onClick={() => setEditing(note)}><Pencil size={15} /></button>}</div></div><div className="research-note-meta">{note.stock_code && <StockName code={note.stock_code} />}<ResearchNotePDF projectId={project.id} noteId={note.id} revision={note.revision} pdf={note.pdf} /><time>{time(note.updated_at)}</time>{note.source_conversation_id && <button className="text-button" onClick={() => {
                 const source = project.conversations.find(item => item.id === note.source_conversation_id)
                 if (source) onOpenConversation(source.id, source.entry_scope)
                 else void api<Conversation>(`/conversations/${note.source_conversation_id}`).then(value => onOpenConversation(value.id, value.entry_scope)).catch(reason => setError((reason as Error).message))

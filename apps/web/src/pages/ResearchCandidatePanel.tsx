@@ -18,7 +18,7 @@ function scrollToPanel(panel: HTMLElement | null) {
   panel?.scrollIntoView({ behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
 }
 
-export default function ResearchCandidatePanel({ refresh, onOpenResearch, onStartResearch, initialCandidateId, onLocationChange }: { refresh: number; onOpenResearch?: (id: string) => void; onStartResearch?: () => void; initialCandidateId?: string; onLocationChange?: (id: string) => void }) {
+export default function ResearchCandidatePanel({ refresh, onOpenResearch, onStartResearch, initialCandidateId, onLocationChange }: { refresh: number; onOpenResearch?: (id: string) => void; onStartResearch?: () => void; initialCandidateId?: string; onLocationChange?: (id: string, userNavigation?: boolean) => void }) {
   const [items, setItems] = useState<ResearchCandidate[]>([])
   const [query, setQuery] = useState(''), [status, setStatus] = useState(''), [sort, setSort] = useState('priority')
   const [offset, setOffset] = useState(0), [total, setTotal] = useState(0)
@@ -37,7 +37,7 @@ export default function ResearchCandidatePanel({ refresh, onOpenResearch, onStar
     const controller = new AbortController()
     setSelected(initialCandidateId)
     api<ResearchCandidate>(`/observation/research-candidates/${encodeURIComponent(initialCandidateId)}`, { signal: controller.signal })
-      .then(value => { if (!controller.signal.aborted) { setLinkedCandidate(value); locationCallback.current?.(value.id) } })
+      .then(value => { if (!controller.signal.aborted) { setLinkedCandidate(value); locationCallback.current?.(value.id, false) } })
       .catch(reason => { if (!controller.signal.aborted) setLinkedError((reason as Error).message) })
     return () => controller.abort()
   }, [initialCandidateId, refresh, reload])
@@ -61,10 +61,10 @@ export default function ResearchCandidatePanel({ refresh, onOpenResearch, onStar
     if (!loading && selected !== initialCandidateId && !ordered.some(item => item.id === selected)) setSelected(ordered[0]?.id ?? '')
   }, [ordered, selected, loading])
   const current = items.find(item => item.id === selected) ?? (linkedCandidate?.id === selected ? linkedCandidate : undefined)
-  useEffect(() => { if (current) locationCallback.current?.(current.id) }, [current?.id])
+  useEffect(() => { if (current) locationCallback.current?.(current.id, false) }, [current?.id])
   function selectCandidate(id: string) {
     setSelected(id); setNotice('')
-    locationCallback.current?.(id)
+    locationCallback.current?.(id, true)
     if (globalThis.matchMedia?.('(max-width: 1100px)').matches) scrollToPanel(detailRef.current)
   }
   function clearFilters() { setQuery(''); setStatus(''); setOffset(0) }

@@ -22,12 +22,12 @@ describe('独立研究候选跟踪', () => {
     const location = vi.fn()
     const view = render(<ObservationPage data={null} initialCandidateId="candidate" initialTab="candidates" onLocationChange={location} />)
     expect(await screen.findByRole('complementary', { name: '研究候选详情' })).toHaveTextContent('贵州茅台')
-    expect(location).toHaveBeenCalledWith('candidates', 'candidate')
+    expect(location).toHaveBeenCalledWith('candidates', 'candidate', false)
     const next = { ...original, id: 'next-candidate', name: '第二条公司' }
     fetcher.mockImplementation(async (input: RequestInfo | URL) => String(input).endsWith('/next-candidate') ? json(next) : json({ items: [unrelated], total: 50 }))
     view.rerender(<ObservationPage data={null} initialCandidateId="next-candidate" initialTab="candidates" onLocationChange={location} />)
     await waitFor(() => expect(screen.getByRole('complementary', { name: '研究候选详情' })).toHaveTextContent('第二条公司'))
-    expect(location).toHaveBeenLastCalledWith('candidates', 'next-candidate')
+    expect(location).toHaveBeenLastCalledWith('candidates', 'next-candidate', false)
     expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true)
   })
 

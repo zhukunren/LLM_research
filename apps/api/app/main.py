@@ -1004,14 +1004,16 @@ def catalog_documents(retry_failed: bool = False):
 
 @app.get(f"{API_PREFIX}/documents/{{document_id}}/pdf")
 def document_pdf(document_id: str):
-    from pathlib import Path
     with connect() as connection:
-        row = connection.execute("SELECT source_path,filename FROM documents WHERE id=?", (document_id,)).fetchone()
+        row = connection.execute("SELECT source_path,sha256,filename FROM documents WHERE id=?", (document_id,)).fetchone()
     if not row:
         _bad_request("找不到研报", 404, "document_not_found")
-    path = Path(row["source_path"])
-    if not path.is_file():
+    try:
+        path = documents.original_snapshot(row["source_path"], row["sha256"])
+    except FileNotFoundError:
         _bad_request("研报 PDF 原件不存在", 404, "document_pdf_missing")
+    except documents.DocumentIntegrityError as exc:
+        _bad_request(str(exc), 409, "document_pdf_integrity_mismatch")
     return FileResponse(path, media_type="application/pdf", filename=row["filename"], content_disposition_type="inline")
 
 

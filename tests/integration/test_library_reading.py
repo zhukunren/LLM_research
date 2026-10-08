@@ -1,3 +1,4 @@
+import hashlib
 import json
 from datetime import date
 
@@ -62,7 +63,7 @@ def test_url_import_saves_standard_news_and_replay_avoids_browser(client, monkey
 def add_report(tmp_path):
     path = tmp_path / 'report.pdf'; path.write_bytes(b'%PDF-1.4\nfixture')
     with db.connect() as connection:
-        connection.execute("INSERT INTO documents(id,sha256,filename,title,pages,extracted_chars,parse_status,source_path,imported_at) VALUES('report','hash','wrong-000002.SZ-20250901.pdf','wrong',1,100,'indexed',?,?)", (str(path), db.utc_now()))
+        connection.execute("INSERT INTO documents(id,sha256,filename,title,pages,extracted_chars,parse_status,source_path,imported_at) VALUES('report',?,'wrong-000002.SZ-20250901.pdf','wrong',1,100,'indexed',?,?)", (hashlib.sha256(path.read_bytes()).hexdigest(), str(path), db.utc_now()))
         connection.execute("INSERT INTO document_pages VALUES('report',1,'浦发银行 600000.SH 银行研究 券商甲 分析师张三 2026年9月14日 订单增长')")
 
 

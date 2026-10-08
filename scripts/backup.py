@@ -48,7 +48,9 @@ def main() -> None:
     source_files = [path for path in [STOCK_FILE, *REPORT_DIR.glob("*.pdf")] if path.is_file()]
     upload_root = PROJECT_ROOT / "runtime" / "uploads"
     upload_files = [path for path in upload_root.rglob("*") if path.is_file()] if upload_root.is_dir() else []
-    total_copy = DB_PATH.stat().st_size + sum(path.stat().st_size for path in upload_files)
+    originals_root = DB_PATH.parent / "report-originals"
+    original_files = sorted(originals_root.glob("*.pdf")) if originals_root.is_dir() else []
+    total_copy = DB_PATH.stat().st_size + sum(path.stat().st_size for path in upload_files + original_files)
     if args.include_source:
         total_copy += sum(path.stat().st_size for path in source_files)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -63,12 +65,26 @@ def main() -> None:
         runtime_dir = temporary / "runtime"
         runtime_dir.mkdir()
         copy_database(DB_PATH, runtime_dir / "app.db")
+        # Imports publish originals before committing their database rows. Scan
+        # after the DB snapshot so a concurrent import cannot leave a captured
+        # row without its original file in this backup.
+        original_files = sorted(originals_root.glob("*.pdf")) if originals_root.is_dir() else []
         uploads_dir = runtime_dir / "uploads"
         uploads_dir.mkdir(parents=True)
         for path in upload_files:
             target = uploads_dir / path.relative_to(upload_root)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, target)
+        originals_dir = runtime_dir / "report-originals"
+        originals_dir.mkdir()
+        original_refs = []
+        for path in original_files:
+            target = originals_dir / path.name
+            shutil.copy2(path, target)
+            digest = sha256(target)
+            if digest != path.stem:
+                raise ValueError(f"Report original checksum mismatch: {path.name}")
+            original_refs.append({"name": path.name, "original_path": str(path), "bytes": target.stat().st_size, "sha256": digest})
         refs = [{"path": str(path), "bytes": path.stat().st_size, "sha256": sha256(path)} for path in source_files]
         if args.include_source:
             source_copy = temporary / "source"
@@ -89,6 +105,7 @@ def main() -> None:
             "format_version": 1,
             "database": "runtime/app.db",
             "upload_files": [{"name": str(path.relative_to(upload_root)), "original_path": str(path), "bytes": path.stat().st_size, "sha256": sha256(path)} for path in upload_files],
+            "report_originals": original_refs,
             "source_references": refs,
             "source_files_copied": bool(args.include_source),
         }

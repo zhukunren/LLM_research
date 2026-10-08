@@ -28,7 +28,7 @@ export const percent = (value: number | null | undefined) => value == null ? '�
 const returnClass = (value: number | null | undefined) => value == null || value === 0 ? 'observation-neutral' : value > 0 ? 'observation-up' : 'observation-down'
 const timestamp = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
 
-type Props = { data: DataStatus | null; onNavigateScreening?: () => void; onOpenResearch?: (conversationId: string) => void; onStartResearch?: () => void; initialRunId?: string; initialCandidateId?: string; initialTab?: 'candidates' | 'batches'; onLocationChange?: (tab: 'candidates' | 'batches', id: string) => void }
+type Props = { data: DataStatus | null; onNavigateScreening?: () => void; onOpenResearch?: (conversationId: string) => void; onStartResearch?: () => void; initialRunId?: string; initialCandidateId?: string; initialTab?: 'candidates' | 'batches'; onLocationChange?: (tab: 'candidates' | 'batches', id: string, userNavigation?: boolean) => void }
 export default function ObservationPage({ data, onNavigateScreening, onOpenResearch, onStartResearch, initialRunId, initialCandidateId, initialTab, onLocationChange }: Props) {
   const [runId, setRunId] = useSessionState('observation.run', '', isText)
   const [tab, setTab] = useState<'candidates' | 'batches'>(() => initialTab || (initialRunId || runId ? 'batches' : 'candidates'))
@@ -39,7 +39,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     else if (initialCandidateId) { setRunId(''); setTab('candidates') }
     else if (initialTab) { setTab(initialTab); if (initialTab === 'candidates') setRunId('') }
   }, [initialRunId, initialCandidateId, initialTab])
-  function changeTab(next: 'candidates' | 'batches') { setTab(next); locationCallback.current?.(next, next === 'batches' ? runId : '') }
+  function changeTab(next: 'candidates' | 'batches') { setTab(next); locationCallback.current?.(next, next === 'batches' ? runId : '', true) }
   const [batches, setBatches] = useState<Batch[]>([]), [historyQuery, setHistoryQuery] = useState('')
   const [historyOffset, setHistoryOffset] = useState(0), [historyTotal, setHistoryTotal] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -80,7 +80,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
         const value = await api<Run>(`/observation/runs/${runId}`, { signal: controller.signal })
         if (controller.signal.aborted) return
         setRun(value)
-        locationCallback.current?.('batches', value.id)
+        locationCallback.current?.('batches', value.id, false)
         setBatches(items => items.map(item => item.id === value.id ? { ...item, status: value.status, counts: value.result.coverage ?? {} } : item))
         if (active(value.status)) timer = setTimeout(load, 1500)
       } catch (reason) { if (!controller.signal.aborted) setResultError((reason as Error).message) }
@@ -143,11 +143,11 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     </div>
     {error && <div className="library-error" role="alert">{error}<button className="text-button" onClick={() => setRefresh(value => value + 1)}>重新加载</button></div>}
     <section id="observation-panel" role="tabpanel" aria-labelledby={`${tab}-tab`}>
-      {tab === 'candidates' ? <ResearchCandidatePanel initialCandidateId={initialCandidateId} onLocationChange={id => locationCallback.current?.('candidates', id)} onStartResearch={onStartResearch} refresh={refresh} onOpenResearch={onOpenResearch} /> : <>
+      {tab === 'candidates' ? <ResearchCandidatePanel initialCandidateId={initialCandidateId} onLocationChange={(id, userNavigation) => locationCallback.current?.('candidates', id, userNavigation)} onStartResearch={onStartResearch} refresh={refresh} onOpenResearch={onOpenResearch} /> : <>
         <section className="observation-batch-controls" aria-label="批次记录导航" aria-busy={historyLoading}>
           <div className="observation-section-heading"><div><History size={17} /><h2>批次记录</h2><span>{historyLoading ? '读取中…' : `共 ${historyTotal} 次执行`}</span></div></div>
           <div className="observation-batch-fields">
-            <label className="observation-batch-main">当前筛选批次<select aria-label="选择选股批次" value={runId} onChange={event => setRunId(event.target.value)}><option value="">选择记录</option>{run && !batches.some(item => item.id === run.id) && <option value={run.id}>{run.signal_date} · {run.name}</option>}{batches.map(item => <option key={item.id} value={item.id}>{item.signal_date} · {item.name} · v{item.version} · {stateLabels[item.status]}{item.counts.true_count != null ? ` · ${item.counts.true_count}只` : ''}</option>)}</select></label>
+            <label className="observation-batch-main">当前筛选批次<select aria-label="选择选股批次" value={runId} onChange={event => { setRunId(event.target.value); locationCallback.current?.('batches', event.target.value, true) }}><option value="">选择记录</option>{run && !batches.some(item => item.id === run.id) && <option value={run.id}>{run.signal_date} · {run.name}</option>}{batches.map(item => <option key={item.id} value={item.id}>{item.signal_date} · {item.name} · v{item.version} · {stateLabels[item.status]}{item.counts.true_count != null ? ` · ${item.counts.true_count}只` : ''}</option>)}</select></label>
             <label>查找历史<div className="observation-search"><Search size={16} /><input aria-label="查找历史" placeholder="搜索方案名称或条件" value={historyQuery} onChange={event => { setHistoryQuery(event.target.value); setHistoryOffset(0) }} /></div></label>
             {(historyTotal > 50 || historyOffset > 0) && <div className="observation-pagination"><span>{historyOffset + 1}–{Math.min(historyOffset + 50, historyTotal)} / {historyTotal}</span><button disabled={!historyOffset || historyLoading} onClick={() => setHistoryOffset(value => Math.max(0, value - 50))}>上一页批次</button><button disabled={historyOffset + 50 >= historyTotal || historyLoading} onClick={() => setHistoryOffset(value => value + 50)}>下一页批次</button></div>}
           </div>

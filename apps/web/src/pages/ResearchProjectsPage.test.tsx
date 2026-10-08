@@ -1,9 +1,17 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api'
 import type { ResearchProject, ResearchNote } from '../research'
 import ResearchProjectsPage from './ResearchProjectsPage'
+import { useWorkspaceRoute } from '../useWorkspaceRoute'
+
+afterEach(() => window.history.replaceState(null, '', '/'))
+
+function HistoryProjectPage() {
+  const { route, navigate } = useWorkspaceRoute()
+  return <ResearchProjectsPage initialProjectId={route.projectId} onOpenConversation={vi.fn()} onLocationChange={id => navigate({ page: 'research', projectId: id })} />
+}
 
 vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
 vi.mock('../components/StockSearch', () => ({ default: ({ onChange }: { onChange: (value: string) => void }) => <button onClick={() => onChange('600519.SH')}>选择贵州茅台</button>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
@@ -25,13 +33,49 @@ describe('ResearchProjectsPage', () => {
     })
     const view = render(<ResearchProjectsPage initialProjectId="p2" onLocationChange={location} onOpenConversation={vi.fn()} />)
     expect(await screen.findByRole('heading', { name: '第二研究项目' })).toBeInTheDocument()
-    expect(location).toHaveBeenCalledWith('p2')
+    expect(location).toHaveBeenCalledWith('p2', false)
     view.rerender(<ResearchProjectsPage initialProjectId="p1" onLocationChange={location} onOpenConversation={vi.fn()} />)
     expect(await screen.findByRole('heading', { name: '白酒盈利改善' })).toBeInTheDocument()
     view.rerender(<ResearchProjectsPage initialProjectId="missing" onLocationChange={location} onOpenConversation={vi.fn()} />)
     expect(await screen.findByText('找不到研究项目。')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '白酒盈利改善' })).not.toBeInTheDocument()
-    expect(location).not.toHaveBeenCalledWith('missing')
+    expect(location).not.toHaveBeenCalledWith('missing', false)
+    expect(vi.mocked(api).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true)
+  })
+
+  it.each(['existing', 'new', 'project'])('closes the %s editor on browser Back and Forward, preserves its original draft and keeps same-project refresh open', async kind => {
+    const user = userEvent.setup()
+    const first = existing(), second = { ...existing(), id: 'p2', name: '第二研究项目' }
+    const note: ResearchNote = { id: 'n1', project_id: 'p1', title: '收入兑现', body: '原笔记', stock_code: null, validation_plan: '', invalidation_condition: '', status: 'watching', revision: 1, source_conversation_id: null, source_message_id: null, updated_at: first.updated_at }
+    first.notes = [note]
+    vi.mocked(api).mockImplementation(async path => {
+      if (path === '/research-projects') return { items: [summary(first), summary(second)] } as never
+      if (path.endsWith('/files') || path.includes('/notes/')) return { items: [] } as never
+      return (path.endsWith('/p2') ? second : first) as never
+    })
+    window.history.replaceState(null, '', '#/projects/p2')
+    window.history.pushState(null, '', '#/projects/p1')
+    render(<HistoryProjectPage />)
+    await screen.findByRole('heading', { name: first.name })
+    const openEditor = () => user.click(screen.getByRole('button', { name: kind === 'existing' ? '编辑笔记 收入兑现' : kind === 'new' ? '写研究笔记' : '编辑项目' }))
+    const label = kind === 'project' ? '项目名称' : '笔记标题'
+    await openEditor()
+    await user.clear(screen.getByRole('textbox', { name: label }))
+    await user.type(screen.getByRole('textbox', { name: label }), '项目一未保存草稿')
+    const input = screen.getByRole('textbox', { name: label })
+    await user.click(screen.getByRole('button', { name: '刷新研究项目' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '刷新研究项目' })).toBeEnabled())
+    expect(screen.getByRole('textbox', { name: label })).toBe(input)
+    expect(input).toHaveValue('项目一未保存草稿')
+    act(() => window.history.back())
+    await screen.findByRole('heading', { name: second.name })
+    expect(screen.queryByRole('textbox', { name: label })).not.toBeInTheDocument()
+    const drafts = JSON.parse(sessionStorage.getItem(kind === 'project' ? 'research.projectDrafts' : 'research.noteDrafts')!)
+    expect(Object.keys(drafts)).toEqual([kind === 'project' ? 'p1' : `p1:${kind === 'new' ? 'new' : 'n1'}`])
+    act(() => window.history.forward())
+    await screen.findByRole('heading', { name: first.name })
+    await openEditor()
+    expect(screen.getByRole('textbox', { name: label })).toHaveValue('项目一未保存草稿')
     expect(vi.mocked(api).mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true)
   })
 
