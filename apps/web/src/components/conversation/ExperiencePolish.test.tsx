@@ -42,7 +42,8 @@ it('saves an independent answer to the inbox without changing project membership
   await user.click(screen.getByRole('button', { name: '查看笔记' }))
   expect(openProject).toHaveBeenCalledWith('inbox')
   expect(writes).toEqual(['/api/v1/conversations/research/notes/from-message'])
-  expect(screen.getByText('独立研究')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '研究对话选项' }))
+  expect(screen.getByRole('dialog', { name: '项目归属' })).toBeInTheDocument()
 })
 
 it('keeps long research answers readable without opening nested sections', async () => {

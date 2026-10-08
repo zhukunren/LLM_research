@@ -185,16 +185,18 @@ def test_research_program_error_can_be_repaired_in_the_same_turn(tmp_path, monke
         assert connection.execute("SELECT COUNT(*) FROM screening_task_runs").fetchone()[0] == 0
 
 
-@pytest.mark.parametrize("depth,effort", [("standard", "high"), ("deep", "max")])
+@pytest.mark.parametrize("depth,effort", [("standard", "max"), ("deep", "low")])
 @pytest.mark.parametrize("resume", [False, True])
-def test_codex_gets_frozen_depth_effort_on_new_and_resumed_threads(tmp_path, monkeypatch, depth, effort, resume):
+def test_codex_gets_frozen_selected_model_effort_on_new_and_resumed_threads(tmp_path, monkeypatch, depth, effort, resume):
     from types import SimpleNamespace
-    from apps.api.app import market
+    from apps.api.app import market, research_models
     import openai_codex
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "runtime.db")
     monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
+    monkeypatch.setattr(research_models, "llm_settings", lambda: {"configured": True, "model": "gpt-6-luna", "reasoning_effort": "high"})
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6-luna", "gpt-5.6-luna"}, "verified"))
     db.init_db()
-    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
+    cid = conversation_store.create_conversation("screening", workflow_type="screening", model_id="gpt-5.6-luna", reasoning_effort=effort)["id"]
     conversation_store.update_workflow(cid, "screening", depth)
     msg = conversation_store.add_user_message(cid, "run", 0, "读取资料")
     conversation_store.start_turn(cid, msg["turn_id"])
@@ -231,7 +233,8 @@ def test_codex_gets_frozen_depth_effort_on_new_and_resumed_threads(tmp_path, mon
     result = codex_runtime.run_conversation_turn(cid, msg["turn_id"])
     assert result["response"] == "已核对原文"
     assert observed["resumed"] is resume
-    assert observed["thread"]["model"] == "configured-model"
+    assert observed["thread"]["model"] == "gpt-5.6-luna"
+    assert observed["turn"]["model"] == "gpt-5.6-luna"
     assert observed["thread"]["sandbox"] == openai_codex.Sandbox.workspace_write
     assert observed["turn"]["effort"] == effort
     assert result["reasoning_effort"] == effort

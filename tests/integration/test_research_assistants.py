@@ -44,7 +44,8 @@ def finish(cid, tid):
 @pytest.mark.parametrize("assistant", ["general", "financial", "reports", "supply-chain", "risk"])
 def test_presets_are_selectable_and_message_snapshots_are_immutable(client, tmp_path, assistant):
     catalog = client.get("/api/v1/research-assistants").json()
-    assert catalog["default_id"] == "general" and len(catalog["items"]) == 5
+    assert catalog["default_id"] == "general"
+    assert {item["id"] for item in catalog["items"]} >= {"general", "financial", "reports", "supply-chain", "risk"}
     response = create(client, assistant)
     assert response.status_code == 200, response.text
     cid = response.json()["id"]

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
 import { TaskLogic } from './TaskBrief'
-import type { Conversation, SavedScreeningTask, ScreeningTaskRevision } from '../../api'
+import type { Conversation, SavedScreeningTask, ScreeningTaskRevision, WorkflowType } from '../../api'
 
 const task: ScreeningTaskRevision = {
   task_id: 'one', revision: 1, original_user_messages: ['收盘价高于20日均线'],
@@ -14,16 +14,16 @@ const task: ScreeningTaskRevision = {
   unresolved: [],
 }
 const saved: SavedScreeningTask = { id: 'saved-1', name: '趋势跟踪', version: 2, task, created_at: '2026-09-28T08:00:00Z' }
-const makeConversation = (id: string, revision = 1): Conversation => ({
-  id, task_id: id, entry_scope: 'screening', research_mode: 'research', task_revision: revision, active_run_id: null, pending_execution: false, state: 'active',
+const makeConversation = (id: string, revision = 1, workflow: WorkflowType = revision ? 'screening' : 'research'): Conversation => ({
+  id, task_id: id, entry_scope: 'screening', workflow_type: workflow, research_mode: workflow, task_revision: revision, active_run_id: null, pending_execution: false, state: 'active',
   messages: [{ id: `${id}-message`, role: 'user', content: `需求${id}`, source_refs: [], created_at: saved.created_at }],
   turns: revision ? [{ id: `${id}-turn`, user_message_id: `${id}-message`, base_revision: 0, state: 'succeeded', response_text: '方案已整理', result: { task_revision: revision }, created_at: saved.created_at, updated_at: saved.created_at }] : [],
   created_at: saved.created_at, updated_at: saved.created_at,
 })
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-function mockApi(intercept?: (url: URL, method: string, body: Record<string, unknown>) => Response | undefined) {
-  const conversations = [makeConversation('one'), makeConversation('two')]
+function mockApi(intercept?: (url: URL, method: string, body: Record<string, unknown>) => Response | undefined, workflow: WorkflowType = 'screening') {
+  const conversations = [makeConversation('one', workflow === 'screening' ? 1 : 0, workflow), makeConversation('two', workflow === 'screening' ? 1 : 0, workflow)]
   const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), 'http://localhost')
     const method = init?.method ?? 'GET'
@@ -33,6 +33,7 @@ function mockApi(intercept?: (url: URL, method: string, body: Record<string, unk
     if (url.pathname.endsWith('/revisions/1')) return json(task)
     if (url.pathname.endsWith('/screening-runs')) return json({ items: [] })
     if (/\/research-(files|scans)$/.test(url.pathname)) return json({ items: [] })
+    if (url.pathname.endsWith('/generated-files')) return json({ items: [] })
     if (url.pathname === '/api/v1/saved-screening-tasks') return json({ items: [saved] })
     const current = conversations.find(item => url.pathname === `/api/v1/conversations/${item.id}`)
     if (current) return json(current)
@@ -48,7 +49,7 @@ describe('screening product flow', () => {
   it('does not auto-save default scope on loading an incomplete task and still allows a follow-up', async () => {
     const fetcher = mockApi(url => url.pathname.endsWith('/revisions/1') ? json({ ...task, scope: { ...task.scope, universe: null, as_of: null } }) : undefined)
     const user = userEvent.setup()
-    render(<ConversationWorkspace data={{ available: true, last_date: '2026-09-30' }} />)
+    render(<ConversationWorkspace initialWorkflowType="screening" data={{ available: true, last_date: '2026-09-30' }} />)
     await screen.findByRole('heading', { name: '筛选方案' })
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '请继续完善条件')
@@ -73,7 +74,7 @@ describe('screening product flow', () => {
       if (url.pathname.endsWith('/decisions')) return json({ items: [], total: 0 })
     })
     const user = userEvent.setup()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     await user.click(await screen.findByRole('button', { name: '确认并开始筛选' }))
     await screen.findByText('启动暂时中断')
     await user.click(screen.getByRole('button', { name: '确认并开始筛选' }))
@@ -101,7 +102,7 @@ describe('screening product flow', () => {
       if (url.pathname.endsWith('/revisions/2')) return json({ ...task, revision: 2, scope: { ...task.scope, as_of: '2026-09-13' } })
     })
     const user = userEvent.setup()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     expect(screen.queryByRole('button', { name: '应用范围与日期' })).not.toBeInTheDocument()
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '稍后比较估值')
@@ -128,12 +129,12 @@ describe('screening product flow', () => {
       if (url.pathname.endsWith('/conversations/one')) return json({ ...makeConversation('one'), workflow_type: 'screening', research_depth: depth })
     })
     const user = userEvent.setup()
-    const view = render(<ConversationWorkspace />)
+    const view = render(<ConversationWorkspace initialWorkflowType="screening" />)
     await waitFor(() => expect(screen.getByLabelText('研究深度')).toBeEnabled())
     await user.selectOptions(screen.getByLabelText('研究深度'), 'deep')
     await screen.findByText('研究深度已设为“深入”。')
     view.unmount()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     await waitFor(() => expect(screen.getByLabelText('研究深度')).toHaveValue('deep'))
     await user.selectOptions(screen.getByLabelText('研究深度'), 'standard')
     await screen.findByText('深度保存中断')
@@ -149,7 +150,7 @@ describe('screening product flow', () => {
       }
     })
     const user = userEvent.setup()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     await user.click(await screen.findByRole('button', { name: '保存方案' }))
     await screen.findByText('连接暂时中断')
     expect(screen.queryByLabelText('方案名称')).not.toBeInTheDocument()
@@ -172,9 +173,9 @@ describe('screening product flow', () => {
         hasOutput = true
         return json({ items: [{ name: '研究笔记.md', bytes: 100, url: '/api/v1/conversations/one/research-files/note.md' }] })
       }
-    })
+    }, 'research')
     const user = userEvent.setup()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="research" />)
     await screen.findByRole('heading', { name: '订单研究结论' })
     expect(screen.queryByRole('dialog', { name: '研究成果' })).not.toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: '成果与文件' }))
@@ -195,9 +196,9 @@ describe('screening product flow', () => {
   it('lets beginners preview and edit an example without creating a conversation or executing a run', async () => {
     const fetcher = mockApi((url, method) => {
       if (url.pathname === '/api/v1/conversations' && method === 'GET') return json({ items: [] })
-    })
+    }, 'research')
     const user = userEvent.setup()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="research" />)
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     expect(screen.queryByRole('complementary', { name: '当前筛选任务和结果' })).not.toBeInTheDocument()
     await user.click(screen.getByText('示例问题'))
@@ -211,7 +212,7 @@ describe('screening product flow', () => {
   it('preserves separate drafts when switching conversations and reopening the page', async () => {
     mockApi()
     const user = userEvent.setup()
-    const view = render(<ConversationWorkspace />)
+    const view = render(<ConversationWorkspace initialWorkflowType="screening" />)
     await screen.findByText('收盘价高于20日均线')
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '把周期改成30日')
@@ -229,7 +230,7 @@ describe('screening product flow', () => {
     await user.click(screen.getByRole('button', { name: /需求one/ }))
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('把周期改成30日'))
     view.unmount()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('把周期改成30日'))
     await user.click(screen.getByRole('button', { name: '历史与方案' }))
     await user.click(screen.getByRole('button', { name: /需求two/ }))
@@ -245,7 +246,7 @@ describe('screening product flow', () => {
       }
     })
     const user = userEvent.setup()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     await user.click(await screen.findByRole('button', { name: '设置方案名称' }))
     await user.clear(screen.getByLabelText('方案名称'))
     await user.type(screen.getByLabelText('方案名称'), '趋势跟踪')
@@ -264,7 +265,7 @@ describe('screening product flow', () => {
 
   it('reuses into a new editable conversation with the original cutoff and no execution', async () => {
     let reused = false
-    const fresh = makeConversation('reused', 0)
+    const fresh = makeConversation('reused', 0, 'screening')
     const fetcher = mockApi((url, method) => {
       if (url.pathname === '/api/v1/conversations' && method === 'POST') return json(fresh)
       if (url.pathname.endsWith('/reused/messages')) return json({ message_id: 'reuse-message' })
@@ -273,7 +274,7 @@ describe('screening product flow', () => {
       if (url.pathname.endsWith('/conversations/reused')) return json({ ...makeConversation('reused'), messages: [{ id: 'assistant-reuse', role: 'assistant', content: '已复用趋势跟踪，请核对截止日。', source_refs: [], created_at: saved.created_at }] })
     })
     const user = userEvent.setup()
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     await user.click(await screen.findByRole('button', { name: '历史与方案' }))
     await user.click(screen.getByRole('button', { name: '已保存方案' }))
     await user.click(await screen.findByText('趋势跟踪'))
@@ -289,7 +290,7 @@ describe('screening product flow', () => {
 
   it('shows unresolved requirements and prevents saving or executing an incomplete task', async () => {
     mockApi(url => url.pathname.endsWith('/revisions/1') ? json({ ...task, unresolved: [{ kind: 'ambiguous', source_quote: '近期', question: '近期指多少个交易日？' }] }) : undefined)
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     expect(await screen.findByText('近期指多少个交易日？')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '保存方案' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: '确认并开始筛选' })).not.toBeInTheDocument()
@@ -331,7 +332,7 @@ describe('screening product flow', () => {
       })
     })
     const user = userEvent.setup()
-    render(<ConversationWorkspace onSourceChange={onSourceChange} />)
+    render(<ConversationWorkspace initialWorkflowType="screening" onSourceChange={onSourceChange} />)
     await screen.findByText('600000.SH')
     await user.click(screen.getByRole('button', { name: '下一页' }))
     await screen.findByText('600020.SH')
@@ -348,15 +349,15 @@ describe('screening product flow', () => {
 })
 
 it('restores an unsent new research draft instead of reopening the latest conversation', async () => {
-  const fetcher = mockApi()
+  const fetcher = mockApi(undefined, 'research')
   const user = userEvent.setup()
-  const view = render(<ConversationWorkspace />)
-  await screen.findByRole('heading', { name: '筛选方案' })
+  const view = render(<ConversationWorkspace initialWorkflowType="research" />)
+  await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('需求one'))
   await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
-  await user.click(screen.getByRole('button', { name: /新研究|新选股对话/ }))
+  await user.click(screen.getByRole('button', { name: '新研究' }))
   await user.type(screen.getByLabelText(/研究要求|选股要求/), '比较两家公司的订单兑现质量')
   view.unmount()
-  render(<ConversationWorkspace />)
+  render(<ConversationWorkspace initialWorkflowType="research" />)
   await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
   expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('比较两家公司的订单兑现质量')
   expect(screen.getByRole('button', { name: '发送' })).toBeEnabled()
@@ -364,20 +365,21 @@ it('restores an unsent new research draft instead of reopening the latest conver
 })
 
 it('restores each scope independently when leaving a fresh research draft', async () => {
-  mockApi()
+  mockApi(undefined, 'research')
   localStorage.setItem('conversation.active.report', 'two')
   localStorage.setItem('conversation.active.pattern', 'one')
   const user = userEvent.setup()
-  const view = render(<ConversationWorkspace />)
+  const view = render(<ConversationWorkspace initialWorkflowType="research" />)
   await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
-  await user.click(screen.getByRole('button', { name: /新研究|新选股对话/ }))
-  await user.type(screen.getByLabelText(/研究要求|选股要求/), '尚未发送的筛选问题')
+  await user.click(screen.getByRole('button', { name: '新研究' }))
+  await user.type(screen.getByLabelText(/研究要求|选股要求/), '尚未发送的研究问题')
   await user.click(screen.getByRole('button', { name: '最近研究对话' }))
   await user.selectOptions(screen.getByLabelText('对话范围'), 'report')
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('需求two'))
   await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
-  await user.click(screen.getByRole('button', { name: /新研究|新选股对话/ }))
-  view.rerender(<ConversationWorkspace initialScope="pattern" />)
+  await user.click(screen.getByRole('button', { name: '新研究' }))
+  view.rerender(<ConversationWorkspace initialWorkflowType="research" initialScope="pattern" />)
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('需求one'))
   expect(localStorage.getItem('conversation.active.screening')).toBe('__new__')
+  expect(JSON.parse(sessionStorage.getItem('conversation.drafts')!)['research:screening:new']).toBe('尚未发送的研究问题')
 })

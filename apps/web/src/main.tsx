@@ -29,6 +29,7 @@ import './task-guidance.css'
 import './chat-layout.css'
 import './minimalist-workspace.css'
 import './library-minimal.css'
+import './research-chat.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

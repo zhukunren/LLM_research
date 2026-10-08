@@ -177,7 +177,7 @@ describe('ResearchProjectsPage', () => {
     })
     render(<ResearchProjectsPage onOpenConversation={open} />)
     await screen.findByRole('heading', { name: '旧对话成果' })
-    expect(screen.getByRole('link', { name: '结果' })).toHaveAttribute('href', '/api/v1/conversations/old/research-files/result.csv')
+    expect(screen.getByRole('link', { name: '结果' })).toHaveAttribute('href', '/api/v1/conversations/old/generated-files/result.csv')
     await user.click(screen.getByRole('button', { name: '查看原对话' }))
     await waitFor(() => expect(open).toHaveBeenCalledWith('old', 'report'))
     await user.click(screen.getByRole('tab', { name: /研究成果/ }))

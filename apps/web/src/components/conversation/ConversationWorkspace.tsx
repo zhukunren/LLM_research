@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { AlertCircle, ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, Copy, FileSearch, GitCompareArrows, History, LoaderCircle, Pencil, Play, Plus, RefreshCw, Search, X } from 'lucide-react'
 import {
   api,
+  ApiRequestError,
   conversationWorkflow,
   type Conversation,
   type ConversationMessage,
@@ -30,9 +31,15 @@ import ResearchAnswer from './ResearchAnswer'
 import ResearchResultActions, { type ResearchResultRequest } from './ResearchResultActions'
 import AnswerSources from './AnswerSources'
 import { isExecutionFailure, ResearchFailure, ResearchProgress } from './ResearchFeedback'
+import { codexEventLabel } from './researchProgress'
+import ResearchModelPicker from './ResearchModelPicker'
+import ResearchConversationTools from './ResearchConversationTools'
+import ResearchComposerMenu from './ResearchComposerMenu'
+import { DraftAttachmentChips, MessageAttachmentChips } from './AttachmentChips'
+import { useConversationAttachments, type ConversationAttachment } from './useConversationAttachments'
+import { readModelPreference, writeModelPreference, type ModelSelection } from '../../modelSelection'
 import ProjectMembership from './ProjectMembership'
 import StockChartDialog from '../StockChartDialog'
-import ResearchAssistantSelect from '../ResearchAssistantSelect'
 import type { DataStatus } from '../../api'
 import ScreeningResultView, { type UnifiedDecisionItem } from '../ScreeningResultView'
 
@@ -89,6 +96,14 @@ const scopeLabels: Record<ConversationScope, string> = {
   pattern: '形态',
 }
 const depthLabels: Record<ResearchDepth, string> = { standard: '普通', deep: '深入' }
+const unrestrictedResearchScope: ResearchScope = {
+  as_of: null, stock_codes: [], report_lookback_calendar_days: null,
+  news_lookback_calendar_days: null, price_basis: null,
+}
+function hasResearchLimits(scope?: ResearchScope) {
+  return !!scope && (!!scope.as_of || !!scope.stock_codes?.length || scope.report_lookback_calendar_days != null
+    || scope.news_lookback_calendar_days != null || scope.price_basis != null)
+}
 const stateLabels: Record<string, string> = {
   awaiting_agent: '等待处理',
   running: '正在处理',
@@ -158,28 +173,14 @@ function stateClass(state: string) {
   return 'caution'
 }
 
-function codexEventLabel(event: CodexEvent): string | null {
-  const item = event.payload.item as Record<string, unknown> | undefined
-  if (event.method === 'turn/started') return '已开始研究'
-  if (event.method === 'item/started' && item?.type === 'mcpToolCall') {
-    return '正在查询资料与数据'
-  }
-  if (event.method === 'item/completed' && item?.type === 'mcpToolCall') {
-    return item.status === 'failed' ? '投研工具返回错误，正在调整步骤' : '投研工具已返回结果'
-  }
-  if (event.method === 'item/started' && item?.type === 'reasoning') return '正在整理研究步骤'
-  if (event.method === 'item/started' && item?.type === 'commandExecution') return '正在计算与核对数据'
-  if (event.method === 'item/started' && item?.type === 'fileChange') return '正在整理研究成果'
-  if (event.method === 'item/agentMessage/delta') return '正在生成研究答复'
-  return null
-}
-
 const validDrafts = (value: unknown): value is Record<string, string> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item => typeof item === 'string')
 type DraftSource = { reference: ConversationSourceReference; label: string }
-type MessagePayload = { base_revision: number; research_scope_revision?: number; assistant_revision?: number; content: string; source_refs: ConversationSourceReference[] }
+type MessagePayload = { base_revision: number; research_scope_revision?: number; assistant_revision?: number; model_revision?: number; content: string; source_refs: ConversationSourceReference[]; attachment_ids?: string[] }
 type MessageAttempt = { key: string; clientId: string; payload: MessagePayload }
+type AttachmentCreationIntent = { request_id: string; payload: Record<string, unknown> }
+const ATTACHMENT_CREATION_KEY = 'conversation.attachmentCreationRequests'
 const validSources = (value: unknown): value is Record<string, DraftSource | null> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item => item === null || (item && typeof item === 'object' && typeof item.label === 'string' && item.reference && typeof item.reference.kind === 'string' && typeof item.reference.source_id === 'string'))
-const validMessageAttempts = (value: unknown): value is Record<string, MessageAttempt> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item => item && typeof item === 'object' && typeof item.key === 'string' && typeof item.clientId === 'string' && item.payload && typeof item.payload.content === 'string' && Number.isInteger(item.payload.base_revision) && Array.isArray(item.payload.source_refs) && (item.payload.research_scope_revision === undefined || Number.isInteger(item.payload.research_scope_revision)))
+const validMessageAttempts = (value: unknown): value is Record<string, MessageAttempt> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item => item && typeof item === 'object' && typeof item.key === 'string' && typeof item.clientId === 'string' && item.payload && typeof item.payload.content === 'string' && Number.isInteger(item.payload.base_revision) && Array.isArray(item.payload.source_refs) && (item.payload.attachment_ids === undefined || Array.isArray(item.payload.attachment_ids) && item.payload.attachment_ids.every((id: unknown) => typeof id === 'string')) && (item.payload.research_scope_revision === undefined || Number.isInteger(item.payload.research_scope_revision)) && (item.payload.model_revision === undefined || Number.isInteger(item.payload.model_revision) && item.payload.model_revision >= 0))
 
 export default function ConversationWorkspace({
   data, initialConversationId, initialPrompt, initialNewDraft = false, onPromptConsumed,
@@ -192,7 +193,7 @@ export default function ConversationWorkspace({
   initialWorkflowType = 'research',
   onOpenConversation,
   onLocationChange,
-  shellNavigation = false, onHistoryChange, onOpenDataServices,
+  shellNavigation = false, onHistoryChange, onOpenDataServices, onLaunchAssistant,
 }: {
   data?: DataStatus | null
   initialConversationId?: string
@@ -213,6 +214,7 @@ export default function ConversationWorkspace({
   shellNavigation?: boolean
   onHistoryChange?: () => void
   onOpenDataServices?: () => void
+  onLaunchAssistant?: (id: string, name: string) => void
 }) {
   const historyChangeRef = useRef(onHistoryChange)
   historyChangeRef.current = onHistoryChange
@@ -232,6 +234,13 @@ export default function ConversationWorkspace({
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [conversation, setConversation] = useState<Conversation | null>(null)
+  const [modelPreference, setModelPreference] = useState<ModelSelection | null>(readModelPreference)
+  const [modelSaving, setModelSaving] = useState(false)
+  const modelSavingRef = useRef(false)
+  const modelSelection = conversation ? { model_id: conversation.model_id, reasoning_effort: conversation.reasoning_effort } : modelPreference ?? undefined
+  const modelSelectionKey = JSON.stringify([modelSelection?.model_id, modelSelection?.reasoning_effort])
+  const [modelAvailability, setModelAvailability] = useState<{ key: string; available: boolean } | null>(null)
+  const modelUnavailable = modelAvailability?.key === modelSelectionKey && !modelAvailability.available
   const conversationReady = !selectedId || conversation?.id === selectedId
   const workflowType = conversation ? conversationWorkflow(conversation, initialWorkflowType) : initialWorkflowType
   const isResearch = workflowType === 'research'
@@ -306,12 +315,6 @@ export default function ConversationWorkspace({
   const [scopeOverrides, setScopeOverrides] = useState({ pool: false, date: false })
   const [scopeEdited, setScopeEdited] = useState(false)
   const [scopeSaveState, setScopeSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [researchDate, setResearchDate] = useState(data?.last_date ?? '')
-  const researchDateEdited = useRef(false)
-  const [researchCodesInput, setResearchCodesInput] = useState('')
-  const [researchScopeSaving, setResearchScopeSaving] = useState(false)
-  const researchScopeReadyKey = useRef('')
-  const researchScopeSavingRef = useRef(false)
   const [answerActionSaving, setAnswerActionSaving] = useState(false)
   const answerActionAttempt = useRef<{ key: string; id: string } | null>(null)
   const [chart, setChart] = useState<{ code: string; date: string } | null>(null)
@@ -328,13 +331,23 @@ export default function ConversationWorkspace({
   const taskPanelRef = useRef<HTMLElement>(null)
   const runSectionRef = useRef<HTMLElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (!isResearch) return
+    const resizeComposer = () => {
+      const input = textareaRef.current
+      if (!input) return
+      input.style.height = '0px'
+      const naturalHeight = input.scrollHeight
+      input.style.height = `${Math.max(56, Math.min(160, naturalHeight))}px`
+      input.style.overflowY = naturalHeight > 160 ? 'auto' : 'hidden'
+    }
+    resizeComposer()
+    window.addEventListener('resize', resizeComposer)
+    return () => window.removeEventListener('resize', resizeComposer)
+  }, [isResearch, draft, selectedId])
   const sessionsRef = useRef<HTMLElement>(null)
   const disclosureRef = useRef<HTMLButtonElement>(null)
   const consumedNewResearchRef = useRef<number | null>(null)
-  useEffect(() => {
-    // Data status may arrive after a bookmarked new draft has mounted.
-    if (isResearch && !selectedId && !researchDateEdited.current && data?.last_date) setResearchDate(data.last_date)
-  }, [isResearch, selectedId, data?.last_date])
   const followLatestRef = useRef(true)
   const saveAttemptRef = useRef<{ taskKey: string; assetId: string; requestId: string } | null>(null)
   const reuseAttemptRef = useRef<{ key: string; conversation?: Conversation; messageId?: string; clientId: string } | null>(null)
@@ -356,6 +369,11 @@ export default function ConversationWorkspace({
   const templateBusyRef = useRef(false)
   const templateAttemptRef = useRef<{ key: string; ownerKey: string; conversation?: Conversation; clientId: string } | null>(null)
   const executionAttempts = useRef(new Map<string, Promise<{ run_id: string }>>())
+  const attachmentCreationRef = useRef<{ key: string; promise: Promise<{ conversationId: string; draftKey: string }> } | null>(null)
+  const attachmentCreationIntents = useRef<Record<string, AttachmentCreationIntent>>({})
+  const attachmentOwnerRef = useRef('')
+  attachmentOwnerRef.current = JSON.stringify([initialWorkflowType, scope, selectedId, initialConversationId || '', initialNewDraft, newResearchKey || 0])
+  const attachments = useConversationAttachments(draftKey, conversation?.id, ensureAttachmentConversation)
 
   useEffect(() => {
     api<{ items: { id: string; name: string }[] }>('/watchlists')
@@ -387,11 +405,11 @@ export default function ConversationWorkspace({
   }, [conversation?.id, conversation?.screening_draft_source?.request_id, conversation?.messages.length])
   useEffect(() => {
     if (!newResearchKey || newResearchKey <= 0) { consumedNewResearchRef.current = null; return }
-    if (loadingSessions || busy || modeSaving || scopeSavingRef.current || consumedNewResearchRef.current === newResearchKey) return
+    if (loadingSessions || busy || modeSaving || modelSaving || attachments.uploading || scopeSavingRef.current || consumedNewResearchRef.current === newResearchKey) return
     consumedNewResearchRef.current = newResearchKey
     createConversation(initialAssistantId || 'general')
     onNewResearchConsumed?.()
-  }, [newResearchKey, loadingSessions, busy, modeSaving, onNewResearchConsumed, initialAssistantId])
+  }, [newResearchKey, loadingSessions, busy, modeSaving, modelSaving, attachments.uploading, onNewResearchConsumed, initialAssistantId])
   useEffect(() => {
     if (!sessionsOpen) return
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -462,7 +480,6 @@ export default function ConversationWorkspace({
     selectedIdRef.current = id
     setScopeEdited(false)
     setScopeSaveState('idle')
-    researchScopeReadyKey.current = ''
     scopeAttempt.current = null
     setSelectedId(id)
     if (!id) reportLocation('', scope, initialWorkflowType)
@@ -513,12 +530,6 @@ export default function ConversationWorkspace({
     setConversation(next)
     reportLocation(next.id, next.entry_scope, conversationWorkflow(next, initialWorkflowType))
     setResearchDepth(next.research_depth ?? (next.research_mode === 'advanced' ? 'deep' : 'standard'))
-    const researchScopeKey = `${next.id}:${next.research_scope_revision ?? 0}`
-    if (research && researchScopeReadyKey.current !== researchScopeKey) {
-      setResearchDate(next.research_scope?.as_of || data?.last_date || '')
-      setResearchCodesInput((next.research_scope?.stock_codes ?? []).join(', '))
-      researchScopeReadyKey.current = researchScopeKey
-    }
     setTask(nextTask)
     setRuns(runList.items)
     setViewingRunId((current) => (
@@ -830,15 +841,14 @@ export default function ConversationWorkspace({
   }
 
   function createConversation(nextAssistant = 'general') {
-    if (busy || modeSaving || scopeSavingRef.current) return
+    if (busy || modeSaving || modelSavingRef.current || scopeSavingRef.current || attachments.uploading) return
     templateGenerationRef.current += 1
     templateAttemptRef.current = null
     setScopePool('all'); setScopeDate(data?.last_date ?? ''); setScopeOverrides({ pool: false, date: false })
-    researchDateEdited.current = false
-    setResearchDate(data?.last_date ?? ''); setResearchCodesInput('')
     selectConversation('')
     setDrafts(current => ({ ...current, [initialWorkflowType + ':' + scope + ':new']: '' }))
     setAssistantDrafts(current => ({ ...current, [initialWorkflowType + ':' + scope + ':new']: nextAssistant }))
+    setModelPreference(readModelPreference())
     setError('')
     setConversation(null)
     setTask(null)
@@ -879,7 +889,7 @@ export default function ConversationWorkspace({
     const attempt = templateAttemptRef.current
     setBusy(true); setError('')
     try {
-      if (!attempt.conversation) attempt.conversation = conversation ?? await api<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ entry_scope: scope, workflow_type: 'screening', research_depth: researchDepth }) })
+      if (!attempt.conversation) attempt.conversation = conversation ?? await api<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ entry_scope: scope, workflow_type: 'screening', research_depth: researchDepth, ...modelPreference }) })
       const current = attempt.conversation
       if (!isCurrent() || templateOwnerRef.current !== ownerKey) return
       const published = await api<{ task: ScreeningTaskRevision }>(`/conversations/${current.id}/screening-templates/${template.id}`, {
@@ -908,11 +918,11 @@ export default function ConversationWorkspace({
     setBusy(true)
     setError('')
     try {
-      if (!attempt.conversation) attempt.conversation = await api<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ entry_scope: scope, workflow_type: 'screening', research_depth: researchDepth }) })
+      if (!attempt.conversation) attempt.conversation = await api<Conversation>('/conversations', { method: 'POST', body: JSON.stringify({ entry_scope: scope, workflow_type: 'screening', research_depth: researchDepth, ...modelPreference }) })
       const current = attempt.conversation
       if (!attempt.messageId) {
         const message = await api<{ message_id: string }>(`/conversations/${current.id}/messages`, {
-          method: 'POST', body: JSON.stringify({ client_message_id: attempt.clientId, base_revision: 0, content: `复用已保存方案“${saved.name}”（第${saved.version}版）${reuseDate ? `，采用${reuseDate}的行情` : '，保留原截止日'}` }),
+          method: 'POST', body: JSON.stringify({ client_message_id: attempt.clientId, base_revision: 0, ...(current.model_revision != null ? { model_revision: current.model_revision } : {}), content: `复用已保存方案“${saved.name}”（第${saved.version}版）${reuseDate ? `，采用${reuseDate}的行情` : '，保留原截止日'}` }),
         })
         attempt.messageId = message.message_id
       }
@@ -936,9 +946,13 @@ export default function ConversationWorkspace({
     finally { setBusy(false) }
   }
 
-  async function submitMessage(value = draft) {
-    let content = value.trim()
+  async function submitMessage(value = draft, originalAttachments?: ConversationAttachment[]) {
+    const attached = originalAttachments ?? attachments.ready
+    const attachmentIds = attached.map(item => item.id)
+    let content = value.trim() || (attachmentIds.length ? '请分析上传的文件' : '')
     if (!content) return
+    if (!originalAttachments && attachments.hasUnready) { setError('请等待附件上传完成，或移除未上传的文件。'); return }
+    if (modelUnavailable) { setError('当前模型或推理档位不可用，请选择可用模型后发送。'); return }
     if (!isResearch && !task) {
       const poolLabel = scopePool === 'all' ? '全部A股' : `自选分组“${watchlists.find(item => item.id === scopePool)?.name || ''}”`
       const additions = [scopeOverrides.pool ? `股票范围以界面设置为准：${poolLabel}。` : `未在要求中明确指定股票范围时，默认使用${poolLabel}。`]
@@ -946,7 +960,7 @@ export default function ConversationWorkspace({
       additions.push('请先整理筛选方案，本次不要执行筛选。')
       content += '\n' + additions.join('')
     }
-    if (!content || !conversationReady || busy || saving || assistantSaving || modeSaving || scopeSavingRef.current || researchScopeSavingRef.current || (isResearch ? !!researchScopeIssue || (!!conversation && researchScopeDirty) : (scopeEdited && scopeDirty)) || turnInProgress || !conversationReady || loadingConversation || loadingSessions) return
+    if (!content || !conversationReady || busy || saving || assistantSaving || modeSaving || modelSavingRef.current || scopeSavingRef.current || (!isResearch && scopeEdited && scopeDirty) || turnInProgress || !conversationReady || loadingConversation || loadingSessions) return
     setBusy(true)
     setError('')
     followLatestRef.current = true
@@ -957,10 +971,10 @@ export default function ConversationWorkspace({
       if (!current) {
         const created = await api<Conversation>('/conversations', {
           method: 'POST',
-          body: JSON.stringify({ entry_scope: scope, workflow_type: workflowType, research_depth: researchDepth, ...(isResearch ? { assistant_id: assistantId } : {}) }),
+          body: JSON.stringify({ entry_scope: scope, workflow_type: workflowType, research_depth: researchDepth, ...modelPreference, ...(isResearch ? { assistant_id: assistantId } : {}) }),
         })
         // Creation returns metadata, whereas React state always needs the full
-        // conversation shape, including during the following scope PATCH.
+        // conversation shape while the first message is being saved.
         current = { ...created, messages: [], turns: [], pending_execution: false }
         conversationId = current.id
         submittingDraftKey = `${initialWorkflowType}:${scope}:${current.id}`
@@ -969,6 +983,7 @@ export default function ConversationWorkspace({
         setDrafts(items => { const next = { ...items, [submittingDraftKey]: items[draftKey] ?? draft }; delete next[draftKey]; return next })
         setDraftSources(items => { const next = { ...items, [submittingDraftKey]: pendingSource }; delete next[draftKey]; return next })
         if (messageAttempts[draftKey]) setMessageAttempts(items => { const next = { ...items, [submittingDraftKey]: items[draftKey] }; delete next[draftKey]; return next })
+        attachments.move(draftKey, submittingDraftKey)
         setSessions((items) => [{
           id: current!.id,
           entry_scope: current!.entry_scope,
@@ -982,8 +997,21 @@ export default function ConversationWorkspace({
         selectConversation(current.id)
         setConversation(current)
       }
-      if (isResearch && !conversation && (researchDate || researchCodes.length)) {
-        const updated = await api<{ research_scope: ResearchScope; research_scope_revision: number }>(`/conversations/${current.id}/research-scope`, { method: 'PATCH', body: JSON.stringify({ base_revision: current.research_scope_revision ?? 0, as_of: researchDate || null, stock_codes: researchCodes }) })
+      const sourceRefs = pendingSource ? [pendingSource.reference] : []
+      const messageKey = JSON.stringify(attachmentIds.length ? [value.trim(), sourceRefs, attachmentIds] : [value.trim(), sourceRefs])
+      const previousAttempt = messageAttempts[submittingDraftKey] ?? messageAttempts[draftKey]
+      const retryAttempt = previousAttempt?.key === messageKey ? previousAttempt : null
+      // New research follows the question, without an inherited hidden date,
+      // stock universe or lookback window. Old immutable turns remain intact.
+      // An uncertain message retry must retain its original frozen payload.
+      if (isResearch && !retryAttempt && hasResearchLimits(current.research_scope)) {
+        const updated = await api<{ research_scope: ResearchScope; research_scope_revision: number }>(`/conversations/${current.id}/research-scope`, {
+          method: 'PATCH', body: JSON.stringify({ base_revision: current.research_scope_revision ?? 0, ...unrestrictedResearchScope }),
+        })
+        if (!updated.research_scope || hasResearchLimits(updated.research_scope)
+          || !Number.isInteger(updated.research_scope_revision) || updated.research_scope_revision <= (current.research_scope_revision ?? 0)) {
+          throw new Error('研究设置暂未更新，请稍后重试。')
+        }
         current = { ...current, ...updated }
         setConversation(current)
       }
@@ -991,15 +1019,15 @@ export default function ConversationWorkspace({
         base_revision: current.task_revision,
         ...(isResearch ? { research_scope_revision: current.research_scope_revision ?? 0 } : {}),
         ...(isResearch && current.assistant_revision != null ? { assistant_revision: current.assistant_revision } : {}),
+        ...(current.model_revision != null ? { model_revision: current.model_revision } : {}),
         content,
-        source_refs: pendingSource ? [pendingSource.reference] : [],
+        source_refs: sourceRefs,
+        ...(attachmentIds.length ? { attachment_ids: attachmentIds } : {}),
       }
       // Retry an unchanged draft with the original versioned payload. The
       // server may have accepted it and advanced the task/scope before a lost
       // response; rebuilding from current revisions would create a new turn.
-      const messageKey = JSON.stringify([value.trim(), currentPayload.source_refs])
-      const previousAttempt = messageAttempts[submittingDraftKey] ?? messageAttempts[draftKey]
-      const attempt = previousAttempt?.key === messageKey ? previousAttempt : { key: messageKey, clientId: crypto.randomUUID(), payload: currentPayload }
+      const attempt = retryAttempt ?? { key: messageKey, clientId: crypto.randomUUID(), payload: currentPayload }
       const messagePayload = attempt.payload
       setMessageAttempts(items => ({ ...items, [submittingDraftKey]: attempt }))
       const messageResult = await api<{
@@ -1008,6 +1036,7 @@ export default function ConversationWorkspace({
         base_revision: number
         state: string
         source_refs?: Record<string, unknown>[]
+        attachments?: ConversationAttachment[]
       }>(`/conversations/${current.id}/messages`, {
         method: 'POST',
         body: JSON.stringify({
@@ -1020,6 +1049,7 @@ export default function ConversationWorkspace({
         role: 'user',
         content: messagePayload.content,
         source_refs: messageResult.source_refs ?? [],
+        attachments: messageResult.attachments ?? attached,
         created_at: new Date().toISOString(),
       }
       setConversation((old) => old && old.id === current!.id
@@ -1028,6 +1058,7 @@ export default function ConversationWorkspace({
       setDrafts(items => ({ ...items, [submittingDraftKey]: '' }))
       setDraftSources(items => ({ ...items, [submittingDraftKey]: null }))
       setMessageAttempts(items => { const next = { ...items }; delete next[submittingDraftKey]; return next })
+      attachments.clear(submittingDraftKey, messagePayload.attachment_ids ?? [])
       if (selectedIdRef.current === current.id) { setPendingSource(null); onSourceChange?.(null) }
       if (['succeeded', 'failed', 'cancelled'].includes(messageResult.state)) {
         await reloadConversation(current.id)
@@ -1035,6 +1066,11 @@ export default function ConversationWorkspace({
       } else await processTurn(current.id, messageResult.turn_id, !!task)
     } catch (reason) {
       setError((reason as Error).message)
+      // A definite stale-settings rejection did not accept the request. Release
+      // only that attempt; uncertain network failures keep their original ID.
+      if (/模型设置已(?:经)?变化|研究范围版本已经变化/.test((reason as Error).message)) {
+        setMessageAttempts(items => { const next = { ...items }; delete next[submittingDraftKey]; return next })
+      }
       if (conversationId) {
         try { await reloadConversation(conversationId) } catch { /* Keep the original request error visible. */ }
       }
@@ -1086,9 +1122,6 @@ export default function ConversationWorkspace({
     : undefined
   const canSave = !!task?.conditions.length && !!task.references.length && !!task.logic_tree && !!task.scope.universe && !task.unresolved.length
   const scopeDirty = !isResearch && !!task && (!task.scope.universe || scopeDate !== task.scope.as_of || scopePool !== (task.scope.universe?.kind === 'watchlist' ? task.scope.universe.watchlist_id : task.scope.universe?.kind === 'explicit' ? 'explicit' : 'all'))
-  const researchCodes = [...new Set(researchCodesInput.toUpperCase().split(/[\s,，;；、]+/).filter(Boolean))]
-  const researchScopeIssue = researchCodes.some(code => !/^\d{6}\.(SH|SZ|BJ)$/.test(code)) ? '股票代码请填写六位代码及市场，例如 600000.SH。' : ''
-  const researchScopeDirty = isResearch && !!conversation && (researchDate !== (conversation.research_scope?.as_of || data?.last_date || '') || JSON.stringify(researchCodes) !== JSON.stringify(conversation.research_scope?.stock_codes ?? []))
   const canExecute = canSave && !!task?.scope.as_of && !scopeDirty
   const runInProgress = runs.some(item => ['queued', 'running'].includes(item.status))
   const taskHasRun = !!run && run.task_revision === task?.revision
@@ -1141,20 +1174,6 @@ export default function ConversationWorkspace({
     finally { setSavingNote('') }
   }
 
-  async function saveResearchScope() {
-    if (!conversation || !isResearch || researchScopeIssue || researchScopeSavingRef.current || busy || turnInProgress) return
-    const id = conversation.id
-    researchScopeSavingRef.current = true; setResearchScopeSaving(true); setError('')
-    try {
-      const result = await api<{ research_scope: ResearchScope; research_scope_revision: number }>(`/conversations/${id}/research-scope`, { method: 'PATCH', body: JSON.stringify({ base_revision: conversation.research_scope_revision ?? 0, as_of: researchDate || null, stock_codes: researchCodes }) })
-      if (selectedIdRef.current !== id) return
-      researchScopeReadyKey.current = `${id}:${result.research_scope_revision}`
-      setConversation(current => current?.id === id ? { ...current, ...result } : current)
-      setNotice('研究范围已保存。')
-    } catch (reason) { if (selectedIdRef.current === id) setError((reason as Error).message) }
-    finally { researchScopeSavingRef.current = false; setResearchScopeSaving(false) }
-  }
-
   function openSession(item: SessionSummary) {
     const type = conversationWorkflow(item, initialWorkflowType)
     if (onOpenConversation && type !== initialWorkflowType) { onOpenConversation(item.id, item.entry_scope, type); return }
@@ -1162,7 +1181,7 @@ export default function ConversationWorkspace({
   }
 
   async function changeAssistant(id: string) {
-    if (!isResearch || busy || saving || assistantSaving || turnInProgress || !conversationReady || loadingConversation) return
+    if (!isResearch || busy || saving || assistantSaving || modelSavingRef.current || attachments.uploading || turnInProgress || !conversationReady || loadingConversation) return
     if (!conversation) { setAssistantDrafts(current => ({ ...current, [draftKey]: id })); return }
     const selected = conversation.id
     setAssistantSaving(true); setError('')
@@ -1177,7 +1196,119 @@ export default function ConversationWorkspace({
     finally { setAssistantSaving(false) }
   }
 
+  async function changeModel(selection: ModelSelection) {
+    if (busy || saving || assistantSaving || modeSaving || modelSavingRef.current || turnInProgress || !conversationReady || loadingConversation || loadingSessions) return
+    if (!conversation) {
+      setModelPreference(selection); writeModelPreference(selection); setError('')
+      return
+    }
+    const id = conversation.id
+    modelSavingRef.current = true; setModelSaving(true); setError('')
+    try {
+      const result = await api<ModelSelection & { model_revision: number }>(`/conversations/${id}/model`, {
+        method: 'PATCH', body: JSON.stringify({ ...selection, base_revision: conversation.model_revision ?? 0 }),
+      })
+      if (selectedIdRef.current !== id) return
+      setConversation(current => current?.id === id ? { ...current, ...result } : current)
+      const confirmed = { model_id: result.model_id, reasoning_effort: result.reasoning_effort }
+      setModelPreference(confirmed); writeModelPreference(confirmed)
+    } catch (reason) {
+      if (selectedIdRef.current === id) {
+        setError((reason as Error).message)
+        try { await reloadConversation(id) } catch { /* Keep the original model error visible. */ }
+      }
+    } finally { modelSavingRef.current = false; setModelSaving(false) }
+  }
+
+  function openModelPicker() {
+    const container = composerRef.current
+    const trigger = container?.querySelector<HTMLButtonElement>('.research-model-trigger')
+    trigger?.focus()
+    if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click()
+  }
+
   const SuggestionContainer = 'details'
+
+  async function ensureAttachmentConversation() {
+    if (conversation?.id && conversation.id === selectedIdRef.current) return { conversationId: conversation.id, draftKey }
+    const owner = draftKey
+    const generation = templateGenerationRef.current
+    const ownerRoute = attachmentOwnerRef.current
+    const key = `${owner}:${generation}`
+    if (attachmentCreationRef.current?.key === key) return attachmentCreationRef.current.promise
+    const capturedDraft = draft
+    const capturedSource = pendingSource
+    let intents: Record<string, AttachmentCreationIntent> = attachmentCreationIntents.current
+    try {
+      const saved: unknown = JSON.parse(sessionStorage.getItem(ATTACHMENT_CREATION_KEY) ?? '{}')
+      if (saved && typeof saved === 'object' && !Array.isArray(saved)) intents = saved as Record<string, AttachmentCreationIntent>
+    } catch { /* The current-page intent is retained when storage is unavailable. */ }
+    let intent = intents[owner]
+    if (intent?.payload && typeof intent.payload === 'object' && 'interaction_mode' in intent.payload) {
+      const payload = { ...intent.payload }
+      delete payload.interaction_mode
+      intent = { ...intent, payload }
+      intents = { ...intents, [owner]: intent }
+      try { sessionStorage.setItem(ATTACHMENT_CREATION_KEY, JSON.stringify(intents)) } catch { /* Keep the in-memory identity. */ }
+    }
+    if (!intent || typeof intent.request_id !== 'string' || !intent.payload || typeof intent.payload !== 'object') {
+      intent = { request_id: crypto.randomUUID(), payload: { entry_scope: scope, workflow_type: workflowType, research_depth: researchDepth,
+        ...modelPreference, ...(isResearch ? { assistant_id: assistantId } : {}) } }
+      intents = { ...intents, [owner]: intent }
+      try { sessionStorage.setItem(ATTACHMENT_CREATION_KEY, JSON.stringify(intents)) } catch { /* Keep the in-memory identity. */ }
+    }
+    attachmentCreationIntents.current = intents
+    function releaseIntent() {
+      let latest = attachmentCreationIntents.current
+      try { latest = JSON.parse(sessionStorage.getItem(ATTACHMENT_CREATION_KEY) ?? '{}') } catch { /* Use the in-memory identity. */ }
+      if (!latest || typeof latest !== 'object' || latest[owner]?.request_id !== intent.request_id) return
+      latest = { ...latest }; delete latest[owner]
+      attachmentCreationIntents.current = latest
+      try { sessionStorage.setItem(ATTACHMENT_CREATION_KEY, JSON.stringify(latest)) } catch { /* Current page remains usable. */ }
+    }
+    const request = (async () => {
+      let created: Conversation
+      try {
+        created = await api<Conversation>('/conversations', {
+          method: 'POST', body: JSON.stringify({ ...intent.payload, request_id: intent.request_id }),
+        })
+      } catch (reason) {
+        if (reason instanceof ApiRequestError && reason.status === 422) releaseIntent()
+        throw reason
+      }
+      if (!created?.id) throw new Error('对话尚未创建，请重试上传。')
+      const current: Conversation = { ...created, messages: [], turns: [], pending_execution: false }
+      const targetKey = `${initialWorkflowType}:${scope}:${current.id}`
+      if (!templateMountedRef.current) return { conversationId: current.id, draftKey: targetKey }
+      const stillHere = templateMountedRef.current && templateGenerationRef.current === generation
+        && attachmentOwnerRef.current === ownerRoute && !selectedIdRef.current
+      // The metadata belongs to the draft that selected the file, even if the
+      // user navigates away before creation returns. Never replace a new draft.
+      setDrafts(items => {
+        const next = { ...items, [targetKey]: stillHere ? items[owner] ?? capturedDraft : capturedDraft }
+        if (stillHere) delete next[owner]
+        return next
+      })
+      setDraftSources(items => {
+        const next = { ...items, [targetKey]: capturedSource }
+        if (stillHere) delete next[owner]
+        return next
+      })
+      if (stillHere) {
+        setSessions(items => [{ id: current.id, entry_scope: current.entry_scope, workflow_type: workflowType, task_revision: 0,
+          active_run_id: null, state: 'active', title: null, updated_at: current.updated_at }, ...items.filter(item => item.id !== current.id)])
+        selectConversation(current.id)
+        setConversation(current)
+        reportLocation(current.id, current.entry_scope, workflowType)
+        releaseIntent()
+      }
+      historyChangeRef.current?.()
+      return { conversationId: current.id, draftKey: targetKey }
+    })()
+    attachmentCreationRef.current = { key, promise: request }
+    try { return await request }
+    finally { if (attachmentCreationRef.current?.promise === request) attachmentCreationRef.current = null }
+  }
 
   async function submitResearchResult(messageId: string, action: ResearchResultRequest) {
     if (!conversation || !isResearch || answerActionSaving || busy || turnInProgress) return false
@@ -1213,7 +1344,11 @@ export default function ConversationWorkspace({
           {isResearch ? <h1>研究对话</h1> : <h2>{screeningStarted ? '继续完善方案' : '新建选股方案'}</h2>}
           {currentSessionTitle && <span className="conversation-session-caption" title={currentSessionTitle}>{currentSessionTitle}</span>}
         </div>
-        <div className="conversation-heading-actions">{isResearch && hasResearchResults && <button ref={resultsToggleRef} type="button" className="secondary-button" aria-expanded={resultsOpen} aria-controls="research-results-drawer" onClick={() => setResultsOpen(value => !value)}><FileSearch size={16} />成果与文件</button>}<button hidden={shellNavigation && isResearch} ref={disclosureRef} className="session-disclosure secondary-button" aria-label={isResearch ? '最近研究对话' : '历史与方案'} aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><History size={16} /><span>{isResearch ? '最近对话' : '历史与方案'}</span></button><button hidden={shellNavigation && isResearch} className="secondary-button conversation-new" aria-label={isResearch ? '新研究' : '新选股对话'} title={isResearch ? '新研究' : '新选股对话'} disabled={busy || saving || loadingSessions} onClick={() => { setSessionsOpen(false); createConversation() }}><Plus size={16} /><span>{isResearch ? '新研究' : '新建选股'}</span></button></div>
+        {isResearch && conversation && <ResearchConversationTools conversationId={conversation.id} projectId={conversation.project_id}
+          disabled={busy || saving || turnInProgress} hasResults={hasResearchResults} resultsOpen={resultsOpen} resultsToggleRef={resultsToggleRef}
+          onToggleResults={() => setResultsOpen(value => !value)} onProjectChange={projectId => setConversation(current => current?.id === conversation.id ? { ...current, project_id: projectId } : current)}
+          onError={setError} onOpenProject={onOpenProject} portalTargetId={shellNavigation ? 'research-tools-slot' : undefined} />}
+        {!shellNavigation && <div className="conversation-heading-actions"><button ref={disclosureRef} className="session-disclosure secondary-button" aria-label={isResearch ? '最近研究对话' : '历史与方案'} aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><History size={16} /><span>{isResearch ? '最近对话' : '历史与方案'}</span></button><button className="secondary-button conversation-new" aria-label={isResearch ? '新研究' : '新选股对话'} title={isResearch ? '新研究' : '新选股对话'} disabled={busy || saving || loadingSessions} onClick={() => { setSessionsOpen(false); createConversation() }}><Plus size={16} /><span>{isResearch ? '新研究' : '新建选股'}</span></button></div>}
       </div>
       {!isResearch && <nav className="screening-path" aria-label="本次选股进度">
         <button type="button" className={screeningStep === 1 ? 'active' : 'complete'} aria-current={screeningStep === 1 ? 'step' : undefined} onClick={focusComposer}><span>{screeningStep > 1 ? <Check size={14} /> : '1'}</span><strong>描述条件</strong></button>
@@ -1223,7 +1358,7 @@ export default function ConversationWorkspace({
         <button type="button" className={screeningStep === 3 ? 'active' : ''} aria-current={screeningStep === 3 ? 'step' : undefined} disabled={!runs.length && !pendingTurn} onClick={() => runSectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}><span>3</span><strong>查看结果</strong></button>
         <span className="screening-path-date">{data?.last_date ? `行情截至 ${data.last_date}` : '行情日期待指定'}</span>
       </nav>}
-      {conversation && <details className="studio-project"><summary>{conversation.project_id ? '已归入研究项目' : isResearch ? '独立研究' : '独立选股'}<span>项目归属</span></summary><ProjectMembership conversationId={conversation.id} projectId={conversation.project_id} disabled={busy || saving || turnInProgress} onChange={projectId => setConversation(current => current?.id === conversation.id ? { ...current, project_id: projectId } : current)} onError={setError} onOpenProject={onOpenProject} /></details>}
+      {!isResearch && conversation && <details className="studio-project"><summary>{conversation.project_id ? '已归入研究项目' : '独立选股'}<span>项目归属</span></summary><ProjectMembership conversationId={conversation.id} projectId={conversation.project_id} disabled={busy || saving || turnInProgress} onChange={projectId => setConversation(current => current?.id === conversation.id ? { ...current, project_id: projectId } : current)} onError={setError} onOpenProject={onOpenProject} /></details>}
       <div className={`conversation-workspace ${showTaskPanel && !isResearch ? '' : 'conversation-workspace-start'} ${!conversation?.messages.length && !task ? 'conversation-workspace-empty' : ''}`}>
       {sessionsOpen && <div className="studio-library-backdrop" onClick={() => setSessionsOpen(false)} aria-hidden="true" />}
       <aside ref={sessionsRef} id="screening-sessions" role="dialog" aria-modal="true" hidden={!sessionsOpen} onKeyDown={onSessionsKeyDown} className={`conversation-sessions ${sessionsOpen ? 'sessions-open' : ''}`} aria-label={isResearch ? '最近研究对话' : '历史与方案'}>
@@ -1291,10 +1426,11 @@ export default function ConversationWorkspace({
                   {turn && !['succeeded'].includes(turn.state) && <span className={`conversation-turn-state ${stateClass(turn.state)}`}>{stateLabels[turn.state] ?? turn.state}</span>}
                   {turn?.assistant && turn.assistant.id !== 'general' && <span className="conversation-assistant-tag" title={`助手版本 ${turn.assistant.revision}`}>{turn.assistant.name}</span>}
                 </div>
-                {failed ? <ResearchFailure content={message.content} disabled={busy || turnInProgress} onRetry={canRetryAnswer ? () => void submitMessage(retryQuestion.content) : undefined} /> : message.role === 'assistant' ? <ResearchAnswer content={message.content} conversationId={conversation.id} messageId={message.id} /> : <p className="conversation-plain-message">{message.content}</p>}
+                {failed ? <ResearchFailure content={message.content} disabled={busy || turnInProgress} onRetry={canRetryAnswer ? () => void submitMessage(retryQuestion.content, retryQuestion.attachments) : undefined} /> : message.role === 'assistant' ? <ResearchAnswer content={message.content} conversationId={conversation.id} messageId={message.id} /> : <p className="conversation-plain-message">{message.content}</p>}
+                <MessageAttachmentChips items={message.attachments} />
                 {!!message.source_refs.length && <AnswerSources references={message.source_refs} />}
                 {message.role === 'assistant' && !failed && (isResearch ? <ResearchResultActions conversation={conversation} message={message} disabled={busy || turnInProgress || !!savingNote} savingNote={savingNote === message.id} savingAction={answerActionSaving} onSave={() => saveResearchAnswer(message.id)} onCopy={() => void copyAnswer(message.content)} onSubmit={action => submitResearchResult(message.id, action)} onContinue={focusComposer} /> : <div className="studio-answer-actions"><button type="button" className="text-button" onClick={() => void copyAnswer(message.content)}><Copy size={14} />复制答复</button>{conversation.project_id && <button type="button" className="text-button research-save-answer" disabled={!!savingNote} onClick={() => void saveResearchAnswer(message.id)}><Bookmark size={14} />{savingNote === message.id ? '正在保存…' : '保存为研究笔记'}</button>}</div>)}
-                {turn?.state === 'failed' && conversation.messages.filter(item => item.role === 'user').at(-1)?.id === message.id && <button className="secondary-button compact" disabled={busy || turnInProgress} onClick={() => void submitMessage(message.content)}>重新处理</button>}{turn?.state === 'awaiting_agent' && !turn.job && <button className="secondary-button compact" disabled={busy} onClick={() => void processTurn(conversation.id, turn.id)}><Play size={14} />继续处理</button>}
+                {turn?.state === 'failed' && conversation.messages.filter(item => item.role === 'user').at(-1)?.id === message.id && <button className="secondary-button compact" disabled={busy || turnInProgress} onClick={() => void submitMessage(message.content, message.attachments)}>重新处理</button>}{turn?.state === 'awaiting_agent' && !turn.job && <button className="secondary-button compact" disabled={busy} onClick={() => void processTurn(conversation.id, turn.id)}><Play size={14} />继续处理</button>}
               </article>
             )
             })}
@@ -1303,10 +1439,12 @@ export default function ConversationWorkspace({
           {showLatest && <button type="button" className="conversation-latest-button" onClick={() => scrollToLatest()}><ArrowDown size={14} />查看最新</button>}
         </div>
         <form className="conversation-composer" ref={composerRef} onSubmit={(event) => { event.preventDefault(); void submitMessage() }}>
-          {isResearch && <details className="default-scope-details"><summary>研究范围：{researchCodes.length ? `${researchCodes.length} 只指定股票` : '不限研究股票'} · 截止 {researchDate || '待指定'}<span>修改</span></summary><div className="scope-picker"><label>研究截止日<input aria-label="研究截止日" type="date" value={researchDate} disabled={busy || turnInProgress || researchScopeSaving || loadingConversation} onChange={event => { researchDateEdited.current = true; setResearchDate(event.target.value) }} /></label><label>研究股票代码<textarea aria-label="研究股票代码" rows={2} value={researchCodesInput} disabled={busy || turnInProgress || researchScopeSaving || loadingConversation} onChange={event => setResearchCodesInput(event.target.value)} placeholder="600000.SH, 000001.SZ" /></label>{researchScopeIssue && <p role="alert">{researchScopeIssue}</p>}{conversation && <button type="button" className="secondary-button compact" disabled={!researchScopeDirty || !!researchScopeIssue || busy || turnInProgress || researchScopeSaving} onClick={() => void saveResearchScope()}>{researchScopeSaving ? '保存中…' : '保存研究范围'}</button>}{researchScopeDirty && <small>范围有未保存修改。</small>}</div></details>}
+          {modelUnavailable && <div className="conversation-pending-source" role="status"><span>当前模型或推理档位不可用，请切换后发送。</span><button type="button" className="text-button" disabled={busy || modelSaving || turnInProgress} onClick={openModelPicker}>切换模型</button></div>}
           {conversation?.screening_draft_source && <div className="conversation-pending-source"><span>来源：研究答复</span><button type="button" className="text-button" onClick={() => onOpenConversation?.(conversation.screening_draft_source!.source_conversation_id, 'screening', 'research')}>查看原研究</button></div>}
           <label htmlFor="conversation-input">{isResearch ? '研究要求' : '选股要求'}</label>
           {pendingSource && <div className="conversation-pending-source"><span>{pendingSource.label}</span><button type="button" className="icon-button" aria-label="移除来源页" onClick={() => setSource(null)}><X size={14} /></button></div>}
+          <DraftAttachmentChips items={attachments.items} disabled={busy || saving || turnInProgress} onRemove={attachments.remove} onCancel={attachments.cancel} onRetry={(id, file) => void attachments.retry(id, file)} />
+          {attachments.error && <p className="composer-attachment-error" role="alert">{attachments.error}</p>}
             <textarea
             id="conversation-input"
             aria-label={isResearch ? '研究要求' : '选股要求'}
@@ -1320,10 +1458,15 @@ export default function ConversationWorkspace({
           />
           {!isResearch && !task && <details className="screening-scope-editor"><summary><span>{scopeOverrides.pool || scopeOverrides.date ? '选定范围与日期' : '默认范围与日期'}</span><strong>{scopePool === 'all' ? '全部A股' : watchlists.find(item => item.id === scopePool)?.name || '指定股票池'} · {scopeDate || '待指定'}</strong><span>修改</span></summary><div className="screening-default-scope scope-picker"><label>{scopeOverrides.pool ? '选定范围' : '默认范围'}<select aria-label="默认股票范围" disabled={busy || !conversationReady || loadingConversation || loadingSessions} value={scopePool} onChange={event => { setScopePool(event.target.value); setScopeOverrides(current => ({ ...current, pool: true })) }}><option value="all">全部A股</option>{watchlists.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>{scopeOverrides.date ? '选定截止日' : '默认截止日'}<input aria-label="默认行情日期" disabled={busy || !conversationReady || loadingConversation || loadingSessions} type="date" max={data?.last_date} value={scopeDate} onChange={event => { setScopeDate(event.target.value); setScopeOverrides(current => ({ ...current, date: true })) }} /></label></div></details>}
           <div className="conversation-composer-footer">
-            {isResearch && <ResearchAssistantSelect value={assistantId} snapshot={conversation?.assistant} disabled={busy || saving || assistantSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={id => void changeAssistant(id)} />}
-            <label className="studio-mode-select"><span>{isResearch ? '研究深度' : '条件核验'}</span><select aria-label="研究深度" value={researchDepth} disabled={busy || saving || modeSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={event => void changeResearchDepth(event.target.value as ResearchDepth)}>{Object.entries(depthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{modeSaving && <LoaderCircle size={14} className="spin" />}</label>
+            <ResearchComposerMenu value={assistantId} snapshot={conversation?.assistant} showAssistants={isResearch}
+              disabled={busy || saving || assistantSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions}
+              launchDisabled={attachments.hasUnready} onChange={id => void changeAssistant(id)} onUpload={files => void attachments.upload(files)}
+              onLaunchAssistant={onLaunchAssistant} />
+            {!isResearch && <label className="studio-mode-select"><span>条件核验</span><select aria-label="研究深度" value={researchDepth} disabled={busy || saving || modeSaving || modelSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={event => void changeResearchDepth(event.target.value as ResearchDepth)}>{Object.entries(depthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{modeSaving && <LoaderCircle size={14} className="spin" />}</label>}
             <span>{draft.length >= 7000 ? `${draft.length}/8000` : ''}</span>
-            <button className={!isResearch && task ? "secondary-button" : "primary-button"} type="submit" disabled={busy || saving || assistantSaving || modeSaving || researchScopeSaving || (isResearch ? !!researchScopeIssue || researchScopeDirty : scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || !conversationReady || loadingConversation || loadingSessions || !draft.trim()}>
+            <div className="conversation-composer-model"><ResearchModelPicker value={modelSelection} disabled={busy || saving || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions}
+              onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} /></div>
+            <button className={!isResearch && task ? "secondary-button" : "primary-button"} type="submit" disabled={busy || saving || assistantSaving || modeSaving || modelSaving || modelUnavailable || attachments.hasUnready || (!isResearch && scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || !conversationReady || loadingConversation || loadingSessions || (!draft.trim() && !attachments.ready.length)}>
               {busy ? <LoaderCircle size={15} className="spin" /> : <ArrowUp size={16} />}
               {busy ? '处理中…' : isResearch ? '发送' : screeningStarted ? '发送修改' : '生成筛选方案'}
             </button>

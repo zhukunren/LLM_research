@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Download, LoaderCircle, RefreshCw, Square } from 'lucide-react'
 import { api } from '../../api'
 import type { ResearchFile } from '../../research'
-import ResearchFileList, { reportPending } from '../ResearchFileList'
+import ResearchFileList, { isOriginalFormatOnlyDiscovery, reportPending } from '../ResearchFileList'
+import GeneratedFiles, { type GeneratedFile } from '../GeneratedFiles'
 
 type Coverage = { target_total: number; true_count?: number; false_count?: number; unknown_count?: number; failed_count?: number; not_evaluated_count?: number }
 type ScanSummary = {
@@ -28,6 +29,8 @@ function metricText(item: Decision) {
 export default function ResearchPanel({ conversationId, turnActive, refreshKey, showGenerate = false, onContentChange }: { conversationId: string; turnActive: boolean; refreshKey: number; showGenerate?: boolean; onContentChange?: (hasContent: boolean) => void }) {
   const [scans, setScans] = useState<ScanSummary[]>([])
   const [outputs, setOutputs] = useState<Output[]>([])
+  const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([])
+  const [generatedError, setGeneratedError] = useState('')
   const [selected, setSelected] = useState('')
   const [scan, setScan] = useState<Scan | null>(null)
   const [items, setItems] = useState<Decision[]>([])
@@ -46,8 +49,12 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
   const reportsActive = outputs.some(item => reportPending(item.status))
 
   useEffect(() => {
-    onContentChange?.(showGenerate || !!scans.length || !!outputs.length || !!error)
-  }, [showGenerate, scans.length, outputs.length, error, onContentChange])
+    onContentChange?.(showGenerate || !!scans.length || !!outputs.length || !!generatedFiles.length || !!error || !!generatedError)
+  }, [showGenerate, scans.length, outputs.length, generatedFiles.length, error, generatedError, onContentChange])
+
+  useEffect(() => {
+    setScans([]); setOutputs([]); setGeneratedFiles([]); setSelected(''); setError(''); setGeneratedError('')
+  }, [conversationId])
 
   useEffect(() => {
     if (!conversationId) return
@@ -57,15 +64,22 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
       if (!active || reading) return
       reading = true
       try {
-        const [nextScans, nextOutputs] = await Promise.all([
+        const [nextScans, nextOutputs, nextGenerated] = await Promise.allSettled([
           api<{ items: ScanSummary[] }>(`/conversations/${conversationId}/research-scans`),
           api<{ items: Output[] }>(`/conversations/${conversationId}/research-files`),
+          api<{ items: GeneratedFile[] }>(`/conversations/${conversationId}/generated-files`),
         ])
         if (active) {
-          setScans(nextScans.items)
-          setOutputs(nextOutputs.items)
-          setSelected(current => nextScans.items.some(item => item.id === current) ? current : nextScans.items[0]?.id || '')
-          setError('')
+          if (nextScans.status === 'fulfilled') {
+            setScans(nextScans.value.items)
+            setSelected(current => nextScans.value.items.some(item => item.id === current) ? current : nextScans.value.items[0]?.id || '')
+          }
+          if (nextOutputs.status === 'fulfilled') setOutputs(nextOutputs.value.items.filter(file => !isOriginalFormatOnlyDiscovery(file)))
+          const failed = [nextScans, nextOutputs].find(result => result.status === 'rejected')
+          setError(failed?.status === 'rejected' ? String(failed.reason?.message || '部分研究成果暂时无法读取') : '')
+          if (nextGenerated.status === 'fulfilled' && Array.isArray(nextGenerated.value.items)) {
+            setGeneratedFiles(nextGenerated.value.items); setGeneratedError('')
+          } else setGeneratedError('生成文件暂时无法读取，请刷新重试。')
         }
       } catch (reason) { if (active) setError((reason as Error).message) }
       finally { reading = false }
@@ -131,7 +145,7 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
     finally { setReportBusy('') }
   }
 
-  if (!showGenerate && !scans.length && !outputs.length && !error) return null
+  if (!showGenerate && !scans.length && !outputs.length && !generatedFiles.length && !error && !generatedError) return null
   const coverage = scan?.result.coverage
   return <section className="conversation-research-section" aria-label="研究计算与成果">
     <div className="conversation-panel-heading"><h2>研究计算与成果</h2><button className="icon-button" title="刷新研究成果" aria-label="刷新研究成果" onClick={() => setReload(value => value + 1)}><RefreshCw size={15} /></button></div>
@@ -160,6 +174,8 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
         <div className="research-pagination"><span>{total ? `${offset + 1}-${Math.min(offset + PAGE_SIZE, total)} / ${total}` : '0 / 0'}</span><button className="icon-button" title="上一页研究结果" aria-label="上一页研究结果" disabled={offset === 0} onClick={() => setOffset(value => Math.max(0, value - PAGE_SIZE))}><ChevronLeft size={16} /></button><button className="icon-button" title="下一页研究结果" aria-label="下一页研究结果" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(value => value + PAGE_SIZE)}><ChevronRight size={16} /></button></div>
       </>}
     </>}
-    {!!outputs.length && <ResearchFileList files={outputs} busyId={reportBusy} onRetry={file => void generateReports(file)} />}
+    {!!outputs.length && <section aria-label="PDF 报告"><h3>PDF 报告</h3><ResearchFileList files={outputs} busyId={reportBusy} onRetry={file => void generateReports(file)} /></section>}
+    {generatedError && <p role="alert">{generatedError}</p>}
+    <GeneratedFiles files={generatedFiles} />
   </section>
 }

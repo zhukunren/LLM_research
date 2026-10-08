@@ -94,14 +94,34 @@ describe('stable workspace URLs', () => {
     expect(onHistoryChange).toHaveBeenCalledTimes(2)
   })
 
-  it('replaces legacy launch and workflow corrections without adding a Back step', () => {
+  it('starts a fresh research conversation without a hash despite a stored page', () => {
     sessionStorage.setItem('app.page', '"news"')
     const historyLength = window.history.length
     const { result } = renderHook(() => useWorkspaceRoute())
-    expect(window.location.hash).toBe('#/library/news')
+    expect(window.location.hash).toBe('#/research/new')
+    expect(result.current.route).toEqual({ page: 'screening', newDraft: true })
     expect(window.history.length).toBe(historyLength)
     act(() => result.current.navigate({ page: 'conditions', conversationId: 'one', view: 'conversation' }, { replace: true }))
     expect(window.location.hash).toBe('#/screening/one')
     expect(window.history.length).toBe(historyLength)
+  })
+
+  it('keeps screening drafts and saved records intact when the root URL opens research', () => {
+    sessionStorage.setItem('app.page', '"conditions"')
+    sessionStorage.setItem('conditions.section', '"history"')
+    localStorage.setItem('conversation.active.screening.screening', 'saved-screening')
+    sessionStorage.setItem('conversation.drafts', JSON.stringify({ 'screening:screening:new': '待完成条件' }))
+    const { result } = renderHook(() => useWorkspaceRoute())
+    expect(result.current.route).toEqual({ page: 'screening', newDraft: true })
+    expect(window.location.hash).toBe('#/research/new')
+    expect(localStorage.getItem('conversation.active.screening.screening')).toBe('saved-screening')
+    expect(JSON.parse(sessionStorage.getItem('conversation.drafts')!)['screening:screening:new']).toBe('待完成条件')
+  })
+
+  it('preserves an explicit screening link even when the default entry is research', () => {
+    window.history.replaceState(null, '', '#/screening/saved-screening?scope=technical')
+    const { result } = renderHook(() => useWorkspaceRoute())
+    expect(result.current.route).toEqual({ page: 'conditions', conversationId: 'saved-screening', scope: 'technical', view: 'conversation' })
+    expect(window.location.hash).toBe('#/screening/saved-screening?scope=technical')
   })
 })

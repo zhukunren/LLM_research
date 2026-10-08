@@ -31,6 +31,9 @@ SCREENING_WORKFLOW_TOOLS = frozenset({
     "propose_screening_task", "save_screening_plan", "authorize_screening_execution",
     "revoke_screening_execution", "preview_screening_program", "execute_screening_task",
 })
+FIXED_CUTOFF_EVIDENCE_TOOLS = frozenset({
+    "list_report_sources", "read_evidence_chunk", "list_news_sources", "read_news_chunk",
+})
 
 class ToolArgs(StrictModel):
     pass
@@ -933,6 +936,8 @@ class ToolRegistry:
             registration.tool
             for registration in self._registrations.values()
             if (context is None or context.workflow_type == "screening" or registration.tool.name not in SCREENING_WORKFLOW_TOOLS)
+            and (context is None or context.workflow_type != "research" or context.as_of
+                 or registration.tool.name not in FIXED_CUTOFF_EVIDENCE_TOOLS)
             and (registration.capability_id is None
                  or availability.get(registration.capability_id, "unavailable") != "unavailable")
         ]

@@ -13,6 +13,7 @@ from .screening_contracts import (
     CreateConversationRequest,
     SaveTaskRevisionRequest,
     UpdateResearchModeRequest,
+    UpdateModelRequest,
     UpdateWorkflowRequest,
     UpdateResearchScopeRequest,
     CreateScreeningDraftRequest,
@@ -151,8 +152,9 @@ def _store_error(exc: Exception) -> None:
 def create_conversation(payload: CreateConversationRequest):
     try:
         return conversation_store.create_conversation(payload.entry_scope, payload.research_mode or default_research_mode(), payload.project_id,
-                                                       workflow_type=payload.workflow_type, research_depth=payload.research_depth, assistant_id=payload.assistant_id)
-    except conversation_store.ConversationStoreError as exc:
+                                                       workflow_type=payload.workflow_type, research_depth=payload.research_depth, assistant_id=payload.assistant_id,
+                                                       model_id=payload.model_id, reasoning_effort=payload.reasoning_effort, request_id=payload.request_id)
+    except (conversation_store.ConversationStoreError, conversation_store.ConversationConflict) as exc:
         _store_error(exc)
 
 
@@ -161,8 +163,9 @@ def list_conversations(
     scope: ConversationScope | None = None,
     limit: int = Query(default=50, ge=1, le=100),
     active_only: bool = False,
+    workflow_type: str | None = Query(default=None, pattern="^(research|screening)$"),
 ):
-    return {"items": conversation_store.list_conversations(scope, limit, active_only)}
+    return {"items": conversation_store.list_conversations(scope, limit, active_only, workflow_type)}
 
 
 @router.get("/{conversation_id}")
@@ -195,6 +198,8 @@ def add_user_message(conversation_id: str, payload: AddUserMessageRequest):
             payload.source_refs,
             research_scope_revision=payload.research_scope_revision,
             assistant_revision=payload.assistant_revision,
+            model_revision=payload.model_revision,
+            attachment_ids=payload.attachment_ids,
         )
     except (
         conversation_store.ConversationNotFound,
@@ -212,6 +217,14 @@ def add_user_message(conversation_id: str, payload: AddUserMessageRequest):
 def update_workflow(conversation_id: str, payload: UpdateWorkflowRequest):
     try:
         return conversation_store.update_workflow(conversation_id, payload.workflow_type, payload.research_depth, payload.base_revision)
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
+
+
+@router.patch("/{conversation_id}/model")
+def update_model(conversation_id: str, payload: UpdateModelRequest):
+    try:
+        return conversation_store.update_model(conversation_id, payload.model_id, payload.reasoning_effort, payload.base_revision)
     except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
         _store_error(exc)
 

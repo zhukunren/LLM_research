@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import configparser
+import json
 from pathlib import Path
 
 
@@ -81,6 +82,23 @@ def research_web_search_mode() -> str:
     if mode not in {"live", "cached", "disabled"}:
         raise ValueError("research.web_search 应为 live、cached 或 disabled")
     return mode
+
+
+def research_model_settings() -> dict:
+    """Server-owned entitlements; clients cannot upgrade their account tier."""
+    config = _read_config()
+    section = config["research_models"] if config.has_section("research_models") else {}
+    tier = os.environ.get("LLMR_RESEARCH_ACCOUNT_TIER", section.get("account_tier", "free")).strip().lower()
+    if tier not in {"free", "paid", "enterprise"}:
+        raise ValueError("research_models.account_tier 应为 free、paid 或 enterprise")
+    allowed = os.environ.get("LLMR_RESEARCH_ALLOWED_MODELS", section.get("allowed_models", "")).strip()
+    efforts = json.loads(os.environ.get("LLMR_RESEARCH_MODEL_EFFORTS_JSON", section.get("reasoning_efforts_json", "{}")))
+    valid = {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
+    if not isinstance(efforts, dict) or any(not isinstance(key, str) or not isinstance(value, list)
+            or not value or any(not isinstance(item, str) or item not in valid for item in value) for key, value in efforts.items()):
+        raise ValueError("research_models.reasoning_efforts_json 应将模型映射到支持的推理档位数组")
+    return {"account_tier": tier, "allowed_models": [item.strip() for item in allowed.split(",") if item.strip()],
+            "reasoning_efforts": efforts}
 
 
 def research_settings() -> dict[str, int]:

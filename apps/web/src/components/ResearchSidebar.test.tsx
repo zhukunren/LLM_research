@@ -10,6 +10,9 @@ const assistants: ResearchAssistant[] = [
   ['general', '通用投研'], ['financial', '财报分析'], ['reports', '研报解读'],
   ['supply-chain', '产业链研究'], ['risk', '风险复核'],
 ].map(([id, name]) => ({ id, name, description: name, instructions: '保留证据。', enabled: true, builtin: true, revision: 1, skill_hash: id }))
+const tasks: ResearchAssistant[] = [
+  ['daily-hotspots', '今日热点'], ['policy-tracker', '政策追踪'], ['industry-updates', '产业动态'],
+].map(([id, name]) => ({ ...assistants[0], id, name, launch_mode: 'immediate', launch_description: '自动检索并整理来源' }))
 
 it('keeps observation and assistants as primary entries, with the five presets beneath assistants', async () => {
   vi.mocked(api).mockImplementation(async path => ({ items: path === '/research-assistants' ? [...assistants,
@@ -42,10 +45,14 @@ it('keeps observation and assistants as primary entries, with the five presets b
 it('keeps tools collapsed, resumes the correct workflow, and reveals tool navigation when requested', async () => {
   vi.mocked(api).mockResolvedValue({ items: [{ id: 'one', title: '订单研究', entry_scope: 'report', workflow_type: 'research' }, { id: 'two', title: '趋势筛选', entry_scope: 'technical', workflow_type: 'screening' }] } as never)
   const callbacks = props(), user = userEvent.setup()
-  render(<ResearchSidebar {...callbacks} conversationId="one" />)
+  const view = render(<ResearchSidebar {...callbacks} conversationId="one" />)
   expect(screen.queryByRole('button', { name: '研报库' })).not.toBeInTheDocument()
   expect(await screen.findByRole('button', { name: '继续研究：订单研究' })).toHaveAttribute('aria-current', 'page')
-  await user.click(screen.getByRole('button', { name: '继续选股：趋势筛选' }))
+  expect(screen.queryByRole('button', { name: '继续选股：趋势筛选' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '切换到选股' }))
+  expect(callbacks.onNavigate).toHaveBeenCalledWith('conditions')
+  view.rerender(<ResearchSidebar {...callbacks} page="conditions" />)
+  await user.click(await screen.findByRole('button', { name: '继续选股：趋势筛选' }))
   expect(callbacks.onConversation).toHaveBeenCalledWith('two', 'technical', 'screening')
   await user.click(screen.getByRole('button', { name: '资料与工具' }))
   await user.click(screen.getByRole('button', { name: '研报库' }))
@@ -114,6 +121,8 @@ it.each([false, true])('offers one primary screening start independently of tool
   render(<ResearchSidebar {...callbacks} mobileOpen={mobileOpen} page="conditions" />)
   const menu = within(screen.getByRole('navigation', { name: '主菜单' }))
   const start = menu.getByRole('button', { name: '开始选股' })
+  expect(menu.getAllByRole('button')[0]).toHaveAccessibleName('开始选股')
+  expect(start).toHaveClass('chat-new')
   expect(start).toHaveAttribute('aria-current', 'page')
   expect(menu.getByRole('button', { name: '资料与工具' })).toHaveAttribute('aria-expanded', 'false')
   await user.click(start)
@@ -123,6 +132,36 @@ it.each([false, true])('offers one primary screening start independently of tool
   await user.click(menu.getByRole('button', { name: '资料与工具' }))
   expect(menu.getAllByRole('button', { name: '开始选股' })).toHaveLength(1)
   expect(menu.queryByRole('button', { name: '条件选股' })).not.toBeInTheDocument()
-  await user.click(menu.getByRole('button', { name: '开始新研究' }))
-  expect(callbacks.onNewResearch).toHaveBeenCalledOnce()
+  expect(menu.queryByRole('button', { name: '开始新研究' })).not.toBeInTheDocument()
+  expect(menu.queryByRole('button', { name: '研究助手' })).not.toBeInTheDocument()
+  expect(menu.getByRole('button', { name: '已保存方案' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '切换到研究' }))
+  expect(callbacks.onNavigate).toHaveBeenCalledWith('screening')
+})
+
+it('prioritizes immediate assistant tasks and passes their launch contract directly', async () => {
+  vi.mocked(api).mockImplementation(async path => ({ items: path === '/research-assistants' ? [...assistants, ...tasks] : [] } as never))
+  const callbacks = props(), user = userEvent.setup()
+  render(<ResearchSidebar {...callbacks} page="assistants" />)
+  await screen.findByRole('button', { name: '使用今日热点' })
+  const children = within(screen.getByRole('group', { name: '研究助手子入口' }))
+  expect(children.getAllByRole('button').slice(0, 3).map(button => button.textContent)).toEqual(tasks.map(item => item.name))
+  await user.click(children.getByRole('button', { name: '使用今日热点' }))
+  expect(callbacks.onAssistant).toHaveBeenCalledExactlyOnceWith('daily-hotspots', 'immediate', '今日热点')
+  await user.click(children.getByRole('button', { name: '使用财报分析' }))
+  expect(callbacks.onAssistant).toHaveBeenLastCalledWith('financial')
+})
+
+it('disables immediate launch entries while busy and keeps research methods accessible', async () => {
+  vi.mocked(api).mockImplementation(async path => ({ items: path === '/research-assistants' ? [...assistants, ...tasks] : [] } as never))
+  const callbacks = props(), user = userEvent.setup()
+  const view = render(<ResearchSidebar {...callbacks} page="assistants" busy />)
+  await screen.findByRole('button', { name: '使用今日热点' })
+  for (const task of tasks) expect(screen.getByRole('button', { name: `使用${task.name}` })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: '使用今日热点' }))
+  expect(callbacks.onAssistant).not.toHaveBeenCalled()
+  expect(screen.getByRole('button', { name: '使用财报分析' })).toBeEnabled()
+  view.rerender(<ResearchSidebar {...callbacks} page="assistants" busy={false} />)
+  await user.click(screen.getByRole('button', { name: '使用政策追踪' }))
+  expect(callbacks.onAssistant).toHaveBeenCalledExactlyOnceWith('policy-tracker', 'immediate', '政策追踪')
 })

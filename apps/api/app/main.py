@@ -33,6 +33,9 @@ from .observation_api import router as observation_router
 from .research_project_api import router as research_project_router
 from .task_api import router as task_router
 from .research_assistant_api import router as research_assistant_router
+from .research_model_api import router as research_model_router
+from .research_attachment_api import router as research_attachment_router
+from .research_file_api import router as research_file_router
 from .condition_contract import filter_object
 from .db import connect, init_db, json_dump, json_load, utc_now
 from .indicators import INDICATORS, chart_display, values
@@ -95,6 +98,9 @@ app.include_router(observation_router)
 app.include_router(research_project_router)
 app.include_router(task_router)
 app.include_router(research_assistant_router)
+app.include_router(research_model_router)
+app.include_router(research_attachment_router)
+app.include_router(research_file_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

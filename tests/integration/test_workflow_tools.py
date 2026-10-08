@@ -77,6 +77,46 @@ def test_research_does_not_expose_or_dispatch_screening_commands(research_contex
         assert connection.execute("SELECT COUNT(*) FROM execution_requests").fetchone()[0] == 0
 
 
+def test_open_research_omits_fixed_cutoff_evidence_tools_but_keeps_open_readers(research_context, monkeypatch):
+    from apps.api.app import capability_service
+    monkeypatch.setattr(capability_service, "screening_capability_manifest", lambda: {"capabilities": [
+        {"id": "report.page_search", "availability": "available"},
+        {"id": "news.local_search", "availability": "available"},
+    ]})
+    open_context = replace(research_context, as_of=None, stock_codes=None)
+    open_names = {tool.name for tool in screening_tools.registry.tools_for_codex(open_context)}
+    fixed = {"list_report_sources", "read_evidence_chunk", "list_news_sources", "read_news_chunk"}
+    assert not open_names.intersection(fixed)
+    assert {"search_research_sources", "read_research_source", "search_report_pages", "read_report_page"} <= open_names
+    historical_names = {tool.name for tool in screening_tools.registry.tools_for_codex(research_context)}
+    assert fixed <= historical_names
+    screening_names = {tool.name for tool in screening_tools.registry.tools_for_codex(replace(open_context, workflow_type="screening"))}
+    assert fixed <= screening_names
+
+
+def test_open_followup_uses_current_time_reference_without_reinstating_old_scope(research_context, monkeypatch):
+    context = research_context
+    monkeypatch.setattr(codex_runtime, "_current_shanghai_time", lambda: "2026-10-08T09:00:00+08:00")
+    conversation_store.finish_turn(context.conversation_id, context.turn_id, 0, "succeeded", "截至2026-09-14，仅研究600000.SH。", {})
+    cleared = conversation_store.update_research_scope(context.conversation_id, 1, ResearchScope(
+        as_of=None, stock_codes=[], report_lookback_calendar_days=None, news_lookback_calendar_days=None, price_basis=None,
+    ))
+    followup = conversation_store.add_user_message(context.conversation_id, "today-open", 0, "今天有哪些重要的产业政策？",
+                                                   research_scope_revision=cleared["research_scope_revision"])
+    prompt = json.loads(codex_runtime._prompt(context.conversation_id, followup["turn_id"]))
+    assert prompt["research_scope"] == ResearchScope().model_dump(mode="json")
+    assert prompt["research_time_reference"] == {
+        "current_time": "2026-10-08T09:00:00+08:00", "timezone": "Asia/Shanghai", "is_cutoff": False,
+    }
+    assert prompt["current_user_request"] == "今天有哪些重要的产业政策？"
+    assert any("2026-09-14" in message["content"] for message in prompt["conversation_history"])
+    followup_context = codex_context.task_tool_context(context.conversation_id, followup["turn_id"], 0, None, [])
+    assert followup_context.as_of is None and followup_context.stock_codes is None
+    assert conversation_store.get_turn(context.conversation_id, context.turn_id)["research_scope"]["as_of"] == "2026-09-14"
+    # The reference clock is prompt context, not a mutation of the frozen scope.
+    assert conversation_store.get_turn(context.conversation_id, followup["turn_id"])["research_scope"]["as_of"] is None
+
+
 def test_forged_workflow_and_research_scope_are_rejected(research_context):
     context = research_context
     forged = replace(context, workflow_type="screening")

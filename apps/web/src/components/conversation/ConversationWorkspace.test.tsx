@@ -113,9 +113,11 @@ it.each(['research', 'screening'] as const)('replays an accepted %s message afte
   let created = false
   const writes: Record<string, unknown>[] = []
   let processing = 0
+  let scopeChanges = 0
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = new URL(String(input), 'http://localhost').pathname
     const method = init?.method ?? 'GET'
+    if (path.endsWith('/research-scope') && method === 'PATCH') { scopeChanges++; return jsonResponse({ message: '已接受回合重试不应修改范围' }, 409) }
     if (path === '/api/v1/conversations' && method === 'GET') return jsonResponse({ items: created ? [stored] : [] })
     if (path === '/api/v1/conversations' && method === 'POST') { created = true; return jsonResponse(stored) }
     if (path === `/api/v1/conversations/${id}/messages`) {
@@ -151,6 +153,7 @@ it.each(['research', 'screening'] as const)('replays an accepted %s message afte
   expect(writes).toHaveLength(2)
   expect(writes[1]).toEqual(writes[0])
   expect(processing).toBe(0)
+  expect(scopeChanges).toBe(0)
   expect(screen.getByRole('log').querySelectorAll('.conversation-message.user')).toHaveLength(1)
 })
 
@@ -195,7 +198,7 @@ it.each(['succeeded', 'failed'] as const)('keeps a new research conversation ren
   expect(await screen.findByText(state === 'succeeded' ? '已核验公告来源' : 'Codex 状态目录不可写')).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: '研究对话' })).toBeInTheDocument()
   expect(writes.filter(path => path.endsWith('/messages'))).toHaveLength(1)
-  expect(writes.some(path => path.endsWith('/research-scope'))).toBe(true)
+  expect(writes.some(path => path.endsWith('/research-scope'))).toBe(false)
 })
 
 describe('ConversationWorkspace', () => {
@@ -289,7 +292,7 @@ describe('ConversationWorkspace', () => {
 
   it('resumes an already-authorized execution after restoring a completed turn exactly once', async () => {
     const id = 'restored-authorized'
-    let stored = conversation(id, { task_revision: 1, pending_execution: true,
+    let stored = conversation(id, { workflow_type: 'screening', task_revision: 1, pending_execution: true,
       messages: [{ id: 'request', role: 'user', content: '按这个筛', source_refs: [], created_at: '2026-09-30' }],
       turns: [{ id: 'ready', user_message_id: 'request', base_revision: 1, state: 'succeeded', response_text: '条件已核对',
         result: { ready_to_execute: true, execution_authorized: true, task_revision: 1 }, created_at: '2026-09-30', updated_at: '2026-09-30' }],
@@ -313,7 +316,7 @@ describe('ConversationWorkspace', () => {
         ? [{ id: 'restored-run', task_revision: 1, as_of: '2026-09-14', status: 'queued', created_at: '2026-09-30' }] : [] })
       return jsonResponse({ items: [] })
     }))
-    const view = render(<ConversationWorkspace />)
+    const view = render(<ConversationWorkspace initialWorkflowType="screening" />)
     await screen.findByText('已恢复排队')
     expect(submissions).toBe(1)
     expect(stored.pending_execution).toBe(false)
@@ -368,6 +371,7 @@ describe('ConversationWorkspace', () => {
     const initialMessage = { id: 'message-initial', role: 'user' as const, content: '收盘价高于20日均线，筛一下', source_refs: [], created_at: '2026-09-28T08:00:00+00:00' }
     const assistantMessage = { id: 'assistant-initial', role: 'assistant' as const, content: '筛选条件已确认，执行授权已记录。', source_refs: [], created_at: '2026-09-28T08:00:30+00:00' }
     let stored = conversation(id, {
+      workflow_type: 'screening',
       task_revision: 1,
       messages: [initialMessage, assistantMessage],
       turns: [{ id: 'turn-initial', user_message_id: initialMessage.id, base_revision: 0, state: 'succeeded', response_text: assistantMessage.content, result: { ready_to_execute: true, execution_authorized: true }, created_at: '2026-09-28T08:00:00+00:00', updated_at: '2026-09-28T08:00:30+00:00' }],
@@ -392,7 +396,7 @@ describe('ConversationWorkspace', () => {
       const url = new URL(String(input), 'http://localhost')
       const method = init?.method ?? 'GET'
       calls.push(`${method} ${url.pathname}`)
-      if (url.pathname === '/api/v1/conversations' && url.searchParams.has('scope')) return jsonResponse({ items: [{ id, entry_scope: 'screening', task_revision: stored.task_revision, active_run_id: stored.active_run_id, state: 'active', title: initialMessage.content, updated_at: stored.updated_at }] })
+      if (url.pathname === '/api/v1/conversations' && url.searchParams.has('scope')) return jsonResponse({ items: [{ id, entry_scope: 'screening', workflow_type: 'screening', task_revision: stored.task_revision, active_run_id: stored.active_run_id, state: 'active', title: initialMessage.content, updated_at: stored.updated_at }] })
       if (url.pathname === `/api/v1/conversations/${id}`) return jsonResponse(stored)
       if (url.pathname.endsWith('/revisions/1')) return jsonResponse(revision(id))
       if (url.pathname === `/api/v1/conversations/${id}/screening-runs`) return jsonResponse({ items: stored.active_run_id ? [{ id: runId, task_revision: 1, as_of: '2026-09-14', status: 'partial', job_id: 'job-1', created_at: stored.updated_at, finished_at: stored.updated_at }] : [] })
@@ -411,7 +415,7 @@ describe('ConversationWorkspace', () => {
       return jsonResponse({ message: `Unhandled ${method} ${url.pathname}` }, 404)
     }))
 
-    render(<ConversationWorkspace />)
+    render(<ConversationWorkspace initialWorkflowType="screening" />)
     await screen.findByText('筛选条件已确认，执行授权已记录。')
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '按这个筛')
     await user.click(screen.getByRole('button', { name: '发送修改' }))

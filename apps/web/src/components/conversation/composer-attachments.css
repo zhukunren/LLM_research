@@ -1,0 +1,38 @@
+.research-composer-addons { display:flex; align-items:center; gap:8px; min-width:0; }
+.research-composer-addons .composer-plus { width:34px; height:34px; border-radius:50%; flex-shrink:0; }
+.composer-assistant-pill { display:inline-flex; align-items:center; gap:5px; max-width:190px; border:1px solid var(--ui-border,#e5e5e5); border-radius:20px; padding:3px 5px 3px 9px; color:var(--ui-brand,#00337a); background:var(--ui-surface,#fff); font-size:12px; }
+.composer-assistant-pill > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.composer-assistant-pill .icon-button { min-width:24px; width:24px; height:24px; padding:3px; }
+.research-composer-popover { position:fixed; z-index:1300; box-sizing:border-box; overflow:auto; overscroll-behavior:contain; padding:7px; border:1px solid var(--ui-border,#e5e5e5); border-radius:14px; background:var(--ui-surface,#fff); color:var(--ui-text,#242424); box-shadow:0 8px 34px rgb(0 35 85 / 12%); font-family:var(--ui-font-sans,sans-serif); }
+.composer-menu-option { display:flex; align-items:center; gap:10px; width:100%; border:0; border-radius:8px; background:transparent; padding:10px; color:inherit; text-align:left; font:inherit; font-size:13px; cursor:pointer; }
+.composer-menu-option > span { flex:1; min-width:0; }
+.composer-menu-option strong,.composer-menu-option small { display:block; }
+.composer-menu-option strong { font-size:13px; font-weight:500; }
+.composer-menu-option small { margin-top:3px; font-size:11px; line-height:1.5; color:var(--ui-text-muted,#666); }
+.composer-menu-option:hover:not(:disabled),.composer-menu-back:hover { background:var(--ui-surface-hover,#f0f0f0); }
+.composer-menu-option:disabled { opacity:.45; cursor:default; }
+.composer-menu-label { margin:10px 10px 4px; font-size:11px; color:var(--ui-text-muted,#666); }
+.composer-menu-back { display:flex; align-items:center; gap:7px; width:100%; padding:8px; border:0; border-radius:8px; background:transparent; color:var(--ui-text-muted,#666); font:inherit; font-size:12px; cursor:pointer; }
+.composer-menu-status { padding:8px; margin:0; color:var(--ui-text-muted,#666); font-size:12px; }
+.composer-menu-status button { margin-left:8px; }
+.composer-menu-option:focus-visible,.composer-menu-back:focus-visible,.composer-assistant-pill button:focus-visible { outline:2px solid var(--ui-focus-outline,#0079c2); outline-offset:-2px; }
+.composer-attachment-chips,.message-attachment-chips { display:flex; flex-wrap:wrap; gap:8px; list-style:none; padding:0; margin:0 0 10px; }
+.message-attachment-chips { margin:8px 0 0; }
+.composer-attachment-chip { display:flex; align-items:center; gap:9px; min-width:0; max-width:100%; width:250px; box-sizing:border-box; border:1px solid var(--ui-border,#e5e5e5); border-radius:11px; padding:9px 10px; background:var(--ui-surface,#fff); color:var(--ui-text,#242424); text-decoration:none; }
+.composer-attachment-chip > svg { flex-shrink:0; color:var(--ui-brand,#00337a); }
+.attachment-chip-copy { flex:1; min-width:0; }
+.attachment-chip-copy strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:500; }
+.attachment-chip-copy small { display:block; overflow-wrap:anywhere; margin-top:3px; color:var(--ui-text-muted,#666); font-size:11px; line-height:1.4; }
+.composer-attachment-chip .icon-button { width:24px; height:24px; min-width:24px; padding:3px; flex-shrink:0; }
+.attachment-error,.attachment-missing { border-color:var(--ui-warning-border,#dfc7a3); }
+.composer-attachment-error { margin:3px 0 8px; color:var(--ui-text-muted,#666); font-size:12px; }
+.conversation-composer-model { margin-left:auto; min-width:0; }
+.conversation-composer-model .research-model-trigger { min-height:34px; padding:5px 6px; gap:5px; }
+.conversation-composer-model .research-model-trigger-name { font-size:12px; font-weight:500; }
+.conversation-composer-model .research-model-trigger-effort { font-size:11px; }
+@media(max-width:600px) {
+  .composer-assistant-pill { max-width:120px; }
+  .conversation-composer-model .research-model-trigger { max-width:155px; }
+  .conversation-composer-model .research-model-trigger-effort { display:none; }
+  .composer-attachment-chip { width:min(100%,270px); }
+}

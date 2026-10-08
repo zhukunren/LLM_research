@@ -1,5 +1,12 @@
 export type ApiError = { code: string; message: string; details?: unknown }
 
+export class ApiRequestError extends Error {
+  constructor(message: string, public status: number, public code?: string, public details?: unknown) {
+    super(message)
+    this.name = 'ApiRequestError'
+  }
+}
+
 const API = '/api/v1'
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -22,7 +29,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const message = typeof body?.message === 'string' ? body.message : typeof body?.detail?.message === 'string' ? body.detail.message : typeof body?.detail === 'string' ? body.detail : `请求失败 (${response.status})`
     const detail = Array.isArray(body?.details) ? `：${body.details.join('；')}` : ''
-    throw new Error(message + detail)
+    throw new ApiRequestError(message + detail, response.status, body?.code ?? body?.detail?.code, body?.details ?? body?.detail?.details)
   }
   return body as T
 }
@@ -97,7 +104,14 @@ export type ResearchMode = 'research' | 'screening' | 'advanced'
 export type WorkflowType = 'research' | 'screening'
 export type ResearchDepth = 'standard' | 'deep'
 export type AssistantSelection = { id: string; name: string; description: string; revision: number; builtin: boolean; skill_hash: string }
-export type ResearchAssistant = AssistantSelection & { instructions: string; enabled: boolean }
+export type ResearchAssistant = AssistantSelection & {
+  instructions: string; enabled: boolean
+  launch_mode?: 'immediate' | 'draft'
+  launch_label?: string
+  launch_description?: string
+  default_prompt?: string
+  input_schema?: Record<string, unknown>
+}
 export type ResearchScope = {
   as_of: string | null; stock_codes: string[]; report_lookback_calendar_days?: number | null
   news_lookback_calendar_days?: number | null; price_basis?: string | null
@@ -115,14 +129,30 @@ export type ConversationSourceReference = {
   page_number?: number
   version?: number
 }
+export type ConversationAttachment = {
+  id: string
+  conversation_id: string
+  filename: string
+  media_type: string
+  bytes: number
+  sha256: string
+  created_at: string
+  url: string
+  request_id?: string
+}
 export type ConversationMessage = {
   id: string
   role: 'user' | 'assistant' | 'tool'
   content: string
   source_refs: Record<string, unknown>[]
+  attachments?: ConversationAttachment[]
   created_at: string
 }
 export type ConversationTurn = {
+  attachments?: ConversationAttachment[]
+  model_id?: string
+  reasoning_effort?: string
+  model_revision?: number
   assistant?: AssistantSelection
   assistant_revision?: number
   id: string
@@ -143,6 +173,9 @@ export type ConversationTurn = {
   updated_at: string
 }
 export type Conversation = {
+  model_id?: string
+  reasoning_effort?: string
+  model_revision?: number
   assistant?: AssistantSelection
   assistant_revision?: number
   project_id?: string | null

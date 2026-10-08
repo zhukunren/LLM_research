@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
@@ -7,24 +7,22 @@ import { SecuritiesProvider } from '../StockSearch'
 
 vi.mock('./ProjectMembership', () => ({ default: () => <span>项目归属</span> }))
 
-it('fills a new research cutoff when market data arrives late and preserves a manually chosen or cleared date', async () => {
+it('keeps research free of stock/date controls when market data arrives or changes', async () => {
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ items: [] })))
   vi.stubGlobal('fetch', fetcher)
   const view = render(<ConversationWorkspace initialWorkflowType="research" initialNewDraft data={null} />)
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
-  expect(screen.getByLabelText('研究截止日')).toHaveValue('')
+  expect(screen.queryByLabelText('研究截止日')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('研究股票代码')).not.toBeInTheDocument()
   view.rerender(<ConversationWorkspace initialWorkflowType="research" initialNewDraft data={{ available: true, last_date: '2026-09-28' }} />)
-  await waitFor(() => expect(screen.getByLabelText('研究截止日')).toHaveValue('2026-09-28'))
-  fireEvent.change(screen.getByLabelText('研究截止日'), { target: { value: '2026-09-18' } })
+  expect(screen.queryByText(/^研究范围：/)).not.toBeInTheDocument()
   view.rerender(<ConversationWorkspace initialWorkflowType="research" initialNewDraft data={{ available: true, last_date: '2026-09-29' }} />)
-  expect(screen.getByLabelText('研究截止日')).toHaveValue('2026-09-18')
-  fireEvent.change(screen.getByLabelText('研究截止日'), { target: { value: '' } })
-  view.rerender(<ConversationWorkspace initialWorkflowType="research" initialNewDraft data={{ available: true, last_date: '2026-09-30' }} />)
-  expect(screen.getByLabelText('研究截止日')).toHaveValue('')
+  expect(screen.queryByLabelText('研究截止日')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '保存研究范围' })).not.toBeInTheDocument()
 })
 const date = '2026-10-04T08:00:00Z'
 const research = (): Conversation => ({ id: 'research', task_id: 'legacy', entry_scope: 'report', workflow_type: 'research', research_depth: 'standard', task_revision: 4, active_run_id: 'old-run', pending_execution: true,
-  research_scope: { as_of: '2026-09-14', stock_codes: ['600000.SH'] }, research_scope_revision: 7,
+  research_scope: { as_of: '2026-09-14', stock_codes: ['600000.SH'], report_lookback_calendar_days: 30, news_lookback_calendar_days: 7, price_basis: 'unadjusted' }, research_scope_revision: 7,
   state: 'active', messages: [{ id: 'answer', role: 'assistant', content: '订单证据需要进一步核验。', source_refs: [], created_at: date }],
   turns: [{ id: 'legacy-ready', user_message_id: 'old-request', base_revision: 4, state: 'succeeded', response_text: '', result: { task_revision: 4, ready_to_execute: true, execution_authorized: true }, created_at: date, updated_at: date }], created_at: date, updated_at: date })
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
@@ -41,7 +39,7 @@ function mockResearch(intercept?: (path: string, body: Record<string, unknown>, 
     if (path === '/conversations') return json({ items: [{ ...stored, title: '订单研究' }] })
     if (path === '/security-catalog') return json({ items: [{ stock_code: '600000.SH', name: '浦发银行', market: 'SH' }] })
     if (path === '/conversations/research') return json(stored)
-    if (path.endsWith('/research-scope')) { stored = { ...stored, research_scope: { as_of: String(body.as_of), stock_codes: body.stock_codes as string[] }, research_scope_revision: 8 }; return json({ research_scope: stored.research_scope, research_scope_revision: 8 }) }
+    if (path.endsWith('/research-scope')) { stored = { ...stored, research_scope: { as_of: body.as_of == null ? null : String(body.as_of), stock_codes: body.stock_codes as string[], report_lookback_calendar_days: null, news_lookback_calendar_days: null, price_basis: null }, research_scope_revision: 8 }; return json({ research_scope: stored.research_scope, research_scope_revision: 8 }) }
     return json({ items: [] })
   }))
   return calls
@@ -54,24 +52,22 @@ it('keeps a research conversation with a legacy task away from screening data an
   expect(screen.queryByRole('heading', { name: '筛选方案' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '确认并开始筛选' })).not.toBeInTheDocument()
   expect(calls.some(call => /screening-runs|revisions|execute/.test(call.path))).toBe(false)
-  expect(within(screen.getByLabelText('研究深度')).getAllByRole('option').map(option => option.textContent)).toEqual(['普通', '深入'])
+  expect(screen.queryByLabelText('研究深度')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /选择研究模型/ })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '转为选股草稿' })).toBeInTheDocument()
 })
 
-it('saves research scope with its own revision and sends it without changing a screening task', async () => {
+it('clears inherited research limits before a new question without changing screening tasks or old turns', async () => {
   const calls = mockResearch((path, _body, method) => path.endsWith('/messages') && method === 'POST' ? json({ message_id: 'question', turn_id: 'turn' }) : path.endsWith('/process') ? json({ result: { ready_to_execute: true } }) : undefined)
   const user = userEvent.setup()
   render(<ConversationWorkspace initialWorkflowType="research" initialScope="report" initialConversationId="research" data={{ available: true, last_date: '2026-09-30' }} />)
   await screen.findByText('订单证据需要进一步核验。')
-  await user.click(screen.getByText(/^研究范围：/))
-  fireEvent.change(screen.getByLabelText('研究截止日'), { target: { value: '2026-09-13' } })
-  fireEvent.change(screen.getByLabelText('研究股票代码'), { target: { value: '000001.sz, 600000.SH' } })
-  await user.click(screen.getByRole('button', { name: '保存研究范围' }))
-  await screen.findByText('研究范围已保存。')
-  expect(calls.find(call => call.path.endsWith('/research-scope'))!.body).toEqual({ base_revision: 7, as_of: '2026-09-13', stock_codes: ['000001.SZ', '600000.SH'] })
+  expect(screen.queryByText(/^研究范围：/)).not.toBeInTheDocument()
+  expect(calls.some(call => call.path.endsWith('/research-scope'))).toBe(false)
   await user.type(screen.getByLabelText('研究要求'), '继续核对订单')
   await user.click(screen.getByRole('button', { name: '发送' }))
   await waitFor(() => expect(calls.some(call => call.path.endsWith('/process'))).toBe(true))
+  expect(calls.find(call => call.path.endsWith('/research-scope'))!.body).toEqual({ base_revision: 7, as_of: null, stock_codes: [], report_lookback_calendar_days: null, news_lookback_calendar_days: null, price_basis: null })
   expect(calls.find(call => call.path.endsWith('/messages'))!.body).toMatchObject({ base_revision: 4, research_scope_revision: 8, content: '继续核对订单' })
   expect(calls.some(call => /\/scope$|\/execute$/.test(call.path))).toBe(false)
 })

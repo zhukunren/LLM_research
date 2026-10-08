@@ -1,11 +1,11 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { legacyWorkspaceRoute, parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
+import { parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
 
 export function useWorkspaceRoute(onHistoryChange?: () => void) {
   const historyCallback = useRef(onHistoryChange)
   historyCallback.current = onHistoryChange
   const [route, setRoute] = useState<WorkspaceRoute>(() => {
-    const initial = parseWorkspaceRoute(window.location.hash) ?? (window.location.hash.startsWith('#/') ? { page: 'screening' as const, newDraft: true } : legacyWorkspaceRoute())
+    const initial = parseWorkspaceRoute(window.location.hash) ?? { page: 'screening' as const, newDraft: true }
     persistWorkspaceRoute(initial)
     return initial
   })
@@ -25,7 +25,7 @@ export function useWorkspaceRoute(onHistoryChange?: () => void) {
     if (window.location.hash !== initialHash) window.history.replaceState(null, '', initialHash)
     const restore = () => {
       const next = parseWorkspaceRoute(window.location.hash)
-      if (!next && !window.location.hash.startsWith('#/')) return
+      if (!next && window.location.hash && !window.location.hash.startsWith('#/')) return
       const target = next ?? { page: 'screening' as const, newDraft: true }
       if (workspaceRouteHash(target) === workspaceRouteHash(current.current)) return
       persistWorkspaceRoute(target)

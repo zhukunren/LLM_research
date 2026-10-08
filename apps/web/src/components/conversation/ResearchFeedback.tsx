@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, LoaderCircle, Square } from 'lucide-react'
+import './research-progress.css'
 
 export function isExecutionFailure(content: string) {
   return /^(?:Codex\s*(?:运行失败|运行不可用|研究回合失败)|研究处理失败|研究执行失败|本次处理失败|研究服务启动失败)/i.test(content.trim()) || /^\s*(?:Traceback \(most recent call last\)|Error:.*(?:stdout|stderr|runtime))/i.test(content)
@@ -25,10 +26,18 @@ export function ResearchProgress({ label, startedAt, updatedAt, stopping, onStop
   label: string; startedAt: string; updatedAt: string; stopping: boolean; onStop: () => void
 }) {
   const [now, setNow] = useState(Date.now())
-  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 10000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
   const started = Date.parse(startedAt), updated = Date.parse(updatedAt)
-  return <div className="research-progress">
-    <div className="research-progress-heading"><span role="status"><LoaderCircle size={17} className="spin" />{label}</span><button type="button" className="text-button" disabled={stopping} onClick={onStop} aria-label="停止当前研究"><Square size={14} />{stopping ? '正在停止…' : '停止任务'}</button></div>
-    <p>已耗时 {Number.isFinite(started) ? duration(now - started) : '正在计时'} · {Number.isFinite(updated) ? `最近更新于 ${new Date(updated).toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })}` : '等待进度更新'}</p>
+  const elapsed = Number.isFinite(started) ? now - started : 0
+  const lastActivity = Number.isFinite(updated) ? updated : started
+  const waitingLong = !stopping && elapsed >= 90000 && Number.isFinite(lastActivity) && now - lastActivity >= 60000
+  const status = stopping ? '正在停止…' : label
+  return <div className="research-progress research-progress--compact">
+    <div className="research-progress-heading">
+      <span className="research-progress-status" role="status" aria-live="polite" aria-atomic="true"><LoaderCircle size={15} className="spin" aria-hidden="true" /><span title={status}>{status}</span></span>
+      <span className="research-progress-duration" aria-live="off">{Number.isFinite(started) ? duration(elapsed) : '正在计时'}</span>
+      <button type="button" className="text-button" disabled={stopping} onClick={onStop} aria-label="停止当前研究"><Square size={12} aria-hidden="true" />停止</button>
+    </div>
+    {waitingLong && <p className="research-progress-waiting">仍在处理，可继续等待或停止。</p>}
   </div>
 }

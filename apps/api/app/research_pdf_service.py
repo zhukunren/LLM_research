@@ -13,6 +13,7 @@ from . import conversation_store, db, research_pdf, research_workspace
 
 logger = logging.getLogger(__name__)
 SUPPORTED_INPUTS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".md", ".markdown", ".txt", ".csv", ".tsv", ".json", ".html", ".htm"}
+ORIGINAL_FORMAT_DELIVERABLES = {".docx", ".xlsx", ".pptx"}
 READ_COLUMNS = "e.id,e.owner_type,e.owner_id,e.source_kind,e.source_id,e.source_revision,e.template_version,e.conversation_id,e.project_id,e.job_id,e.name,e.item_json,e.created_at,e.updated_at"
 
 
@@ -223,7 +224,9 @@ def _discover(owner_type: str, owner_id: str) -> dict:
             continue
         for output in research_workspace.list_outputs(cid):
             name = output["name"]
-            if name.startswith("tushare/"):
+            # Editable Office deliverables are already complete in their original
+            # format. PDF discovery must not report them as failed conversions.
+            if name.startswith("tushare/") or Path(name).suffix.lower() in ORIGINAL_FORMAT_DELIVERABLES:
                 continue
             if Path(name).suffix.lower() not in SUPPORTED_INPUTS:
                 result["unsupported"].append(name)
@@ -279,6 +282,20 @@ def execute_export(lease) -> None:
         lease.finish("failed", f"报告生成失败：{str(exc)[:350]}；研究正文已保存，可单独重试报告。")
 
 
+def _original_format_only_warning(row) -> bool:
+    """Hide obsolete discovery warnings without mutating historical job records."""
+    if row["source_kind"] != "discovery" or row["job_state"] != "partial":
+        return False
+    recorded = db.json_load(row["item_json"])
+    discovery = recorded.get("discovery") if isinstance(recorded, dict) else None
+    if not isinstance(discovery, dict) or discovery.get("errors") != []:
+        return False
+    unsupported = discovery.get("unsupported")
+    return (isinstance(unsupported, list) and bool(unsupported)
+            and all(isinstance(name, str) and Path(name).suffix.lower() in ORIGINAL_FORMAT_DELIVERABLES
+                    for name in unsupported))
+
+
 def list_exports(owner_type: str, owner_id: str) -> list[dict]:
     require_owner(owner_type, owner_id)
     with db.connect() as conn:
@@ -294,6 +311,8 @@ def list_exports(owner_type: str, owner_id: str) -> list[dict]:
             continue
         seen_sources.add(key)
         if row["source_kind"] == "discovery" and row["job_state"] == "succeeded":
+            continue
+        if _original_format_only_warning(row):
             continue
         item = _item(row)
         if item["url"]:

@@ -33,11 +33,20 @@ def _normalized_quote(value: str) -> str:
 
 class CreateConversationRequest(ContractModel):
     entry_scope: ConversationScope
+    request_id: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
     research_mode: ResearchMode | None = None
     project_id: str | None = Field(default=None, min_length=1, max_length=100)
     workflow_type: WorkflowType | None = None
     research_depth: ResearchDepth | None = None
     assistant_id: str = Field(default="general", min_length=1, max_length=100)
+    model_id: str | None = Field(default=None, min_length=1, max_length=120)
+    reasoning_effort: str | None = Field(default=None, min_length=1, max_length=20)
+
+
+class UpdateModelRequest(ContractModel):
+    model_id: str = Field(min_length=1, max_length=120)
+    reasoning_effort: str = Field(min_length=1, max_length=20)
+    base_revision: int = Field(ge=0)
 
 
 class UpdateResearchModeRequest(ContractModel):
@@ -126,6 +135,8 @@ class AddUserMessageRequest(ContractModel):
     source_refs: list[ConversationSourceReference] = Field(default_factory=list, max_length=8)
     research_scope_revision: int | None = Field(default=None, ge=0)
     assistant_revision: int | None = Field(default=None, ge=0)
+    model_revision: int | None = Field(default=None, ge=0)
+    attachment_ids: list[str] = Field(default_factory=list, max_length=8)
 
 
 class IntentProposal(ContractModel):
