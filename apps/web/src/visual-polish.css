@@ -149,7 +149,7 @@ label { font-size: 11px; }
 .research-answer > :first-child { margin-top: 0; }
 .research-answer > :last-child { margin-bottom: 0; }
 .research-answer p, .research-answer ul, .research-answer ol, .research-answer blockquote { margin: 10px 0; }
-.research-answer p { font-size: 14px; line-height: 1.85; }
+.research-answer p { font-size: inherit; line-height: inherit; }
 .research-answer h3, .research-answer h4, .research-answer h5, .research-answer h6 { margin: 20px 0 10px; font-size: 16px; line-height: 1.6; letter-spacing: 0; }
 .research-answer ul, .research-answer ol { padding-left: 22px; }
 .research-answer li + li { margin-top: 5px; }

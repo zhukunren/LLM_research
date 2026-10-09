@@ -1,3 +1,4 @@
+import { StockText } from '../StockMentions'
 import { useEffect, useState } from 'react'
 import { AlertCircle, LoaderCircle, Square } from 'lucide-react'
 import './research-progress.css'
@@ -9,12 +10,12 @@ export function isExecutionFailure(content: string) {
 export function ResearchFailure({ content, onRetry, disabled }: { content: string; onRetry?: () => void; disabled?: boolean }) {
   const permission = /拒绝访问|access.denied|permission.denied|os error 5/i.test(content)
   const timeout = /timeout|timed.out|超时/i.test(content)
-  return <div className="research-failure" role="alert">
+  return <StockText><div className="research-failure" role="alert">
     <div><AlertCircle size={19} /><strong>{timeout ? '这次研究等待超时' : permission ? '研究服务暂时无法启动' : '这次研究未能完成'}</strong></div>
     <p>{permission ? '服务无法访问所需的本地文件。请检查“数据与服务”，恢复服务后重新处理。' : timeout ? '原问题已保留，可以重新处理，或缩小研究范围后再试。' : '原问题和已有成果已保留。请检查服务状态，再重新处理。'}</p>
     {onRetry && <button className="secondary-button" disabled={disabled} onClick={onRetry}>重试这次研究</button>}
     <details><summary>查看技术详情</summary><pre>{content}</pre></details>
-  </div>
+  </div></StockText>
 }
 
 function duration(milliseconds: number) {

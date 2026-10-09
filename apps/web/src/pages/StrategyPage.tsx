@@ -12,7 +12,7 @@ const emptyTree = (): Node => ({ op: 'all', children: [] })
 const assetKey = (node: Node) => `${node.op === 'pattern_ref' ? 'pattern' : 'filter'}:${node.pattern_id ?? node.filter_id}@${node.version}`
 const referenceCount = (node: Node): number => node.op.endsWith('_ref') ? 1 : (node.children ?? []).reduce((count, child) => count + referenceCount(child), 0)
 
-function makeReference(asset: Asset): Node {
+export function makeReference(asset: Asset): Node {
   return asset.pattern
     ? { op: 'pattern_ref', pattern_id: asset.pattern.id, version: asset.pattern.version, score_weight: 1, min_similarity: Number(asset.pattern.params.min_similarity ?? 80), match_mode: asset.pattern.params.match_mode === 'recent' ? 'recent' : 'current', recent_bars: Number(asset.pattern.params.recent_bars ?? 20) }
     : { op: 'filter_ref', filter_id: asset.filter!.id, version: asset.filter!.version, score_weight: 1 }
@@ -140,7 +140,7 @@ export function ParameterNumber({ label, value, min, max, step, integer = false,
   return <label className="strategy-number-field">{label}<input aria-label={label} aria-invalid={invalid || undefined} type="number" value={raw} min={min} max={max} step={step ?? (integer ? 1 : 'any')} disabled={disabled} onFocus={() => { editing.current = true }} onChange={event => { setRaw(event.target.value); onChange(event.target.value === '' ? undefined : Number(event.target.value)) }} onBlur={() => { editing.current = false; if (!raw.trim()) setRaw(String(value)) }} />{invalid && <small>请核对数值范围</small>}</label>
 }
 
-export function NodeEditor({ node, catalog, onChange, onRemove, depth, disabled = false, onCreateCondition }: { node: Node; catalog: Asset[]; onChange: (node: Node) => void; onRemove?: () => void; depth: number; disabled?: boolean; onCreateCondition?: () => void }) {
+export function NodeEditor({ node, catalog, onChange, onRemove, depth, disabled = false, onCreateCondition, expandParameters = false }: { node: Node; catalog: Asset[]; onChange: (node: Node) => void; onRemove?: () => void; depth: number; disabled?: boolean; onCreateCondition?: () => void; expandParameters?: boolean }) {
   if (node.op === 'filter_ref' || node.op === 'pattern_ref') {
     const asset = catalog.find(item => item.key === assetKey(node))
     const parameters = asset?.filter?.parameters ?? {}
@@ -158,7 +158,7 @@ export function NodeEditor({ node, catalog, onChange, onRemove, depth, disabled 
     return <div className="strategy-reference">
       <div className="strategy-reference-heading"><div className="strategy-reference-identity"><span className="condition-kind">{asset ? kindNames[assetKind(asset)] : '未载入'}</span><strong>{item?.name ?? node.filter_id ?? node.pattern_id}</strong><span className="condition-version">v{node.version}</span></div><div className="heading-actions"><button type="button" className="quiet-button" disabled={disabled || depth >= 15} onClick={() => onChange({ op: 'not', children: [node] })}>排除</button>{onRemove && <button type="button" className="icon-button danger-action" disabled={disabled} aria-label="移除条件" onClick={onRemove}><Trash2 size={14} /></button>}</div></div>
       {asset?.filter?.contract && expression && <p className="strategy-rule-summary">{conditionText(asset.filter.library, expression, asset.filter.contract.summary)}</p>}
-      <details className="condition-adjustments"><summary>本次参数<span>权重 {node.score_weight ?? 1} · {Object.keys(node.parameter_overrides ?? {}).length ? '已覆盖 ' + Object.keys(node.parameter_overrides!).length + ' 项' : '采用默认参数'}</span></summary>
+      <details className="condition-adjustments" open={expandParameters || undefined}><summary>本次参数<span>权重 {node.score_weight ?? 1} · {Object.keys(node.parameter_overrides ?? {}).length ? '已覆盖 ' + Object.keys(node.parameter_overrides!).length + ' 项' : '采用默认参数'}</span></summary>
         <div className="strategy-parameters">
           <label>固定引用版本<select aria-label="引用版本" value={assetKey(node)} disabled={disabled} onChange={event => { const version = catalog.find(candidate => candidate.key === event.target.value); if (version) onChange({ ...node, version: (version.filter ?? version.pattern!).version }) }}>{!asset && <option value={assetKey(node)}>v{node.version} · 当前未载入</option>}{versions.map(version => <option key={version.key} value={version.key}>第 {(version.filter ?? version.pattern!).version} 版</option>)}</select></label>
           <ParameterNumber label="评分权重" value={node.score_weight ?? 1} min={0} max={100} step={0.25} disabled={disabled} onChange={value => numberChange('score_weight',value)} />
@@ -173,7 +173,7 @@ export function NodeEditor({ node, catalog, onChange, onRemove, depth, disabled 
   const add = (child: Node) => onChange({ ...node, children: [...children, child] })
   return <div className={'strategy-node ' + (node.op === 'not' ? 'strategy-negation' : '')}>
     <div className="strategy-node-heading"><span className="strategy-logic-label">{depth ? '条件组' : '选股逻辑'}</span><select aria-label={depth ? '分组逻辑' : '顶层逻辑'} value={node.op} disabled={disabled} onChange={event => { const op = event.target.value; onChange(op === 'not' && children.length > 1 ? { op, children: [node] } : { ...node, op }) }}><option value="all">全部满足（AND）</option><option value="any">任一满足（OR）</option><option value="not">整体排除（NOT）</option></select><span className="strategy-group-count">{referenceCount(node)} 项条件</span>{node.op === 'not' && children.length === 1 && <button type="button" className="text-button" disabled={disabled} onClick={() => onChange(children[0])}>取消排除</button>}{onRemove && <button type="button" className="icon-button danger-action" disabled={disabled} aria-label="移除分组" onClick={onRemove}><Trash2 size={14} /></button>}</div>
-    <div className="strategy-node-children">{children.map((child,index) => <NodeEditor key={index} node={child} catalog={catalog} depth={depth+1} disabled={disabled} onCreateCondition={onCreateCondition} onChange={next => onChange({ ...node, children: children.map((item,i) => i === index ? next : item) })} onRemove={() => onChange({ ...node, children: children.filter((_,i) => i !== index) })} />)}</div>
+    <div className="strategy-node-children">{children.map((child,index) => <NodeEditor key={index} node={child} catalog={catalog} depth={depth+1} disabled={disabled} expandParameters={expandParameters} onCreateCondition={onCreateCondition} onChange={next => onChange({ ...node, children: children.map((item,i) => i === index ? next : item) })} onRemove={() => onChange({ ...node, children: children.filter((_,i) => i !== index) })} />)}</div>
     {(node.op !== 'not' || !children.length) && depth < 15 && <div className="strategy-add-row"><ConditionPicker catalog={catalog} disabled={disabled} initialOpen={!children.length} onCreate={onCreateCondition} onAdd={asset => add(makeReference(asset))} /><button type="button" className="quiet-button" disabled={disabled} onClick={() => add(emptyTree())}><Plus size={14} />添加分组</button></div>}
     {!children.length && <p className="strategy-empty-group">空分组无法保存或执行。</p>}
   </div>

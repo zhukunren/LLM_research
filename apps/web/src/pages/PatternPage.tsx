@@ -1,3 +1,4 @@
+import { StockText } from '../components/StockMentions'
 import { PointerEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, BookOpen, ImageUp, RefreshCw, Library, MessageCircle, Plus, Save, Search, Sparkles, Trash2 } from 'lucide-react'
 import { api, type Pattern } from '../api'
@@ -268,7 +269,7 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   }
   const selectedValue = (field: keyof Candle) => selected?.[field] ?? 0
   return (
-    <div className="page-content library-shell library-redesign pattern-library">
+    <StockText><div className="page-content library-shell library-redesign pattern-library">
       <div className="page-heading"><div className="library-title"><h1>形态库</h1></div><div className="library-heading-actions">{onDiscuss && <button className="secondary-button" disabled={!displayedPattern || (panel === 'create' && dirty) || busy} onClick={() => displayedPattern && onDiscuss(displayedPattern.id, displayedPattern.version, displayedPattern.name)}><MessageCircle size={15} />研究当前形态</button>}<button className="secondary-button" onClick={reset} disabled={busy}><Plus size={15} />新建形态</button></div></div>
       <nav className="library-tabs" role="tablist" aria-label="形态库功能" onKeyDown={event => navigateTabs(event, ['browse', 'create', 'saved'] as const, panel, setPanel)}><button role="tab" id="pattern-browse-tab" aria-controls="pattern-content" aria-selected={panel === 'browse'} tabIndex={panel === 'browse' ? 0 : -1} className={panel === 'browse' ? 'active' : ''} onClick={() => setPanel('browse')}><BookOpen size={16} />浏览形态</button><button role="tab" id="pattern-create-tab" aria-controls="pattern-content" aria-selected={panel === 'create'} tabIndex={panel === 'create' ? 0 : -1} className={panel === 'create' ? 'active' : ''} onClick={() => setPanel('create')}><Sparkles size={16} />描述需求</button><button role="tab" id="pattern-saved-tab" aria-controls="pattern-content" aria-selected={panel === 'saved'} tabIndex={panel === 'saved' ? 0 : -1} className={panel === 'saved' ? 'active' : ''} onClick={() => setPanel('saved')}><Library size={16} />我的形态</button></nav>
 
@@ -362,7 +363,7 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
         </div>
       </div>}
       </section>
-    </div>
+    </div></StockText>
   )
 }
 
@@ -388,7 +389,7 @@ function PatternExample({ item, allowCurve = false, showSimilar = false }: { ite
   }, [item.id, item.version, retry, showSimilar, key])
   const matches = result?.items?.length ? result.items : result?.bars.length ? [result] : []
   const selectedMatch = matches[selectedIndex] || matches[0]
-  return <div className={'pattern-example' + (showSimilar ? ' pattern-match-browser' : '')}>
+  return <StockText><div className={'pattern-example' + (showSimilar ? ' pattern-match-browser' : '')}>
     {allowCurve && <div className="segmented"><button aria-pressed={!curve} className={!curve ? 'selected' : ''} onClick={() => setCurve(false)}>K线</button><button aria-pressed={curve} className={curve ? 'selected' : ''} onClick={() => setCurve(true)}>原始曲线</button></div>}
     {!curve && result && <button className="text-button pattern-refresh" aria-label="刷新形态匹配" onClick={() => { exampleRequests.delete(key); setRetry(value => value + 1) }}><RefreshCw size={13} />刷新匹配</button>}
     {curve ? <svg viewBox="0 0 600 160" role="img" aria-label={item.name + '原始曲线'}><polyline points={galleryPoints(item.points)} fill="none" stroke="var(--ui-chart-line)" strokeWidth="2.5" /></svg> : error ? <p role="alert">{error}<button className="text-button" onClick={() => setRetry(value => value + 1)}>重试</button></p> : !result ? <div className="pattern-match-loading" role="status"><span className="loading-ring" />正在寻找相似的真实 K 线…</div> : selectedMatch ? <>
@@ -399,7 +400,7 @@ function PatternExample({ item, allowCurve = false, showSimilar = false }: { ite
         <div className="pattern-similar-heading"><h3>相似 K 线</h3><span>{matches.length} 个样本{result.as_of && ' · 行情截至 ' + result.as_of}</span></div>
 
         <div className="pattern-similar-grid">{matches.map((match, index) => <button type="button" key={match.stock_code + '@' + match.start_date} className={'pattern-similar-card' + (selectedIndex === index ? ' selected' : '')} aria-pressed={selectedIndex === index} aria-label={`查看 ${match.stock_code} 相似K线，相似度 ${match.similarity?.toFixed(1)} 分`} onClick={() => { setSelectedIndex(index); setCurve(false) }}>
-          <span className="pattern-similar-card-heading"><span className="pattern-match-rank">{String(index + 1).padStart(2, '0')}</span>{match.stock_code && <StockName code={match.stock_code} />}<span className="pattern-match-score">{match.similarity?.toFixed(1)}<small>相似度</small></span></span>
+          <span className="pattern-similar-card-heading"><span className="pattern-match-rank">{String(index + 1).padStart(2, '0')}</span>{match.stock_code && <StockName code={match.stock_code}  embedded />}<span className="pattern-match-score">{match.similarity?.toFixed(1)}<small>相似度</small></span></span>
           <MiniCandles bars={match.bars} />
           <span className="pattern-similar-dates">{match.start_date} — {match.end_date}</span>
         </button>)}</div>
@@ -407,7 +408,7 @@ function PatternExample({ item, allowCurve = false, showSimilar = false }: { ite
       </section>}
       <small className="pattern-match-scope">{result.scope}</small>
     </> : <p className="workbench-help">{result.reason}</p>}
-  </div>
+  </div></StockText>
 }
 
 function MiniCandles({ bars }: { bars: ChartBar[] }) {

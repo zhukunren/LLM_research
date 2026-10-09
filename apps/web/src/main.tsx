@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import { SecuritiesProvider } from './components/StockSearch'
+import { StockInteractionsProvider } from './components/StockMentions'
 import './tokens.css'
 import './reset-and-shell.css'
 import './components.css'
@@ -30,9 +31,10 @@ import './chat-layout.css'
 import './minimalist-workspace.css'
 import './library-minimal.css'
 import './research-chat.css'
+import './workspace-screen.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <SecuritiesProvider><App /></SecuritiesProvider>
+    <SecuritiesProvider><StockInteractionsProvider><App /></StockInteractionsProvider></SecuritiesProvider>
   </React.StrictMode>,
 )

@@ -43,8 +43,10 @@ export default function ResearchAssistantsPage({ onUse, busy = false }: { onUse:
     <header className="page-heading"><div><h1>研究助手</h1><p className="page-description">选择助手开始研究，结果自动保存在对话中。</p></div></header>
     {error && <div className="library-error" role="alert"><span>{error}</span><button className="text-button" onClick={() => setReload(value => value + 1)}>重新读取</button></div>}
     {loading && !items.length && <p role="status">正在读取助手…</p>}
+    <div className="assistant-catalog-content">
     {!!tasks.length && <section className="assistant-catalog-grid" aria-label="即用助手"><p className="page-description">即用助手 · 点击后自动检索</p>{tasks.map(card)}</section>}
     {!!methods.length && <section className="assistant-catalog-grid" aria-label="研究方法">{!!tasks.length && <p className="page-description">研究方法 · 输入问题开始分析</p>}{methods.map(card)}</section>}
     {!loading && !error && !items.length && <p className="page-description">助手暂不可用，请重新读取。<button className="text-button" onClick={() => setReload(value => value + 1)}>重试</button></p>}
+    </div>
   </div>
 }

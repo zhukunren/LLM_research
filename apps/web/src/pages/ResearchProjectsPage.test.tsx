@@ -8,13 +8,33 @@ import { useWorkspaceRoute } from '../useWorkspaceRoute'
 
 afterEach(() => window.history.replaceState(null, '', '/'))
 
+it('keeps compact project context accessible and retains an editor while switching panes', async () => {
+  const project = existing()
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+  vi.mocked(api).mockImplementation(async path => path === '/research-projects' ? { items: [summary(project)] } as never : path.endsWith('/files') ? { items: [] } as never : project as never)
+  const user = userEvent.setup()
+  const view = render(<ResearchProjectsPage initialProjectId="p1" onOpenConversation={vi.fn()} />)
+  await screen.findByRole('heading', { name: project.name })
+  const context = view.container.querySelector('details.research-project-context') as HTMLDetailsElement
+  expect(context.open).toBe(false)
+  await user.click(screen.getByText('研究目标与关联公司'))
+  await waitFor(() => expect(context.open).toBe(true))
+  expect(screen.getByText(project.objective)).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '写研究笔记' }))
+  await user.type(screen.getByLabelText('笔记标题'), '尚未保存的观点')
+  await user.click(screen.getByRole('button', { name: '项目列表' }))
+  await user.click(screen.getByRole('button', { name: '项目详情' }))
+  expect(screen.getByLabelText('笔记标题')).toHaveValue('尚未保存的观点')
+  expect(vi.mocked(api).mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
+})
+
 function HistoryProjectPage() {
   const { route, navigate } = useWorkspaceRoute()
   return <ResearchProjectsPage initialProjectId={route.projectId} onOpenConversation={vi.fn()} onLocationChange={id => navigate({ page: 'research', projectId: id })} />
 }
 
 vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
-vi.mock('../components/StockSearch', () => ({ default: ({ onChange }: { onChange: (value: string) => void }) => <button onClick={() => onChange('600519.SH')}>选择贵州茅台</button>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
+vi.mock('../components/StockSearch', async importOriginal => ({ ...await importOriginal<typeof import('../components/StockSearch')>(), default: ({ onChange }: { onChange: (value: string) => void }) => <button onClick={() => onChange('600519.SH')}>选择贵州茅台</button>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
 
 function existing(): ResearchProject {
   return { id: 'p1', name: '白酒盈利改善', objective: '核对经营兑现', status: 'active', revision: 1, updated_at: '2026-10-03T08:00:00Z', companies: [], conversations: [], notes: [] }

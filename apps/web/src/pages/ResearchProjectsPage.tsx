@@ -1,3 +1,4 @@
+import { StockText } from '../components/StockMentions'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Archive, ArrowUpRight, Building2, ChevronDown, Download, FileText, FolderOpen, MessageCircle, Pencil, Plus, RefreshCw, X } from 'lucide-react'
 import { api, conversationWorkflow, type Conversation, type ConversationScope } from '../api'
@@ -140,7 +141,7 @@ function NoteEditor({ project, note, onSaved, onCancel }: { project: ResearchPro
       }
     } finally { setBusy(false) }
   }
-  return <form className="research-note-editor" aria-label="编辑研究笔记" onSubmit={event => void save(event)}>
+  return <StockText><form className="research-note-editor" aria-label="编辑研究笔记" onSubmit={event => void save(event)}>
     <div className="research-form-heading"><h3>{note ? '编辑研究笔记' : '写研究笔记'}</h3></div>
     <label>标题<input aria-label="笔记标题" disabled={busy} value={draft.title} maxLength={200} required onChange={event => change({ title: event.target.value })} /></label>
     <div className="research-editor-fields">
@@ -155,10 +156,19 @@ function NoteEditor({ project, note, onSaved, onCancel }: { project: ResearchPro
     {error && <p className="research-error" role="alert">{error}</p>}
     {latest && <section className="research-note-conflict"><h3>另一处保存的最新内容</h3><p>{latest.title} · {noteStatuses[latest.status]}</p><ResearchAnswer content={latest.body} conversationId={latest.source_conversation_id || ''} /><p>验证事项：{latest.validation_plan || '未填写'}<br />失效条件：{latest.invalidation_condition || '未填写'}</p><button className="secondary-button" type="button" onClick={() => { change({ base_revision: latest.revision }); setLatest(null); setError('已保留你的输入。请结合最新内容修改，核对后保存。') }}>继续合并我的修改</button></section>}
     <div className="heading-actions"><button className="primary-button" disabled={busy || !draft.title.trim() || !!latest} type="submit">{busy ? '保存中…' : '保存笔记'}</button><button className="secondary-button" disabled={busy} type="button" onClick={onCancel}>关闭编辑</button></div>
-  </form>
+  </form></StockText>
 }
 
 export default function ResearchProjectsPage({ initialProjectId, onOpenConversation, onLocationChange }: { initialProjectId?: string; onOpenConversation: (id: string, scope: ConversationScope) => void; onLocationChange?: (id: string, userNavigation?: boolean) => void }) {
+  const [mobileView, setMobileView] = useState<'catalog' | 'reader'>(initialProjectId ? 'reader' : 'catalog')
+  const [contextOpen, setContextOpen] = useState(() => !globalThis.matchMedia?.('(max-width: 620px)').matches)
+  useEffect(() => {
+    const media = globalThis.matchMedia?.('(max-width: 620px)')
+    if (!media) return
+    const resize = () => setContextOpen(!media.matches)
+    media.addEventListener?.('change', resize)
+    return () => media.removeEventListener?.('change', resize)
+  }, [])
   const [projects, setProjects] = useState<ResearchProjectSummary[]>([])
   const [selectedId, setSelectedId] = useSessionState('research.selectedProject', '', isText)
   const locationCallback = useRef(onLocationChange)
@@ -198,7 +208,7 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
   const [filesLoading, setFilesLoading] = useState(false)
   const [reportBusy, setReportBusy] = useState('')
   const [notice, setNotice] = useState('')
-  useEffect(() => { if (initialProjectId) { setSelectedId(initialProjectId); setIncludeArchived(true) } }, [initialProjectId])
+  useEffect(() => { if (initialProjectId) { if (initialProjectId !== selectedId) setMobileView('reader'); setSelectedId(initialProjectId); setIncludeArchived(true) } }, [initialProjectId])
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true); setCatalogError('')
@@ -244,7 +254,7 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
     } catch (reason) { setError((reason as Error).message) }
     finally { setReportBusy('') }
   }
-  function select(id: string) { setSelectedId(id); locationCallback.current?.(id, true); setEditing(null); setForm(null); setCompany(''); setCompanyFilter(''); setNotice(''); setError('') }
+  function select(id: string) { setSelectedId(id); setMobileView('reader'); locationCallback.current?.(id, true); setEditing(null); setForm(null); setCompany(''); setCompanyFilter(''); setNotice(''); setError('') }
   function saved(id: string) { setSelectedId(id); locationCallback.current?.(id, true); setForm(null); setReload(value => value + 1); setNotice('研究项目已保存。') }
   async function mutate(path: string, init: RequestInit, message: string) {
     setBusy(true); setError('')
@@ -273,8 +283,9 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
   const activeNoteId = openNoteId === null ? null : visibleNotes.some(note => note.id === openNoteId) ? openNoteId : visibleNotes[0]?.id
   const notesFiltered = !!(noteQuery || noteStatus || companyFilter)
   function clearNoteFilters() { setNoteQuery(''); setNoteStatus(''); setCompanyFilter('') }
-  return <div className="page-content research-project-page">
-    <div className="page-heading"><div><h1>研究项目</h1></div><div className="heading-actions"><button className="secondary-button" disabled={busy || loading} onClick={() => setReload(value => value + 1)} aria-label="刷新研究项目"><RefreshCw size={15} /></button><button className={project || form ? "secondary-button" : "primary-button"} disabled={busy} onClick={() => { setForm('new'); setEditing(null) }}><Plus size={15} />新建项目</button></div></div>
+  return <StockText><div className="page-content research-project-page" data-mobile-view={projects.length ? mobileView : 'reader'}>
+    <div className="page-heading"><div><h1>研究项目</h1></div><div className="heading-actions"><button className="secondary-button" disabled={busy || loading} onClick={() => setReload(value => value + 1)} aria-label="刷新研究项目"><RefreshCw size={15} /></button><button className={project || form ? "secondary-button" : "primary-button"} disabled={busy} onClick={() => { setForm('new'); setEditing(null); setMobileView('reader') }}><Plus size={15} />新建项目</button></div></div>
+    {projects.length > 0 && <nav className="workspace-pane-switch" aria-label="项目列表与详情切换"><button type="button" aria-pressed={mobileView === 'catalog'} onClick={() => setMobileView('catalog')}>项目列表</button><button type="button" aria-pressed={mobileView === 'reader'} disabled={!project && !form} onClick={() => setMobileView('reader')}>项目详情</button></nav>}
     {error && <div role="alert" className="research-error">{error}<button className="text-button" onClick={() => setReload(value => value + 1)}>重试加载</button></div>}
     {catalogError && <div role="alert" className="research-error">{catalogError}<button className="text-button" onClick={() => setReload(value => value + 1)}>重试项目目录</button></div>}
     {notice && <p role="status" className="research-notice">{notice}</p>}
@@ -289,25 +300,27 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
         {form ? <ProjectForm key={form === 'edit' ? formProject?.id : 'new'} project={form === 'edit' ? formProject : undefined} onSaved={saved} onCancel={() => setForm(null)} /> : project ? <>
           {projectError && <div className="research-error" role="alert">{projectError}<button className="text-button" onClick={() => setReload(value => value + 1)}>重试项目详情</button></div>}
           <div className="research-project-heading"><div className="research-project-title"><div className="research-project-topline"><span className={'research-project-state ' + project.status}>{project.status === 'archived' ? '已归档' : '进行中'}</span><span>更新于 <time>{time(project.updated_at)}</time></span></div><h2>{project.name}</h2></div><div className="heading-actions"><button className="secondary-button" disabled={busy} onClick={() => { setFormProject(project); setForm('edit') }} aria-label="编辑项目"><Pencil size={15} /></button><button className="secondary-button" disabled={busy} onClick={() => void mutate(`/research-projects/${project.id}`, { method: 'PATCH', body: JSON.stringify({ base_revision: project.revision, name: project.name, objective: project.objective, status: writable ? 'archived' : 'active' }) }, writable ? '项目已归档，研究内容保留。' : '项目已恢复。')}><Archive size={15} />{writable ? '归档' : '恢复'}</button><button className={editing ? "secondary-button" : "primary-button"} disabled={locked || !writable} onClick={() => void startResearch()}><MessageCircle size={15} />开始研究</button></div></div>
+          <details className="research-project-context" open={contextOpen} onToggle={event => setContextOpen(event.currentTarget.open)}><summary>研究目标与关联公司 <span>{project.companies.length} 家</span></summary>
           {project.objective && <div className="research-project-objective"><span>研究目标</span><p>{project.objective}</p></div>}
 
           <section className="research-project-companies" aria-label="关联公司">
             <div className="research-section-heading"><h3><Building2 size={16} />关联公司 <span className="research-inline-count">{project.companies.length}</span></h3>{writable && <div className="research-add-company"><StockSearch label="选择关联公司" value={company} disabled={busy} onChange={setCompany} /><button className="secondary-button" disabled={busy || !/^\d{6}\.(SH|SZ|BJ)$/.test(company)} onClick={() => { void mutate(`/research-projects/${project.id}/companies`, { method: 'POST', body: JSON.stringify({ stock_code: company }) }, '公司已加入项目。'); setCompany('') }}><Plus size={14} />加入</button></div>}</div>
-            {project.companies.length ? <div className="research-company-list">{project.companies.map(item => <div key={item.stock_code} className={`research-company ${companyFilter === item.stock_code ? 'selected' : ''}`}><button className="text-button" aria-pressed={companyFilter === item.stock_code} onClick={() => { setCompanyFilter(value => value === item.stock_code ? '' : item.stock_code); setTab('notes') }}><StockName code={item.stock_code} /></button>{writable && <button className="icon-button" aria-label={`移除公司 ${item.name || item.stock_code}`} disabled={busy} onClick={() => { if (companyFilter === item.stock_code) setCompanyFilter(''); void mutate(`/research-projects/${project.id}/companies/${item.stock_code}`, { method: 'DELETE' }, '公司已移出项目，原笔记和研究内容仍保留。') }}><X size={13} /></button>}</div>)}</div> : null}
+            {project.companies.length ? <div className="research-company-list">{project.companies.map(item => <div key={item.stock_code} className={`research-company ${companyFilter === item.stock_code ? 'selected' : ''}`}><button className="text-button" aria-pressed={companyFilter === item.stock_code} onClick={() => { setCompanyFilter(value => value === item.stock_code ? '' : item.stock_code); setTab('notes') }}><StockName code={item.stock_code} embedded /></button>{writable && <button className="icon-button" aria-label={`移除公司 ${item.name || item.stock_code}`} disabled={busy} onClick={() => { if (companyFilter === item.stock_code) setCompanyFilter(''); void mutate(`/research-projects/${project.id}/companies/${item.stock_code}`, { method: 'DELETE' }, '公司已移出项目，原笔记和研究内容仍保留。') }}><X size={13} /></button>}</div>)}</div> : null}
           </section>
+          </details>
           {companyFilter && <CompanyResearchPanel key={`${project.id}:${companyFilter}`} projectId={project.id} code={companyFilter} asOf={researchDate} onDateChange={setResearchDate} />}
           <div className="research-project-tabs" role="tablist" aria-label="项目内容" onKeyDown={event => navigateTabs(event, ['notes', 'conversations', 'files'] as const, tab, value => { setTab(value); setEditing(null) })}>{([['notes', '研究笔记', FileText], ['conversations', '研究对话', MessageCircle], ['files', '研究成果', Download]] as const).map(([value, label, Icon]) => <button key={value} type="button" id={`research-tab-${value}`} role="tab" aria-controls="research-project-panel" tabIndex={tab === value ? 0 : -1} aria-selected={tab === value} onClick={() => { setTab(value); setEditing(null) }}><Icon size={15} />{label}<span>{value === 'notes' ? project.notes.length : value === 'conversations' ? project.conversations.length : filesLoading ? '…' : files.length}</span></button>)}</div>
-          <section id="research-project-panel" role="tabpanel" aria-labelledby={`research-tab-${tab}`}>
+          <section id="research-project-panel" role="tabpanel" data-tab={tab} aria-labelledby={`research-tab-${tab}`}>
             {tab === 'notes' && <>
               <div className="research-content-heading">{writable && !editing && <button className="secondary-button" onClick={() => setEditing('new')}><Plus size={14} />写研究笔记</button>}</div>
 
               {!editing && <div className="workspace-filter-bar research-note-filters"><SearchField label="搜索研究笔记" placeholder="搜索标题、正文或验证事项" value={noteQuery} onChange={setNoteQuery} /><select aria-label="筛选笔记状态" value={noteStatus} onChange={event => setNoteStatus(event.target.value as typeof noteStatus)}><option value="">全部观点状态</option>{Object.entries(noteStatuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label="笔记排序" value={noteSort} onChange={event => setNoteSort(event.target.value as typeof noteSort)}><option value="updated">最近更新</option><option value="title">按标题排序</option></select><span className="workspace-result-count" aria-live="polite">{visibleNotes.length} / {project.notes.length} 份笔记</span>{notesFiltered && <button className="text-button" onClick={clearNoteFilters}>重置笔记筛选</button>}</div>}
               {companyFilter && <p>只看 <StockName code={companyFilter} /> 的笔记 <button className="text-button" onClick={() => setCompanyFilter('')}>查看全部</button></p>}
-              {editing && writable ? <NoteEditor key={`${project.id}:${typeof editing === 'string' ? 'new' : editing.id}`} project={project} note={typeof editing === 'string' ? undefined : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setReload(value => value + 1); setNotice('研究笔记已保存。') }} /> : visibleNotes.map(note => <article className={'research-note ' + (activeNoteId === note.id ? 'research-note-open' : '')} key={note.id}><div className="research-note-heading"><h3><button className="research-note-disclosure" aria-expanded={activeNoteId === note.id} aria-controls={'research-note-body-' + note.id} onClick={() => setOpenNoteId(activeNoteId === note.id ? null : note.id)}><ChevronDown size={16} /><span>{note.title}</span></button></h3><div className="heading-actions"><span className={`research-note-status ${note.status}`}>{noteStatuses[note.status]}</span>{writable && <button className="icon-button" aria-label={`编辑笔记 ${note.title}`} onClick={() => setEditing(note)}><Pencil size={15} /></button>}</div></div><div className="research-note-meta">{note.stock_code && <StockName code={note.stock_code} />}<ResearchNotePDF projectId={project.id} noteId={note.id} revision={note.revision} pdf={note.pdf} /><time>{time(note.updated_at)}</time>{note.source_conversation_id && <button className="text-button" onClick={() => {
+              {editing && writable ? <NoteEditor key={`${project.id}:${typeof editing === 'string' ? 'new' : editing.id}`} project={project} note={typeof editing === 'string' ? undefined : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setReload(value => value + 1); setNotice('研究笔记已保存。') }} /> : <div className="research-note-list">{visibleNotes.map(note => <article className={'research-note ' + (activeNoteId === note.id ? 'research-note-open' : '')} key={note.id}><div className="research-note-heading"><h3><button className="research-note-disclosure" aria-expanded={activeNoteId === note.id} aria-controls={'research-note-body-' + note.id} onClick={() => setOpenNoteId(activeNoteId === note.id ? null : note.id)}><ChevronDown size={16} /><span>{note.title}</span></button></h3><div className="heading-actions"><span className={`research-note-status ${note.status}`}>{noteStatuses[note.status]}</span>{writable && <button className="icon-button" aria-label={`编辑笔记 ${note.title}`} onClick={() => setEditing(note)}><Pencil size={15} /></button>}</div></div><div className="research-note-meta">{note.stock_code && <StockName code={note.stock_code} />}<ResearchNotePDF projectId={project.id} noteId={note.id} revision={note.revision} pdf={note.pdf} /><time>{time(note.updated_at)}</time>{note.source_conversation_id && <button className="text-button" onClick={() => {
                 const source = project.conversations.find(item => item.id === note.source_conversation_id)
                 if (source) onOpenConversation(source.id, source.entry_scope)
                 else void api<Conversation>(`/conversations/${note.source_conversation_id}`).then(value => onOpenConversation(value.id, value.entry_scope)).catch(reason => setError((reason as Error).message))
-              }}>查看原对话<ArrowUpRight size={13} /></button>}</div><div id={'research-note-body-' + note.id} hidden={activeNoteId !== note.id}><ResearchAnswer content={note.body} conversationId={note.source_conversation_id || ''} />{(note.validation_plan || note.invalidation_condition) && <dl className="research-note-checks">{note.validation_plan && <><dt>接下来验证</dt><dd>{note.validation_plan}</dd></>}{note.invalidation_condition && <><dt>判断失效条件</dt><dd>{note.invalidation_condition}</dd></>}</dl>}<ResearchNoteEvidence key={`evidence:${note.id}:${note.revision}`} project={project} note={note} asOf={researchDate} /><ResearchNoteHistory key={`${note.id}:${note.revision}`} projectId={project.id} noteId={note.id} /></div></article>)}
+              }}>查看原对话<ArrowUpRight size={13} /></button>}</div><div id={'research-note-body-' + note.id} hidden={activeNoteId !== note.id}><ResearchAnswer content={note.body} conversationId={note.source_conversation_id || ''} />{(note.validation_plan || note.invalidation_condition) && <dl className="research-note-checks">{note.validation_plan && <><dt>接下来验证</dt><dd>{note.validation_plan}</dd></>}{note.invalidation_condition && <><dt>判断失效条件</dt><dd>{note.invalidation_condition}</dd></>}</dl>}<ResearchNoteEvidence key={`evidence:${note.id}:${note.revision}`} project={project} note={note} asOf={researchDate} /><ResearchNoteHistory key={`${note.id}:${note.revision}`} projectId={project.id} noteId={note.id} /></div></article>)}</div>}
               {!editing && !visibleNotes.length && <div className="research-empty"><FileText size={23} /><p>{notesFiltered ? '没有符合当前筛选的笔记。' : '暂无研究笔记。'}</p>{notesFiltered && <button className="secondary-button" onClick={clearNoteFilters}>查看全部笔记</button>}</div>}
             </>}
             {tab === 'conversations' && (project.conversations.length ? <div className="research-conversation-list">{project.conversations.map(item => <button className="research-conversation-row" key={item.id} onClick={() => onOpenConversation(item.id, item.entry_scope)}><MessageCircle size={17} /><span><strong>{item.title || '新研究'}</strong><small>{conversationWorkflow(item) === 'screening' ? '选股对话' : item.last_turn_state === 'running' || item.last_turn_state === 'awaiting_agent' ? '正在研究' : item.last_turn_state === 'failed' ? '研究中断' : '研究对话'} · {time(item.updated_at)}</small></span><ArrowUpRight size={16} /></button>)}</div> : <div className="research-empty"><MessageCircle size={23} /><p>暂无研究对话。</p></div>)}
@@ -317,5 +330,5 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
         </> : projectLoading || loading ? <div className="research-loading" role="status"><RefreshCw size={20} /><p>正在读取研究项目…</p><div className="research-loading-lines" aria-hidden="true"><span /><span /><span /></div></div> : projectError ? <div className="research-load-failure" role="alert"><h2>项目暂时未能载入</h2><p>{projectError}</p><button className="secondary-button" onClick={() => setReload(value => value + 1)}>重新加载项目</button></div> : !catalogError && !projects.length ? <div className="research-empty"><h2>暂无研究项目</h2></div> : null}
       </section>
     </div>
-  </div>
+  </div></StockText>
 }

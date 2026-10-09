@@ -1,7 +1,12 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
+
+// Route/data timing tests begin after the split page modules are loaded.
+beforeAll(async () => {
+  await Promise.all([import('./pages/ResearchWorkspace'), import('./pages/ScreeningWorkspace'), import('./pages/LibraryWorkspace')])
+}, 30000)
 
 const assistants = [
   ['general', '通用投研'], ['financial', '财报分析'], ['reports', '研报解读'],

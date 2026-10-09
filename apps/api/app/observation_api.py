@@ -15,6 +15,14 @@ from . import research_observations
 router = APIRouter(prefix="/api/v1/observation", tags=["选股与观察池"])
 
 
+@router.post('/quick-add')
+def quick_add_candidate(payload: research_observations.QuickCandidateInput):
+    try:
+        return research_observations.quick_add(payload)
+    except research_observations.CandidateError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+
+
 @router.post("/research-candidates")
 def add_research_candidate(payload: research_observations.CandidateInput):
     try:

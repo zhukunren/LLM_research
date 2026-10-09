@@ -1,3 +1,4 @@
+import { StockText } from '../StockMentions'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { AlertCircle, ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, Copy, FileSearch, GitCompareArrows, History, LoaderCircle, Pencil, Play, Plus, RefreshCw, Search, X } from 'lucide-react'
 import {
@@ -1348,7 +1349,7 @@ export default function ConversationWorkspace({
   }
 
   return (
-    <div className={`conversation-product research-studio${isResearch ? '' : ' screening-studio'}`}>
+    <StockText><div className={`conversation-product research-studio${isResearch ? '' : ' screening-studio'}`}>
       <div className="page-heading conversation-header-heading">
         <div className="conversation-heading-title">
           {isResearch ? <h1>研究对话</h1> : <h2>{screeningStarted ? '继续完善方案' : '新建选股方案'}</h2>}
@@ -1416,7 +1417,7 @@ export default function ConversationWorkspace({
           <div className="conversation-message-list" ref={messageListRef} role="log" aria-live="polite" aria-relevant="additions" onScroll={onMessageListScroll}>
             {!conversation?.messages.length && !task && !loadingConversation && (
               <div className="conversation-empty">
-                <SuggestionContainer className={isResearch ? 'research-examples' : 'screening-examples'}><summary>{isResearch ? '示例问题' : '更多条件示例（需要模型解析）'}</summary>{!isResearch && <div className="screening-example-tabs" role="group" aria-label="选股示例分类">{Object.entries(screeningSuggestionLabels).map(([value, label]) => <button key={value} type="button" aria-pressed={suggestionScope === value} onClick={() => setSuggestionScope(value as ConversationScope)}>{label}</button>)}</div>}<div className="conversation-suggestions" aria-label={isResearch ? '常用研究问题' : '常用选股条件'}>
+                <SuggestionContainer className={isResearch ? 'research-examples' : 'screening-examples'} open={isResearch}><summary>{isResearch ? '示例问题' : '更多条件示例（需要模型解析）'}{isResearch && <small>选择后填入草稿，由你确认发送</small>}</summary>{!isResearch && <div className="screening-example-tabs" role="group" aria-label="选股示例分类">{Object.entries(screeningSuggestionLabels).map(([value, label]) => <button key={value} type="button" aria-pressed={suggestionScope === value} onClick={() => setSuggestionScope(value as ConversationScope)}>{label}</button>)}</div>}<div className="conversation-suggestions" aria-label={isResearch ? '常用研究问题' : '常用选股条件'}>
                   {(isResearch ? researchSuggestions[scope] : promptSuggestions[suggestionScope]).map((item, index) => { const Icon = suggestionIcons[index % suggestionIcons.length]; return <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-icon"><Icon size={20} strokeWidth={1.6} /></span><span className="suggestion-copy"><span className="suggestion-title">{item.label}</span>{isResearch && <span className="suggestion-description">{item.prompt}</span>}</span><ArrowUpRight size={16} className="suggestion-arrow" /></button> })}
                 </div></SuggestionContainer>
               </div>
@@ -1596,6 +1597,6 @@ export default function ConversationWorkspace({
       </aside>
       </div>
       {chart && <StockChartDialog code={chart.code} asOf={chart.date} onClose={() => setChart(null)} />}
-    </div>
+    </div></StockText>
   )
 }

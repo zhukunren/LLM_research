@@ -1,3 +1,4 @@
+import { StockText } from '../StockMentions'
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Download, LoaderCircle, RefreshCw, Square } from 'lucide-react'
 import { api } from '../../api'
@@ -147,7 +148,7 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
 
   if (!showGenerate && !scans.length && !outputs.length && !generatedFiles.length && !error && !generatedError) return null
   const coverage = scan?.result.coverage
-  return <section className="conversation-research-section" aria-label="研究计算与成果">
+  return <StockText><section className="conversation-research-section" aria-label="研究计算与成果">
     <div className="conversation-panel-heading"><h2>研究计算与成果</h2><button className="icon-button" title="刷新研究成果" aria-label="刷新研究成果" onClick={() => setReload(value => value + 1)}><RefreshCw size={15} /></button></div>
     <button className="text-button" disabled={!!reportBusy || turnActive} onClick={() => void generateReports()}>{reportBusy === 'generate' ? '正在提交…' : '生成已有报告'}</button>
     {reportNotice && <p role="status" className="conversation-muted">{reportNotice}</p>}
@@ -177,5 +178,5 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
     {!!outputs.length && <section aria-label="PDF 报告"><h3>PDF 报告</h3><ResearchFileList files={outputs} busyId={reportBusy} onRetry={file => void generateReports(file)} /></section>}
     {generatedError && <p role="alert">{generatedError}</p>}
     <GeneratedFiles files={generatedFiles} />
-  </section>
+  </section></StockText>
 }

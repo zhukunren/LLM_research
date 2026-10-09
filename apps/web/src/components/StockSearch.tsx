@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api'
+import { StockMention } from './StockMentions'
 
 export type Security = { stock_code: string; name: string; market: string; pinyin?: string; initials?: string }
 const Context = createContext<{ items: Security[]; refresh: () => void; loading: boolean; error: string }>({ items: [], refresh: () => {}, loading: false, error: '' })
@@ -20,10 +21,11 @@ export function SecuritiesProvider({ children }: { children: ReactNode }) {
 
 export const useSecurities = () => useContext(Context)
 
-export function StockName({ code }: { code: string }) {
+export function StockName({ code, interactive = true, embedded = false, asOf }: { code: string; interactive?: boolean; embedded?: boolean; asOf?: string }) {
   const { items } = useSecurities()
   const name = items.find(item => item.stock_code === code)?.name
-  return <span className="stock-identity"><strong>{name || code}</strong>{name && <small>{code}</small>}</span>
+  const identity = <span className="stock-identity"><strong>{name || code}</strong>{name && <small>{code}</small>}</span>
+  return interactive ? <StockMention code={code} embedded={embedded} asOf={asOf}>{identity}</StockMention> : identity
 }
 
 export default function StockSearch({ value, onChange, label = '搜索股票', includeIndices = false, disabled = false }: {

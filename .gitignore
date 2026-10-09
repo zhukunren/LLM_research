@@ -17,7 +17,8 @@ data/research_report/
 data/derived/
 data/uploads/
 *.log
-artifacts/**/live/app.db
+# Generated screenshots, test databases and copied fixtures stay local.
+artifacts/**
 
 # Daily ingestion completion ledger (local operational state)
 *.sync.json

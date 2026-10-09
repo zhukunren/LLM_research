@@ -1,3 +1,4 @@
+import { StockText } from '../components/StockMentions'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowLeft, CalendarRange, Clock3, MessageCircle, RefreshCw, Search, X } from 'lucide-react'
 import { api } from '../api'
@@ -111,7 +112,7 @@ export default function NewsPage({ onDiscuss, importOpen = false, onImportClose 
     finally { setBusy(false) }
   }
 
-  return <div className="local-news library-reading-workspace" data-mobile-view={mobileView} data-catalog-scroll={catalogScroll.current}>
+  return <StockText><div className="local-news library-reading-workspace" data-mobile-view={mobileView} data-catalog-scroll={catalogScroll.current}>
     {notice && <div className="library-feedback" role="status">{notice}<button className="icon-button" aria-label="关闭导入提示" onClick={() => setNotice('')}><X size={14} /></button></div>}
     {importOpen && <section className="local-news-panel news-import-panel" aria-label="导入资讯">
       <div className="section-title-row"><h2>从网址导入</h2><button className="icon-button" aria-label="关闭导入" onClick={onImportClose}><X size={16} /></button></div>
@@ -144,9 +145,8 @@ export default function NewsPage({ onDiscuss, importOpen = false, onImportClose 
         <div className="news-reader-tools"><div><span className="library-reader-eyebrow">资讯正文</span><button className="text-button reader-back" aria-label="返回资讯列表" onClick={returnToCatalog}><ArrowLeft size={14} />返回列表</button></div><div><button className="secondary-button compact" aria-label="缩小资讯字体" disabled={fontSize <= 12} onClick={() => setFontSize(value => value - 1)}>A-</button><span className="font-size-value" aria-label="当前资讯字号">{readingFontSize}</span><button className="secondary-button compact" aria-label="放大资讯字体" disabled={fontSize >= 24} onClick={() => setFontSize(value => value + 1)}>A+</button></div></div>
         {reading ? <div className="library-loading" role="status">正在读取正文…</div> : readError ? <div className="library-error" role="alert">{readError}<button className="text-button" onClick={() => setReadRetry(value => value + 1)}>重试读取</button></div> : selected ? <><article className="local-news-reader" style={{ fontSize: readingFontSize }}>
           <h3>{selected.title}</h3><p className="news-metadata"><span className="news-source-badge">{sourceLabel(selected.source)}</span><span className="news-publication-time"><Clock3 size={12} aria-hidden="true" /><time dateTime={selected.published_at ?? selected.available_at ?? undefined}>{chinaTime(selected.published_at ?? selected.available_at)}</time></span>{selected.stock_codes.map(code => <span className="news-security-tag" key={code}>{code}</span>)}</p><div className="news-body">{selected.body}</div>
-          {onDiscuss && <div className="news-research-action"><button className="primary-button" onClick={() => onDiscuss(selected)}><MessageCircle size={15} />基于此资讯研究</button></div>}
-        </article><NewsCompanyChart key={selected.id} companies={selected.chart_companies ?? selected.stock_codes.map(stock_code => ({ stock_code, name: stock_code }))} publishedAt={selected.published_at ?? selected.available_at} /></> : <div className="library-empty">未选择资讯</div>}
+        </article><NewsCompanyChart key={selected.id} companies={selected.chart_companies ?? selected.stock_codes.map(stock_code => ({ stock_code, name: stock_code }))} publishedAt={selected.published_at ?? selected.available_at} />{onDiscuss && <div className="news-research-action"><button className="primary-button" onClick={() => onDiscuss(selected)}><MessageCircle size={15} />基于此资讯研究</button></div>}</> : <div className="library-empty">未选择资讯</div>}
       </section>
     </div>
-  </div>
+  </div></StockText>
 }

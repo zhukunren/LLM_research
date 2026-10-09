@@ -1,6 +1,8 @@
-import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown'
+import { useMemo } from 'react'
 import remarkGfm from 'remark-gfm'
 import remarkCjkStrong from './remarkCjkStrong'
+import { StockText } from '../StockMentions'
 function researchUrl(url: string, conversationId: string) {
   const normalized = url.replace(/\\/g, '/')
   if (/^https?:\/\//i.test(normalized) || normalized.startsWith('//')) return defaultUrlTransform(url)
@@ -25,20 +27,24 @@ function researchUrl(url: string, conversationId: string) {
 
 export default function ResearchAnswer({ content, conversationId }: { content: string; conversationId: string; messageId?: string }) {
   const filePrefix = `/api/v1/conversations/${encodeURIComponent(conversationId)}/generated-files/`
-  const renderMarkdown = (body: string) => <ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkStrong]} urlTransform={url => researchUrl(url, conversationId)} components={{
-      h1: ({ children }) => <h3>{children}</h3>,
-      h2: ({ children }) => <h3>{children}</h3>,
-      h3: ({ children }) => <h4>{children}</h4>,
+  const components = useMemo<Components>(() => ({
+      h1: ({ children }) => <StockText><h3>{children}</h3></StockText>,
+      h2: ({ children }) => <StockText><h3>{children}</h3></StockText>,
+      h3: ({ children }) => <StockText><h4>{children}</h4></StockText>,
+      p: ({ children }) => <StockText><p>{children}</p></StockText>,
+      li: ({ children }) => <StockText><li>{children}</li></StockText>,
+      td: ({ children }) => <StockText><td>{children}</td></StockText>,
+      th: ({ children }) => <StockText><th>{children}</th></StockText>,
       table: ({ children }) => <div className="research-answer-table"><table>{children}</table></div>,
       pre: ({ children }) => <details className="research-answer-code"><summary>代码与数据</summary><pre>{children}</pre></details>,
       a: ({ href, children }) => {
         const download = href?.startsWith(filePrefix)
         const external = /^https?:\/\//i.test(href || '')
-        return <a href={href || undefined} download={download || undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}>{children}</a>
+        return <StockText><a href={href || undefined} download={download ? true : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}>{children}</a></StockText>
       },
       img: ({ src, alt }) => /\.(png|jpe?g|gif|webp)(?:[?#]|$)/i.test(src || '')
         ? <img src={src?.startsWith(filePrefix) ? src.replace('/generated-files/', '/research-assets/') : src} alt={alt || '研究图表'} loading="lazy" />
         : <a href={src || undefined}>{alt || '查看图表'}</a>,
-    }}>{body}</ReactMarkdown>
-  return <div className="research-answer">{renderMarkdown(content)}</div>
+    }), [filePrefix])
+  return <div className="research-answer"><ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkStrong]} urlTransform={url => researchUrl(url, conversationId)} components={components}>{content}</ReactMarkdown></div>
 }

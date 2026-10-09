@@ -1,3 +1,4 @@
+import { StockText } from './StockMentions'
 import { useEffect, useMemo, useState } from 'react'
 import ReactEChartsCore from 'echarts-for-react/lib/core'
 import * as echarts from 'echarts/core'
@@ -50,8 +51,8 @@ export default function ObservationChart({ runId, code, view, task, refresh }: {
     return () => controller.abort()
   }, [runId, code, perspective, refresh])
   const option = useMemo(() => chart ? chartOption(chart) : {}, [chart])
-  return <section className="observation-card observation-chart"><div className="section-title-row"><h2><StockName code={code} /></h2>{view === 'observation' && <select aria-label="K线观察视角" value={perspective} onChange={e => setPerspective(e.target.value as typeof perspective)}><option value="observation">后续走势</option><option value="selection">当时视角</option></select>}</div><p className="observation-muted">{chart ? `选股日 ${chart.signal_date} · K 线截至 ${chart.cutoff}` : '日线与成交量'}</p>
+  return <StockText><section className="observation-card observation-chart"><div className="section-title-row"><h2><StockName code={code} /></h2>{view === 'observation' && <select aria-label="K线观察视角" value={perspective} onChange={e => setPerspective(e.target.value as typeof perspective)}><option value="observation">后续走势</option><option value="selection">当时视角</option></select>}</div><p className="observation-muted">{chart ? `选股日 ${chart.signal_date} · K 线截至 ${chart.cutoff}` : '日线与成交量'}</p>
     {loading ? <div className="observation-chart-placeholder" role="status">正在读取 K 线…</div> : error ? <div className="library-error" role="alert">{error}</div> : chart?.bars.length ? <div role="img" aria-label={`${code} K线，选股日 ${chart.signal_date}，${chart.markers.length}条入选记录`}><ReactEChartsCore echarts={echarts} option={option} notMerge style={{ height: 360, width: '100%' }} /></div> : <div className="observation-chart-placeholder">该区间没有可用行情。</div>}
     {chart && <><p className="observation-muted">深蓝：本批次；灰色：其他批次。</p>{chart.markers.length > 0 && <details className="observation-events"><summary>入选记录 · {chart.markers.length} 次</summary>{chart.markers.map(marker => <p key={marker.run_id}><strong>{marker.date} · {marker.name}{marker.current ? '（本批次）' : ''}</strong><small>实际执行 {new Date(marker.executed_at).toLocaleString('zh-CN')}</small></p>)}</details>}<details open className="observation-evidence"><summary>当时的判断依据</summary>{chart.decision.condition_decisions.map(condition => <div key={condition.reference_id}><strong>{task.conditions.find(item => item.condition_id === condition.condition_id)?.description ?? '筛选条件'}</strong><span>{({ true: '符合', false: '不符合', unknown: '数据不足' })[condition.state]}</span><p>{condition.explanation}</p>{Object.keys(condition.actual_values ?? {}).length > 0 && <small>实际值：{Object.entries(condition.actual_values).map(([name, value]) => `${name}：${typeof value === 'object' ? JSON.stringify(value) : String(value)}`).join('；')}</small>}</div>)}</details></>}
-  </section>
+  </section></StockText>
 }

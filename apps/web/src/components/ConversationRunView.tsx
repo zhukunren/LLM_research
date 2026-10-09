@@ -1,3 +1,4 @@
+import { StockText } from './StockMentions'
 import { useEffect, useState } from 'react'
 import { api, type ScreeningTaskDecision, type ScreeningTaskRevision } from '../api'
 import ScreeningResultView from './ScreeningResultView'
@@ -41,8 +42,8 @@ export default function ConversationRunView({ conversationId, runId, onContinue 
     }, 180)
     return () => { active = false; clearTimeout(timer) }
   }, [base, run?.status, state, query, offset, reload])
-  if (!run) return <div><p role={error ? 'alert' : 'status'}>{error || '正在读取历史筛选…'}</p>{error && <button onClick={() => setReload(i => i + 1)}>重试</button>}</div>
-  return <div><div className="section-title-row"><h2>选股记录</h2><button className="primary-button" onClick={onContinue}>打开原对话与方案</button></div>
+  if (!run) return <StockText><div><p role={error ? 'alert' : 'status'}>{error || '正在读取历史筛选…'}</p>{error && <button onClick={() => setReload(i => i + 1)}>重试</button>}</div></StockText>
+  return <StockText><div><div className="section-title-row"><h2>选股记录</h2><button className="primary-button" onClick={onContinue}>打开原对话与方案</button></div>
     <p className="history-date-notice">截止日期：{run.as_of}</p>
     <details><summary>本次采用的筛选规则</summary><TaskLogic task={run.task} /></details>
     <ScreeningResultView asOf={run.as_of} revision={run.task_revision} status={run.status} isCurrent={false}
@@ -53,5 +54,5 @@ export default function ConversationRunView({ conversationId, runId, onContinue 
       onReload={() => setReload(i => i + 1)} onExportUrl={`/api/v1${base}/export?state=${state}&query=${encodeURIComponent(query)}`}
       onViewChart={setChart} onAskStock={onContinue} />
     {chart && <StockChartDialog code={chart} asOf={run.as_of} onClose={() => setChart('')} />}
-  </div>
+  </div></StockText>
 }

@@ -245,7 +245,7 @@ export default function App() {
   const active = menus.find((item) => item.id === page)!
   const inResearch = page === 'screening' || page === 'research'
   return (
-    <div className={`app-shell redesigned-workspace chat-layout ${page === 'screening' ? 'chat-page' : 'tool-page'} ${mobileNavigationOpen ? 'mobile-navigation-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`app-shell redesigned-workspace chat-layout viewport-workspace ${page === 'screening' ? 'chat-page' : 'tool-page'} ${mobileNavigationOpen ? 'mobile-navigation-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <a className="skip-to-content" href="#workspace-main" onClick={event => { event.preventDefault(); document.getElementById('workspace-main')?.focus() }}>跳到页面内容</a>
       <ResearchSidebar workspace={workspaceArea} screeningView={conditionsSection} onWorkspaceChange={switchWorkspace} onScreeningView={openScreeningView} busy={assistantLaunch.state.loading} onAssistant={launchAssistant} page={page} conversationId={route.conversationId} revision={sidebarRevision} mobileOpen={mobileNavigationOpen} onClose={() => setMobileNavigationOpen(false)} onNavigate={navigateFromMenu} onNewResearch={startNewResearch} onNewScreening={() => openConversation('screening', undefined, undefined, 'screening')} onConversation={resumeResearch} onSearch={() => { setMobileNavigationOpen(false); setQuickNavigationOpen(true) }} onSettings={() => { setMobileNavigationOpen(false); setSystemOpen(true) }} />
       <main id="workspace-main" tabIndex={-1} className="main-shell" aria-busy={isNavigating}>
@@ -255,7 +255,7 @@ export default function App() {
         {(assistantLaunch.state.loading || assistantLaunch.state.error) && <div className="assistant-launch-status" role={assistantLaunch.state.error ? 'alert' : 'status'}>
           {assistantLaunch.state.loading ? <><RefreshCw size={15} className="spin" /><span>正在启动{assistantLaunch.state.name}…</span></> : <><AlertCircle size={15} /><span>{assistantLaunch.state.name}：{assistantLaunch.state.error}</span>{assistantLaunch.state.recoverable && <button onClick={() => void retryAssistantLaunch()}>继续启动</button>}<button aria-label="关闭助手启动提示" onClick={assistantLaunch.dismiss}>关闭</button></>}
         </div>}
-        <section className="page-frame">
+        <section className="page-frame" data-page={page} data-view={page === 'conditions' ? conditionsSection : undefined}>
           <Suspense fallback={<div className="page-content page-loading" role="status">正在加载页面…<div className="page-loading-placeholder" aria-hidden="true" /></div>}>
           {page === 'assistants' && <ResearchAssistantsPage busy={assistantLaunch.state.loading} onUse={launchAssistant} />}
           {inResearch && <div className="research-space">

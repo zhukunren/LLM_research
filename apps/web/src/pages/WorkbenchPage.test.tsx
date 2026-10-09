@@ -6,7 +6,7 @@ import WorkbenchPage from './WorkbenchPage'
 import type { Node } from './StrategyPage'
 
 vi.mock('../api', () => ({ api: vi.fn() }))
-vi.mock('../components/StockSearch', () => ({ default: () => <span>股票选择</span>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
+vi.mock('../components/StockSearch', async importOriginal => ({ ...await importOriginal<typeof import('../components/StockSearch')>(), default: () => <span>股票选择</span>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
 vi.mock('../components/conversation/ConversationWorkspace', () => ({ default: ({ onOpenDataServices }: { onOpenDataServices?: () => void }) => <><p>描述目标并核对选股方案</p>{onOpenDataServices && <button onClick={onOpenDataServices}>打开筛选数据服务</button>}</> }))
 const filter: Filter = { id: 'f1', version: 1, library: 'technical', name: '价格条件', description: '收盘价大于10', expression: { op: 'field_compare', field: 'close', operator: 'gt', value: 10 }, parameters: { value: { label: '阈值', type: 'number', min: 0, max: 1000 } }, contract: { summary: '收盘价大于10', notes: [], availability: 'market', availability_label: '行情可计算' }, created_at: '2026-10-04T08:00:00Z' }
 const tree: Node = { op: 'all', children: [{ op: 'filter_ref', filter_id: 'f1', version: 1, score_weight: 1 }] }
@@ -74,7 +74,9 @@ it('blocks invalid quantities, future dates and empty groups before submitting',
   fireEvent.change(screen.getByLabelText('筛选截止日期'), { target: { value: '2026-10-05' } })
   expect(screen.getByRole('button', { name: '保存组合' })).toBeEnabled()
   expect(screen.getByRole('button', { name: '保存并开始筛选' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: '组合逻辑' }))
   await user.click(screen.getByRole('button', { name: '添加分组' }))
+  await user.click(screen.getByRole('button', { name: '应用修改' }))
   expect(screen.getByRole('button', { name: '保存组合' })).toBeDisabled()
   expect(savedBodies).toHaveLength(0)
 })
@@ -85,8 +87,24 @@ it('keeps the condition catalog usable when recent descriptions fail to load', a
   const user = userEvent.setup(); mountCompose()
   await screen.findByText(/历史描述暂不可用/)
   expect(screen.getByRole('button', { name: '保存组合' })).toBeEnabled()
-  await user.click(screen.getByRole('button', { name: '添加条件' }))
-  expect(screen.getByRole('button', { name: '添加 价格条件 第 1 版' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '移除全部条目' }))
+  expect(screen.getByLabelText('选择待选条件 价格条件 第 1 版')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '加入全部待选条件' })).toBeEnabled()
+})
+
+it('persists transfer edits, supports undo and does not execute when moving conditions', async () => {
+  const user = userEvent.setup(); mountCompose()
+  await waitFor(() => expect(screen.getByRole('button', { name: '保存组合' })).toBeEnabled())
+  await user.click(screen.getByRole('button', { name: '移除全部条目' }))
+  expect(JSON.parse(localStorage.getItem('workbench.tree')!).children).toEqual([])
+  await user.click(screen.getByRole('button', { name: '撤销上次组合更改' }))
+  expect(JSON.parse(localStorage.getItem('workbench.tree')!)).toEqual(tree)
+  expect(screen.queryByText('已移除 1 个条目。')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '移除全部条目' }))
+  await user.click(screen.getByLabelText('选择待选条件 价格条件 第 1 版'))
+  await user.click(screen.getByRole('button', { name: '加入勾选条件' }))
+  expect(JSON.parse(localStorage.getItem('workbench.tree')!)).toEqual(tree)
+  expect(vi.mocked(api).mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
 })
 
 it('locks editor and reset controls until a pending save finishes', async () => {

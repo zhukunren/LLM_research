@@ -1,3 +1,4 @@
+import { StockText } from '../components/StockMentions'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Download, Loader2, RefreshCw, Search, Telescope } from 'lucide-react'
 import { api, type DataStatus, type ScreeningTaskRevision } from '../api'
@@ -32,6 +33,8 @@ type Props = { data: DataStatus | null; onNavigateScreening?: () => void; onOpen
 export default function ObservationPage({ data, onNavigateScreening, onOpenResearch, onStartResearch, initialRunId, initialCandidateId, initialTab, onLocationChange }: Props) {
   const [runId, setRunId] = useSessionState('observation.run', '', isText)
   const [tab, setTab] = useState<'candidates' | 'batches'>(() => initialTab || (initialRunId || runId ? 'batches' : 'candidates'))
+  const [batchView, setBatchView] = useState<'catalog' | 'reader'>('catalog')
+  const [stockDetailView, setStockDetailView] = useState<'chart' | 'note'>('chart')
   const locationCallback = useRef(onLocationChange)
   locationCallback.current = onLocationChange
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   const [error, setError] = useState(''), [resultError, setResultError] = useState('')
   const resultsRef = useRef<HTMLElement>(null), detailRef = useRef<HTMLElement>(null)
   function readStock(code: string) {
-    setSelectedCode(code)
+    setSelectedCode(code); setBatchView('reader'); setStockDetailView('chart')
     if (globalThis.matchMedia?.('(max-width: 1100px)').matches) {
       detailRef.current?.focus({ preventScroll: true })
       detailRef.current?.scrollIntoView({ behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' })
@@ -129,7 +132,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   const selectedObservation = performance?.items.find(item => item.stock_code === selectedCode)
   const stat = performance?.summary[horizon], counts = run?.result.coverage
 
-  return <div className="page-content observation-page observation-redesigned">
+  return <StockText><div className="page-content observation-page observation-redesigned" data-batch-view={batchView}>
     <header className="page-heading observation-page-heading">
       <div><h1>观察池</h1></div>
       <div className="observation-heading-actions">{tab === 'candidates' && onStartResearch ? <button className="primary-button" onClick={onStartResearch}>开始研究<ArrowRight size={15} /></button> : onNavigateScreening && <button className="primary-button" onClick={onNavigateScreening}>去条件选股<ArrowRight size={15} /></button>}<button className="secondary-button" onClick={() => { setError(''); setRefresh(value => value + 1) }}><RefreshCw size={15} />刷新</button></div>
@@ -164,18 +167,26 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
           {performance.warning && <p className="observation-methodology">{performance.warning}</p>}
         </section>}
         {resultError && <div className="library-error" role="alert">{resultError}<button className="text-button" onClick={() => setRefresh(value => value + 1)}>重新加载</button></div>}
+        {run && !active(run.status) && !resultError && <nav className="workspace-pane-switch" aria-label="股票列表与详情切换"><button type="button" aria-pressed={batchView === 'catalog'} onClick={() => setBatchView('catalog')}>股票列表</button><button type="button" aria-pressed={batchView === 'reader'} disabled={!selectedCode} onClick={() => setBatchView('reader')}>股票详情</button></nav>}
         {!runId ? !error && <div className="observation-empty observation-start"><span className="observation-empty-icon"><ClipboardList size={26} /></span><strong>{historyLoading ? '正在查找筛选批次…' : '暂无筛选批次'}</strong>{onNavigateScreening && !historyLoading && <button className="secondary-button" onClick={onNavigateScreening}>创建筛选批次<ArrowRight size={14} /></button>}</div> : !run ? !resultError && <div className="observation-loading" role="status"><Loader2 size={18} />正在读取选股记录…</div> : !active(run.status) && !resultError && <div className="observation-workspace">
           <section ref={resultsRef} tabIndex={-1} aria-label="股票结果列表" className="observation-card observation-results" aria-busy={resultsLoading}>
             <div className="observation-list-heading"><div><h2>本批次观察<span>{performance?.items.length ?? '—'}</span></h2></div></div>
             <div className="observation-table-toolbar"><label className="observation-search"><Search size={16} /><input aria-label="搜索结果股票" placeholder="搜索股票名称或代码" value={query} onChange={event => { setQuery(event.target.value); setOffset(0) }} /></label><select aria-label="观察状态筛选" value={watchStatus} onChange={event => { setWatchStatus(event.target.value); setOffset(0) }}><option value="">全部观察状态</option>{Object.entries(watchLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select><select aria-label="观察排序" value={sort} onChange={event => { setSort(event.target.value); setOffset(0) }}><option value="priority">重点关注优先</option><option value="code">按股票代码</option><option value="return">涨跌幅从高到低</option><option value="return-asc">涨跌幅从低到高</option></select></div>
             {(query || watchStatus) && <div className="observation-filter-feedback"><span>匹配 {observed.length} / {performance?.items.length ?? 0} 只股票</span><button className="text-button" onClick={() => { setQuery(''); setWatchStatus(''); setOffset(0) }}>清除筛选</button></div>}
-            {resultsLoading ? <div className="observation-loading" role="status"><Loader2 size={18} />正在加载观察统计…</div> : <><div className="observation-table-scroll"><table><thead><tr><th>股票 / 状态</th><th>最新价</th><th>{horizon === 'latest' ? '至今涨跌幅' : `${horizon}日涨跌幅`}</th><th>观察天数</th></tr></thead><tbody>{observed.slice(offset, offset + 30).map(item => <tr key={item.stock_code} className={selectedCode === item.stock_code ? 'selected' : ''} onClick={() => readStock(item.stock_code)}><td data-label="股票"><button className="stock-link" aria-pressed={selectedCode === item.stock_code} onClick={event => { event.stopPropagation(); readStock(item.stock_code) }}><StockName code={item.stock_code} /></button><small className={`observation-status ${item.status}`}>{watchLabels[item.status] ?? item.status}{item.note && <span title={item.note}> · 已记备注</span>}</small></td><td data-label="最新价">{number(item.latest_close)}<small>{item.latest_date ?? '无行情'}</small></td><td data-label={horizon === 'latest' ? '至今涨跌幅' : `${horizon}日涨跌幅`} className={returnClass(horizon === 'latest' ? item.return_latest : item.returns[horizon])}>{percent(horizon === 'latest' ? item.return_latest : item.returns[horizon])}<small>{horizon !== 'latest' && item.days < Number(horizon) ? '未满期' : item.reason || ((horizon === 'latest' ? item.return_latest : item.returns[horizon]) == null ? '数据不足' : '')}</small></td><td data-label="观察天数">{item.days} 个交易日<small>有效行情 {item.observed_days} 日</small></td></tr>)}</tbody></table></div>{!observed.length && <div className="observation-empty"><Telescope size={25} /><strong>{performance?.items.length ? '没有匹配的股票' : '本批次暂无入选股票'}</strong>{(query || watchStatus) && <button className="secondary-button" onClick={() => { setQuery(''); setWatchStatus(''); setOffset(0) }}>显示全部股票</button>}</div>}<Pagination offset={offset} total={observed.length} onChange={setOffset} /></>}
+            {resultsLoading ? <div className="observation-loading" role="status"><Loader2 size={18} />正在加载观察统计…</div> : <><div className="observation-table-scroll"><table><thead><tr><th>股票 / 状态</th><th>最新价</th><th>{horizon === 'latest' ? '至今涨跌幅' : `${horizon}日涨跌幅`}</th><th>观察天数</th></tr></thead><tbody>{observed.slice(offset, offset + 30).map(item => <tr key={item.stock_code} className={selectedCode === item.stock_code ? 'selected' : ''} onClick={() => readStock(item.stock_code)}><td data-label="股票"><button className="stock-link" aria-pressed={selectedCode === item.stock_code} onClick={event => { event.stopPropagation(); readStock(item.stock_code) }}><StockName code={item.stock_code} embedded /></button><small className={`observation-status ${item.status}`}>{watchLabels[item.status] ?? item.status}{item.note && <span title={item.note}> · 已记备注</span>}</small></td><td data-label="最新价">{number(item.latest_close)}<small>{item.latest_date ?? '无行情'}</small></td><td data-label={horizon === 'latest' ? '至今涨跌幅' : `${horizon}日涨跌幅`} className={returnClass(horizon === 'latest' ? item.return_latest : item.returns[horizon])}>{percent(horizon === 'latest' ? item.return_latest : item.returns[horizon])}<small>{horizon !== 'latest' && item.days < Number(horizon) ? '未满期' : item.reason || ((horizon === 'latest' ? item.return_latest : item.returns[horizon]) == null ? '数据不足' : '')}</small></td><td data-label="观察天数">{item.days} 个交易日<small>有效行情 {item.observed_days} 日</small></td></tr>)}</tbody></table></div>{!observed.length && <div className="observation-empty"><Telescope size={25} /><strong>{performance?.items.length ? '没有匹配的股票' : '本批次暂无入选股票'}</strong>{(query || watchStatus) && <button className="secondary-button" onClick={() => { setQuery(''); setWatchStatus(''); setOffset(0) }}>显示全部股票</button>}</div>}<Pagination offset={offset} total={observed.length} onChange={setOffset} /></>}
           </section>
-          <aside ref={detailRef} tabIndex={-1} aria-label="股票观察详情" className="observation-detail">{selectedCode && <button className="secondary-button observation-back" onClick={() => { resultsRef.current?.focus({ preventScroll: true }); resultsRef.current?.scrollIntoView({ behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' }) }}><ArrowLeft size={14} />返回股票列表</button>}{selectedCode && !resultsLoading ? <><ObservationChart key={`chart:${runId}:${selectedCode}`} runId={runId} code={selectedCode} view="observation" task={run.task} refresh={refresh} />{selectedObservation && <ObservationNote key={`note:${runId}:${selectedCode}`} runId={runId} item={selectedObservation} onSaved={value => setPerformance(current => current ? { ...current, items: current.items.map(item => item.stock_code === selectedCode ? { ...item, ...value } : item) } : current)} />}</> : <div className="observation-card observation-empty"><Telescope size={25} /><strong>未选择股票</strong></div>}</aside>
+          <aside ref={detailRef} tabIndex={-1} aria-label="股票观察详情" className="observation-detail observation-stock-detail">
+            {selectedCode && <button className="secondary-button observation-back" onClick={() => { setBatchView('catalog'); resultsRef.current?.focus({ preventScroll: true }); resultsRef.current?.scrollIntoView({ behavior: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' }) }}><ArrowLeft size={14} />返回股票列表</button>}
+            {selectedCode && !resultsLoading ? <>
+              <div className="observation-detail-switch" role="group" aria-label="个股详情视图"><button type="button" aria-pressed={stockDetailView === 'chart'} onClick={() => setStockDetailView('chart')}>走势与依据</button><button type="button" aria-pressed={stockDetailView === 'note'} onClick={() => setStockDetailView('note')}>观察备注</button></div>
+              <div className="observation-detail-pane" hidden={stockDetailView !== 'chart'}><ObservationChart key={`chart:${runId}:${selectedCode}`} runId={runId} code={selectedCode} view="observation" task={run.task} refresh={refresh} /></div>
+              <div className="observation-detail-pane" hidden={stockDetailView !== 'note'}>{selectedObservation && <ObservationNote key={`note:${runId}:${selectedCode}`} runId={runId} item={selectedObservation} onSaved={value => setPerformance(current => current ? { ...current, items: current.items.map(item => item.stock_code === selectedCode ? { ...item, ...value } : item) } : current)} />}</div>
+            </> : <div className="observation-card observation-empty"><Telescope size={25} /><strong>未选择股票</strong></div>}
+          </aside>
         </div>}
       </>}
     </section>
-  </div>
+  </div></StockText>
 }
 function StatCard({ label, value, tone = '' }: { label: string; value: string; tone?: string }) { return <div className="observation-stat"><span>{label}</span><strong className={tone}>{value}</strong></div> }
 function Pagination({ offset, total, onChange }: { offset: number; total: number; onChange: (value: number) => void }) { return <div className="observation-pagination"><span>{total ? `${offset + 1}–${Math.min(offset + 30, total)} / ${total} 只` : '0 只'}</span><button disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - 30))}>上一页</button><button disabled={offset + 30 >= total} onClick={() => onChange(offset + 30)}>下一页</button></div> }
@@ -198,7 +209,7 @@ function ObservationNote({ runId, item, onSaved }: { runId: string; item: Observ
   }
   const changed = note !== item.note || status !== item.status
   function resetDraft() { setDrafts(current => { const next = { ...current }; delete next[key]; return next }); setMessage('') }
-  return <section className="observation-card observation-note">
+  return <StockText><section className="observation-card observation-note">
     <div className="observation-section-heading"><div><h2>观察记录</h2><span className={`observation-status ${item.status}`}>{watchLabels[item.status]}</span></div><span>{changed ? '有未保存的修改' : ''}</span></div>
     <div className="observation-detail-metrics observation-stock-metrics"><span>入选参考价<strong>{number(item.reference_close)}</strong><small>{item.reference_date ?? '旧记录未保存参考价'}</small></span><span>期间最高涨幅<strong className={returnClass(item.peak_return)}>{percent(item.peak_return)}</strong></span><span>期间最低涨幅<strong className={returnClass(item.trough_return)}>{percent(item.trough_return)}</strong></span>{['5', '10', '20'].map(n => <span key={n}>{n} 日涨跌幅<strong className={item.days < Number(n) ? 'observation-neutral' : returnClass(item.returns[n])}>{item.days < Number(n) ? '未满期' : percent(item.returns[n])}</strong></span>)}</div>
     {item.invalid_bars > 0 && <p className="observation-disclosure">期间有 {item.invalid_bars} 根异常行情，区间最高／最低涨幅暂不可用。</p>}
@@ -206,5 +217,5 @@ function ObservationNote({ runId, item, onSaved }: { runId: string; item: Observ
     <label>观察备注<textarea aria-label="观察备注" value={note} disabled={busy} maxLength={2000} rows={4} onChange={e => setNote(e.target.value)} /><span className="observation-field-hint">{note.length} / 2000</span></label>
     <div className="observation-save-footer">{item.updated_at && <div><small>更新于 {timestamp(item.updated_at)}</small></div>}<div>{changed && <button className="text-button" disabled={busy} onClick={resetDraft}>恢复已保存记录</button>}<button className="primary-button" disabled={busy || !changed} onClick={() => void save()}>{busy ? '保存中…' : '保存观察记录'}</button></div></div>
     {message && <p className="observation-save-message" role="status">{message}</p>}
-  </section>
+  </section></StockText>
 }

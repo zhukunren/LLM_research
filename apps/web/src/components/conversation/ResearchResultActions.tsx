@@ -1,3 +1,4 @@
+import { StockText } from '../StockMentions'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowRight, Bookmark, Check, Copy, ListFilter, Star, X } from 'lucide-react'
@@ -71,10 +72,10 @@ export default function ResearchResultActions({ conversation, message, disabled,
   if (researchAnswerTurn(conversation, message)?.state === 'awaiting_user') {
     const index = conversation.messages.findIndex(item => item.id === message.id)
     if (conversation.messages.slice(index + 1).some(item => item.role === 'user')) return null
-    return <section className="research-next-steps" aria-label="研究答复操作"><button type="button" className="primary-button" disabled={locked} onClick={onContinue}>补充研究要求<ArrowRight size={16} /></button></section>
+    return <StockText><section className="research-next-steps" aria-label="研究答复操作"><button type="button" className="primary-button" disabled={locked} onClick={onContinue}>补充研究要求<ArrowRight size={16} /></button></section></StockText>
   }
 
-  return <section className="research-next-steps" aria-label="研究答复操作">
+  return <StockText><section className="research-next-steps" aria-label="研究答复操作">
     <div className="research-next-step-actions">
       <button type="button" aria-label="保存为研究笔记" disabled={locked || saved} onClick={async () => { if (await onSave()) setSaved(true) }}><span className="research-next-step-icon">{saved ? <Check size={19} /> : <Bookmark size={19} />}</span><strong>{savingNote ? '正在保存…' : saved ? '已保存为研究笔记' : '保存为研究笔记'}</strong></button>
       <button type="button" aria-label="加入观察" disabled={locked} onClick={() => startAction('observe')}><span className="research-next-step-icon"><Star size={19} /></span><strong>加入观察</strong></button>
@@ -105,5 +106,5 @@ export default function ResearchResultActions({ conversation, message, disabled,
       </section>
     </div>, document.body)}
     <button type="button" className="text-button research-next-step-copy" onClick={onCopy}><Copy size={14} />复制答复</button>
-  </section>
+  </section></StockText>
 }

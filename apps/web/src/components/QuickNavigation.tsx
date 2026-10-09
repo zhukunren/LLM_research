@@ -1,3 +1,4 @@
+import { StockText } from './StockMentions'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUpRight, FolderOpen, ListFilter, MessageCircle, Plus, Search, Settings2, X } from 'lucide-react'
 import { api, conversationWorkflow, type ConversationScope, type WorkflowType } from '../api'
@@ -62,7 +63,7 @@ export default function QuickNavigation({ onClose, onNavigate, onProject, onConv
   function choose(command?: Command) { if (command) { onClose(); command.select() } }
   useEffect(() => { list.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest' }) }, [activeIndex, query])
 
-  return <div className="workspace-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
+  return <StockText><div className="workspace-modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
     <section className="quick-navigation" role="dialog" aria-modal="true" aria-label="搜索与快速导航" onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); return }
       trapDialogTab(event)
@@ -78,7 +79,7 @@ export default function QuickNavigation({ onClose, onNavigate, onProject, onConv
       {error && <p className="quick-navigation-error">项目或对话暂未加载。<button className="text-button" onClick={() => setRetry(value => value + 1)}>重试</button></p>}
       <footer className="quick-navigation-footer"><span role="status">{loading ? '正在加载项目和最近对话…' : `找到 ${results.length} 个入口`}</span><span><kbd>↑</kbd><kbd>↓</kbd> 选择 <kbd>Enter</kbd> 打开 <kbd>Esc</kbd> 关闭</span></footer>
     </section>
-  </div>
+  </div></StockText>
 }
 
 export function ResourceNavigation({ onClose, onNavigate }: { onClose: () => void; onNavigate: (page: PageId) => void }) {

@@ -1,0 +1,104 @@
+/* Keep the composition and execution controls in the available workspace height. */
+.page-content.workbench-composing, .redesigned-workspace .page-content.workbench-composing {
+  box-sizing: border-box; height: calc(100dvh - var(--ui-header-height,60px)); min-height: 0;
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 24px;
+}
+.workbench-composing > .workbench-heading { display: none; }
+.workbench-composing > .workbench-tabs, .workbench-composing > .condition-studio-nav { margin-block: 0; flex-shrink: 0; }
+.workbench-composing > .workbench-notice, .workbench-composing > .workbench-alert, .workbench-composing > .screening-resource-warning { margin: 0; padding: 6px 10px; max-height: 56px; overflow: auto; font-size: 11px; flex-shrink: 0; }
+.workbench-composing .condition-compose-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr) auto; gap: 8px; align-items: stretch; }
+.workbench-composing .compose-main { min-height: 0; display: flex; flex-direction: column; padding: 12px 14px; }
+.workbench-composing .compose-main > header { margin: 0 0 8px; min-height: 28px; flex-shrink: 0; }
+.workbench-composing .compose-main > header h2 { font-size: 15px; line-height: 1.6; }
+.workbench-composing .compose-main > header button { min-height: 30px; padding: 4px 10px; font-size: 11px; }
+.workbench-composing .composition-editor-fields { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 6px; }
+.workbench-composing .composition-editor-fields .form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding: 0; margin: 0; background: transparent; flex-shrink: 0; }
+.workbench-composing .composition-editor-fields .form-grid label { gap: 4px; font-size: 10px; }
+.workbench-composing .composition-editor-fields .form-grid input, .workbench-composing .composition-editor-fields .form-grid select { height: 32px; min-height: 32px; padding: 4px 8px; font-size: 12px; }
+.workbench-composing .composition-status { padding: 0; margin: 0; min-height: 18px; gap: 8px; font-size: 10px; flex-shrink: 0; }
+.workbench-composing .composition-status button { padding-block: 1px; font-size: 10px; }
+.workbench-composing .condition-transfer { flex: 1; min-height: 0; display: flex; flex-direction: column; margin: 0; }
+.workbench-composing .condition-transfer-heading { margin: 0 0 6px; min-height: 18px; flex-shrink: 0; }
+.workbench-composing .condition-transfer-heading h3 { font-size: 12px; }
+.workbench-composing .condition-transfer-heading > span { font-size: 10px; }
+.workbench-composing .condition-transfer-grid { flex: 1; min-height: 0; grid-template-rows: minmax(0,1fr); }
+.workbench-composing .condition-categories { min-height: 0; padding-top: 12px; }
+.workbench-composing .condition-categories h4 { margin-bottom: 12px; }
+.workbench-composing .condition-categories nav { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.workbench-composing .condition-categories nav button { min-height: 32px; padding-block: 6px; }
+.workbench-composing .condition-categories-footer { padding-top: 12px; flex-shrink: 0; }
+.workbench-composing .condition-categories-footer p { margin-bottom: 6px; }
+.workbench-composing .condition-transfer-panel { min-height: 0; }
+.workbench-composing .condition-transfer-panel > header { flex-shrink: 0; min-height: 34px; padding: 7px 10px; }
+.workbench-composing .condition-transfer-search { flex-shrink: 0; margin: 6px 10px 3px; }
+.workbench-composing .condition-transfer-search input { height: 30px; }
+.workbench-composing .condition-transfer-list-options { flex-shrink: 0; min-height: 27px; padding: 5px 10px; }
+.workbench-composing .condition-transfer-selected-tools { flex-shrink: 0; min-height: 36px; padding: 4px 10px; }
+.workbench-composing .condition-transfer-panel .condition-transfer-list { flex: 1; min-height: 0; height: auto; }
+.workbench-composing .condition-transfer-row { min-height: 60px; padding-block: 6px; }
+.workbench-composing .condition-transfer-row-content { gap: 3px; }
+.workbench-composing .condition-transfer-row strong { line-height: 1.4; }
+.workbench-composing .condition-transfer-row small { line-height: 1.4; -webkit-line-clamp: 1; }
+.workbench-composing .condition-transfer-row em { line-height: 1.3; }
+.workbench-composing .condition-transfer-row-actions { gap: 4px; }
+.workbench-composing .condition-transfer-row-actions button { min-height: 22px; padding-block: 3px; }
+.workbench-composing .condition-transfer-empty { min-height: 80px; padding: 12px; gap: 7px; }
+.workbench-composing .condition-transfer-selected footer { flex-shrink: 0; margin: 0; padding: 6px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.workbench-composing .condition-transfer-feedback { flex-shrink: 0; min-height: 14px; margin-top: 4px; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workbench-composing .compose-main > .card-actions { flex-shrink: 0; margin-top: 8px; gap: 8px; }
+.workbench-composing .compose-main > .card-actions button { min-height: 30px; padding: 4px 10px; font-size: 11px; }
+.workbench-composing .composition-validation { flex-shrink: 0; max-height: 64px; overflow-y: auto; margin-top: 6px; padding: 6px 10px; font-size: 11px; }
+.workbench-composing .compose-execution { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px 16px; padding: 10px 14px; border-top-width: 1px; }
+.workbench-composing .compose-execution .run-setup-heading { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.workbench-composing .compose-execution .run-setup-heading h2 { margin: 0; font-size: 12px; line-height: 1.6; }
+.workbench-composing .compose-execution .run-setup-heading > span { font-size: 10px; letter-spacing: 0; text-transform: none; color: var(--ui-text-muted); }
+.workbench-composing .compose-execution .screening-editor-fields { grid-column: 1; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; align-items: start; }
+.workbench-composing .compose-execution .screening-editor-fields > label { font-size: 10px; font-weight: 400; gap: 4px; }
+.workbench-composing .compose-execution .screening-editor-fields input, .workbench-composing .compose-execution .screening-editor-fields select { min-height: 32px; height: 32px; padding: 4px 8px; font-size: 12px; }
+.workbench-composing .compose-execution-actions { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-end; gap: 3px; }
+.workbench-composing .compose-execution-actions .run-button { width: 100%; min-width: 170px; min-height: 32px; padding: 5px 12px; font-size: 12px; }
+.workbench-composing .compose-execution-actions > .text-button { padding-block: 2px; font-size: 10px; }
+.workbench-composing .compose-execution .screening-readiness { grid-column: 1 / -1; max-height: 56px; overflow-y: auto; padding: 6px 9px; gap: 3px; }
+.workbench-composing .compose-execution .screening-field-error { font-size: 10px; line-height: 1.5; margin: 0; }
+.condition-transfer-mobile-switch, .condition-mobile-create { display: none; }
+@media (max-width: 900px) {
+  .page-content.workbench-composing, .redesigned-workspace .page-content.workbench-composing { padding-inline: 12px; }
+  .workbench-composing .compose-execution { grid-template-columns: minmax(0,1fr); }
+  .workbench-composing .compose-execution .screening-editor-fields { grid-column: 1 / -1; }
+  .workbench-composing .compose-execution-actions { grid-column: 1 / -1; grid-row: auto; flex-direction: row; align-items: center; justify-content: flex-end; gap: 12px; }
+  .workbench-composing .compose-execution-actions .run-button { width: auto; }
+}
+@media (min-width: 621px) and (max-width: 850px) {
+  .workbench-composing .condition-transfer-grid { grid-template-rows: auto minmax(0,1fr); gap: 7px; }
+  .workbench-composing .condition-categories { display: flex; flex-direction: row; align-items: center; gap: 7px; padding: 5px 7px; }
+  .workbench-composing .condition-categories nav { flex: 1; overflow-y: visible; gap: 3px; }
+  .workbench-composing .condition-categories nav button { min-height: 28px; padding: 4px 5px; font-size: 10px; }
+  .workbench-composing .condition-categories-footer { padding: 0; margin: 0; }
+}
+@media (max-width: 620px) {
+  .page-content.workbench-composing, .redesigned-workspace .page-content.workbench-composing { padding: 8px 10px; }
+  .workbench-composing .compose-main { padding: 10px; }
+  .workbench-composing .composition-editor-fields .form-grid { gap: 8px; }
+  .workbench-composing .condition-transfer-heading { flex-direction: row; align-items: center; }
+  .workbench-composing .condition-transfer-heading > span { display: none; }
+  .workbench-composing .condition-mobile-create { display: flex; align-items: center; gap: 3px; background: transparent; border: 0; color: var(--ui-primary); font-size: 10px; cursor: pointer; padding: 3px; }
+  .workbench-composing .condition-transfer-grid { grid-template-rows: auto auto minmax(0,1fr) auto; gap: 6px; }
+  .workbench-composing .condition-categories { grid-row: 1; padding: 4px 5px; }
+  .workbench-composing .condition-categories nav { gap: 2px; overflow: visible; }
+  .workbench-composing .condition-categories nav button { flex: 1; min-height: 27px; font-size: 10px; padding: 4px 3px; gap: 3px; }
+  .workbench-composing .condition-categories-footer { display: none; }
+  .workbench-composing .condition-transfer-mobile-switch { grid-row: 2; grid-column: 1 / -1; display: flex; gap: 4px; padding: 3px; border-radius: 6px; background: #edf1f6; }
+  .workbench-composing .condition-transfer-mobile-switch button { flex: 1; min-height: 28px; padding: 4px 8px; font-size: 11px; border: 0; border-radius: 4px; background: transparent; color: var(--ui-text-muted); cursor: pointer; }
+  .workbench-composing .condition-transfer-mobile-switch button[aria-pressed=true] { background: white; color: var(--ui-primary); font-weight: 600; }
+  .workbench-composing .condition-transfer-panel { grid-row: 3; grid-column: 1 / -1; }
+  .workbench-composing .condition-transfer[data-mobile-pane=available] .condition-transfer-selected, .workbench-composing .condition-transfer[data-mobile-pane=selected] .condition-transfer-available { display: none; }
+  .workbench-composing .condition-transfer-actions { grid-row: 4; grid-column: 1 / -1; gap: 5px; }
+  .workbench-composing .condition-transfer-actions button { min-height: 36px; padding: 3px 1px; }
+  .workbench-composing .condition-transfer-selected-tools button { width: 34px; height: 34px; }
+  .workbench-composing .condition-transfer-row-actions button { min-height: 32px; }
+  .workbench-composing .condition-transfer-search input { font-size: 14px; }
+  .workbench-composing .compose-execution { padding: 8px 10px; }
+  .workbench-composing .compose-execution .screening-editor-fields { grid-template-columns: minmax(0,1fr) minmax(0,1.45fr) minmax(0,.65fr); gap: 6px; }
+  .workbench-composing .compose-execution .screening-editor-fields input, .workbench-composing .compose-execution .screening-editor-fields select { padding-inline: 4px; font-size: 11px; }
+  .workbench-composing .compose-execution .run-setup-heading > span { font-size: 9px; }
+}

@@ -1,3 +1,4 @@
+import { StockText } from './StockMentions'
 import { useRef, useState } from 'react'
 import { Copy, Download, LoaderCircle, RotateCcw, Search, Star, TrendingUp } from 'lucide-react'
 import { StockName } from './StockSearch'
@@ -155,7 +156,7 @@ export default function ScreeningResultView({
   }
 
   return (
-    <div className="screening-result-view">
+    <StockText><div className="screening-result-view">
       <div className="conversation-run-title">
         <span>{title || `${isCurrent ? '当前运行' : '历史运行'} · v${revision ?? 1}`}</span>
         <span className={`conversation-turn-state ${stateClass(status)}`}>{stateLabels[status] ?? status}</span>
@@ -412,6 +413,6 @@ export default function ScreeningResultView({
           )}
         </>
       )}
-    </div>
+    </div></StockText>
   )
 }

@@ -237,3 +237,45 @@ def test_retry_remains_bound_to_original_project_and_scope_after_conversation_ch
     assert repeated.json()["id"] == item["id"]
     assert repeated.json()["project_id"] == "project"
     assert repeated.json()["as_of"] == "2026-09-30" and repeated.json()["source_scope_revision"] == 2
+
+
+def test_quick_add_is_manual_visible_and_idempotent(client):
+    body = {'request_id': 'quick-one', 'stock_code': '600519.SH'}
+    first = client.post('/api/v1/observation/quick-add', json=body)
+    assert first.status_code == 200, first.text
+    item = first.json()
+    assert item['origin_kind'] == 'manual' and item['conversation_id'] is None
+    assert item['source_message_id'] is None and item['source_text'] == '手动加入观察池'
+    assert client.post('/api/v1/observation/quick-add', json=body).json()['idempotent_replay'] is True
+    again = client.post('/api/v1/observation/quick-add', json={**body, 'request_id': 'quick-two'}).json()
+    assert again['id'] == item['id']
+    listing = client.get('/api/v1/observation/research-candidates?query=贵州茅台').json()
+    assert listing['total'] == 1 and listing['items'][0]['id'] == item['id']
+    with db.connect() as conn:
+        assert conn.execute('SELECT count(*) FROM manual_observation_candidates').fetchone()[0] == 1
+        assert conn.execute('SELECT count(*) FROM research_observation_candidates').fetchone()[0] == 0
+        assert conn.execute('SELECT count(*) FROM jobs').fetchone()[0] == 0
+
+
+def test_quick_add_conflicts_are_atomic_and_never_guess_unknown_codes(client):
+    body = {'request_id': 'quick-conflict', 'stock_code': '600519.SH'}
+    assert client.post('/api/v1/observation/quick-add', json=body).status_code == 200
+    assert client.post('/api/v1/observation/quick-add', json={**body,'stock_code':'600036.SH'}).status_code == 409
+    assert client.post('/api/v1/observation/quick-add', json={'request_id':'unknown','stock_code':'123456.SH'}).status_code == 422
+    assert client.post('/api/v1/observation/quick-add', json={'request_id':'index','stock_code':'000001.SH'}).status_code == 422
+    with db.connect() as conn:
+        assert conn.execute('SELECT count(*) FROM manual_observation_candidates').fetchone()[0] == 1
+
+
+def test_quick_add_reuses_research_source_and_manual_edit_reactivation_preserves_records(client):
+    research = client.post('/api/v1/observation/research-candidates', json=payload()).json()
+    quick = client.post('/api/v1/observation/quick-add', json={'request_id':'quick-existing','stock_code':'600519.SH'}).json()
+    assert quick['id'] == research['id'] and quick['source_text'] == research['source_text']
+    manual = client.post('/api/v1/observation/quick-add', json={'request_id':'manual-one','stock_code':'600036.SH'}).json()
+    changed = client.patch('/api/v1/observation/research-candidates/'+manual['id'], json={'revision':1,'status':'ended','note':'手动记录'}).json()
+    assert changed['revision'] == 2 and changed['note'] == '手动记录'
+    replay = client.post('/api/v1/observation/quick-add', json={'request_id':'manual-one','stock_code':'600036.SH'}).json()
+    assert replay['status'] == 'ended'
+    readded = client.post('/api/v1/observation/quick-add', json={'request_id':'manual-new','stock_code':'600036.SH'}).json()
+    assert readded['id'] == manual['id'] and readded['status'] == 'watching' and readded['note'] == '手动记录'
+    assert client.get('/api/v1/observation/research-candidates/'+research['id']).json() == research

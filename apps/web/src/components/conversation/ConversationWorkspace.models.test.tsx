@@ -128,7 +128,7 @@ describe('conversation model integration', () => {
     await screen.findByText('当前模型或推理档位不可用，请切换后发送。')
     expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '切换模型' }))
-    expect(screen.getByRole('menuitemradio', { name: /GPT-6 Astra/ })).toBeDisabled()
+    expect(await screen.findByRole('menuitemradio', { name: /GPT-6 Astra/ })).toBeDisabled()
     await user.click(screen.getByRole('menuitemradio', { name: /GPT-6 Luna/ }))
     await waitFor(() => expect(screen.getByRole('button', { name: '发送' })).toBeEnabled())
     expect(state.patches[0].model_id).toBe('gpt-6-luna')

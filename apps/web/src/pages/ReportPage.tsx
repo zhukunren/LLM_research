@@ -1,3 +1,4 @@
+import { StockText } from '../components/StockMentions'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, MessageCircle, RefreshCw, Search, Upload, X } from 'lucide-react'
 import { api } from '../api'
@@ -183,7 +184,7 @@ export default function ReportPage({ onDescribe, onDefineCondition }: { contentO
     const next = Math.max(1, Math.min(selected?.pages || 1, Math.floor(Number(pageInput)) || 1))
     setPage(next); setPageInput(String(next))
   }
-  return <div className="report-reading-workspace library-reading-workspace" data-mobile-view={mobileView}>
+  return <StockText><div className="report-reading-workspace library-reading-workspace" data-mobile-view={mobileView}>
     <div className="report-library-toolbar">
 
       <div className="report-import-actions"><button className="secondary-button" disabled={!!busy} onClick={() => action('index', async () => { const result = await api<{ imported: number; failed: number }>('/documents/import-local', { method: 'POST' }); setNotice('新增 ' + result.imported + ' 份研报' + (result.failed ? '，' + result.failed + ' 份未能读取。' : '。')) })}><RefreshCw size={14} />{busy === 'index' ? '正在索引…' : '索引本地研报'}</button><label className={'upload-label report-upload ' + (busy ? 'disabled' : '')}><Upload size={14} />{busy === 'upload' ? '正在上传…' : '上传 PDF'}<input type="file" accept="application/pdf" disabled={!!busy} aria-label="上传研报 PDF" onChange={event => { void upload(event.target.files?.[0]); event.target.value = '' }} /></label></div>
@@ -237,5 +238,5 @@ export default function ReportPage({ onDescribe, onDefineCondition }: { contentO
         </> : <div className="library-empty">{loading ? '正在加载…' : '未选择研报'}</div>}
       </section>
     </div>
-  </div>
+  </div></StockText>
 }

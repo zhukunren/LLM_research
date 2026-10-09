@@ -1,0 +1,21 @@
+.stock-mention, .redesigned-workspace .stock-mention { display: inline; border: 0; padding: 0; background: none; color: var(--ui-link, #0079c2); font: inherit; font-weight: inherit; text-decoration: none; cursor: pointer; }
+.stock-mention .stock-identity strong, .stock-mention .stock-identity small { color: inherit; }
+.stock-mention:hover { text-decoration: underline; text-underline-offset: 3px; }
+.stock-mention:focus-visible { outline: 2px solid var(--ui-focus-outline, #0079c2); outline-offset: 3px; border-radius: 2px; }
+.stock-action-popover { position: fixed; z-index: 1800; width: min(284px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow-y: auto; padding: 14px; border: 1px solid var(--ui-border); border-radius: 12px; background: white; box-shadow: 0 8px 30px #00000018; font-size: 13px; }
+.stock-action-popover > strong, .stock-action-popover > small { display: block; }
+.stock-action-popover > small { margin: 3px 0 10px; color: var(--ui-text-muted); }
+.stock-action-popover > .stock-action-title { display: block; padding: 0; margin-bottom: 10px; min-height: 0; color: var(--ui-link, #0079c2); }
+.stock-action-title > strong, .stock-action-title > small { display: block; }
+.stock-action-title > small { margin-top: 3px; font-size: 12px; color: inherit; }
+.stock-action-popover > button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; border: 0; border-radius: 7px; padding: 7px; background: white; text-align: left; color: var(--ui-text); cursor: pointer; }
+.stock-action-popover > button:hover:not(:disabled) { background: var(--ui-surface-hover); }
+.stock-action-popover > button:disabled { color: var(--ui-text-muted); cursor: default; }
+.stock-action-popover > a { display: block; padding: 7px; color: var(--ui-primary); }
+.stock-action-popover > p { margin: 8px 0 0; color: var(--ui-text-muted); font-size: 12px; }
+.stock-action-notice { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1601; max-width: calc(100vw - 24px); padding: 10px 14px; border: 1px solid var(--ui-border); border-radius: 10px; background: white; box-shadow: 0 4px 24px #00000014; font-size: 13px; }
+.stock-action-notice button { margin-left: 14px; border: 0; background: none; cursor: pointer; }
+.stock-quote-layer { position: fixed; inset: 0; z-index: 1700; }
+.stock-quote-layer .stock-chart-backdrop { justify-content: flex-end; padding: 0; }
+.stock-quote-layer .stock-chart-dialog { width: min(900px, 100vw); height: 100dvh; max-height: none; border-radius: 0; }
+.stock-chart-dialog .stock-identity strong, .stock-chart-dialog .stock-identity small { color: var(--ui-link, #0079c2); }

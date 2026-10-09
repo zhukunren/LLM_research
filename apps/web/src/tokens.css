@@ -5,7 +5,7 @@
 :root {
   --ui-font-sans: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
   --ui-font-mono: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
-  --ui-reading-size: 15px;
+  --ui-reading-size: 16px;
 
   color-scheme: light;
 

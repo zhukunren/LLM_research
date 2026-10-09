@@ -50,8 +50,47 @@ class CandidatePatch(ContractModel):
         return self
 
 
+class QuickCandidateInput(ContractModel):
+    request_id: str = Field(min_length=1, max_length=100)
+    stock_code: str = Field(pattern=r"^\d{6}\.(SH|SZ|BJ)$")
+
+
+def quick_add(payload: QuickCandidateInput) -> dict:
+    """An explicit manual watch; never invent a completed research source."""
+    request_json = json_dump(payload.model_dump(mode="json"))
+    with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        replay = connection.execute("SELECT * FROM observation_quick_requests WHERE request_id=?", (payload.request_id,)).fetchone()
+        if replay:
+            if replay['request_json'] != request_json:
+                raise CandidateError('同一加入请求不能更换股票。', 409)
+            candidate_id = replay['candidate_id']
+        else:
+            known = connection.execute("SELECT name,market FROM security_catalog WHERE stock_code=?", (payload.stock_code,)).fetchone()
+            if not known or known['market'] not in {'SH', 'SZ', 'BJ'}:
+                raise CandidateError('请使用证券目录中已确认的股票代码。')
+            existing = connection.execute("SELECT id FROM observation_candidate_index WHERE stock_code=? AND status!='ended' ORDER BY updated_at DESC LIMIT 1", (payload.stock_code,)).fetchone()
+            if existing:
+                candidate_id = existing['id']
+            else:
+                manual = connection.execute("SELECT id FROM manual_observation_candidates WHERE stock_code=?", (payload.stock_code,)).fetchone()
+                now = utc_now()
+                candidate_id = manual['id'] if manual else str(uuid4())
+                if manual:
+                    connection.execute("UPDATE manual_observation_candidates SET status='watching',revision=revision+1,updated_at=? WHERE id=?", (now,candidate_id))
+                else:
+                    connection.execute("INSERT INTO manual_observation_candidates(id,request_id,request_json,stock_code,created_at,updated_at) VALUES(?,?,?,?,?,?)", (candidate_id,payload.request_id,request_json,payload.stock_code,now,now))
+            connection.execute("INSERT INTO observation_quick_requests VALUES(?,?,?,?)", (payload.request_id,request_json,candidate_id,utc_now()))
+        row = connection.execute("SELECT c.*,coalesce(s.name,'') name FROM observation_candidate_index c LEFT JOIN security_catalog s ON s.stock_code=c.stock_code WHERE c.id=?", (candidate_id,)).fetchone()
+    if row is None:
+        raise CandidateError('观察记录不存在，请重新加入。', 409)
+    return {**_payload(row), 'idempotent_replay': replay is not None}
+
+
 def _payload(row, name: str = "") -> dict:
     value = dict(row)
+    value.pop('sort_order', None)
+    value.setdefault('origin_kind', 'research')
     value.pop("request_json", None)
     value["source_refs"] = json_load(value.pop("source_refs_json"))
     raw_scope = value.pop("source_scope_json")
@@ -150,12 +189,12 @@ def list_candidates(query: str = "", status: WatchStatus | None = None, offset: 
     if needs_verification:
         clauses.append("c.status!='ended' AND trim(c.verification)=''")
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
-    source = " FROM research_observation_candidates c LEFT JOIN security_catalog s ON s.stock_code=c.stock_code"
+    source = " FROM observation_candidate_index c LEFT JOIN security_catalog s ON s.stock_code=c.stock_code"
     order = {
-        "updated": "c.updated_at DESC,c.rowid DESC",
-        "priority": "(c.status='priority') DESC,c.updated_at DESC,c.rowid DESC",
+        "updated": "c.updated_at DESC,c.sort_order DESC,c.id",
+        "priority": "(c.status='priority') DESC,c.updated_at DESC,c.sort_order DESC,c.id",
         "name": "coalesce(nullif(s.name,''),c.stock_code),c.stock_code,c.id",
-        "verification": "(c.status='ended'),(trim(c.verification)='') DESC,(c.status='priority') DESC,c.updated_at DESC,c.rowid DESC",
+        "verification": "(c.status='ended'),(trim(c.verification)='') DESC,(c.status='priority') DESC,c.updated_at DESC,c.sort_order DESC,c.id",
     }[sort]
     with connect() as connection:
         total = connection.execute("SELECT count(*)" + source + where, parameters).fetchone()[0]
@@ -167,7 +206,7 @@ def get(candidate_id: str) -> dict:
     """Read a known record directly, independent of list filters and pagination."""
     with connect() as connection:
         row = connection.execute(
-            "SELECT c.*,coalesce(s.name,'') name FROM research_observation_candidates c "
+            "SELECT c.*,coalesce(s.name,'') name FROM observation_candidate_index c "
             "LEFT JOIN security_catalog s ON s.stock_code=c.stock_code WHERE c.id=?",
             (candidate_id,),
         ).fetchone()
@@ -179,7 +218,7 @@ def get(candidate_id: str) -> dict:
 def patch(candidate_id: str, payload: CandidatePatch) -> dict:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute("SELECT * FROM research_observation_candidates WHERE id=?", (candidate_id,)).fetchone()
+        row = connection.execute("SELECT * FROM observation_candidate_index WHERE id=?", (candidate_id,)).fetchone()
         if not row:
             raise CandidateError("找不到研究候选。", 404)
         if row["revision"] != payload.revision:
@@ -187,6 +226,7 @@ def patch(candidate_id: str, payload: CandidatePatch) -> dict:
         fields = payload.model_dump(exclude_unset=True)
         fields.pop("revision")
         assignments = ",".join(f"{field}=?" for field in fields)
-        connection.execute(f"UPDATE research_observation_candidates SET {assignments},revision=revision+1,updated_at=? WHERE id=?", (*fields.values(), utc_now(), candidate_id))
-        updated = connection.execute("SELECT c.*,coalesce(s.name,'') name FROM research_observation_candidates c LEFT JOIN security_catalog s ON s.stock_code=c.stock_code WHERE c.id=?", (candidate_id,)).fetchone()
+        table = 'manual_observation_candidates' if row['origin_kind'] == 'manual' else 'research_observation_candidates'
+        connection.execute(f"UPDATE {table} SET {assignments},revision=revision+1,updated_at=? WHERE id=?", (*fields.values(), utc_now(), candidate_id))
+        updated = connection.execute("SELECT c.*,coalesce(s.name,'') name FROM observation_candidate_index c LEFT JOIN security_catalog s ON s.stock_code=c.stock_code WHERE c.id=?", (candidate_id,)).fetchone()
     return _payload(updated)

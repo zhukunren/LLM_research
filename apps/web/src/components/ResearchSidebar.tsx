@@ -1,3 +1,4 @@
+import { StockText } from './StockMentions'
 import { useEffect, useRef, useState } from 'react'
 import { Bot, BookOpen, ChartNoAxesCombined, ChevronDown, Factory, Bookmark, History, FolderOpen, Landmark, ListFilter, MessageCircle, Network, Newspaper, Plus, Search, Settings2, ShieldCheck, Star, Wrench, X } from 'lucide-react'
 import { api, conversationWorkflow, type ConversationScope, type ResearchAssistant, type WorkflowType } from '../api'
@@ -77,7 +78,7 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
     return <button className="chat-nav-button" key={item.id} aria-label={`使用${item.name}`} title={item.launch_description || item.description} disabled={immediate && busy} onClick={() => immediate ? onAssistant(item.id, 'immediate', item.name) : onAssistant(item.id)}><Icon size={16} /><span>{item.name}</span></button>
   }
 
-  return <>
+  return <StockText><>
     {mobileOpen && <div className="chat-sidebar-backdrop" onClick={onClose} aria-hidden="true" />}
     <aside id="workspace-navigation" className="chat-sidebar" role={mobileOpen ? 'dialog' : undefined} aria-modal={mobileOpen ? true : undefined} aria-label="工作导航" onKeyDown={event => {
       if (!mobileOpen) return
@@ -129,5 +130,5 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
       </section>
       <button className="chat-settings chat-nav-button" aria-label="数据与服务" title="数据与服务" onClick={onSettings}><Settings2 size={18} /><span>数据与服务</span></button>
     </aside>
-  </>
+  </></StockText>
 }
