@@ -65,6 +65,28 @@ def completed(setup):
     return queued["run_id"]
 
 
+def test_unified_entries_include_manual_and_screening_with_owner_filters(setup):
+    client, _, _, _ = setup
+    with db.connect() as connection:
+        connection.execute("INSERT INTO security_catalog VALUES('600000.SH','测试甲','','','SH','2026-07-01')")
+    manual = client.post('/api/v1/observation/quick-add', json={'request_id': 'manual-observation', 'stock_code': '600000.SH'})
+    assert manual.status_code == 200, manual.text
+    run_id = completed(setup)
+    listing = client.get('/api/v1/observation/entries').json()
+    assert listing['total'] == 3
+    assert {(item['kind'], item['stock_code']) for item in listing['items']} == {
+        ('candidate', '600000.SH'), ('screening', '600000.SH'), ('screening', '600001.SH')}
+    assert client.get('/api/v1/observation/entries?owner=manual').json()['total'] == 1
+    assert client.get('/api/v1/observation/entries?query=600000.SH').json()['total'] == 2
+    batch = client.get(f'/api/v1/observation/entries?owner=run:{run_id}').json()
+    assert batch['total'] == 2
+    assert all(item['owner_label'].startswith('趋势观察 · ') for item in batch['items'])
+    assert client.get('/api/v1/observation/entries?query=趋势观察').json()['total'] == 2
+    owners = client.get('/api/v1/observation/owners').json()['items']
+    assert {item['value'] for item in owners} == {'manual', f'run:{run_id}'}
+    assert client.get('/api/v1/observation/entries?owner=unknown').status_code == 422
+
+
 def test_saved_execution_is_idempotent_and_freezes_version_and_price(setup):
     client, saved, dates, _ = setup
     assert client.get('/api/v1/observation/runs').json()['total'] == 0

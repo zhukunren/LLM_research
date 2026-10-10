@@ -58,6 +58,105 @@ def _task_name(task):
     return "；".join(c.get("source_quote") or c["description"] for c in task["conditions"])[:100] or "对话选股方案"
 
 
+_OBSERVATION_ENTRIES = """
+WITH entries AS (
+    SELECT 'candidate' kind,c.id entry_id,c.id candidate_id,NULL run_id,
+           c.stock_code,coalesce(s.name,'') name,c.status,c.note,c.verification,c.updated_at,
+           c.origin_kind owner_type,
+           CASE WHEN c.origin_kind='manual' THEN 'manual'
+                WHEN c.project_id IS NULL THEN 'inbox' ELSE 'project:'||c.project_id END owner_key,
+           CASE WHEN c.origin_kind='manual' THEN '手动关注'
+                WHEN c.project_id IS NULL THEN '研究收件箱' ELSE coalesce(p.name,'研究项目') END owner_label,
+           '' search_extra,'' snapshot_json
+      FROM observation_candidate_index c
+      LEFT JOIN security_catalog s ON s.stock_code=c.stock_code
+      LEFT JOIN research_projects p ON p.id=c.project_id
+    UNION ALL
+    SELECT 'screening',r.id||':'||d.stock_code,NULL,r.id,
+           d.stock_code,coalesce(s.name,''),coalesce(n.status,'watching'),coalesce(n.note,''),'',
+           coalesce(n.updated_at,r.created_at),'screening','run:'||r.id,
+           coalesce(e.name,json_extract(r.snapshot_json,'$.observation.name'),'选股批次')||' · '||r.as_of,
+           '',r.snapshot_json
+      FROM screening_task_decisions d
+      JOIN screening_task_runs r ON r.id=d.run_id
+      LEFT JOIN observation_notes n ON n.run_id=d.run_id AND n.stock_code=d.stock_code
+      LEFT JOIN observation_executions e ON e.conversation_id=r.conversation_id
+      LEFT JOIN security_catalog s ON s.stock_code=d.stock_code
+      WHERE d.state='true'
+)
+"""
+
+
+@router.get('/entries')
+def list_entries(query: str = "", status: Literal['watching', 'priority', 'ended'] | None = None,
+                 owner: str = "", sort: Literal['updated', 'priority', 'name'] = 'updated',
+                 offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=100)):
+    """One paginated list across research, manual, and screening observations."""
+    clauses, args = [], []
+    query = query.strip()[:100]
+    if query:
+        clauses.append("instr(lower(stock_code||' '||name||' '||note||' '||owner_label||' '||search_extra),lower(?))>0")
+        args.append(query)
+    if status:
+        clauses.append('status=?')
+        args.append(status)
+    if owner:
+        if owner in {'research', 'manual', 'screening'}:
+            clauses.append('owner_type=?')
+            args.append(owner)
+        elif owner == 'inbox' or owner.startswith(('project:', 'run:')):
+            clauses.append('owner_key=?')
+            args.append(owner)
+        else:
+            raise HTTPException(422, '无效的所属筛选。')
+    where = ' WHERE ' + ' AND '.join(clauses) if clauses else ''
+    order = {
+        'updated': 'updated_at DESC,entry_id',
+        'priority': "(status='priority') DESC,updated_at DESC,entry_id",
+        'name': "coalesce(nullif(name,''),stock_code),stock_code,entry_id",
+    }[sort]
+    with connect() as connection:
+        total = connection.execute(_OBSERVATION_ENTRIES + 'SELECT count(*) FROM entries' + where, args).fetchone()[0]
+        rows = connection.execute(_OBSERVATION_ENTRIES + 'SELECT * FROM entries' + where + f' ORDER BY {order} LIMIT ? OFFSET ?', (*args, limit, offset)).fetchall()
+    items = []
+    for row in rows:
+        item = dict(row)
+        if item['kind'] == 'screening' and item['owner_label'].startswith('选股批次 · '):
+            snapshot = json_load(item['snapshot_json'])
+            item['owner_label'] = _task_name(snapshot['task']) + ' · ' + snapshot.get('effective_market_date', '')
+        item.pop('snapshot_json')
+        item.pop('search_extra')
+        items.append(item)
+    return {'items': items, 'total': total}
+
+
+@router.get('/owners')
+def observation_owners():
+    """Only offer filters that currently contain observation entries."""
+    with connect() as connection:
+        candidates = connection.execute("""SELECT c.origin_kind,c.project_id,p.name,count(*) count
+            FROM observation_candidate_index c LEFT JOIN research_projects p ON p.id=c.project_id
+            GROUP BY c.origin_kind,c.project_id ORDER BY p.name""").fetchall()
+        runs = connection.execute("""SELECT r.id,e.name,r.snapshot_json,r.as_of,count(*) count
+            FROM screening_task_decisions d JOIN screening_task_runs r ON r.id=d.run_id
+            LEFT JOIN observation_executions e ON e.conversation_id=r.conversation_id
+            WHERE d.state='true' GROUP BY r.id ORDER BY r.created_at DESC""").fetchall()
+    items = []
+    for row in candidates:
+        if row['origin_kind'] == 'manual':
+            items.append({'value': 'manual', 'label': '手动关注', 'group': 'research', 'count': row['count']})
+        elif row['project_id']:
+            items.append({'value': 'project:' + row['project_id'], 'label': row['name'] or '研究项目', 'group': 'research', 'count': row['count']})
+        else:
+            items.append({'value': 'inbox', 'label': '研究收件箱', 'group': 'research', 'count': row['count']})
+    for row in runs:
+        snapshot = json_load(row['snapshot_json'])
+        name = row['name'] or snapshot.get('observation', {}).get('name') or _task_name(snapshot['task'])
+        items.append({'value': 'run:' + row['id'], 'label': name + ' · ' + row['as_of'],
+                      'group': 'screening', 'count': row['count']})
+    return {'items': items}
+
+
 class ExecuteSaved(ContractModel):
     request_id: str = Field(min_length=1, max_length=100)
     version: int = Field(ge=1)

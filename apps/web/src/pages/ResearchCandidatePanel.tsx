@@ -100,7 +100,7 @@ type CandidateDraft = Pick<ResearchCandidate, 'status' | 'note' | 'verification'
 function isCandidateDrafts(value: unknown): value is Record<string, CandidateDraft> {
   return !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item => item && typeof item.note === 'string' && typeof item.verification === 'string' && typeof item.invalidation === 'string' && Object.hasOwn(labels, item.status))
 }
-function CandidateDetail({ item, onSaved, onReload, onOpenResearch }: { item: ResearchCandidate; onSaved: (item: ResearchCandidate) => void; onReload: () => void; onOpenResearch?: (id: string) => void }) {
+export function CandidateDetail({ item, onSaved, onReload, onOpenResearch }: { item: ResearchCandidate; onSaved: (item: ResearchCandidate) => void; onReload: () => void; onOpenResearch?: (id: string) => void }) {
   const key = `${item.id}:${item.revision}`
   const [drafts, setDrafts] = useSessionState<Record<string, CandidateDraft>>('observation.candidateDrafts', {}, isCandidateDrafts)
   const draft = drafts[key] ?? { status: item.status, note: item.note, verification: item.verification, invalidation: item.invalidation }
@@ -119,13 +119,13 @@ function CandidateDetail({ item, onSaved, onReload, onOpenResearch }: { item: Re
     finally { if (mounted.current) setBusy(false) }
   }
   const changed = status !== item.status || note !== item.note || verification !== item.verification || invalidation !== item.invalidation
-  return <StockText><aside className="observation-card observation-note research-candidate-editor" aria-label="研究候选详情">
-    <div className="observation-candidate-identity"><h2>{item.name || item.stock_code} · 研究候选</h2><div><span>{item.stock_code}</span><span className={`observation-status ${item.status}`}>{labels[item.status]}</span><span>记录 v{item.revision}</span></div></div>
+  return <StockText><aside className="observation-card observation-note research-candidate-editor" aria-label="观察详情">
+    <div className="observation-candidate-identity"><h2>{item.name || item.stock_code} · 观察记录</h2><div><span>{item.stock_code}</span><span className={`observation-status ${item.status}`}>{labels[item.status]}</span><span>记录 v{item.revision}</span></div></div>
     <p className="observation-muted">加入于 {fullDate(item.created_at)} · 更新于 {fullDate(item.updated_at)}</p>
-    <label>研究候选观察状态<select aria-label="研究候选观察状态" value={status} disabled={busy} onChange={event => updateDraft({ status: event.target.value as typeof status })}>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-    <label><span className="observation-field-title"><BookOpen size={15} />关注备注</span><textarea aria-label="研究候选备注" rows={3} maxLength={2000} disabled={busy} value={note} onChange={event => updateDraft({ note: event.target.value })} /></label>
+    <label>观察状态<select aria-label="观察状态" value={status} disabled={busy} onChange={event => updateDraft({ status: event.target.value as typeof status })}>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+    <label><span className="observation-field-title"><BookOpen size={15} />关注备注</span><textarea aria-label="观察备注" rows={3} maxLength={2000} disabled={busy} value={note} onChange={event => updateDraft({ note: event.target.value })} /></label>
     <div className="observation-verification-plan"><label>后续验证事项<textarea aria-label="后续验证事项" rows={3} maxLength={2000} disabled={busy} value={verification} onChange={event => updateDraft({ verification: event.target.value })} /></label><label>失效条件<textarea aria-label="失效条件" rows={2} maxLength={2000} disabled={busy} value={invalidation} onChange={event => updateDraft({ invalidation: event.target.value })} /></label></div>
-    <div className="observation-save-footer"><small>{changed ? '草稿已暂存' : '记录已保存'}</small><div>{changed && !conflict && <button className="text-button" disabled={busy} onClick={() => { clearDraft(); setMessage('') }}>恢复已保存记录</button>}<button className="primary-button" disabled={busy || !changed || conflict} onClick={() => void save()}>{busy ? '保存中…' : '保存研究观察'}</button></div></div>
+    <div className="observation-save-footer"><small>{changed ? '草稿已暂存' : '记录已保存'}</small><div>{changed && !conflict && <button className="text-button" disabled={busy} onClick={() => { clearDraft(); setMessage('') }}>恢复已保存记录</button>}<button className="primary-button" disabled={busy || !changed || conflict} onClick={() => void save()}>{busy ? '保存中…' : '保存观察记录'}</button></div></div>
     {message && <p className="observation-save-message" role="status">{message}</p>}{conflict && <button className="secondary-button" onClick={() => { clearDraft(); onReload() }}>重新加载较新记录</button>}
     {item.origin_kind === 'manual' ? <p className="observation-muted">来源：手动关注</p> : <><p className="observation-muted">来源截止日：{item.as_of || '来源未记录截止日'} · {item.source_scope_status === 'frozen' ? `研究范围 v${item.source_scope_revision ?? '—'}` : '旧来源的研究范围未知'}</p><details className="research-candidate-source"><summary><BookOpen size={15} />研究来源与原答复</summary><p className="research-candidate-source-text">{item.source_text}</p>{onOpenResearch && item.conversation_id && <button className="secondary-button" onClick={() => onOpenResearch(item.conversation_id!)}><ExternalLink size={14} />打开来源研究对话</button>}</details></>}
   </aside></StockText>

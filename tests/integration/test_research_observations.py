@@ -47,6 +47,19 @@ def test_candidate_sort_and_plan_filter_apply_before_pagination(client):
     assert client.get("/api/v1/observation/research-candidates?sort=invalid").status_code == 422
 
 
+def test_unified_entries_label_research_project_and_filter_before_pagination(client):
+    first = client.post('/api/v1/observation/research-candidates', json=payload()).json()
+    client.post('/api/v1/observation/research-candidates', json=payload(request_id='second', stock_code='600036.SH'))
+    listing = client.get('/api/v1/observation/entries?owner=project:project&limit=1').json()
+    assert listing['total'] == 2 and len(listing['items']) == 1
+    assert listing['items'][0]['owner_label'] == '盈利研究'
+    assert listing['items'][0]['owner_type'] == 'research'
+    assert client.get('/api/v1/observation/entries?owner=screening').json()['total'] == 0
+    assert {'value': 'project:project', 'label': '盈利研究', 'group': 'research', 'count': 2} in client.get('/api/v1/observation/owners').json()['items']
+    client.patch(f"/api/v1/observation/research-candidates/{first['id']}", json={'revision': 1, 'status': 'priority'})
+    assert client.get('/api/v1/observation/entries?status=priority').json()['total'] == 1
+
+
 def test_candidate_freezes_real_source_and_creates_no_screening_run(client):
     response = client.post("/api/v1/observation/research-candidates", json=payload())
     assert response.status_code == 200, response.text
