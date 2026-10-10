@@ -41,7 +41,7 @@ if (Test-Path -LiteralPath $ProcessesFile) {
     if ($Owned.Count -eq $ExpectedServices.Count -and -not $Restart -and (($Existing.web_mode -eq 'bundled') -eq [bool]$UserMode)) {
         try {
             $Health = Invoke-RestMethod -Uri "http://127.0.0.1:$($Existing.api_port)/api/v1/health" -TimeoutSec 3
-            Invoke-WebRequest -Uri "http://127.0.0.1:$($Existing.web_port)" -TimeoutSec 3 | Out-Null
+            Invoke-WebRequest -Uri "http://127.0.0.1:$($Existing.web_port)" -TimeoutSec 3 -UseBasicParsing | Out-Null
             if ($Health.status -eq 'ok') {
                 Write-Host "投研工作台已在运行：http://127.0.0.1:$($Existing.web_port)"
                 return
@@ -92,7 +92,7 @@ $Healthy = $false
 for ($Attempt = 0; $Attempt -lt 40; $Attempt++) {
     try {
         Invoke-RestMethod -Uri "http://127.0.0.1:$ApiPort/api/v1/health" -TimeoutSec 2 | Out-Null
-        Invoke-WebRequest -Uri "http://127.0.0.1:$WebPort" -TimeoutSec 2 | Out-Null
+        Invoke-WebRequest -Uri "http://127.0.0.1:$WebPort" -TimeoutSec 2 -UseBasicParsing | Out-Null
         if ($Worker.HasExited) { throw 'worker exited before startup completed' }
         $Healthy = $true
         break
