@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ObservationPage from './ObservationPage'
@@ -14,7 +14,7 @@ const candidate: ResearchCandidate = {
 const entry = {
   kind: 'candidate', entry_id: 'candidate', candidate_id: 'candidate', run_id: null,
   stock_code: '600519.SH', name: '贵州茅台', status: 'watching', note: '核对经营改善',
-  verification: '下一期公告', updated_at: '2026-10-04T00:00:00Z',
+  verification: '下一期公告', updated_at: '2026-10-04T00:00:00Z', joined_at: '2026-10-04T00:00:00Z', basis_date: '2026-10-04',
   owner_type: 'research', owner_key: 'inbox', owner_label: '研究收件箱',
 }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
@@ -62,6 +62,8 @@ describe('统一列表中的研究观察详情', () => {
     })
     const open = vi.fn(), user = userEvent.setup()
     render(<ObservationPage data={null} onOpenResearch={open} />)
+    const list = await screen.findByRole('region', { name: '观察记录列表' })
+    await user.click(await within(list).findByRole('button', { name: /贵州茅台/ }))
     await screen.findByRole('complementary', { name: '观察详情' })
     await user.click(screen.getByText('研究来源与原答复'))
     expect(screen.getByText(candidate.source_text)).toBeInTheDocument()
@@ -78,6 +80,8 @@ describe('统一列表中的研究观察详情', () => {
     mockApi((_url, init) => init?.method === 'PATCH' ? json({ detail: '观察记录已更新，请重新加载后再保存' }, 409) : undefined)
     const user = userEvent.setup()
     render(<ObservationPage data={null} />)
+    const list = await screen.findByRole('region', { name: '观察记录列表' })
+    await user.click(await within(list).findByRole('button', { name: /贵州茅台/ }))
     const input = await screen.findByLabelText('观察备注')
     await user.type(input, '新增想法')
     await user.click(screen.getByRole('button', { name: '保存观察记录' }))

@@ -1,6 +1,8 @@
 """Read a cohort in one Parquet query; horizons use market trading dates."""
 from functools import lru_cache
 
+import pyarrow as pa
+
 from . import market
 
 
@@ -17,6 +19,73 @@ def cohort_prices(codes, signal_date, latest_date):
     result = _cohort_prices(fingerprint, tuple(sorted(codes)), signal_date, latest_date)
     if market.source_fingerprint() != fingerprint:
         raise ValueError("读取期间行情发生更新，请刷新观察池。")
+    return result
+
+
+def entry_metrics(entries, latest_date):
+    """Close-to-close movement and peak-to-trough drawdown for observation entries.
+
+    Each entry carries its own calculation start. Screening entries require a
+    valid close on the signal day; a manually added entry may start on the next
+    trading day. One market scan covers the full watchlist and is cached until
+    either its entries or the market file changes.
+    """
+    fingerprint = market.source_fingerprint()
+    if not fingerprint or not latest_date:
+        return {}
+    key = tuple(sorted((str(entry_id), str(code), str(start), bool(exact))
+                       for entry_id, code, start, exact in entries if start and str(start) <= latest_date))
+    if not key:
+        return {}
+    result = _entry_metrics(fingerprint, key, latest_date)
+    if market.source_fingerprint() != fingerprint:
+        raise ValueError("读取期间行情发生更新，请刷新观察池。")
+    return result
+
+
+@lru_cache(maxsize=3)
+def _entry_metrics(fingerprint, entries, latest_date):
+    inputs = pa.table({
+        "entry_id": [item[0] for item in entries],
+        "stock_code": [item[1] for item in entries],
+        "start_date": [item[2] for item in entries],
+        "exact_base": [item[3] for item in entries],
+    })
+    with market._open() as connection:
+        connection.register("observation_inputs", inputs)
+        rows = connection.execute(f"""WITH valid AS (
+            SELECT i.entry_id,i.start_date,i.exact_base,b.trade_date::DATE AS trade_day,b.close
+              FROM observation_inputs i
+              JOIN read_parquet({market._literal_path(market.STOCK_FILE)}) b
+                ON b.stock_code=i.stock_code
+             WHERE b.trade_date::DATE BETWEEN CAST(? AS DATE) AND CAST(? AS DATE)
+               AND b.trade_date::DATE>=CAST(i.start_date AS DATE)
+               AND coalesce(isfinite(b.open) AND isfinite(b.high) AND isfinite(b.low) AND isfinite(b.close)
+                   AND isfinite(b.volume) AND isfinite(b.amount)
+                   AND least(b.open,b.high,b.low,b.close)>0
+                   AND b.high>=greatest(b.open,b.low,b.close)
+                   AND b.low<=least(b.open,b.high,b.close)
+                   AND b.volume>=0 AND b.amount>=0,false)
+        ), path AS (
+            SELECT *,max(close) OVER (PARTITION BY entry_id ORDER BY trade_day
+                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_peak
+            FROM valid
+        ) SELECT entry_id,min(trade_day) first_date,max(trade_day) latest_date,
+                 arg_min(close,trade_day) base_close,arg_max(close,trade_day) latest_close,
+                 min((close/running_peak-1)*100) max_drawdown,count(*) observed_days,
+                 bool_or(trade_day=CAST(start_date AS DATE)) exact_found,bool_or(exact_base) exact_base
+            FROM path GROUP BY entry_id""", [min(item[2] for item in entries), latest_date]).fetchall()
+    result = {}
+    for entry_id, first_date, price_date, base, latest, drawdown, days, exact_found, exact in rows:
+        if exact and not exact_found:
+            result[entry_id] = {"return_latest": None, "max_drawdown": None,
+                                "base_date": None, "price_date": str(price_date),
+                                "metric_reason": "信号日缺少有效收盘价"}
+        else:
+            result[entry_id] = {"return_latest": (latest / base - 1) * 100,
+                                "max_drawdown": drawdown, "base_date": str(first_date),
+                                "price_date": str(price_date), "observed_days": days,
+                                "metric_reason": ""}
     return result
 
 

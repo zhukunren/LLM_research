@@ -65,8 +65,29 @@ def completed(setup):
     return queued["run_id"]
 
 
+def test_entry_metrics_use_each_start_date_and_close_based_drawdown(tmp_path, monkeypatch):
+    path = tmp_path / 'metric-bars.parquet'
+    closes = [10., 12., 9., 11.]
+    rows = [dict(stock_code='600000.SH', trade_date=datetime(2026, 7, day),
+                 open=close, high=close + 1, low=close - 1, close=close, volume=100., amount=1000.)
+            for day, close in enumerate(closes, start=1)]
+    pq.write_table(pa.Table.from_pylist(rows), path)
+    monkeypatch.setattr(market, 'STOCK_FILE', path)
+    result = observation_market.entry_metrics([
+        ('research', '600000.SH', '2026-07-01', False),
+        ('screening', '600000.SH', '2026-07-02', True),
+        ('missing', '600000.SH', '2026-06-30', True),
+    ], '2026-07-04')
+    assert result['research']['return_latest'] == pytest.approx(10)
+    assert result['research']['max_drawdown'] == pytest.approx(-25)
+    assert result['screening']['return_latest'] == pytest.approx((11 / 12 - 1) * 100)
+    assert result['screening']['max_drawdown'] == pytest.approx(-25)
+    assert result['missing']['return_latest'] is None
+    assert result['missing']['metric_reason'] == '信号日缺少有效收盘价'
+
+
 def test_unified_entries_include_manual_and_screening_with_owner_filters(setup):
-    client, _, _, _ = setup
+    client, _, dates, _ = setup
     with db.connect() as connection:
         connection.execute("INSERT INTO security_catalog VALUES('600000.SH','测试甲','','','SH','2026-07-01')")
     manual = client.post('/api/v1/observation/quick-add', json={'request_id': 'manual-observation', 'stock_code': '600000.SH'})
@@ -74,17 +95,47 @@ def test_unified_entries_include_manual_and_screening_with_owner_filters(setup):
     run_id = completed(setup)
     listing = client.get('/api/v1/observation/entries').json()
     assert listing['total'] == 3
+    assert listing['summary']['research_count'] == 1
+    assert listing['summary']['screening_count'] == 2
+    assert listing['summary']['priced_count'] == 2
     assert {(item['kind'], item['stock_code']) for item in listing['items']} == {
         ('candidate', '600000.SH'), ('screening', '600000.SH'), ('screening', '600001.SH')}
-    assert client.get('/api/v1/observation/entries?owner=manual').json()['total'] == 1
+    quick_list = client.get('/api/v1/observation/entries?include_metrics=false').json()
+    assert quick_list['total'] == 3 and 'return_latest' not in quick_list['items'][0]
+    manual_only = client.get('/api/v1/observation/entries?owner=manual').json()
+    assert manual_only['total'] == 1 and manual_only['summary']['priced_count'] == 0
+    assert manual_only['items'][0]['metric_reason'] == '起算日之后暂无行情'
     assert client.get('/api/v1/observation/entries?query=600000.SH').json()['total'] == 2
     batch = client.get(f'/api/v1/observation/entries?owner=run:{run_id}').json()
     assert batch['total'] == 2
+    assert batch['summary']['screening_count'] == 2 and batch['summary']['research_count'] == 0
+    assert batch['summary']['average_return'] == pytest.approx(250)
+    assert batch['summary']['worst_drawdown'] == pytest.approx(0)
+    assert all(item['return_latest'] == pytest.approx(250) and item['max_drawdown'] == pytest.approx(0) for item in batch['items'])
+    assert all(item['joined_at'] and item['basis_date'] == dates[0].isoformat() for item in batch['items'])
     assert all(item['owner_label'].startswith('趋势观察 · ') for item in batch['items'])
     assert client.get('/api/v1/observation/entries?query=趋势观察').json()['total'] == 2
     owners = client.get('/api/v1/observation/owners').json()['items']
     assert {item['value'] for item in owners} == {'manual', f'run:{run_id}'}
     assert client.get('/api/v1/observation/entries?owner=unknown').status_code == 422
+
+
+def test_manual_observation_metrics_start_when_added_to_pool(setup):
+    client, _, dates, _ = setup
+    with db.connect() as connection:
+        connection.execute("INSERT INTO security_catalog VALUES('600000.SH','测试甲','','','SH','2026-07-01')")
+    created = client.post('/api/v1/observation/quick-add', json={'request_id': 'manual-start', 'stock_code': '600000.SH'})
+    assert created.status_code == 200
+    joined_at = dates[4].isoformat() + 'T09:00:00Z'
+    with db.connect() as connection:
+        connection.execute('UPDATE manual_observation_candidates SET created_at=?,updated_at=? WHERE id=?',
+                           (joined_at, joined_at, created.json()['id']))
+    response = client.get('/api/v1/observation/entries?owner=manual').json()
+    item = response['items'][0]
+    assert item['joined_at'] == joined_at and item['basis_date'] == dates[4].isoformat()
+    assert item['base_date'] == dates[4].isoformat()
+    assert item['return_latest'] == pytest.approx((35 / 14 - 1) * 100)
+    assert response['summary']['priced_count'] == 1
 
 
 def test_saved_execution_is_idempotent_and_freezes_version_and_price(setup):

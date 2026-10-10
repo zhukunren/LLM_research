@@ -13,6 +13,7 @@ describe('stable workspace URLs', () => {
     { page: 'conditions', view: 'compose' }, { page: 'research', projectId: 'project-1' },
     { page: 'watchlist', candidateId: 'candidate-1', observationTab: 'candidates' },
     { page: 'watchlist', runId: 'batch-1', observationTab: 'batches' },
+    { page: 'watchlist', runId: 'batch-1', observationCode: '600000.SH', observationTab: 'batches' },
     { page: 'watchlist', observationTab: 'candidates' }, { page: 'technical' }, { page: 'reports' },
   ])('round-trips an explicit location %#', route => expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route))
 
@@ -44,7 +45,7 @@ describe('stable workspace URLs', () => {
     expect(window.location.hash).toBe('#/research/new')
   })
 
-  it.each(['#workspace-main', '#/unknown', '#/research/a/b', '#/research/%2f', '#/research/%', '#/projects/..', '#/screening?view=unknown', '#/research?scope=invalid', '#/observation/batches/a/b'])('rejects malformed or unrelated locations %s', hash => {
+  it.each(['#workspace-main', '#/unknown', '#/research/a/b', '#/research/%2f', '#/research/%', '#/projects/..', '#/screening?view=unknown', '#/research?scope=invalid', '#/observation/batches/a/b', '#/observation/candidates/a/600000.SH'])('rejects malformed or unrelated locations %s', hash => {
     expect(parseWorkspaceRoute(hash)).toBeNull()
   })
 

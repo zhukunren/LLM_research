@@ -67,7 +67,8 @@ WITH entries AS (
                 WHEN c.project_id IS NULL THEN 'inbox' ELSE 'project:'||c.project_id END owner_key,
            CASE WHEN c.origin_kind='manual' THEN '手动关注'
                 WHEN c.project_id IS NULL THEN '研究收件箱' ELSE coalesce(p.name,'研究项目') END owner_label,
-           '' search_extra,'' snapshot_json
+           '' search_extra,'' snapshot_json,c.created_at joined_at,
+           date(c.created_at,'+8 hours') basis_date,0 exact_base
       FROM observation_candidate_index c
       LEFT JOIN security_catalog s ON s.stock_code=c.stock_code
       LEFT JOIN research_projects p ON p.id=c.project_id
@@ -76,7 +77,8 @@ WITH entries AS (
            d.stock_code,coalesce(s.name,''),coalesce(n.status,'watching'),coalesce(n.note,''),'',
            coalesce(n.updated_at,r.created_at),'screening','run:'||r.id,
            coalesce(e.name,json_extract(r.snapshot_json,'$.observation.name'),'选股批次')||' · '||r.as_of,
-           '',r.snapshot_json
+           '',r.snapshot_json,r.created_at,
+           coalesce(json_extract(r.snapshot_json,'$.effective_market_date'),r.as_of),1
       FROM screening_task_decisions d
       JOIN screening_task_runs r ON r.id=d.run_id
       LEFT JOIN observation_notes n ON n.run_id=d.run_id AND n.stock_code=d.stock_code
@@ -87,10 +89,27 @@ WITH entries AS (
 """
 
 
+def _entry_payload(row, metrics=None, latest_date=None):
+    item = dict(row)
+    if item['kind'] == 'screening' and item['owner_label'].startswith('选股批次 · '):
+        snapshot = json_load(item['snapshot_json'])
+        item['owner_label'] = _task_name(snapshot['task']) + ' · ' + snapshot.get('effective_market_date', '')
+    item.pop('snapshot_json')
+    item.pop('search_extra')
+    item.pop('exact_base')
+    if metrics is not None:
+        item.update(metrics.get(item['entry_id'], {
+            'return_latest': None, 'max_drawdown': None, 'base_date': None, 'price_date': None,
+            'metric_reason': '起算日之后暂无行情' if latest_date and item['basis_date'] > latest_date else '缺少有效行情',
+        }))
+    return item
+
+
 @router.get('/entries')
 def list_entries(query: str = "", status: Literal['watching', 'priority', 'ended'] | None = None,
                  owner: str = "", sort: Literal['updated', 'priority', 'name'] = 'updated',
-                 offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=100)):
+                 offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=100),
+                 include_metrics: bool = True):
     """One paginated list across research, manual, and screening observations."""
     clauses, args = [], []
     query = query.strip()[:100]
@@ -118,16 +137,34 @@ def list_entries(query: str = "", status: Literal['watching', 'priority', 'ended
     with connect() as connection:
         total = connection.execute(_OBSERVATION_ENTRIES + 'SELECT count(*) FROM entries' + where, args).fetchone()[0]
         rows = connection.execute(_OBSERVATION_ENTRIES + 'SELECT * FROM entries' + where + f' ORDER BY {order} LIMIT ? OFFSET ?', (*args, limit, offset)).fetchall()
-    items = []
-    for row in rows:
-        item = dict(row)
-        if item['kind'] == 'screening' and item['owner_label'].startswith('选股批次 · '):
-            snapshot = json_load(item['snapshot_json'])
-            item['owner_label'] = _task_name(snapshot['task']) + ' · ' + snapshot.get('effective_market_date', '')
-        item.pop('snapshot_json')
-        item.pop('search_extra')
-        items.append(item)
-    return {'items': items, 'total': total}
+        if not include_metrics:
+            return {'items': [_entry_payload(row) for row in rows], 'total': total}
+        filtered = connection.execute(_OBSERVATION_ENTRIES + 'SELECT entry_id,owner_type,status FROM entries' + where, args).fetchall()
+        metric_inputs = connection.execute(_OBSERVATION_ENTRIES + 'SELECT entry_id,stock_code,basis_date,exact_base FROM entries').fetchall()
+    profile = market.cached_profile()
+    latest_date = profile.get('last_date')
+    try:
+        metrics = observation_market.entry_metrics((tuple(row) for row in metric_inputs), latest_date)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    usable = [metrics[row['entry_id']] for row in filtered if metrics.get(row['entry_id'], {}).get('return_latest') is not None]
+    movements = [item['return_latest'] for item in usable]
+    drawdowns = [item['max_drawdown'] for item in usable]
+    summary = {
+        'total': total,
+        'research_count': sum(row['owner_type'] in {'research', 'manual'} for row in filtered),
+        'screening_count': sum(row['owner_type'] == 'screening' for row in filtered),
+        'priced_count': len(usable),
+        'average_return': mean(movements) if movements else None,
+        'worst_drawdown': min(drawdowns) if drawdowns else None,
+        'positive_rate': 100 * sum(value > 0 for value in movements) / len(movements) if movements else None,
+    }
+    metric_note = '汇总按观察记录计算，同一股票在不同所属中分别计入；涨跌幅按有效收盘价计算，不含分红和交易费用，最大回撤采用收盘价峰谷。'
+    if profile.get('price_basis') not in {'forward_adjusted', 'back_adjusted'}:
+        metric_note += ' 复权口径未确认，除权除息可能影响数值。'
+    return {'items': [_entry_payload(row, metrics, latest_date) for row in rows], 'total': total,
+            'summary': summary, 'metric_note': metric_note,
+            'latest_date': latest_date}
 
 
 @router.get('/owners')

@@ -8,6 +8,7 @@ export type WorkspaceRoute = {
   projectId?: string
   candidateId?: string
   runId?: string
+  observationCode?: string
   scope?: ConversationScope
   view?: ScreeningView
   newDraft?: boolean
@@ -17,6 +18,7 @@ export type WorkspaceRoute = {
 const scopes: ConversationScope[] = ['screening', 'technical', 'news', 'report', 'pattern']
 const views: ScreeningView[] = ['conversation', 'create', 'library', 'compose', 'history', 'saved']
 const objectId = /^[A-Za-z0-9_-]{1,100}$/
+const stockCode = /^\d{6}\.(SH|SZ|BJ)$/
 const simplePaths: Partial<Record<PageId, string>> = { home: 'home', assistants: 'assistants', news: 'library/news', technical: 'library/technical', patterns: 'library/patterns', reports: 'library/reports' }
 
 /** Public paths use product names; legacy page IDs stay behind this mapping. */
@@ -45,8 +47,11 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   if (parts[0] === 'projects' && parts.length <= 2 && (!parts[1] || objectId.test(parts[1]))) return { page: 'research', ...(parts[1] ? { projectId: parts[1] } : {}) }
   if (parts[0] === 'observation') {
     if (parts.length === 1) return { page: 'watchlist', ...sharedWorkspace }
-    if (parts.length > 3 || !['candidates', 'batches'].includes(parts[1]) || (parts[2] && !objectId.test(parts[2]))) return null
-    return { page: 'watchlist', ...sharedWorkspace, observationTab: parts[1] as 'candidates' | 'batches', ...(parts[2] ? parts[1] === 'candidates' ? { candidateId: parts[2] } : { runId: parts[2] } : {}) }
+    if (parts.length > 4 || !['candidates', 'batches'].includes(parts[1]) || (parts[2] && !objectId.test(parts[2]))
+        || (parts[1] === 'candidates' && parts.length > 3)
+        || (parts[3] && (parts[1] !== 'batches' || !parts[2] || !stockCode.test(parts[3])))) return null
+    return { page: 'watchlist', ...sharedWorkspace, observationTab: parts[1] as 'candidates' | 'batches',
+      ...(parts[2] ? parts[1] === 'candidates' ? { candidateId: parts[2] } : { runId: parts[2], ...(parts[3] ? { observationCode: parts[3] } : {}) } : {}) }
   }
   return null
 }
@@ -61,7 +66,7 @@ export function workspaceRouteHash(route: WorkspaceRoute): string {
   const path = route.page === 'screening' ? `research${id ? '/' + id : ''}`
     : route.page === 'conditions' ? `screening${id ? '/' + id : ''}`
       : route.page === 'research' ? `projects${route.projectId ? '/' + encodeURIComponent(route.projectId) : ''}`
-        : route.page === 'watchlist' ? `observation${route.runId ? '/batches/' + encodeURIComponent(route.runId) : route.candidateId ? '/candidates/' + encodeURIComponent(route.candidateId) : route.observationTab ? '/' + route.observationTab : ''}`
+        : route.page === 'watchlist' ? `observation${route.runId ? '/batches/' + encodeURIComponent(route.runId) + (route.observationCode ? '/' + encodeURIComponent(route.observationCode) : '') : route.candidateId ? '/candidates/' + encodeURIComponent(route.candidateId) : route.observationTab ? '/' + route.observationTab : ''}`
           : simplePaths[route.page] || 'home'
   return '#/' + path + (params.size ? '?' + params.toString() : '')
 }
