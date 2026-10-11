@@ -10,7 +10,7 @@
 .chat-workspace-name { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 10px 12px 20px; font-size: 12px; font-weight: 600; color: var(--ui-brand); }
 .chat-workspace-name > span { font-size: 10px; font-weight: 400; color: var(--ui-sidebar-muted); }
 .chat-navigation { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; max-height: 54dvh; overflow-y: auto; }
-.chat-nav-button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 42px; padding: 9px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--ui-sidebar-text); text-align: left; font-size: 14px; cursor: pointer; transition: background var(--ui-transition), color var(--ui-transition); }
+.chat-nav-button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 42px; padding: 9px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--ui-sidebar-text); text-align: left; font-size: 13px; cursor: pointer; transition: background var(--ui-transition), color var(--ui-transition); }
 .chat-nav-button > svg { flex-shrink: 0; color: currentColor; }
 .chat-nav-button > span { flex: 1; }
 .chat-nav-button:hover { background: var(--ui-sidebar-hover); }

@@ -1,6 +1,6 @@
 .chat-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; margin-bottom: 9px; }
 .chat-history .chat-history-heading h2 { padding: 0; margin: 0; }
-.chat-history-archive-toggle { border: 0; padding: 3px 0; background: transparent; color: var(--ui-sidebar-muted); font-size: 12px; cursor: pointer; }
+.chat-history-archive-toggle { border: 0; padding: 3px 0; background: transparent; color: var(--ui-sidebar-muted); font-size: 11px; cursor: pointer; }
 .chat-history-archive-toggle:hover { color: var(--ui-brand); }
 .chat-history-row { display: flex; align-items: center; gap: 2px; min-height: 40px; padding-right: 5px; border-radius: 9px; }
 .chat-history-row:hover, .chat-history-row:focus-within, .chat-history-row.menu-open { background: var(--ui-sidebar-hover); }

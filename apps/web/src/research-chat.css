@@ -36,12 +36,12 @@
 }
 /* Entry, reading and action controls have one owner after the workspace layout. */
 .chat-page .chat-empty-heading { margin-bottom: 28px; }
-.chat-page .chat-empty-heading h1 { font-size: clamp(26px, 3vw, 36px); font-weight: 550; letter-spacing: -.025em; margin: 20px 0 0; line-height: 1.35; }
+.chat-page .chat-empty-heading h1 { font-size: clamp(28px, 3vw, 34px); font-weight: 550; letter-spacing: -.025em; margin: 20px 0 0; line-height: 1.35; }
 .research-welcome-mark { display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: 19px; background: var(--ui-primary-soft); }
 .research-welcome-mark img { display: block; width: 38px; height: auto; }
 .chat-page .research-studio .conversation-workspace-empty .conversation-main { padding-block: 36px 64px; }
 .chat-page .research-studio .conversation-workspace-empty .conversation-composer:focus-within { border-color: var(--ui-primary); box-shadow: var(--ui-focus-shadow); }
-.chat-page .research-studio .research-answer { font-size: 16px; line-height: 1.9; }
+.chat-page .research-studio .research-answer { font-size: 15px; line-height: 1.9; }
 .chat-page .research-studio .research-answer :is(p, li, blockquote) { font-size: inherit; line-height: inherit; }
 .chat-page .research-studio:not(.screening-studio) .conversation-message.assistant { width: 100%; }
 .chat-page .research-studio:not(.screening-studio) .research-answer { width: 100%; max-width: none; }

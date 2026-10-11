@@ -2,7 +2,7 @@
 .assistant-catalog-content { padding: 4px 2px 24px; }
 .assistant-catalog-section + .assistant-catalog-section { margin-top: 32px; }
 .assistant-section-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 16px; }
-.assistant-section-heading h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ui-text); }
+.assistant-section-heading h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--ui-text); }
 .assistant-section-heading p { margin: 0; font-size: 12px; color: var(--ui-text-muted); }
 .assistant-options { display: grid; align-items: start; gap: 16px; }
 .assistant-options-immediate { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -14,10 +14,12 @@
 .assistant-option-icon { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: 12px; color: var(--ui-primary); background: var(--ui-surface-subtle); }
 .assistant-option-immediate .assistant-option-heading { flex-direction: column; gap: 16px; }
 .assistant-option-immediate .assistant-option-icon { width: 40px; height: 40px; }
-.assistant-option h3 { margin: 0 0 7px; font-size: 16px; line-height: 1.5; font-weight: 600; }
-.assistant-option-heading p { margin: 0; font-size: 13px; line-height: 1.7; color: var(--ui-text-muted); overflow-wrap: anywhere; }
+.assistant-option h3 { margin: 0 0 7px; font-size: 14px; line-height: 1.5; font-weight: 600; }
+.assistant-option-heading p { margin: 0; font-size: 12px; line-height: 1.7; color: var(--ui-text-muted); overflow-wrap: anywhere; }
 .assistant-option-footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 18px; }
 .assistant-option-start { display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex-shrink: 0; min-height: 36px; padding: 7px 4px; border: 0; border-radius: 8px; background: transparent; color: var(--ui-primary); font-size: 13px; font-weight: 500; line-height: 1.5; cursor: pointer; }
+/* Match the original immediate-action button scale; topic actions remain 13px. */
+.assistant-option-immediate .assistant-option-start { font-size: 12px; }
 .assistant-option-start:hover:not(:disabled) { background: var(--ui-surface-hover); }
 .assistant-option-start:disabled { opacity: .5; cursor: wait; }
 .assistant-option-start:focus-visible, .assistant-option-details > summary:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 4px; }
