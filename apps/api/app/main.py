@@ -27,6 +27,7 @@ from .screening_api import router as screening_router
 from .news_api import router as news_router
 from .saved_screening_api import router as saved_screening_router
 from .condition_api import router as condition_router
+from .dynamic_indicator_api import router as dynamic_indicator_router
 from .pattern_language import router as pattern_language_router
 from .product_api import router as product_router
 from .observation_api import router as observation_router
@@ -87,6 +88,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="LLM 投研工作平台", version="0.1.0", lifespan=lifespan)
 app.include_router(condition_router)
+app.include_router(dynamic_indicator_router)
 app.include_router(conversation_router)
 app.include_router(research_scan_router)
 app.include_router(screening_router)

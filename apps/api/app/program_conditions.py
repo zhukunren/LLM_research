@@ -151,8 +151,12 @@ def evaluate_batch(
         "required_history_bars": program.required_history_bars,
         "data_as_of": data_dates,
     }
-    from . import runtime_executor
+    from . import market, runtime_executor
 
+    # Numeric-indicator adapters verify saved semantics against the actual data
+    # used now; ordinary existing screen programs can ignore these extra keys.
+    profile = market.cached_profile()
+    context.update({key: profile.get(key, "unknown") for key in ("price_basis", "volume_unit", "amount_unit")})
     raw_result = runtime_executor.execute_program(
         source_code=program.source_code,
         context=context,

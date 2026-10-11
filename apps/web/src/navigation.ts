@@ -7,13 +7,13 @@ export const workspaceMenus = [
   { id: 'conditions', label: '条件选股', mobileLabel: '选股', description: '描述条件、组合执行并回看判断依据', icon: ListFilter },
   { id: 'watchlist', label: '观察池', mobileLabel: '观察', description: '跟踪研究候选与筛选批次', icon: Star },
   { id: 'news', label: '资讯库', mobileLabel: '资讯', description: '阅读资讯，查找业务变化与催化', icon: Newspaper },
-  { id: 'technical', label: '技术指标库', mobileLabel: '指标', description: '查看行情与指标，描述选股条件', icon: Activity },
+  { id: 'technical', label: '内置指标参考', mobileLabel: '参考', description: '高级工具：核对内置公式与行情，自定义指标在研究或选股的“我的指标”中生成', icon: Activity },
   { id: 'patterns', label: '形态库', mobileLabel: '形态', description: '用真实 K 线核对目标走势', icon: Shapes },
   { id: 'reports', label: '研报库', mobileLabel: '研报', description: '阅读原文，核对公司研究证据', icon: FileText },
   { id: 'assistants', label: '研究助手', mobileLabel: '助手', description: '选择现成的投研助手，一键开始研究', icon: Bot },
 ] as const
 
-export const workspaceLibraryMenus = workspaceMenus.filter(item => ['news', 'technical', 'patterns', 'reports'].includes(item.id))
+export const workspaceLibraryMenus = workspaceMenus.filter(item => ['news', 'patterns', 'reports'].includes(item.id))
 // Keep the existing page IDs so saved reading positions remain valid.
 export const workspacePrimaryMenus = workspaceMenus.filter(item => ['home', 'screening', 'conditions', 'watchlist'].includes(item.id)).map(item => item.id === 'screening' ? { ...item, label: '研究', mobileLabel: '研究' } : item)
 

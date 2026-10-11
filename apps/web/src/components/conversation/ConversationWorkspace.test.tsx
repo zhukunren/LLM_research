@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
@@ -493,4 +493,37 @@ describe('ConversationWorkspace', () => {
     await screen.findByText('我会基于所选研报页回答。')
     expect(submittedSources).toEqual([{ kind: 'report_page', source_id: 'doc-1', page_number: 2 }])
   })
+})
+
+
+it.each(['research', 'screening'] as const)('keeps the existing %s draft when an arbitrary indicator request is added', async workflow => {
+  const fetcher = vi.fn(async () => jsonResponse({ items: [] }))
+  vi.stubGlobal('fetch', fetcher)
+  const user = userEvent.setup()
+  render(<ConversationWorkspace initialWorkflowType={workflow} data={{ available: true, last_date: '2026-06-29' }} />)
+  const label = workflow === 'research' ? '研究要求' : '选股要求'
+  await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
+  fireEvent.change(screen.getByLabelText(label), { target: { value: '保留原来的公司研究问题' } })
+  await user.click(screen.getByRole('button', { name: '我的指标' }))
+  await user.type(screen.getByLabelText('指标描述'), '生成过去17日成交加权偏离')
+  await user.click(screen.getByRole('button', { name: '写入生成请求' }))
+  expect(screen.queryByRole('dialog', { name: '我的指标' })).not.toBeInTheDocument()
+  expect((screen.getByLabelText(label) as HTMLTextAreaElement).value).toContain('保留原来的公司研究问题')
+  expect((screen.getByLabelText(label) as HTMLTextAreaElement).value).toContain('preview_dynamic_indicator')
+  expect((screen.getByLabelText(label) as HTMLTextAreaElement).value).toContain('生成过去17日成交加权偏离')
+  expect(fetcher.mock.calls.every(call => !(call as unknown as [unknown, RequestInit])[1]?.method)).toBe(true)
+})
+
+it('reports an oversized indicator handoff inside the drawer without replacing the original draft', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ items: [] })))
+  const user = userEvent.setup()
+  render(<ConversationWorkspace initialWorkflowType="research" data={{ available: true, last_date: '2026-06-29' }} />)
+  await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+  const draft = '保留'.repeat(3950)
+  fireEvent.change(screen.getByLabelText('研究要求'), { target: { value: draft } })
+  await user.click(screen.getByRole('button', { name: '我的指标' }))
+  await user.type(screen.getByLabelText('指标描述'), '生成新的量价指标')
+  await user.click(screen.getByRole('button', { name: '写入生成请求' }))
+  expect(screen.getByRole('dialog', { name: '我的指标' })).toHaveTextContent('当前草稿加上指标请求过长')
+  expect(screen.getByLabelText('研究要求')).toHaveValue(draft)
 })

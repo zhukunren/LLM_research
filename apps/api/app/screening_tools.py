@@ -30,6 +30,7 @@ TASK_MUTATION_TOOLS = frozenset({"propose_screening_task"})
 SCREENING_WORKFLOW_TOOLS = frozenset({
     "propose_screening_task", "save_screening_plan", "authorize_screening_execution",
     "revoke_screening_execution", "preview_screening_program", "execute_screening_task",
+    "build_indicator_condition",
 })
 FIXED_CUTOFF_EVIDENCE_TOOLS = frozenset({
     "list_report_sources", "read_evidence_chunk", "list_news_sources", "read_news_chunk",
@@ -724,6 +725,20 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
     return candidate
 
 
+def _screening_date_intent_text(content: str) -> str:
+    """Do not interpret a saved indicator's quoted name as a new cutoff.
+
+    This applies only to the explicit My Indicators handoff template. Keep all
+    free-form user additions so an appended historical/latest-date change still
+    wins under the existing date rules; original messages remain untouched.
+    """
+    if "build_indicator_condition" not in content or "沿用已有选股方案的股票范围与截止日期" not in content:
+        return content
+    value = re.sub(r'^请将我已保存的指标 [^\n]*的固定版本加入选股草稿：\s*$', '', content, flags=re.MULTILINE)
+    value = re.sub(r'^(?:indicator_id|version|definition_hash|output|operator|threshold)=[^\n]*$', '', value, flags=re.MULTILINE)
+    return re.sub(r'数值输出“[^\n]*?才构成布尔条件。', '', value, count=1)
+
+
 def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
     raw = args.task.model_dump(mode="json")
     if len(json.dumps(raw, ensure_ascii=False, separators=(",", ":"))) > 200_000:
@@ -756,7 +771,8 @@ def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, A
                 quote = re.sub(r"\s+", "", str(reference["source_quote"]))
                 if quote not in user_text:
                     reference["source_quote"] = current_user["content"]
-        board_match = re.search(r"科创板|创业板|北交所|主板", current_user["content"])
+        date_intent_text = _screening_date_intent_text(current_user["content"])
+        board_match = re.search(r"科创板|创业板|北交所|主板", date_intent_text)
         if board_match:
             unresolved = raw.setdefault("unresolved", [])
             if not any(
@@ -772,11 +788,11 @@ def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, A
         scope = raw.get("scope") if isinstance(raw.get("scope"), dict) else {}
         explicit_date = re.search(
             r"20\d{2}[-/]\d{1,2}[-/]\d{1,2}|20\d{2}年\d{1,2}月\d{1,2}日",
-            current_user["content"],
+            date_intent_text,
         )
         relative_date = re.search(
             r"最近|近期|近(?:\d+|[一二三四五六七八九十]+)?(?:个)?(?:交易日|工作日|日|周|月|季度|年)|最新|当前|今天|现在|截至目前|至今",
-            current_user["content"],
+            date_intent_text,
         )
         if relative_date:
             local_today = datetime.now(news_sources.LOCAL_ZONE).date().isoformat()
@@ -1197,6 +1213,8 @@ def _make_registry() -> ToolRegistry:
     _register_default_tools(result)
     from .research_tools import register_tools
     register_tools(result)
+    from .dynamic_indicator_tools import register_tools as register_indicator_tools
+    register_indicator_tools(result)
     return result
 
 

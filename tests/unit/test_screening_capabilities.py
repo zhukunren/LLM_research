@@ -31,6 +31,8 @@ def test_manifest_matches_existing_capabilities_and_never_claims_unavailable_dat
     assert items["report.evidence_evaluation"]["availability"] == "available"
     assert items["news.local_search"]["availability"] == "unavailable"
     assert items["runtime.generated_python"]["availability"] == "unavailable"
+    assert items["runtime.dynamic_indicators"]["availability"] == "unavailable"
+    assert items["runtime.dynamic_indicators"]["coverage"]["builtin_catalog_is_generation_limit"] is False
     assert items["fundamentals.market_cap"]["availability"] == "unavailable"
     assert items["securities.historical_classification"]["availability"] == "unavailable"
     assert items["market.minute_bars"]["availability"] == "unavailable"
@@ -51,6 +53,17 @@ def test_manifest_reports_partial_sources_and_missing_runtime_prerequisites():
     report_eval = next(item for item in partial if item["id"] == "report.evidence_evaluation")
     assert report_eval["availability"] == "partial"
     assert report_eval["reason"] == "尚未配置评估所需的文本模型"
+
+
+def test_numeric_indicator_capability_requires_runtime_and_data_without_claiming_correctness():
+    tools = {"preview_dynamic_indicator", "list_dynamic_indicators", "read_dynamic_indicator"}
+    items = {item["id"]: item for item in manifest(runtime_ready=True, registered_tool_names=tools)["capabilities"]}
+    capability = items["runtime.dynamic_indicators"]
+    assert capability["availability"] == "available" and capability["agent_tool_registered"]
+    assert capability["resource_policy"]["trial_is_correctness_proof"] is False
+    assert capability["resource_policy"]["os_security_sandbox"] is False
+    absent = {item["id"]: item for item in manifest(runtime_ready=True, market_available=False)["capabilities"]}
+    assert absent["runtime.dynamic_indicators"]["availability"] == "unavailable"
 
 
 def test_market_coverage_strips_host_paths_and_unrelated_secrets():

@@ -88,7 +88,10 @@ it('opens research by default and moves projects and optional tools into the sid
   await user.click(menu.getByRole('button', { name: '研究项目' }))
   expect(await screen.findByRole('button', { name: '打开项目对话' })).toBeInTheDocument()
   await user.click(menu.getByRole('button', { name: '资料与工具' }))
-  for (const name of ['资讯库', '技术指标库', '形态库', '研报库']) expect(menu.getByRole('button', { name })).toBeInTheDocument()
+  for (const name of ['资讯库', '形态库', '研报库']) expect(menu.getByRole('button', { name })).toBeInTheDocument()
+  expect(menu.queryByRole('button', { name: '内置指标参考' })).not.toBeInTheDocument()
+  await user.click(menu.getByRole('button', { name: '高级工具' }))
+  expect(menu.getByRole('button', { name: '内置指标参考' })).toBeInTheDocument()
   await user.click(menu.getByRole('button', { name: '资讯库' }))
   await screen.findByRole('heading', { name: '资料阅读' })
   await user.click(menu.getByRole('button', { name: '研究项目' }))
@@ -542,4 +545,34 @@ it('opens existing data services from screening readiness without navigating or 
   expect(screen.queryByRole('dialog', { name: '数据与服务' })).not.toBeInTheDocument()
   expect(screen.getByLabelText('选股要求')).toHaveValue('保留这份待补数据的选股草稿')
   expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
+})
+
+it('hands a pinned numeric indicator from research to an unsent screening draft and preserves the research draft', async () => {
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  const record = { id: 'dynamic-one', name: '量价偏离', version: 4, definition_hash: 'def-four', code_hash: 'code-four', created_at: '2026-06-29', definition: { name: '量价偏离', description: '观察量价关系', formula: 'deviation', original_prompt: '量价关系', program: { contract_version: 'python-indicator-v1', source_code: 'def compute(context, frames, params): pass', required_fields: ['close'], required_history_bars: 20, parameters: {}, parameter_specs: {} }, outputs: [{ name: 'value', label: '偏离', unit: '倍', placement: 'pane', kind: 'line' }] } }
+  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), 'http://localhost'), path = url.pathname
+    const response = path === '/api/v1/data/status' ? { available: true, last_date: '2026-06-29' }
+      : path === '/api/v1/dynamic-indicators' || path.endsWith('/dynamic-one/versions') ? { items: [record] }
+      : path === '/api/v1/dynamic-indicators/dynamic-one' ? record
+      : path.endsWith('/dynamic-one/condition') ? { condition: {}, provenance: {}, execution_authorized: false, saved: false }
+      : { items: [] }
+    return new Response(JSON.stringify(response))
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const user = userEvent.setup()
+  render(<App />)
+  await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+  await user.type(screen.getByLabelText('研究要求'), '继续分析订单改善')
+  await user.click(screen.getByRole('button', { name: '我的指标' }))
+  await user.click(await screen.findByRole('button', { name: /量价偏离 v4/ }))
+  await screen.findByText('固定版本 v4 · 数值时序指标')
+  await user.click(screen.getByRole('button', { name: '用于选股草稿' }))
+  await waitFor(() => expect((screen.getByLabelText('选股要求') as HTMLTextAreaElement).value).toContain('indicator_id=dynamic-one'))
+  expect((screen.getByLabelText('选股要求') as HTMLTextAreaElement).value).toContain('version=4')
+  expect((screen.getByLabelText('选股要求') as HTMLTextAreaElement).value).toContain('build_indicator_condition')
+  expect(window.location.hash).toContain('#/screening/new')
+  expect(fetcher.mock.calls.every(call => !/messages|screening-runs|execute/.test(String(call[0])))).toBe(true)
+  await user.click(screen.getByRole('button', { name: '切换到研究' }))
+  await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('继续分析订单改善'))
 })

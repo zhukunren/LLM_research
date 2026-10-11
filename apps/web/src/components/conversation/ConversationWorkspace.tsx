@@ -45,6 +45,7 @@ import { useConversationAttachments, type ConversationAttachment } from './useCo
 import { readModelPreference, writeModelPreference, type ModelSelection } from '../../modelSelection'
 import ProjectMembership from './ProjectMembership'
 import StockChartDialog from '../StockChartDialog'
+import MyIndicators from '../indicators/MyIndicators'
 import type { DataStatus } from '../../api'
 import type { ConversationHistoryChange } from '../ConversationHistoryItem'
 import ScreeningResultView, { type UnifiedDecisionItem } from '../ScreeningResultView'
@@ -200,9 +201,10 @@ export default function ConversationWorkspace({
   onOpenConversation,
   onLocationChange,
   shellNavigation = false, onHistoryChange, onOpenDataServices, onLaunchAssistant,
-  conversationUpdate,
+  conversationUpdate, onStartIndicatorScreening,
 }: {
   data?: DataStatus | null
+  onStartIndicatorScreening?: (prompt: string) => void
   initialConversationId?: string
   initialPrompt?: string
   initialNewDraft?: boolean
@@ -519,6 +521,13 @@ export default function ConversationWorkspace({
   function prepareDraft(value: string) {
     setDraft(value)
     focusComposer()
+  }
+
+  function prepareIndicatorDraft(value: string) {
+    const next = draft.trim() ? `${draft.trim()}\n\n${value}` : value
+    if (next.length > 8000) { setError('当前草稿加上指标请求超过 8000 字，请先精简草稿。'); return false }
+    prepareDraft(next)
+    return true
   }
 
   function scrollToLatest(behavior: ScrollBehavior = 'smooth') {
@@ -1528,6 +1537,7 @@ export default function ConversationWorkspace({
               disabled={archived || busy || saving || assistantSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions}
               launchDisabled={attachments.hasUnready} onChange={id => void changeAssistant(id)} onUpload={files => void attachments.upload(files)}
               onLaunchAssistant={onLaunchAssistant} />
+            <MyIndicators key={`indicators:${draftKey}:${newResearchKey || 0}`} contextKey={`${draftKey}:${newResearchKey || 0}`} conversationId={conversationReady ? conversation?.id : undefined} workflow={workflowType} data={data} defaultAsOf={isResearch ? undefined : scopeDate || task?.scope.as_of || undefined} defaultStock={isResearch ? undefined : task?.scope.universe?.stock_codes?.[0] || (task?.scope.universe?.kind === 'watchlist' || scopePool !== 'all' && scopePool !== 'explicit' ? '' : '000001.SZ')} turnActive={turnInProgress} refreshKey={refreshIndex + (conversation?.messages.length || 0)} disabled={!!archived || busy || saving || assistantSaving || modeSaving || modelSaving || !conversationReady || loadingConversation || loadingSessions} onPrompt={prepareIndicatorDraft} onScreening={isResearch ? onStartIndicatorScreening : prepareIndicatorDraft} />
             {!isResearch && <ScreeningSettings key={`${draftKey}:${newResearchKey || 0}`}>{open => <>
               <label className="studio-mode-select"><span>条件核验</span><select aria-label="研究深度" value={researchDepth} disabled={busy || saving || modeSaving || modelSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={event => void changeResearchDepth(event.target.value as ResearchDepth)}>{Object.entries(depthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{modeSaving && <LoaderCircle size={14} className="spin" />}</label>
               <ResearchModelPicker visible={open} value={modelSelection} disabled={archived || busy || saving || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} onCatalogError={setModelCatalogError} />

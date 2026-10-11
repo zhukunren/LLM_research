@@ -243,6 +243,25 @@ def build_manifest(
             resource_policy={"max_chunk_chars": 12000, "read_only": True},
         ),
         Capability(
+            id="runtime.dynamic_indicators",
+            version="1",
+            domain="runtime",
+            title="生成、试算与复用逐日数值指标",
+            availability="available" if runtime_ready and market_available else "unavailable",
+            reason=None if runtime_ready and market_available else "需要可用的本地 Python/NumPy 和日线行情",
+            input_contract={"entrypoint": "compute(context, frames, params)",
+                            "contract": "python-indicator-v1", "formula": "用户描述的任意可计算数值公式",
+                            "as_of": "明确截止日", "saved_version": "复用时固定指标版本"},
+            output_contract={"dates": "与输入完全一致的逐日日期",
+                             "series": "每个输出项的完整有限数值或null序列；不返回布尔条件",
+                             "trial": "完整图表、数据上下文和验证证据；保存需用户确认"},
+            fields=[{"name": "value", "unit": "由输出项显式声明"}],
+            coverage={"max_bars_per_security": 500, "builtin_catalog_is_generation_limit": False},
+            side_effect="persist_result",
+            resource_policy={"trusted_local_code_only": True, "os_security_sandbox": False,
+                             "trial_is_correctness_proof": False, "immutable_saved_versions": True},
+        ),
+        Capability(
             id="runtime.generated_python",
             version="1",
             domain="runtime",
@@ -315,6 +334,7 @@ def build_manifest(
         "news.local_search": {"list_news_sources", "read_news_chunk"},
         "portfolio.inspect_saved_conditions": {"inspect_saved_conditions"},
         "runtime.artifact_read": {"read_artifact_chunk"},
+        "runtime.dynamic_indicators": {"preview_dynamic_indicator", "list_dynamic_indicators", "read_dynamic_indicator"},
     }
     for item in items:
         required = capability_tools.get(item.id, set())

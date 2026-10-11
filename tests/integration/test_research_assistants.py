@@ -142,6 +142,16 @@ def test_migration_preserves_existing_conversation_and_message_rows(tmp_path, mo
         connection.execute("INSERT INTO conversation_messages(id,conversation_id,role,content,created_at) VALUES('old-message','old','user','保留已有研究','2026-10-01')")
     shutil.copyfile(source / "030_research_assistants.sql", migrations / "030_research_assistants.sql")
     db.init_db()
+    # Verify the assistant migration itself before bringing this legacy fixture
+    # up to the schema expected by the current conversation reader. Keeping it
+    # at 030 made later unrelated columns (for example deleted_at) look broken.
+    with db.connect() as connection:
+        row = connection.execute("SELECT assistant_snapshot_json,assistant_revision FROM conversations WHERE id='old'").fetchone()
+        assert tuple(row) == ("{}", 0)
+    for file in source.glob("*.sql"):
+        if file.name > "030_research_assistants.sql":
+            shutil.copyfile(file, migrations / file.name)
+    db.init_db()
     restored = conversation_store.get_conversation("old")
     assert restored["assistant"]["id"] == "general" and restored["assistant_revision"] == 0
     assert restored["messages"][0]["content"] == "保留已有研究"
@@ -149,6 +159,11 @@ def test_migration_preserves_existing_conversation_and_message_rows(tmp_path, mo
 
 def test_runtime_loads_the_frozen_selected_skill_not_the_later_edit(client, tmp_path, monkeypatch):
     import openai_codex
+    from apps.api.app import research_models
+    # This uses FakeCodex below, so keep model availability equally synthetic.
+    # The real provider is deliberately unconfigured in a clean test checkout.
+    monkeypatch.setattr(research_models, "llm_settings", lambda: {"configured": True, "model": "gpt-6-luna", "reasoning_effort": "high"})
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6-luna"}, "verified"))
     profile = custom(client, "ASSISTANT_VERSION_ONE：先核对原始现金流量表。")
     cid = create(client, profile["id"]).json()["id"]
     tid = message(client, cid).json()["turn_id"]
