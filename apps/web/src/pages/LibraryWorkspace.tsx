@@ -3,14 +3,13 @@ import { BookOpen, FilePlus2, FolderOpen, ListFilter, MessageCircle, Upload } fr
 import type { ConversationSourceReference, DataStatus, Filter, WorkflowType } from '../api'
 import { libraryCopy, type LibraryScope, type LibrarySeed } from '../libraryContext'
 import WorkbenchPage, { type Section } from './WorkbenchPage'
-import TechnicalBrowser from './TechnicalBrowser'
 import { useSessionState } from '../useSessionState'
 const ReportPage = lazy(() => import('./ReportPage'))
 const ReportEvaluations = lazy(() => import('./ReportEvaluations'))
 const NewsPage = lazy(() => import('./NewsPage'))
 type LibraryTab = 'browse' | 'create' | 'library' | 'assess'
 
-export default function LibraryWorkspace({ scope, data, onCompose, onConversation }: { scope: LibraryScope; data: DataStatus | null; onCompose: () => void; onConversation: (scope: LibraryScope, source?: { reference: ConversationSourceReference; label: string }, prompt?: string, workflow?: WorkflowType) => void; onSettings: () => void }) {
+export default function LibraryWorkspace({ scope, data, onCompose, onConversation }: { scope: Exclude<LibraryScope, 'technical'>; data: DataStatus | null; onCompose: () => void; onConversation: (scope: LibraryScope, source?: { reference: ConversationSourceReference; label: string }, prompt?: string, workflow?: WorkflowType) => void; onSettings: () => void }) {
   const copy = libraryCopy[scope]
   const [tab, setTab] = useSessionState<'browse' | 'create' | 'library' | 'assess'>(`library.${scope}.tab`, 'browse', (value): value is 'browse' | 'create' | 'library' | 'assess' => ['browse', 'create', 'library', ...(scope === 'report' ? ['assess'] : [])].includes(String(value)))
   const [seed, setSeed] = useState<LibrarySeed>()
@@ -47,7 +46,6 @@ export default function LibraryWorkspace({ scope, data, onCompose, onConversatio
     </nav></>}
     <div className={`library-workspace-panel ${tab === 'browse' ? 'is-browsing' : 'is-tool'}`} id={`library-${scope}-panel`} role={advancedOpen ? 'tabpanel' : 'region'} aria-labelledby={advancedOpen ? `library-${scope}-${tab}` : undefined} aria-label={advancedOpen ? undefined : copy.browse}>
     <Suspense fallback={<div className="library-panel-loading" role="status">正在加载资料…</div>}>
-      {tab === 'browse' && scope === 'technical' && <TechnicalBrowser data={data} onDescribe={defineCondition} />}
       {tab === 'browse' && scope === 'report' && <ReportPage contentOnly onDescribe={describe} onDefineCondition={defineCondition} />}
       {tab === 'browse' && scope === 'news' && <NewsPage importOpen={newsImportOpen} onImportClose={() => setNewsImportOpen(false)} onDiscuss={item => onConversation('news', { reference: { kind: 'news_item', source_id: item.id }, label: item.title })} />}
       {(tab === 'create' || tab === 'library') && <WorkbenchPage key={scope} scope={scope} view={tab} seed={seed} onSeedConsumed={() => setSeed(undefined)} onViewChange={changeView} data={data} onCompose={onCompose} onConversation={onConversation} onReports={filter => { setEvaluationFilter(filter); setTab('assess') }} />}

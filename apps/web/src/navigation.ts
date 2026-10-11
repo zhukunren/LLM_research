@@ -1,4 +1,4 @@
-import { Activity, Bot, FileText, FolderOpen, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Shapes, Star } from 'lucide-react'
+import { Bot, FileText, FolderOpen, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Shapes, Star } from 'lucide-react'
 
 export const workspaceMenus = [
   { id: 'home', label: '开始研究', mobileLabel: '研究', description: '打开新的研究草稿', icon: LayoutDashboard },
@@ -7,7 +7,6 @@ export const workspaceMenus = [
   { id: 'conditions', label: '条件选股', mobileLabel: '选股', description: '描述条件、组合执行并回看判断依据', icon: ListFilter },
   { id: 'watchlist', label: '观察池', mobileLabel: '观察', description: '跟踪研究候选与筛选批次', icon: Star },
   { id: 'news', label: '资讯库', mobileLabel: '资讯', description: '阅读资讯，查找业务变化与催化', icon: Newspaper },
-  { id: 'technical', label: '内置指标参考', mobileLabel: '参考', description: '高级工具：核对内置公式与行情，自定义指标在研究或选股的“我的指标”中生成', icon: Activity },
   { id: 'patterns', label: '形态库', mobileLabel: '形态', description: '用真实 K 线核对目标走势', icon: Shapes },
   { id: 'reports', label: '研报库', mobileLabel: '研报', description: '阅读原文，核对公司研究证据', icon: FileText },
   { id: 'assistants', label: '研究助手', mobileLabel: '助手', description: '选择现成的投研助手，一键开始研究', icon: Bot },

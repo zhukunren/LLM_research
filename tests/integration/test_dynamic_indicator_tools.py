@@ -184,7 +184,7 @@ def test_indicator_tools_enforce_cutoff_security_trial_and_conversation_scope(in
 def test_codex_instructions_keep_numeric_generation_independent_of_fixed_catalog():
     prompt = codex_runtime.CODEX_DEVELOPER_INSTRUCTIONS
     assert "python-indicator-v1" in prompt and "preview_dynamic_indicator" in prompt
-    assert "不把高级工具中的内置指标目录当作生成边界" in prompt
+    assert "不把底层内置公式当作生成边界" in prompt
     assert "不证明公式正确" in prompt and "build_indicator_condition" in prompt
     assert "save_dynamic_indicator" not in screening_tools.registry.registered_tool_names()
 

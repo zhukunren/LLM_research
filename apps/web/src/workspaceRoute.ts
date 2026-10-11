@@ -19,7 +19,7 @@ const scopes: ConversationScope[] = ['screening', 'technical', 'news', 'report',
 const views: ScreeningView[] = ['conversation', 'create', 'library', 'compose', 'history', 'saved']
 const objectId = /^[A-Za-z0-9_-]{1,100}$/
 const stockCode = /^\d{6}\.(SH|SZ|BJ)$/
-const simplePaths: Partial<Record<PageId, string>> = { home: 'home', assistants: 'assistants', news: 'library/news', technical: 'library/technical', patterns: 'library/patterns', reports: 'library/reports' }
+const simplePaths: Partial<Record<PageId, string>> = { home: 'home', assistants: 'assistants', news: 'library/news', patterns: 'library/patterns', reports: 'library/reports' }
 
 /** Public paths use product names; legacy page IDs stay behind this mapping. */
 export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
@@ -35,7 +35,7 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   if (scope && !scopes.includes(scope as ConversationScope)) return null
   if (parts.length === 1 && parts[0] === 'home') return { page: 'screening', newDraft: true }
   if (parts.length === 1 && parts[0] === 'assistants') return { page: 'assistants' }
-  if (parts[0] === 'library' && parts.length === 2 && ['news', 'technical', 'patterns', 'reports'].includes(parts[1])) return { page: parts[1] as PageId, ...sharedWorkspace }
+  if (parts[0] === 'library' && parts.length === 2 && ['news', 'patterns', 'reports'].includes(parts[1])) return { page: parts[1] as PageId, ...sharedWorkspace }
   if (parts[0] === 'research' || parts[0] === 'screening') {
     if (parts.length > 2 || (parts[1] && !objectId.test(parts[1]))) return null
     const view = params.get('view')
@@ -59,7 +59,7 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
 export function workspaceRouteHash(route: WorkspaceRoute): string {
   if (route.page === 'home') return '#/research/new'
   const params = new URLSearchParams()
-  if (route.workspace === 'screening' && ['news', 'technical', 'patterns', 'reports', 'watchlist'].includes(route.page)) params.set('workspace', 'screening')
+  if (route.workspace === 'screening' && ['news', 'patterns', 'reports', 'watchlist'].includes(route.page)) params.set('workspace', 'screening')
   if ((route.page === 'screening' || route.page === 'conditions') && route.scope && route.scope !== 'screening') params.set('scope', route.scope)
   if (route.page === 'conditions' && !route.conversationId && !route.newDraft && route.view && route.view !== 'conversation') params.set('view', route.view)
   const id = route.conversationId ? encodeURIComponent(route.conversationId) : route.newDraft ? 'new' : ''

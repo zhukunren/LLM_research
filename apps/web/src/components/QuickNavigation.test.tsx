@@ -62,3 +62,16 @@ it('keeps page shortcuts visible with many projects and finds screening conversa
   await user.keyboard('{Enter}')
   expect(props.onConversation).toHaveBeenCalledWith('c1', 'report')
 })
+
+it('does not offer the removed built-in reference page, including search', async () => {
+  vi.mocked(api).mockResolvedValue({ items: [] } as never)
+  const props = callbacks(), user = userEvent.setup()
+  render(<QuickNavigation {...props} />)
+  expect(screen.queryByRole('option', { name: /内置指标参考/ })).not.toBeInTheDocument()
+  await user.type(screen.getByRole('combobox'), '内置指标参考')
+  expect(screen.queryByRole('option')).not.toBeInTheDocument()
+  await user.keyboard('{Enter}')
+  expect(props.onNavigate).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: '清除搜索' }))
+  expect(screen.getByRole('option', { name: /研报库/ })).toBeInTheDocument()
+})

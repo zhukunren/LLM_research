@@ -177,8 +177,8 @@ def screening_capability_manifest():
 def capabilities():
     settings = llm_settings()
     return {
-        "menus": ["watchlist", "news", "technical", "patterns", "reports", "screening"],
-        "workspace_menus": ["research", "screening", "watchlist", "news", "technical", "patterns", "reports"],
+        "menus": ["watchlist", "news", "patterns", "reports", "screening"],
+        "workspace_menus": ["research", "screening", "watchlist", "news", "patterns", "reports"],
         "agent_runtime": "codex",
         "codex_runtime": codex_runtime.availability(),
         "condition_authoring": "natural_language_atomic_conditions_with_confirmation",

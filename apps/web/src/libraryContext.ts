@@ -4,7 +4,7 @@ import type { Node } from './pages/StrategyPage'
 export type LibraryScope = Filter['library']
 export type LibrarySeed = { id: string; prompt?: string; source_document_id?: string; source_page?: number; title?: string }
 export const libraryCopy = {
-  technical: { title: '内置指标参考', browse: '浏览内置指标', promptTitle: '你想用哪些行情条件选股？', placeholder: '描述行情字段、计算窗口、比较方式和连续条件', examples: ['连续3日成交量高于此前20日均量', 'RSI14大于45，且近5个交易日涨幅超过3%', '当前收盘价距近20日最高收盘价不超过5%'] },
+  technical: { promptTitle: '你想用哪些行情条件选股？', placeholder: '描述行情字段、计算窗口、比较方式和连续条件', examples: ['连续3日成交量高于此前20日均量', 'RSI14大于45，且近5个交易日涨幅超过3%', '当前收盘价距近20日最高收盘价不超过5%'] },
   report: { title: '研报库', browse: '阅读研报', promptTitle: '你希望从研报中判断什么？', placeholder: '例如：公司订单实际增长，行业需求改善，区分已实现业绩与未来预测', examples: ['研报中有公司订单增长的实际证据，并区分已实现与未来预测', '过去365个自然日的研报显示公司毛利率改善', '研报提供行业需求回暖和库存下降的实际证据'] },
   news: { title: '资讯库', browse: '浏览资讯', promptTitle: '你希望关注什么资讯？', placeholder: '例如：近30个自然日资讯包含“回购”', examples: ['近30个自然日资讯包含“回购”', '近7个自然日资讯包含“订单”', '近30个自然日资讯包含“增持”'] },
 } as const
