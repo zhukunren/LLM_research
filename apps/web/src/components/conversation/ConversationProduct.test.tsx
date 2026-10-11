@@ -341,7 +341,7 @@ describe('screening product flow', () => {
     await user.click(screen.getByRole('button', { name: '下一页' }))
     await screen.findByText('600020.SH')
     await user.selectOptions(screen.getByLabelText('查看筛选运行'), 'historic')
-    await user.click(await screen.findByText('000001.SZ'))
+    await user.click(await screen.findByRole('button', { name: '查看 000001.SZ 条件与依据' }))
     expect(screen.getByText('原运行的趋势条件 · 数据不足')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('这次为什么无法判断000001.SZ是否符合条件？')

@@ -1,8 +1,13 @@
 import { StockText } from './StockMentions'
-import { useRef, useState } from 'react'
-import { Copy, Download, LoaderCircle, RotateCcw, Search, Star, TrendingUp } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Copy, Download, LoaderCircle, RotateCcw, Search, Star, TrendingUp, X } from 'lucide-react'
 import { StockName } from './StockSearch'
 import ScreeningResultMenu from './ScreeningResultMenu'
+import { api } from '../api'
+import { useSessionState } from '../useSessionState'
+import { trapDialogTab } from '../keyboard'
+import './screening-result-list.css'
 
 export type UnifiedConditionDecision = {
   reference_id?: string
@@ -86,6 +91,12 @@ function stateClass(state: string) {
   return 'caution'
 }
 
+function conciseCondition(condition: UnifiedConditionDecision) {
+  if (condition.actual != null) return `实际值：${condition.actual}`
+  const values = (condition.explanation || '').match(/本次计算值[：:]\s*(.*?)(?:；(?:符合|不符合)条件|。|$)/)
+  return values?.[1] || condition.explanation || condition.name
+}
+
 export default function ScreeningResultView({
   title,
   asOf,
@@ -118,6 +129,50 @@ export default function ScreeningResultView({
   addingStockCode,
 }: ScreeningResultViewProps) {
   const [copying, setCopying] = useState(false)
+  const [listMode, setListMode] = useSessionState<'compact' | 'detailed'>('screening.resultListMode', 'compact', (value): value is 'compact' | 'detailed' => value === 'compact' || value === 'detailed')
+  const [expandedCode, setExpandedCode] = useState('')
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([])
+  const [addingSelected, setAddingSelected] = useState(false)
+  const [batchMessage, setBatchMessage] = useState('')
+  const [batchError, setBatchError] = useState('')
+  const batchLock = useRef(false)
+  const requests = useRef(new Map<string, string>())
+  const detailClose = useRef<HTMLButtonElement>(null)
+  const activeDecision = decisions.find(item => item.stock_code === expandedCode)
+  useEffect(() => { setSelectedCodes([]); setExpandedCode(''); setBatchMessage(''); setBatchError('') }, [query, stateFilter, offset, asOf, revision, title, loading])
+  useEffect(() => {
+    if (!expandedCode) return
+    const previous = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'; detailClose.current?.focus()
+    return () => { document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus({ preventScroll: true }) }
+  }, [expandedCode])
+  function selectCode(code: string) { setSelectedCodes(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]) }
+  async function copySelected() {
+    try { await navigator.clipboard.writeText(selectedCodes.join('\n')); setBatchMessage(`已复制所选 ${selectedCodes.length} 只股票代码。`); setBatchError('') }
+    catch { setBatchError('复制失败，可使用导出所选。') }
+  }
+  function exportSelected() {
+    const rows = decisions.filter(item => selectedCodes.includes(item.stock_code))
+    const csv = '\uFEFF证券代码,判断,数据截止日\r\n' + rows.map(item => [item.stock_code, stateLabels[item.state] || item.state, item.as_of || asOf || ''].map(value => '"' + String(value).replace(/"/g, '""') + '"').join(',')).join('\r\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a'); link.href = url; link.download = `所选筛选结果-${asOf || '未指定日期'}.csv`; link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  async function addSelected() {
+    if (batchLock.current || !selectedCodes.length) return
+    batchLock.current = true; setAddingSelected(true); setBatchMessage(''); setBatchError('')
+    const codes = [...selectedCodes], failed: string[] = [], reasons: string[] = []
+    for (const code of codes) {
+      if (!requests.current.has(code)) requests.current.set(code, crypto.randomUUID())
+      try { await api('/observation/quick-add', { method: 'POST', body: JSON.stringify({ request_id: requests.current.get(code), stock_code: code }) }) }
+      catch (reason) { failed.push(code); reasons.push(`${code}：${(reason as Error).message}`) }
+    }
+    setSelectedCodes(failed); setBatchMessage(`已加入或复用 ${codes.length - failed.length} 只股票的观察记录。`)
+    if (failed.length) setBatchError(`${failed.length} 只未完成：${failed.join('、')}。${reasons.slice(0, 2).join('；')}。保留勾选，可再次加入。`)
+    if (codes.length > failed.length) window.dispatchEvent(new Event('observation:changed'))
+    setAddingSelected(false); batchLock.current = false
+  }
   const [copyNotice, setCopyNotice] = useState('')
   const copyLock = useRef(false)
 
@@ -155,8 +210,62 @@ export default function ScreeningResultView({
     } finally { copyLock.current = false }
   }
 
+  function decisionDetails(decision: UnifiedDecisionItem) {
+    return <>
+                  {decision.conditions.map((condition, idx) => (
+                    <div className="conversation-condition-result" key={condition.reference_id ?? `${condition.name}-${idx}`}>
+                      <strong>
+                        {condition.name} · {stateLabels[condition.state] ?? condition.state}
+                      </strong>
+                      <p>{condition.explanation || '未提供判断说明'}</p>
+                      {condition.actual != null && <small>实际值：{condition.actual}</small>}
+                      {condition.threshold != null && <small>条件阈值：{condition.threshold}</small>}
+                      {condition.citation && (
+                        <small className="result-citation">{condition.citation}</small>
+                      )}
+                    </div>
+                  ))}
+
+                  <div className="conversation-decision-actions">
+                    <div className="decision-actions-group">
+                      {onAskStock && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => { setExpandedCode(''); onAskStock(decision.stock_code, decision.state) }}
+                        >
+                          追问这只股票
+                        </button>
+                      )}
+                      {onViewChart && (
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => { setExpandedCode(''); onViewChart(decision.stock_code, decision.as_of ?? asOf ?? undefined) }}
+                        >
+                          <TrendingUp size={12} />
+                          查看走势
+                        </button>
+                      )}
+                    </div>
+                    {onAddToWatchlist && (
+                      <button
+                        type="button"
+                        className="text-button conversation-add-watchlist-btn"
+                        disabled={addingStockCode === decision.stock_code}
+                        onClick={() => onAddToWatchlist(decision.stock_code)}
+                      >
+                        <Star size={12} />
+                        {addingStockCode === decision.stock_code ? '加入中…' : '加入观察池'}
+                      </button>
+                    )}
+                  </div>
+
+    </>
+  }
+
   return (
-    <StockText><div className="screening-result-view">
+    <StockText><div className={`screening-result-view screening-list-${listMode}`}>
       <div className="conversation-run-title">
         <span>{title || `${isCurrent ? '当前运行' : '历史运行'} · v${revision ?? 1}`}</span>
         <span className={`conversation-turn-state ${stateClass(status)}`}>{stateLabels[status] ?? status}</span>
@@ -193,6 +302,7 @@ export default function ScreeningResultView({
           <div className="conversation-decision-controls">
             {onStateFilterChange && <select
               aria-label="判断状态"
+              disabled={addingSelected}
               value={stateFilter}
               onChange={(e) => onStateFilterChange?.(e.target.value)}
             >
@@ -205,6 +315,7 @@ export default function ScreeningResultView({
               <Search size={14} />
               <input
                 aria-label="搜索股票名称或代码"
+                disabled={addingSelected}
                 value={query}
                 onChange={(e) => onQueryChange?.(e.target.value)}
                 placeholder="名称、拼音或代码"
@@ -249,6 +360,10 @@ export default function ScreeningResultView({
           </div>
 
           {copyNotice && <div className="inline-feedback-badge">{copyNotice}</div>}
+          <div className="screening-list-toolbar"><div role="group" aria-label="筛选结果显示方式"><button type="button" aria-pressed={listMode === 'compact'} onClick={() => setListMode('compact')}>紧凑列表</button><button type="button" aria-pressed={listMode === 'detailed'} onClick={() => setListMode('detailed')}>详细卡片</button></div><span>{decisions.length ? `本页 ${decisions.length} 只 · 点击查看完整依据` : ''}</span></div>
+          {!!selectedCodes.length && <div className="screening-selection-toolbar" role="group" aria-label="所选结果操作"><strong>已选 {selectedCodes.length} 只</strong><button type="button" className="text-button" disabled={addingSelected || loading} onClick={() => void copySelected()}>复制所选</button><button type="button" className="text-button" disabled={addingSelected || loading} onClick={exportSelected}>导出所选</button><button type="button" className="secondary-button compact" disabled={addingSelected || loading} title="所选股票加入手动观察，已有关注记录直接复用" onClick={() => void addSelected()}>{addingSelected ? '正在加入…' : '加入观察池'}</button><button type="button" className="text-button" disabled={addingSelected} onClick={() => setSelectedCodes([])}>清除勾选</button></div>}
+          {batchMessage && <p role="status" className="screening-selection-message">{batchMessage}</p>}{batchError && <p role="alert" className="screening-selection-error">{batchError}</p>}
+
 
           {!loading && !error && completeNoMatches && (
             <div className="conversation-result-guidance">
@@ -292,7 +407,13 @@ export default function ScreeningResultView({
                 )}
               </div>
             ) : (
-              decisions.map((decision) => (
+              listMode === 'compact' && decisions.length ? <div className="screening-compact-scroll"><table className="screening-compact-table" aria-label="筛选结果股票列表"><thead><tr><th><input type="checkbox" aria-label="勾选本页全部筛选结果" checked={decisions.length > 0 && decisions.every(item => selectedCodes.includes(item.stock_code))} disabled={addingSelected} onChange={event => setSelectedCodes(event.target.checked ? decisions.map(item => item.stock_code) : [])} /></th><th>股票</th><th>判断</th><th>关键值与条件</th><th>完整依据</th></tr></thead><tbody>{decisions.map(decision => <tr key={decision.stock_code}>
+                <td data-label="勾选"><input type="checkbox" aria-label={`勾选筛选结果 ${decision.stock_code}`} checked={selectedCodes.includes(decision.stock_code)} disabled={addingSelected} onChange={() => selectCode(decision.stock_code)} /></td>
+                <td data-label="股票"><StockName code={decision.stock_code} />{typeof decision.close === 'number' && <small>收盘 {decision.close.toFixed(2)}（行情原始单位）</small>}</td>
+                <td data-label="判断"><span className={`conversation-turn-state ${stateClass(decision.state)}`}>{stateLabels[decision.state] || decision.state}</span><small>{decision.conditions.length ? `${decision.conditions.filter(item => item.state === 'true').length} / ${decision.conditions.length} 条符合` : '暂无条件明细'}</small></td>
+                <td data-label="关键值与条件" className="screening-key-values">{decision.conditions.slice(0, 2).map((condition, index) => <span key={condition.reference_id || index} title={`${condition.name}：${condition.explanation}`}><i className={`screening-condition-marker ${condition.state}`} aria-label={stateLabels[condition.state] || condition.state} />{stateLabels[condition.state] || condition.state} · {conciseCondition(condition)}</span>)}</td>
+                <td data-label="完整依据"><button type="button" className="text-button" aria-label={`查看 ${decision.stock_code} 条件与依据`} onClick={() => setExpandedCode(decision.stock_code)}>查看依据</button></td>
+              </tr>)}</tbody></table></div> : decisions.map((decision) => (
                 <details key={decision.stock_code} className="conversation-decision-row">
                   <summary>
                     <div className="decision-summary-content">
@@ -316,54 +437,7 @@ export default function ScreeningResultView({
                     </span>
                   </summary>
 
-                  {decision.conditions.map((condition, idx) => (
-                    <div className="conversation-condition-result" key={condition.reference_id ?? `${condition.name}-${idx}`}>
-                      <strong>
-                        {condition.name} · {stateLabels[condition.state] ?? condition.state}
-                      </strong>
-                      <p>{condition.explanation || '未提供判断说明'}</p>
-                      {condition.actual != null && <small>实际值：{condition.actual}</small>}
-                      {condition.threshold != null && <small>条件阈值：{condition.threshold}</small>}
-                      {condition.citation && (
-                        <small className="result-citation">{condition.citation}</small>
-                      )}
-                    </div>
-                  ))}
-
-                  <div className="conversation-decision-actions">
-                    <div className="decision-actions-group">
-                      {onAskStock && (
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => onAskStock(decision.stock_code, decision.state)}
-                        >
-                          追问这只股票
-                        </button>
-                      )}
-                      {onViewChart && (
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() => onViewChart(decision.stock_code, decision.as_of ?? asOf ?? undefined)}
-                        >
-                          <TrendingUp size={12} />
-                          查看走势
-                        </button>
-                      )}
-                    </div>
-                    {onAddToWatchlist && (
-                      <button
-                        type="button"
-                        className="text-button conversation-add-watchlist-btn"
-                        disabled={addingStockCode === decision.stock_code}
-                        onClick={() => onAddToWatchlist(decision.stock_code)}
-                      >
-                        <Star size={12} />
-                        {addingStockCode === decision.stock_code ? '加入中…' : '加入观察池'}
-                      </button>
-                    )}
-                  </div>
+                  {decisionDetails(decision)}
                 </details>
               ))
             )}
@@ -393,7 +467,7 @@ export default function ScreeningResultView({
               <button
                 type="button"
                 className="secondary-button compact"
-                disabled={loading || offset === 0}
+                disabled={addingSelected || loading || offset === 0}
                 onClick={() => onPageChange?.(Math.max(0, offset - pageSize))}
               >
                 上一页
@@ -404,7 +478,7 @@ export default function ScreeningResultView({
               <button
                 type="button"
                 className="secondary-button compact"
-                disabled={loading || offset + pageSize >= total}
+                disabled={addingSelected || loading || offset + pageSize >= total}
                 onClick={() => onPageChange?.(offset + pageSize)}
               >
                 下一页
@@ -413,6 +487,6 @@ export default function ScreeningResultView({
           )}
         </>
       )}
-    </div></StockText>
+    </div>{activeDecision && createPortal(<div className="screening-evidence-layer"><div className="screening-evidence-backdrop" onClick={() => setExpandedCode('')} aria-hidden="true" /><section className="screening-evidence-drawer" role="dialog" aria-modal="true" aria-label="个股条件与依据" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setExpandedCode('') }; trapDialogTab(event) }}><header><div><StockName code={activeDecision.stock_code} /><p>数据截止日：{activeDecision.as_of || asOf || '未提供'}</p></div><button ref={detailClose} type="button" className="icon-button" aria-label="关闭个股依据" onClick={() => setExpandedCode('')}><X size={19} /></button></header><div className="screening-evidence-body">{decisionDetails(activeDecision)}</div></section></div>, document.body)}</StockText>
   )
 }

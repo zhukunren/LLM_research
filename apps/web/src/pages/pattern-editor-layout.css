@@ -1,0 +1,24 @@
+.viewport-workspace .page-frame .pattern-library .pattern-description-toggle { align-self: flex-start; flex-shrink: 0; margin: 4px 0; padding: 5px 0; }
+.viewport-workspace .page-frame .pattern-library .pattern-editor { padding: 12px 0; }
+.viewport-workspace .page-frame .pattern-library .pattern-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 0 2px 12px; }
+.viewport-workspace .page-frame .pattern-library .pattern-editor-heading > div { display: grid; gap: 5px; }
+.viewport-workspace .page-frame .pattern-library .pattern-editor-heading > button { flex-shrink: 0; }
+.viewport-workspace .page-frame .pattern-library .pattern-fields { position: static; padding: 12px 0; border-top: 1px solid var(--ui-border-subtle); }
+.viewport-workspace .page-frame .pattern-library .drawing-area { margin-block: 12px; min-height: 280px; padding: 12px; }
+.viewport-workspace .page-frame .pattern-library .pattern-editor .drawing-area svg { width: 100%; height: clamp(240px, 34dvh, 280px); }
+.viewport-workspace .page-frame .pattern-library .pattern-topline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-inline: 2px; }
+.viewport-workspace .page-frame .pattern-library .pattern-topline .source-toggle { margin-left: auto; }
+.viewport-workspace .page-frame .pattern-library .pattern-drawing-focused { position: fixed; inset: 12px; z-index: 160; display: block; margin: 0; padding: 18px 24px; border: 1px solid var(--ui-border); border-radius: 12px; background: white; }
+.viewport-workspace .page-frame .pattern-library .pattern-drawing-focused .pattern-editor { height: 100%; overflow-y: auto; border-top: 0; padding-top: 0; }
+.viewport-workspace .page-frame .pattern-library .pattern-drawing-focused .pattern-editor-heading { position: sticky; top: 0; z-index: 3; background: white; padding-top: 8px; }
+.viewport-workspace .page-frame .pattern-library .pattern-drawing-focused .drawing-area svg { height: min(52dvh, 460px); min-height: 280px; }
+.viewport-workspace .page-frame .pattern-library .pattern-drawing-focused .drawing-area { min-height: 0; }
+@media (max-width: 620px) {
+  .viewport-workspace .page-frame .pattern-library .pattern-drawing-focused { inset: 0; padding: 12px; border: 0; border-radius: 0; }
+  .viewport-workspace .page-frame .pattern-library .pattern-editor-heading { gap: 6px; }
+  .viewport-workspace .page-frame .pattern-library .pattern-topline .source-toggle { margin-left: 0; }
+  .viewport-workspace .page-frame .pattern-library .pattern-fields { flex-wrap: wrap; gap: 10px; }
+  .viewport-workspace .page-frame .pattern-library .pattern-fields .grow { flex-basis: 100%; }
+  .viewport-workspace .page-frame .pattern-library .drawing-area { padding: 6px; }
+  .viewport-workspace .page-frame .pattern-library .pattern-editor .drawing-area svg { height: 260px; }
+}

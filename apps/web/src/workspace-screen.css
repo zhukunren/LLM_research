@@ -274,6 +274,8 @@
 .chat-page .research-studio .suggestion-title { color: var(--ui-text); font-size: 14px; }
 .chat-page .research-studio .suggestion-description { font-size: 12px; line-height: 1.65; }
 .chat-page .research-studio .research-answer { max-width: 78ch; }
+.chat-page .research-studio:not(.screening-studio) .conversation-message.assistant { width: 100%; }
+.chat-page .research-studio:not(.screening-studio) .research-answer { width: 100%; max-width: none; }
 .chat-page .research-studio .research-answer :is(p, li, blockquote) { font-size: inherit; line-height: inherit; }
 .chat-page .research-studio .conversation-message-meta { font-size: 12px; }
 

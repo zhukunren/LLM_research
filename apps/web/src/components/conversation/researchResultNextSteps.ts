@@ -4,6 +4,7 @@ import type { Security } from '../StockSearch'
 type FrozenResearchTurn = ConversationTurn & { research_scope?: ResearchScope }
 
 export function researchAnswerTurn(conversation: Conversation, message: ConversationMessage): FrozenResearchTurn | undefined {
+  if (message.turn_id) return conversation.turns.find(item => item.id === message.turn_id) as FrozenResearchTurn | undefined
   const index = conversation.messages.findIndex(item => item.id === message.id)
   if (index < 0) return undefined
   const question = conversation.messages.slice(0, index).reverse().find(item => item.role === 'user')

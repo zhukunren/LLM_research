@@ -1,9 +1,49 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import ScreeningResultView, { type CoverageCounts } from './ScreeningResultView'
 
 const mixed: CoverageCounts = { target_total: 10, true_count: 2, false_count: 3, unknown_count: 5, failed_count: 2, not_evaluated_count: 1 }
+
+it('opens full evidence from the compact list, including a false condition on a matching stock', async () => {
+  const user = userEvent.setup()
+  render(<ScreeningResultView status="succeeded" asOf="2026-09-28" decisions={[{ stock_code: '600000.SH', state: 'true', conditions: [
+    { name: '营收增长', state: 'true', explanation: '收入同比增长25%', actual: 25, citation: '半年报第12页' },
+    { name: '亏损', state: 'false', explanation: '净利润为正' },
+  ] }]} />)
+  expect(screen.getByRole('table', { name: '筛选结果股票列表' })).toBeInTheDocument()
+  expect(screen.getByText('不符合 · 净利润为正')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
+  const dialog = screen.getByRole('dialog', { name: '个股条件与依据' })
+  expect(within(dialog).getByText('半年报第12页')).toBeVisible()
+  expect(within(dialog).getByText('亏损 · 不符合')).toBeVisible()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' })).toHaveFocus()
+})
+
+it('adds only selected stocks and retains failed selections with a stable retry request', async () => {
+  const user = userEvent.setup(), writes: { stock_code: string; request_id: string }[] = []
+  let failed = false
+  vi.stubGlobal('fetch', vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'POST') {
+      const body = JSON.parse(String(init.body)); writes.push(body)
+      if (body.stock_code === '000001.SZ' && !failed) { failed = true; return new Response(JSON.stringify({ detail: '暂时失败' }), { status: 503 }) }
+    }
+    return new Response(JSON.stringify({ items: [] }), { status: 200 })
+  }))
+  render(<ScreeningResultView status="succeeded" decisions={['600000.SH', '000001.SZ', '000002.SZ'].map(stock_code => ({ stock_code, state: 'true', conditions: [] }))} />)
+  await user.click(screen.getByRole('checkbox', { name: '勾选筛选结果 600000.SH' }))
+  await user.click(screen.getByRole('checkbox', { name: '勾选筛选结果 000001.SZ' }))
+  await user.click(screen.getByRole('button', { name: /^加入观察池$/ }))
+  await screen.findByText(/1 只未完成/)
+  expect(screen.getByRole('checkbox', { name: '勾选筛选结果 600000.SH' })).not.toBeChecked()
+  expect(screen.getByRole('checkbox', { name: '勾选筛选结果 000001.SZ' })).toBeChecked()
+  await user.click(screen.getByRole('button', { name: /^加入观察池$/ }))
+  await waitFor(() => expect(writes).toHaveLength(3))
+  expect(writes.map(item => item.stock_code)).toEqual(['600000.SH', '000001.SZ', '000001.SZ'])
+  expect(writes[1].request_id).toBe(writes[2].request_id)
+})
 
 it('defaults to matches while retaining date and accurate mixed-status coverage', () => {
   render(<ScreeningResultView title="我的筛选" asOf="2026-09-30" status="partial" coverage={mixed} decisions={[]} onStateFilterChange={vi.fn()} />)
@@ -62,6 +102,7 @@ it('shows supplied evidence in the summary and keeps full judgments without an u
       { name: '估值', state: 'false', explanation: '市盈率为 12 倍' },
     ] },
   ]} />)
+  fireEvent.click(screen.getByRole('button', { name: '详细卡片' }))
   const summary = container.querySelector('summary')!
   expect(within(summary).getByText('营收增长（符合）：营收同比增长 25%')).toBeVisible()
   expect(within(summary).getByText('ROE（符合）：ROE 为 18%')).toBeVisible()
@@ -116,6 +157,7 @@ it('shows actual false-condition evidence for a true result without assuming AND
       { name: '亏损', state: 'false', explanation: '净利润为正' },
     ] },
   ]} />)
+  fireEvent.click(screen.getByRole('button', { name: '详细卡片' }))
   expect(within(container.querySelector('summary')!).getByText('亏损（不符合）：净利润为正')).toBeVisible()
 })
 

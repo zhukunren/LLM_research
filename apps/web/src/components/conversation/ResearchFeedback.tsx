@@ -1,6 +1,8 @@
 import { StockText } from '../StockMentions'
 import { useEffect, useState } from 'react'
-import { AlertCircle, LoaderCircle, Square } from 'lucide-react'
+import { AlertCircle, ChevronDown, LoaderCircle, Square } from 'lucide-react'
+import { ActivityList } from './ResearchActivityHistory'
+import type { ResearchActivity } from './researchProgress'
 import './research-progress.css'
 
 export function isExecutionFailure(content: string) {
@@ -23,8 +25,9 @@ function duration(milliseconds: number) {
   return seconds < 60 ? `${seconds} 秒` : seconds < 3600 ? `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒` : `${Math.floor(seconds / 3600)} 小时 ${Math.floor(seconds / 60) % 60} 分`
 }
 
-export function ResearchProgress({ label, startedAt, updatedAt, stopping, onStop }: {
+export function ResearchProgress({ label, startedAt, updatedAt, stopping, onStop, activities = [] }: {
   label: string; startedAt: string; updatedAt: string; stopping: boolean; onStop: () => void
+  activities?: ResearchActivity[]
 }) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
@@ -33,12 +36,15 @@ export function ResearchProgress({ label, startedAt, updatedAt, stopping, onStop
   const lastActivity = Number.isFinite(updated) ? updated : started
   const waitingLong = !stopping && elapsed >= 90000 && Number.isFinite(lastActivity) && now - lastActivity >= 60000
   const status = stopping ? '正在停止…' : label
+  const commentary = [...activities].reverse().find(item => item.phase === 'commentary' && item.text)?.text
   return <div className="research-progress research-progress--compact">
     <div className="research-progress-heading">
       <span className="research-progress-status" role="status" aria-live="polite" aria-atomic="true"><LoaderCircle size={15} className="spin" aria-hidden="true" /><span title={status}>{status}</span></span>
       <span className="research-progress-duration" aria-live="off">{Number.isFinite(started) ? duration(elapsed) : '正在计时'}</span>
       <button type="button" className="text-button" disabled={stopping} onClick={onStop} aria-label="停止当前研究"><Square size={12} aria-hidden="true" />停止</button>
     </div>
+    {commentary && <p className="research-progress-commentary">{commentary}</p>}
+    {!!activities.length && <details className="research-activity-history"><summary>查看研究过程<ChevronDown size={14} /></summary><ActivityList items={activities} /></details>}
     {waitingLong && <p className="research-progress-waiting">仍在处理，可继续等待或停止。</p>}
   </div>
 }

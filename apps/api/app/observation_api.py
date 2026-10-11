@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from . import conversation_store, market, observation_market, screening_service, security_catalog
 from .db import connect, json_dump, json_load, utc_now
@@ -204,6 +204,38 @@ class ExecuteSaved(ContractModel):
 class NoteInput(ContractModel):
     status: Literal["watching", "priority", "ended"] = "watching"
     note: str = Field(default="", max_length=2000)
+
+
+class NotePatch(ContractModel):
+    status: Literal["watching", "priority", "ended"] | None = None
+    note: str | None = Field(default=None, max_length=2000)
+    expected_note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_changes(self):
+        changes = self.model_fields_set & {"status", "note"}
+        if not changes or any(getattr(self, field) is None for field in changes):
+            raise ValueError("请选择要修改的状态或备注。")
+        return self
+
+
+@router.patch('/runs/{run_id}/notes/{stock_code}')
+def patch_observation_note(run_id: str, stock_code: str, payload: NotePatch):
+    with connect() as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        if not connection.execute("SELECT 1 FROM screening_task_decisions WHERE run_id=? AND stock_code=? AND state='true'", (run_id, stock_code)).fetchone():
+            raise HTTPException(404, '这次选股没有该股票的入选记录。')
+        previous = connection.execute('SELECT status,note FROM observation_notes WHERE run_id=? AND stock_code=?', (run_id, stock_code)).fetchone()
+        note = previous['note'] if previous else ''
+        if 'note' in payload.model_fields_set and payload.expected_note is not None and note != payload.expected_note:
+            raise HTTPException(409, '备注已在其他地方修改，请核对最新记录后再保存。')
+        status = payload.status if 'status' in payload.model_fields_set else previous['status'] if previous else 'watching'
+        note = payload.note if 'note' in payload.model_fields_set else note
+        now = utc_now()
+        connection.execute('''INSERT INTO observation_notes VALUES(?,?,?,?,?)
+            ON CONFLICT(run_id,stock_code) DO UPDATE SET status=excluded.status,note=excluded.note,updated_at=excluded.updated_at''',
+            (run_id, stock_code, status, note, now))
+    return {'status': status, 'note': note, 'updated_at': now}
 
 
 def _run(run_id):

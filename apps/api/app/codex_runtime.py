@@ -345,9 +345,16 @@ def _prompt(conversation_id: str, turn_id: str, workspace: dict | None = None) -
             task = conversation_store.get_task_revision(conversation_id, revision).model_dump(mode="json")
         except conversation_store.ConversationNotFound:
             task = None
+    from .research_answer_actions import visible_messages
+    with conversation_store.connect() as connection:
+        history_messages = visible_messages([dict(row) for row in connection.execute(
+            "SELECT id,role,content,regeneration_of FROM conversation_messages WHERE conversation_id=? ORDER BY rowid", (conversation_id,))])
+    if message.get("regeneration_of"):
+        question_index = next((index for index, item in enumerate(history_messages) if item["id"] == message["regeneration_of"]), len(history_messages))
+        history_messages = history_messages[:question_index + 1]
     history = [
         {"role": item["role"], "content": item["content"]}
-        for item in conversation["messages"][-12:]
+        for item in history_messages[-12:]
         if item["role"] in {"user", "assistant"}
     ]
     return json.dumps(

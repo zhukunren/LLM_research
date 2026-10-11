@@ -43,9 +43,9 @@ export default function ConversationRunView({ conversationId, runId, onContinue 
     return () => { active = false; clearTimeout(timer) }
   }, [base, run?.status, state, query, offset, reload])
   if (!run) return <StockText><div><p role={error ? 'alert' : 'status'}>{error || '正在读取历史筛选…'}</p>{error && <button onClick={() => setReload(i => i + 1)}>重试</button>}</div></StockText>
-  return <StockText><div><div className="section-title-row"><h2>选股记录</h2><button className="primary-button" onClick={onContinue}>打开原对话与方案</button></div>
-    <p className="history-date-notice">截止日期：{run.as_of}</p>
-    <details><summary>本次采用的筛选规则</summary><TaskLogic task={run.task} /></details>
+  return <StockText><div className="conversation-history-result"><div className="section-title-row"><h2>选股记录</h2><button className="primary-button" onClick={onContinue}>打开原对话与方案</button></div>
+    <div className="history-run-context"><p className="history-date-notice">截止日期：{run.as_of}</p>
+    <details><summary>本次采用的筛选规则</summary><TaskLogic task={run.task} /></details></div>
     <ScreeningResultView asOf={run.as_of} revision={run.task_revision} status={run.status} isCurrent={false}
       coverage={run.result.coverage} progress={{ message: run.job.message, percent: run.job.progress }}
       decisions={items.map(item => ({ stock_code: item.stock_code, state: item.state, as_of: run.as_of, conditions: item.condition_decisions.map(condition => ({ name: run.task.conditions.find(c => c.condition_id === condition.condition_id)?.description || '筛选条件', state: condition.state, explanation: condition.explanation })) }))}

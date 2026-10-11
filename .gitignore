@@ -22,3 +22,6 @@ artifacts/**
 
 # Daily ingestion completion ledger (local operational state)
 *.sync.json
+
+# The public share host has its own Sites-managed source repository.
+/sites/research-share/

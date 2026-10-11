@@ -88,7 +88,7 @@ def list_projects() -> list[dict]:
         return [dict(row) for row in connection.execute(
             """SELECT p.id,p.name,p.objective,p.status,p.revision,p.created_at,p.updated_at,
                (SELECT count(*) FROM research_project_companies WHERE project_id=p.id) AS company_count,
-               (SELECT count(*) FROM conversations WHERE project_id=p.id) AS conversation_count,
+               (SELECT count(*) FROM conversations WHERE project_id=p.id AND deleted_at IS NULL) AS conversation_count,
                (SELECT count(*) FROM research_notes WHERE project_id=p.id) AS note_count
                FROM research_projects p ORDER BY p.updated_at DESC,p.rowid DESC"""
         )]
@@ -97,10 +97,10 @@ def list_projects() -> list[dict]:
 def _conversations(connection, project_id: str) -> list[dict]:
     return [dict(row) for row in connection.execute(
         """SELECT c.id,c.entry_scope,c.research_mode,c.state,c.task_revision,c.updated_at,
-           (SELECT substr(content,1,120) FROM conversation_messages WHERE conversation_id=c.id AND role='user'
-            ORDER BY rowid LIMIT 1) AS title,
+           COALESCE(c.title,(SELECT substr(content,1,120) FROM conversation_messages WHERE conversation_id=c.id AND role='user'
+            ORDER BY rowid LIMIT 1)) AS title,
            (SELECT state FROM conversation_turns WHERE conversation_id=c.id ORDER BY rowid DESC LIMIT 1) AS last_turn_state
-           FROM conversations c WHERE c.project_id=? ORDER BY c.updated_at DESC,c.rowid DESC""", (project_id,)
+           FROM conversations c WHERE c.project_id=? AND c.deleted_at IS NULL ORDER BY c.pinned DESC,c.updated_at DESC,c.rowid DESC""", (project_id,)
     )]
 
 
@@ -169,7 +169,7 @@ def remove_company(project_id: str, stock_code: str) -> dict:
 def link_conversation(conversation_id: str, project_id: str | None) -> dict:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute("SELECT project_id FROM conversations WHERE id=?", (conversation_id,)).fetchone()
+        row = connection.execute("SELECT project_id FROM conversations WHERE id=? AND deleted_at IS NULL", (conversation_id,)).fetchone()
         if not row:
             raise ProjectError("找不到研究对话。", 404)
         if row["project_id"] == project_id:

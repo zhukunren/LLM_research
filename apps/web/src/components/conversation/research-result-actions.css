@@ -1,9 +1,32 @@
 .research-next-steps { margin-top: 12px; }
-.research-next-step-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.research-next-step-actions > button { display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 42px; padding: 10px 11px; border: 1px solid var(--ui-border, #dce5ef); border-radius: 9px; color: var(--ui-text, #243850); background: var(--ui-surface, #fff); text-align: left; }
-.research-next-step-actions strong { display: block; font-size: 14px; line-height: 1.5; }
-.research-next-step-icon { color: var(--ui-primary, #2469c8); margin-top: 1px; flex-shrink: 0; }
-.research-next-step-actions > button > svg { flex-shrink: 0; margin-top: 2px; }
+.research-answer-toolbar { display: flex; align-items: center; justify-content: flex-start; gap: 2px; width: fit-content; }
+.research-answer-toolbar .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.research-answer-toolbar > button, .research-answer-versions > button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-height: 32px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--ui-text-muted, #78818b); cursor: pointer; }
+.research-answer-toolbar > button:hover:not(:disabled), .research-answer-versions > button:hover:not(:disabled) { color: var(--ui-text, #243850); background: var(--ui-surface-soft, #f2f4f6); }
+.research-answer-toolbar > button:focus-visible, .research-answer-versions > button:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
+.research-answer-toolbar > button:disabled, .research-answer-versions > button:disabled { opacity: .45; cursor: default; }
+.research-answer-menu { position: fixed; z-index: 3100; display: grid; gap: 3px; padding: 6px; overflow-y: auto; border: 1px solid var(--ui-border, #e5e7eb); border-radius: 12px; background: var(--ui-surface, white); box-shadow: 0 5px 25px #172c4324; }
+.research-answer-menu > button { display: flex; align-items: center; gap: 10px; padding: 10px; min-height: 40px; border: 0; border-radius: 7px; background: transparent; color: var(--ui-text); font-size: 14px; text-align: left; }
+.research-answer-menu > button:hover:not(:disabled), .research-answer-menu > button:focus-visible { background: var(--ui-surface-soft, #f3f4f6); }
+.research-answer-menu > button > svg:last-child:not(:first-child), .research-answer-source-count { margin-left: auto; color: var(--ui-text-muted); }
+.research-answer-versions { display: flex; align-items: center; gap: 3px; margin-top: 4px; color: var(--ui-text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.research-answer-versions > button { width: 26px; height: 26px; min-height: 26px; }
+.research-result-dialog-backdrop.research-sources-backdrop { justify-content: flex-end; padding: 0; background: #14243b26; }
+.research-result-dialog.research-sources-drawer { width: min(430px, 100%); height: 100dvh; max-height: 100dvh; border-radius: 0; border-width: 0 0 0 1px; }
+.research-sources-drawer .research-result-dialog-body { display: block; flex: 1; }
+.research-sources-drawer .research-source-list { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.research-source-list > summary { display: none; }
+.research-source-list .conversation-source-refs { display: grid; gap: 0; }
+.research-source-list .conversation-source-refs > * { display: block; margin: 0; padding: 20px 0; border-bottom: 1px solid var(--ui-border); color: var(--ui-text); font-size: 15px; line-height: 1.65; text-align: left; overflow-wrap: anywhere; }
+.research-source-list .conversation-source-refs .research-source-domain { display: block; margin-bottom: 7px; color: var(--ui-text-muted); font-size: 13px; font-weight: 400; }
+.research-source-list .conversation-source-refs strong { display: block; font-size: 15px; font-weight: 600; }
+.research-source-card > a { color: var(--ui-text); }
+.research-source-excerpt { margin-top: 12px; }
+.research-source-excerpt summary { color: var(--ui-primary); font-size: 12px; cursor: pointer; }
+.research-source-excerpt p { color: var(--ui-text-muted); font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.research-share-description, .research-answer-empty-sources { margin: 0; color: var(--ui-text-muted); font-size: 14px; line-height: 1.7; }
+.research-share-link { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--ui-border); border-radius: 8px; font-size: 14px; }
+.research-share-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .research-result-dialog-backdrop { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20, 36, 59, .45); }
 .research-result-dialog { display: flex; flex-direction: column; width: min(640px, 100%); max-height: calc(100dvh - 32px); min-height: 0; border: 1px solid var(--ui-border, #dce5ef); border-radius: 14px; background: var(--ui-surface, #fff); box-shadow: 0 18px 60px rgba(20, 36, 59, .22); overflow: hidden; }
 .research-result-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-shrink: 0; padding: 18px 20px 15px; border-bottom: 1px solid var(--ui-border, #dce5ef); }
@@ -21,6 +44,5 @@
 .research-next-step-form-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; flex-wrap: wrap; padding: 14px 20px; border-top: 1px solid var(--ui-border, #dce5ef); background: var(--ui-surface, #fff); }
 .research-next-step-form-actions .primary-button { min-height: 40px; }
 .research-next-step-submit-error { margin: 0; padding: 10px; border-radius: 6px; color: var(--ui-danger, #a83232); background: var(--ui-danger-soft, #fff2f2); font-size: 13px; line-height: 1.6; }
-.research-next-step-copy { margin-top: 12px; }
-@media (max-width: 1100px) { .research-next-step-actions { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .research-answer-toolbar > button { width: 36px; height: 36px; min-height: 36px; } .research-sources-backdrop { padding: 0; } .research-sources-drawer { max-height: 100dvh; } }
 @media (max-width: 640px) { .research-result-dialog-backdrop { padding: 12px; } .research-result-dialog { max-height: calc(100dvh - 24px); } .research-result-dialog-header { padding: 15px 14px 13px; } .research-result-dialog-body { padding: 15px 14px; } .research-next-step-form textarea, .research-result-dialog .stock-search-control > input { font-size: 16px; } .research-next-step-form-actions { gap: 9px; padding: 12px 14px; } .research-next-step-form-actions .primary-button { flex: 1; min-height: 44px; } .research-next-step-form-actions .secondary-button { min-height: 44px; } }

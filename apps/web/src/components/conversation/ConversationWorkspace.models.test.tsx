@@ -188,7 +188,7 @@ describe('conversation model integration', () => {
     const { state } = backend(active)
     state.events = [{ sequence: 1, method: 'item/started', payload: { item: { type: 'webSearch', action: { type: 'search', query: 'PRIVATE_SEARCH_QUERY' } } } }]
     render(<ConversationWorkspace initialConversationId="model-conversation" />)
-    expect(await screen.findByText('正在搜索网页')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('正在搜索网页'))
     expect(screen.queryByText('PRIVATE_SEARCH_QUERY')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '选择研究模型，GPT-6 Luna，深入' })).toBeDisabled()
     fireEvent.keyDown(screen.getByRole('textbox', { name: '研究要求' }), { key: 'Enter' })

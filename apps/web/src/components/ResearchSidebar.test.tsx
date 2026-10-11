@@ -7,6 +7,25 @@ import ResearchSidebar from './ResearchSidebar'
 vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
 const props = () => ({ page: 'screening' as const, revision: 0, mobileOpen: false, onClose: vi.fn(), onNavigate: vi.fn(), onNewResearch: vi.fn(), onNewScreening: vi.fn(), onSearch: vi.fn(), onConversation: vi.fn(), onAssistant: vi.fn(), onSettings: vi.fn() })
 
+it('keeps pinned conversations first and reads archives separately', async () => {
+  const recent = [{ id: 'ordinary', title: '最新研究', entry_scope: 'screening', workflow_type: 'research', state: 'active', pinned: false },
+    { id: 'pinned', title: '置顶研究', entry_scope: 'screening', workflow_type: 'research', state: 'active', pinned: true }]
+  vi.mocked(api).mockImplementation(async path => ({ items: path.includes('state=archived') ? [
+    { ...recent[0], id: 'archived', title: '已归档研究', state: 'archived' },
+  ] : recent } as never))
+  const user = userEvent.setup()
+  render(<ResearchSidebar {...props()} />)
+  await screen.findByRole('button', { name: '继续研究：置顶研究' })
+  const history = within(screen.getByRole('region', { name: '最近对话' }))
+  expect(history.getAllByRole('button', { name: /^继续研究/ }).map(button => button.textContent)).toEqual(['置顶研究', '最新研究'])
+  expect(history.getByLabelText('已置顶')).toBeInTheDocument()
+  await user.click(history.getByRole('button', { name: '已归档' }))
+  expect(await history.findByRole('button', { name: '继续研究：已归档研究' })).toBeInTheDocument()
+  expect(history.queryByRole('button', { name: '继续研究：最新研究' })).not.toBeInTheDocument()
+  await user.click(history.getByRole('button', { name: '返回最近' }))
+  expect(await history.findByRole('button', { name: '继续研究：最新研究' })).toBeInTheDocument()
+})
+
 it('puts advanced tools behind a disclosure and keeps conversations separate from all screening runs', async () => {
   vi.mocked(api).mockResolvedValue({ items: [{ id: 'screen-one', title: '旧选股对话', entry_scope: 'technical', workflow_type: 'screening' }] } as never)
   const callbacks = props(), onScreeningView = vi.fn(), user = userEvent.setup()

@@ -14,6 +14,7 @@ import { navigateTabs } from '../keyboard'
 import SearchField from '../components/SearchField'
 import ResearchFileList, { reportPending } from '../components/ResearchFileList'
 import ResearchNotePDF from '../components/ResearchNotePDF'
+import './research-project-layout.css'
 
 const time = (value: string) => new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 type NoteContent = Pick<ResearchNote, 'title' | 'body' | 'stock_code' | 'validation_plan' | 'invalidation_condition' | 'status'>
@@ -161,11 +162,11 @@ function NoteEditor({ project, note, onSaved, onCancel }: { project: ResearchPro
 
 export default function ResearchProjectsPage({ initialProjectId, onOpenConversation, onLocationChange }: { initialProjectId?: string; onOpenConversation: (id: string, scope: ConversationScope) => void; onLocationChange?: (id: string, userNavigation?: boolean) => void }) {
   const [mobileView, setMobileView] = useState<'catalog' | 'reader'>(initialProjectId ? 'reader' : 'catalog')
-  const [contextOpen, setContextOpen] = useState(() => !globalThis.matchMedia?.('(max-width: 620px)').matches)
+  const [contextOpen, setContextOpen] = useState(false)
   useEffect(() => {
     const media = globalThis.matchMedia?.('(max-width: 620px)')
     if (!media) return
-    const resize = () => setContextOpen(!media.matches)
+    const resize = () => { if (media.matches) setContextOpen(false) }
     media.addEventListener?.('change', resize)
     return () => media.removeEventListener?.('change', resize)
   }, [])
@@ -296,7 +297,7 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
         <div className="research-project-rows">{loading ? <p role="status">正在加载项目…</p> : displayed.length ? displayed.map(item => <button key={item.id} className={`research-project-row ${selectedId === item.id ? 'selected' : ''}`} aria-current={selectedId === item.id ? 'true' : undefined} disabled={busy} onClick={() => select(item.id)}><FolderOpen size={17} /><span><strong>{item.name}</strong><small>{item.company_count} 家公司 · {item.note_count} 份笔记{item.status === 'archived' ? ' · 已归档' : ''}</small></span></button>) : <p className="research-secondary">{projects.length ? '没有符合条件的项目。' : '暂无研究项目。'}</p>}
         {!loading && projects.length > 0 && !displayed.length && <button className="text-button" onClick={() => { setQuery(''); setIncludeArchived(true) }}>显示全部项目</button>}</div>
       </aside>}
-      <section className={'research-project-detail ' + (form ? 'research-detail-editing' : '')} aria-label="当前研究项目" aria-busy={projectLoading}>
+      <section className={'research-project-detail ' + (form ? 'research-detail-editing' : '') + (editing ? ' research-note-layout-editing' : '')} aria-label="当前研究项目" aria-busy={projectLoading}>
         {form ? <ProjectForm key={form === 'edit' ? formProject?.id : 'new'} project={form === 'edit' ? formProject : undefined} onSaved={saved} onCancel={() => setForm(null)} /> : project ? <>
           {projectError && <div className="research-error" role="alert">{projectError}<button className="text-button" onClick={() => setReload(value => value + 1)}>重试项目详情</button></div>}
           <div className="research-project-heading"><div className="research-project-title"><div className="research-project-topline"><span className={'research-project-state ' + project.status}>{project.status === 'archived' ? '已归档' : '进行中'}</span><span>更新于 <time>{time(project.updated_at)}</time></span></div><h2>{project.name}</h2></div><div className="heading-actions"><button className="secondary-button" disabled={busy} onClick={() => { setFormProject(project); setForm('edit') }} aria-label="编辑项目"><Pencil size={15} /></button><button className="secondary-button" disabled={busy} onClick={() => void mutate(`/research-projects/${project.id}`, { method: 'PATCH', body: JSON.stringify({ base_revision: project.revision, name: project.name, objective: project.objective, status: writable ? 'archived' : 'active' }) }, writable ? '项目已归档，研究内容保留。' : '项目已恢复。')}><Archive size={15} />{writable ? '归档' : '恢复'}</button><button className={editing ? "secondary-button" : "primary-button"} disabled={locked || !writable} onClick={() => void startResearch()}><MessageCircle size={15} />开始研究</button></div></div>

@@ -1,0 +1,30 @@
+.viewport-workspace .page-frame .research-project-page .research-project-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; margin-bottom: 8px; }
+.viewport-workspace .page-frame .research-project-page .research-project-title { min-width: 0; }
+.viewport-workspace .page-frame .research-project-page .research-project-title h2 { margin: 7px 0 0; line-height: 1.45; overflow-wrap: anywhere; }
+.viewport-workspace .page-frame .research-project-page .research-project-topline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.viewport-workspace .page-frame .research-project-page .research-project-state { white-space: nowrap; flex-shrink: 0; }
+.viewport-workspace .page-frame .research-project-page .research-project-heading > .heading-actions { display: flex; flex-wrap: wrap; gap: 7px; width: auto; }
+.viewport-workspace .page-frame .research-project-page .research-project-context { margin: 5px 0 8px; border-bottom: 1px solid var(--ui-border-subtle); }
+.viewport-workspace .page-frame .research-project-page .research-project-context > summary { display: list-item; padding: 9px 0; font-size: 12px; color: var(--ui-text-muted); }
+.viewport-workspace .page-frame .research-project-page .research-project-context > summary > span { margin-left: 8px; }
+.viewport-workspace .page-frame .research-project-page .research-project-context[open] { max-height: 32dvh; overflow-y: auto; }
+.viewport-workspace .page-frame .research-project-page .research-project-tabs { margin: 0 0 8px; gap: 20px; }
+.viewport-workspace .page-frame .research-project-page .research-project-tabs button { padding-block: 9px; }
+.viewport-workspace .page-frame .research-project-page .research-note-layout-editing > .research-project-context,
+.viewport-workspace .page-frame .research-project-page .research-note-layout-editing > .research-project-tabs,
+.viewport-workspace .page-frame .research-project-page .research-note-layout-editing .research-content-heading:empty { display: none; }
+.viewport-workspace .page-frame .research-project-page .research-note-editor { padding: 4px 0 0; }
+.viewport-workspace .page-frame .research-project-page .research-note-editor textarea[aria-label="研究内容"] { min-height: 230px; resize: vertical; }
+.viewport-workspace .page-frame .research-project-page .research-note-layout-editing .research-project-heading > .heading-actions { display: none; }
+.viewport-workspace .page-frame .research-project-page .research-note-editor .research-editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.viewport-workspace .page-frame .research-project-page .research-note-editor .research-editor-fields > label { min-width: 0; }
+@media (max-width: 620px) {
+  .viewport-workspace .page-frame .research-project-page .research-project-heading { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .viewport-workspace .page-frame .research-project-page .research-project-heading > .heading-actions { justify-content: flex-start; width: 100%; }
+  .viewport-workspace .page-frame .research-project-page .research-project-topline { font-size: 11px; }
+  .viewport-workspace .page-frame .research-project-page .research-project-title h2 { font-size: 20px; }
+  .viewport-workspace .page-frame .research-project-page .research-project-tabs { gap: 14px; }
+  .viewport-workspace .page-frame .research-project-page .research-project-tabs button { gap: 4px; font-size: 12px; }
+  .viewport-workspace .page-frame .research-project-page .research-note-filters { flex-wrap: wrap; gap: 7px; }
+  .viewport-workspace .page-frame .research-project-page .research-note-filters > .workspace-search { flex-basis: 100%; }
+}

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
+from typing import Literal
+from urllib.parse import quote
 
 from . import codex_runtime, codex_store, conversation_store, research_workspace, research_turn_service, research_pdf, research_pdf_service, research_assistants
 from .research_assistant_api import assistant_error
@@ -18,9 +20,84 @@ from .screening_contracts import (
     UpdateResearchScopeRequest,
     CreateScreeningDraftRequest,
     ResearchScope,
+    ContractModel,
 )
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["投研与选股工作流"])
+
+
+class ResearchAnswerAction(ContractModel):
+    message_id: str = Field(min_length=1, max_length=100)
+    request_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
+
+
+class ResearchShareRequest(ContractModel):
+    request_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
+
+
+@router.get("/{conversation_id}/answers/{message_id}/sources")
+def answer_sources(conversation_id: str, message_id: str):
+    from .research_sources import answer_evidence
+    try:
+        evidence = answer_evidence(conversation_id, message_id)
+        return {"items": evidence["items"]}
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
+
+
+@router.get("/{conversation_id}/answers/{message_id}/share")
+def research_share_info(conversation_id: str, message_id: str):
+    from .research_shares import share_info
+    try:
+        return share_info(conversation_id, message_id)
+    except conversation_store.ConversationNotFound as exc:
+        _store_error(exc)
+
+
+@router.post("/{conversation_id}/answers/{message_id}/share")
+def create_research_share(conversation_id: str, message_id: str, payload: ResearchShareRequest):
+    from .research_shares import publish, ShareUnavailable
+    try:
+        return publish(conversation_id, message_id, payload.request_id)
+    except ShareUnavailable as exc:
+        raise HTTPException(503, {"code": "share_unavailable", "message": str(exc)}) from exc
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
+
+
+@router.delete("/{conversation_id}/shares/{share_id}")
+def revoke_research_share(conversation_id: str, share_id: str):
+    from .research_shares import revoke, ShareUnavailable
+    try:
+        return revoke(conversation_id, share_id)
+    except ShareUnavailable as exc:
+        raise HTTPException(503, {"code": "share_unavailable", "message": str(exc)}) from exc
+    except conversation_store.ConversationNotFound as exc:
+        _store_error(exc)
+
+
+@router.post("/{conversation_id}/answers/branch")
+def branch_research_answer(conversation_id: str, payload: ResearchAnswerAction):
+    from .research_answer_actions import apply
+    try:
+        return apply(conversation_id, payload.message_id, payload.request_id, "branch")
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
+
+
+@router.post("/{conversation_id}/answers/regenerate")
+def regenerate_research_answer(conversation_id: str, payload: ResearchAnswerAction):
+    from .research_answer_actions import apply
+    try:
+        # Check before writing a pending version, so unavailable service leaves no new turn.
+        available = codex_runtime.availability()
+        if not available["available"]:
+            raise HTTPException(503, {"code": "codex_runtime_unavailable", "message": available["reason"]})
+        result = apply(conversation_id, payload.message_id, payload.request_id, "regenerate")
+        research_turn_service.enqueue_turn(result["conversation_id"], result["turn_id"])
+        return JSONResponse(status_code=202, content=result)
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict, conversation_store.ConversationStoreError) as exc:
+        _store_error(exc)
 
 
 @router.get("/research-modes")
@@ -164,8 +241,49 @@ def list_conversations(
     limit: int = Query(default=50, ge=1, le=100),
     active_only: bool = False,
     workflow_type: str | None = Query(default=None, pattern="^(research|screening)$"),
+    state: Literal["active", "archived"] | None = None,
 ):
-    return {"items": conversation_store.list_conversations(scope, limit, active_only, workflow_type)}
+    return {"items": conversation_store.list_conversations(scope, limit, active_only, workflow_type, state)}
+
+
+class UpdateConversationHistory(ContractModel):
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    pinned: bool | None = None
+    state: Literal["active", "archived"] | None = None
+
+
+@router.patch("/{conversation_id}")
+def update_conversation_history(conversation_id: str, payload: UpdateConversationHistory):
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes or any(value is None for value in changes.values()):
+        raise HTTPException(422, {"code": "invalid_conversation_request", "message": "请选择要修改的名称、置顶或归档状态。"})
+    try:
+        return conversation_store.update_history(conversation_id, changes)
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict) as exc:
+        _store_error(exc)
+
+
+@router.delete("/{conversation_id}", status_code=204)
+def delete_conversation(conversation_id: str):
+    try:
+        conversation_store.delete_conversation(conversation_id)
+        return Response(status_code=204)
+    except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict) as exc:
+        _store_error(exc)
+
+
+@router.get("/{conversation_id}/export")
+def export_conversation(conversation_id: str):
+    try:
+        current = conversation_store.get_conversation(conversation_id, message_limit=1)
+        with conversation_store.connect() as connection:
+            messages = connection.execute("SELECT role,content,created_at FROM conversation_messages WHERE conversation_id=? ORDER BY rowid", (conversation_id,)).fetchall()
+        title = current["title"] or next((row["content"][:120] for row in messages if row["role"] == "user"), "未命名对话")
+        labels = {"user": "我", "assistant": "研究助手", "tool": "工具"}
+        content = f"# {title}\n\n" + "\n\n---\n\n".join(f"## {labels.get(row['role'], row['role'])}\n\n{row['content']}" for row in messages)
+        return Response(content, media_type="text/markdown", headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(title, safe='')}.md", "Cache-Control": "no-store"})
+    except conversation_store.ConversationNotFound as exc:
+        _store_error(exc)
 
 
 @router.get("/{conversation_id}")

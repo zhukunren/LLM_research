@@ -142,6 +142,9 @@ export type ConversationAttachment = {
 }
 export type ConversationMessage = {
   id: string
+  regeneration_of?: string | null
+  file_conversation_id?: string | null
+  turn_id?: string | null
   role: 'user' | 'assistant' | 'tool'
   content: string
   source_refs: Record<string, unknown>[]
@@ -173,6 +176,8 @@ export type ConversationTurn = {
   updated_at: string
 }
 export type Conversation = {
+  title?: string | null
+  pinned?: boolean
   model_id?: string
   reasoning_effort?: string
   model_revision?: number

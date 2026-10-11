@@ -45,10 +45,15 @@ def _fail_running_turn(connection, conversation_id: str, turn_id: str, message: 
     ).rowcount
     if not changed:
         return False
+    regenerated = connection.execute("""SELECT m.id,m.regeneration_of FROM research_answer_actions a
+        JOIN conversation_messages m ON m.id=a.source_message_id
+        WHERE a.target_conversation_id=? AND a.target_turn_id=? AND a.source_conversation_id=?""",
+        (conversation_id, turn_id, conversation_id)).fetchone()
     connection.execute(
-        """INSERT INTO conversation_messages(id,conversation_id,role,content,client_message_id,created_at)
-           VALUES(?,?,'assistant',?,?,?)""",
-        (str(uuid4()), conversation_id, message, f"assistant:{turn_id}", now),
+        """INSERT INTO conversation_messages(id,conversation_id,role,content,client_message_id,created_at,regeneration_of)
+           VALUES(?,?,'assistant',?,?,?,?)""",
+        (str(uuid4()), conversation_id, message, f"assistant:{turn_id}", now,
+         (regenerated["regeneration_of"] or regenerated["id"]) if regenerated else None),
     )
     connection.execute(
         "UPDATE conversations SET pending_execute_message_id=NULL,updated_at=? WHERE id=?",
@@ -251,7 +256,7 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
 
 
 def list_conversations(entry_scope: str | None = None, limit: int = 50, active_only: bool = False,
-                       workflow_type: str | None = None) -> list[dict[str, Any]]:
+                       workflow_type: str | None = None, state: str | None = None) -> list[dict[str, Any]]:
     recover_expired_turns()
     limit = max(1, min(int(limit), 100))
     with connect() as connection:
@@ -259,28 +264,62 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50, active_o
             """SELECT c.id,c.entry_scope,c.research_mode,c.project_id,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
                       c.workflow_type,c.research_depth,c.workflow_revision,c.research_scope_json,c.research_scope_revision,c.assistant_snapshot_json,c.assistant_revision,
                       c.model_id,c.reasoning_effort,c.model_revision,
-                      (SELECT substr(m.content,1,120) FROM conversation_messages m
+                      c.pinned,COALESCE(c.title,(SELECT substr(m.content,1,120) FROM conversation_messages m
                        WHERE m.conversation_id=c.id AND m.role='user'
-                       ORDER BY m.rowid LIMIT 1) AS title,
+                       ORDER BY m.rowid LIMIT 1)) AS title,
                       (SELECT t.state FROM conversation_turns t WHERE t.conversation_id=c.id ORDER BY t.rowid DESC LIMIT 1) AS last_turn_state,
                       (SELECT r.status FROM screening_task_runs r WHERE r.conversation_id=c.id AND r.status IN ('queued','running') ORDER BY r.rowid DESC LIMIT 1) AS active_run_status
                FROM conversations c
                WHERE (? IS NULL OR c.entry_scope=?)
                  AND (? IS NULL OR c.workflow_type=?)
+                 AND c.deleted_at IS NULL AND (? IS NULL OR c.state=?)
                  AND (?=0 OR EXISTS (SELECT 1 FROM conversation_turns t WHERE t.conversation_id=c.id AND t.state IN ('awaiting_agent','running'))
                       OR EXISTS (SELECT 1 FROM screening_task_runs r WHERE r.conversation_id=c.id AND r.status IN ('queued','running')))
-               ORDER BY c.updated_at DESC,c.id DESC LIMIT ?""",
-            (entry_scope, entry_scope, workflow_type, workflow_type, active_only, limit),
+               ORDER BY c.pinned DESC,c.updated_at DESC,c.id DESC LIMIT ?""",
+            (entry_scope, entry_scope, workflow_type, workflow_type, state, state, active_only, limit),
         ).fetchall()
     items = []
     for row in rows:
         item = dict(row)
+        item["pinned"] = bool(row["pinned"])
         item.update(_workflow_payload(row))
         item.pop("research_scope_json")
         item.pop("assistant_snapshot_json")
         item["task_id"] = row["id"] if row["workflow_type"] == "screening" or row["task_revision"] else None
         items.append(item)
     return items
+
+
+def update_history(conversation_id: str, changes: dict[str, Any]) -> dict[str, Any]:
+    with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute("SELECT * FROM conversations WHERE id=? AND deleted_at IS NULL", (conversation_id,)).fetchone()
+        if not row:
+            raise ConversationNotFound(conversation_id)
+        if "state" in changes and changes["state"] != row["state"]:
+            _require_history_idle(connection, conversation_id)
+        for key in ("title", "pinned", "state"):
+            if key in changes:
+                connection.execute(f"UPDATE conversations SET {key}=? WHERE id=?", (changes[key], conversation_id))
+    return get_conversation(conversation_id, message_limit=1)
+
+
+def _require_history_idle(connection, conversation_id: str) -> None:
+    if connection.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? AND state IN ('awaiting_agent','running')", (conversation_id,)).fetchone() or connection.execute(
+        "SELECT 1 FROM screening_task_runs WHERE conversation_id=? AND status IN ('queued','running')", (conversation_id,)
+    ).fetchone():
+        raise ConversationConflict("请先等待或停止当前任务，再归档或删除对话。")
+
+
+def delete_conversation(conversation_id: str) -> None:
+    with connect() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute("SELECT id FROM conversations WHERE id=? AND deleted_at IS NULL", (conversation_id,)).fetchone()
+        if not row:
+            raise ConversationNotFound(conversation_id)
+        _require_history_idle(connection, conversation_id)
+        # Keep immutable evidence and saved notes; remove the conversation from user history.
+        connection.execute("UPDATE conversations SET deleted_at=?,state='archived',pinned=0 WHERE id=?", (utc_now(), conversation_id))
 
 
 def update_research_mode(conversation_id: str, research_mode: str) -> dict[str, Any]:
@@ -435,6 +474,9 @@ def create_screening_draft(conversation_id: str, request_id: str, source_message
 def _message_payload(row) -> dict[str, Any]:
     return {
         "id": row["id"],
+        "regeneration_of": row["regeneration_of"],
+        "file_conversation_id": row["file_conversation_id"],
+        "turn_id": (row["client_message_id"] or "").removeprefix("assistant:") if (row["client_message_id"] or "").startswith("assistant:") else None,
         "role": row["role"],
         "content": row["content"],
         "source_refs": json_load(row["source_refs_json"]),
@@ -527,12 +569,12 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
     message_limit = max(1, min(int(message_limit), 100))
     with connect() as connection:
         conversation = connection.execute(
-            "SELECT * FROM conversations WHERE id=?", (conversation_id,)
+            "SELECT * FROM conversations WHERE id=? AND deleted_at IS NULL", (conversation_id,)
         ).fetchone()
         if not conversation:
             raise ConversationNotFound(conversation_id)
         messages = connection.execute(
-            """SELECT id,role,content,source_refs_json,attachments_json,created_at,order_id FROM (
+            """SELECT * FROM (
                    SELECT *,rowid AS order_id FROM conversation_messages
                    WHERE conversation_id=?
                    ORDER BY rowid DESC LIMIT ?
@@ -563,6 +605,8 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
         "active_run_id": conversation["active_run_id"],
         "pending_execution": conversation["pending_execute_message_id"] is not None,
         "state": conversation["state"],
+        "title": conversation["title"],
+        "pinned": bool(conversation["pinned"]),
         "created_at": conversation["created_at"],
         "updated_at": conversation["updated_at"],
         "messages": [_message_payload(row) for row in messages],
@@ -822,7 +866,7 @@ def clear_pending_execute_message(conversation_id: str, expected_revision: int, 
 def get_user_message(conversation_id: str, message_id: str) -> dict[str, Any]:
     with connect() as connection:
         row = connection.execute(
-            """SELECT id,role,content,source_refs_json,attachments_json,created_at
+            """SELECT *
                FROM conversation_messages WHERE id=? AND conversation_id=? AND role='user'""",
             (message_id, conversation_id),
         ).fetchone()
@@ -937,12 +981,21 @@ def finish_turn(
             if previous_message["content"] != response_text:
                 raise ConversationConflict("助手回合已存在不同的不可变消息")
         else:
+            from .research_sources import collect
+            evidence = collect(connection, conversation_id, turn_id, response_text)
+            regenerated = connection.execute("""SELECT m.id,m.regeneration_of FROM research_answer_actions a
+                JOIN conversation_messages m ON m.id=a.source_message_id
+                WHERE a.target_conversation_id=? AND a.target_turn_id=? AND a.source_conversation_id=?""",
+                (conversation_id, turn_id, conversation_id)).fetchone()
             connection.execute(
                 """INSERT INTO conversation_messages(
-                       id,conversation_id,role,content,client_message_id,source_refs_json,created_at
-                   ) VALUES(?,?,'assistant',?,?,'[]',?)""",
-                (str(uuid4()), conversation_id, response_text, assistant_message_key, now),
+                       id,conversation_id,role,content,client_message_id,source_refs_json,created_at,regeneration_of
+                   ) VALUES(?,?,'assistant',?,?,?,?,?)""",
+                (answer_message_id := str(uuid4()), conversation_id, response_text, assistant_message_key, json_dump(evidence["items"]), now,
+                 (regenerated["regeneration_of"] or regenerated["id"]) if regenerated else None),
             )
+            connection.execute("INSERT INTO research_message_evidence(message_id,evidence_json,created_at) VALUES(?,?,?)",
+                               (answer_message_id, json_dump(evidence), now))
         connection.execute(
             """UPDATE conversation_turns
                SET state=?,response_text=?,result_json=?,updated_at=?

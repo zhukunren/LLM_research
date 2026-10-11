@@ -8,6 +8,12 @@ const props = { label: '正在搜索网页', startedAt, updatedAt: startedAt, st
 afterEach(() => vi.useRealTimers())
 
 describe('compact research progress', () => {
+  it('displays the public activity and offers an expandable research history', () => {
+    render(<ResearchProgress {...props} activities={[{ id: 'public', label: '研究进展', phase: 'commentary', text: '先核对原始公告。', done: true }]} />)
+    expect(screen.getByText('先核对原始公告。', { selector: '.research-progress-commentary' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('查看研究过程'))
+    expect(screen.getByRole('list', { name: '研究活动记录' })).toBeInTheDocument()
+  })
   it('announces only the current activity while time changes separately', () => {
     vi.useFakeTimers()
     vi.setSystemTime(startedAt)

@@ -1,21 +1,23 @@
 import { StockText } from '../StockMentions'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRight, Bookmark, Check, Copy, ListFilter, Star, X } from 'lucide-react'
+import { ArrowRight, X } from 'lucide-react'
 import type { Conversation, ConversationMessage } from '../../api'
 import { trapDialogTab } from '../../keyboard'
 import StockSearch, { useSecurities } from '../StockSearch'
 import { researchAnswerExcerpt, researchAnswerScreeningDraft, researchAnswerSecurityCodes, researchAnswerTurn, uniqueResearchSecurity } from './researchResultNextSteps'
 import './research-result-actions.css'
+import ResearchAnswerTools from './ResearchAnswerTools'
 
 export type ResearchResultRequest =
   | { kind: 'draft'; instructions: string }
   | { kind: 'observe'; stock_code: string; note: string; verification: string; invalidation: string }
 
-export default function ResearchResultActions({ conversation, message, disabled, savingNote, savingAction, onSave, onCopy, onSubmit, onContinue }: {
+export default function ResearchResultActions({ conversation, message, disabled, savingNote, savingAction, onSave, onCopy, onSubmit, onContinue, onRegenerate, onBranch }: {
   conversation: Conversation; message: ConversationMessage; disabled: boolean; savingNote: boolean; savingAction: boolean
   onSave: () => Promise<boolean>; onCopy: () => void; onSubmit: (request: ResearchResultRequest) => Promise<boolean>
   onContinue: () => void
+  onRegenerate?: () => void; onBranch?: () => void
 }) {
   const { items: securities, loading: catalogLoading, error: catalogError } = useSecurities()
   const [saved, setSaved] = useState(false)
@@ -76,11 +78,9 @@ export default function ResearchResultActions({ conversation, message, disabled,
   }
 
   return <StockText><section className="research-next-steps" aria-label="研究答复操作">
-    <div className="research-next-step-actions">
-      <button type="button" aria-label="保存为研究笔记" disabled={locked || saved} onClick={async () => { if (await onSave()) setSaved(true) }}><span className="research-next-step-icon">{saved ? <Check size={19} /> : <Bookmark size={19} />}</span><strong>{savingNote ? '正在保存…' : saved ? '已保存为研究笔记' : '保存为研究笔记'}</strong></button>
-      <button type="button" aria-label="加入观察" disabled={locked} onClick={() => startAction('observe')}><span className="research-next-step-icon"><Star size={19} /></span><strong>加入观察</strong></button>
-      <button type="button" aria-label="转为选股草稿" disabled={locked} onClick={() => startAction('draft')}><span className="research-next-step-icon"><ListFilter size={19} /></span><strong>转为选股草稿</strong><ArrowRight size={16} /></button>
-    </div>
+    <ResearchAnswerTools conversation={conversation} message={message} locked={locked} saved={saved} savingNote={savingNote}
+      onSave={() => { void (async () => { if (await onSave()) setSaved(true) })() }} onCopy={onCopy}
+      onObserve={() => startAction('observe')} onDraft={() => startAction('draft')} onRegenerate={onRegenerate} onBranch={onBranch} />
     {action && createPortal(<div className="research-result-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) closeAction() }}>
       <section className="research-result-dialog" role="dialog" aria-modal="true" aria-label={action === 'draft' ? '研究转选股草稿' : '加入研究候选观察'} onKeyDown={event => {
         if (event.key === 'Escape') {
@@ -105,6 +105,5 @@ export default function ResearchResultActions({ conversation, message, disabled,
       </form>
       </section>
     </div>, document.body)}
-    <button type="button" className="text-button research-next-step-copy" onClick={onCopy}><Copy size={14} />复制答复</button>
   </section></StockText>
 }

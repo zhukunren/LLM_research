@@ -96,7 +96,7 @@
 .condition-picker-list { max-height: 350px; overflow-y: auto; }
 .condition-picker-list > button { display: flex; align-items: center; gap: 9px; width: 100%; min-width: 0; border: 0; border-top: 1px solid var(--ui-border-subtle); background: transparent; padding: 12px 4px; text-align: left; cursor: pointer; }
 .condition-picker-list > button:hover { background: var(--ui-surface-hover); }
-.condition-picker-list > button > span:nth-child(2) { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.condition-picker-list > button > .condition-picker-description { display: grid; gap: 3px; flex: 1; min-width: 0; }
 .condition-picker-list strong { font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
 .condition-picker-list small { font-size: 11px; color: var(--ui-text-muted); line-height: 1.6; }
 .condition-picker-list svg { flex-shrink: 0; color: var(--ui-text-faint); }

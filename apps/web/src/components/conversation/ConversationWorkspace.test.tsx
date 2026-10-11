@@ -4,6 +4,26 @@ import { describe, expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
 import type { Conversation, ConversationSourceReference, ScreeningTaskRevision, DataStatus } from '../../api'
 
+it('keeps archived conversations readable and restores the composer after a sidebar update', async () => {
+  const id = 'archived-history'
+  const stored = conversation(id, { state: 'archived', workflow_type: 'research' })
+  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    if (path === '/api/v1/conversations') return jsonResponse({ items: [stored] })
+    if (path === `/api/v1/conversations/${id}`) return jsonResponse(stored)
+    return jsonResponse({ items: [] })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const view = render(<ConversationWorkspace initialConversationId={id} initialWorkflowType="research" />)
+  expect(await screen.findByText('此对话已归档。可在左侧更多操作中恢复后继续。')).toBeInTheDocument()
+  expect(screen.getByLabelText('研究要求')).toBeDisabled()
+  expect(screen.getByRole('button', { name: /^发送$/ })).toBeDisabled()
+  view.rerender(<ConversationWorkspace initialConversationId={id} initialWorkflowType="research" conversationUpdate={{ id, state: 'active' }} />)
+  await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+  expect(screen.queryByText('此对话已归档。可在左侧更多操作中恢复后继续。')).not.toBeInTheDocument()
+  expect(fetcher.mock.calls.every(call => !String(call[0]).endsWith('/messages'))).toBe(true)
+})
+
 it.each(['research', 'screening'] as const)('restores a first failed %s message with its draft, source and stable client identity', async workflow => {
   const user = userEvent.setup()
   const id = 'first-message-retry'
@@ -421,7 +441,7 @@ describe('ConversationWorkspace', () => {
     await user.click(screen.getByRole('button', { name: '发送修改' }))
 
     expect(await screen.findByText('600000.SH')).toBeInTheDocument()
-    await user.click(screen.getByText('600000.SH'))
+    await user.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('为什么这次选中了600000.SH？')
     expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1)

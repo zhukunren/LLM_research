@@ -80,6 +80,56 @@ function mockApi(intercept?: (url: URL, init?: RequestInit) => Response | Promis
 }
 
 describe('统一观察池', () => {
+  it('在列表修改状态时只保存状态，并可快速编辑备注', async () => {
+    const writes: Record<string, unknown>[] = []
+    mockApi((url, init) => {
+      if (url.pathname.endsWith('/research-candidates/candidate') && init?.method === 'PATCH') { const body = JSON.parse(String(init.body)); writes.push(body); return json({ ...candidate, ...body }) }
+    })
+    const user = userEvent.setup()
+    render(<ObservationPage data={null} />)
+    await user.selectOptions(await screen.findByLabelText('修改贵州茅台观察状态'), 'priority')
+    await screen.findByText('贵州茅台已设为重点关注。')
+    expect(writes[0]).toEqual({ revision: 1, status: 'priority' })
+    await user.click(await screen.findByRole('button', { name: '编辑贵州茅台关注备注' }))
+    const dialog = screen.getByRole('dialog', { name: '快速编辑观察备注' })
+    const input = within(dialog).getByLabelText('关注备注')
+    await waitFor(() => expect(input).toBeEnabled())
+    await user.clear(input); await user.type(input, '核对新增订单')
+    await user.click(within(dialog).getByRole('button', { name: '保存备注' }))
+    await screen.findByText('关注备注已保存。')
+    expect(writes[1]).toEqual({ revision: 1, note: '核对新增订单' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('本页批量处理混合来源，失败项仍保留勾选', async () => {
+    const writes: string[] = []
+    mockApi((url, init) => {
+      if (init?.method === 'PATCH') { writes.push(url.pathname); return url.pathname.includes('run-2') ? json({ detail: '稍后重试' }, 503) : json({}) }
+    })
+    const user = userEvent.setup()
+    render(<ObservationPage data={null} />)
+    await user.click(await screen.findByRole('checkbox', { name: '勾选本页全部观察记录' }))
+    await user.click(screen.getByRole('button', { name: '设为重点关注' }))
+    await screen.findByText(/已将 2 条记录设为重点关注/)
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: '勾选观察记录 600001.SH 质量方案 · 2026-09-01' })).toBeChecked())
+    expect(screen.getByRole('checkbox', { name: '勾选观察记录 600000.SH 趋势方案 · 2026-09-01' })).not.toBeChecked()
+    expect(writes).toHaveLength(3)
+  })
+
+  it('保存筛选视图后可重新载入同一查询', async () => {
+    mockApi()
+    const user = userEvent.setup()
+    const view = render(<ObservationPage data={null} />)
+    await user.type(screen.getByLabelText('搜索观察记录'), '贵州茅台')
+    await user.click(screen.getByRole('button', { name: '保存当前筛选' }))
+    await user.clear(screen.getByLabelText('视图名称')); await user.type(screen.getByLabelText('视图名称'), '现金流跟踪')
+    await user.click(screen.getByRole('button', { name: '保存视图' }))
+    const saved = JSON.parse(localStorage.getItem('observation.savedViews')!)[0]
+    expect(saved).toMatchObject({ name: '现金流跟踪', query: '贵州茅台' })
+    view.unmount(); render(<ObservationPage data={null} />)
+    await user.selectOptions(screen.getByLabelText('已保存观察视图'), saved.id)
+    expect(screen.getByLabelText('搜索观察记录')).toHaveValue('贵州茅台')
+  })
   it('先显示可操作的列表，再补齐行情统计与汇总', async () => {
     let finishMetrics!: (response: Response) => void
     mockApi(url => url.pathname.endsWith('/entries') && url.searchParams.get('include_metrics') !== 'false'
@@ -138,7 +188,7 @@ describe('统一观察池', () => {
     const user = userEvent.setup()
     render(<ObservationPage data={null} onLocationChange={location} />)
     const list = await screen.findByRole('region', { name: '观察记录列表' })
-    await user.click(await within(list).findByRole('button', { name: /浦发银行/ }))
+    await user.click(await within(list).findByRole('button', { name: '查看浦发银行观察详情' }))
     expect(await screen.findByTestId('chart')).toHaveTextContent('600000.SH · observation')
     expect(location).toHaveBeenCalledWith('batches', 'run-1', true, '600000.SH')
     expect(screen.getByText('趋势方案')).toBeInTheDocument()
@@ -159,10 +209,10 @@ describe('统一观察池', () => {
     const user = userEvent.setup()
     render(<ObservationPage data={null} />)
     const list = await screen.findByRole('region', { name: '观察记录列表' })
-    await user.click(await within(list).findByRole('button', { name: /浦发银行/ }))
+    await user.click(await within(list).findByRole('button', { name: '查看浦发银行观察详情' }))
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600000.SH'))
     await user.click(screen.getByRole('button', { name: '关闭观察详情' }))
-    await user.click(within(list).getByRole('button', { name: /招商银行/ }))
+    await user.click(within(list).getByRole('button', { name: '查看招商银行观察详情' }))
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600001.SH'))
     expect(fetcher.mock.calls.filter(([input]) => String(input).endsWith('/run-1/performance'))).toHaveLength(1)
   })
@@ -181,7 +231,7 @@ describe('统一观察池', () => {
     const list = screen.getByRole('region', { name: '观察记录列表' })
     await user.click(screen.getByRole('button', { name: '关闭观察详情' }))
     await user.selectOptions(screen.getByLabelText('按所属筛选'), 'run:run-2')
-    await user.click(await within(list).findByRole('button', { name: /招商银行/ }))
+    await user.click(await within(list).findByRole('button', { name: '查看招商银行观察详情' }))
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600001.SH'))
     resolveOld(json(performance()))
     await waitFor(() => expect(screen.getByTestId('chart')).toHaveTextContent('600001.SH'))

@@ -23,7 +23,7 @@ it('adds checked conditions in one batch and excludes chosen versions from the a
   await user.click(screen.getByLabelText('选择待选条件 成交量条件 第 1 版'))
   await user.click(screen.getByRole('button', { name: '加入勾选条件' }))
   expect(currentTree().children?.map(node => node.filter_id)).toEqual(['price', 'volume'])
-  expect(within(screen.getByRole('group', { name: '切换条件列表' })).getByRole('button', { name: '已选 2' })).toHaveAttribute('aria-pressed', 'true')
+  expect(within(screen.getByRole('group', { name: '切换条件列表' })).getByRole('button', { name: '已选条件 · 2' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.queryByLabelText('选择待选条件 价格条件 第 2 版')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: '加入勾选条件' })).toBeDisabled()
   await user.click(screen.getByLabelText('历史版本'))
@@ -46,6 +46,18 @@ it('limits all-add to the visible category and search while keeping selected con
   expect(currentTree().children?.map(node => node.filter_id)).toEqual(['volume', 'report'])
 })
 
+it('adds and removes a single condition directly while preserving an existing nested group', async () => {
+  const group: Node = { op: 'any', children: [{ op: 'filter_ref', filter_id: 'report', version: 1, score_weight: 3, parameter_overrides: { n: 7 } }] }
+  const initial: Node = { op: 'all', children: [group] }
+  const user = userEvent.setup(); render(<Harness initial={initial} />)
+  await user.click(screen.getByRole('button', { name: '加入 价格条件 第 2 版' }))
+  expect(currentTree().children?.[0]).toEqual(group)
+  expect(currentTree().children?.[1]).toMatchObject({ op: 'filter_ref', filter_id: 'price', version: 2 })
+  await user.click(screen.getByRole('button', { name: '移除第 2 项' }))
+  expect(currentTree()).toEqual(initial)
+  expect(screen.getByRole('button', { name: '加入 价格条件 第 2 版' })).toBeEnabled()
+})
+
 it('keeps the selected row checked across repeated moves and removes the group whole', async () => {
   const group: Node = { op: 'not', children: [{ op: 'filter_ref', filter_id: 'price', version: 1, score_weight: 2, parameter_overrides: { value: 30 } }] }
   const initial: Node = { op: 'all', children: [{ op: 'filter_ref', filter_id: 'volume', version: 1 }, { op: 'filter_ref', filter_id: 'report', version: 1 }, group] }
@@ -65,7 +77,7 @@ it('preserves unavailable fixed versions and disables all mutation controls duri
   const change = vi.fn()
   render(<ConditionTransferEditor tree={{ op: 'all', children: [missing] }} catalog={assets} disabled onChange={change} onCreateCondition={vi.fn()} />)
   expect(screen.getByText('未载入条件 · missing')).toBeInTheDocument()
-  expect(screen.getByText(/v7 · 权重/)).toBeInTheDocument()
+  expect(screen.getByText(/权重 1/)).toBeInTheDocument()
   expect(screen.getAllByRole('button').every(button => button.hasAttribute('disabled'))).toBe(true)
   expect(change).not.toHaveBeenCalled()
 })

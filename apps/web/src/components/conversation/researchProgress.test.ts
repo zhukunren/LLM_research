@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { codexEventLabel } from './researchProgress'
+import { appendResearchActivity, codexEventLabel } from './researchProgress'
 
 describe('public research activity labels', () => {
   it.each([
@@ -37,4 +37,21 @@ describe('public research activity labels', () => {
     expect(codexEventLabel({ method: 'turn/completed', payload: { turn: { status: 'interrupted' } } })).toBe('研究已停止')
     expect(codexEventLabel({ method: 'item/completed', payload: { item: { type: 'mcpToolCall', status: 'failed', error: 'PRIVATE_ERROR' } } })).toBe('当前步骤未能完成')
   })
+})
+
+it('streams explicit public commentary while excluding reasoning, final drafts and command output', () => {
+  let items = appendResearchActivity([], { method: 'item/started', payload: { item: { id: 'public', type: 'agentMessage', phase: 'commentary', text: '' } } })
+  items = appendResearchActivity(items, { method: 'item/agentMessage/delta', payload: { itemId: 'public', delta: '正在核对公告。' } })
+  items = appendResearchActivity(items, { method: 'item/reasoning/summaryTextDelta', payload: { delta: 'PRIVATE_REASONING' } })
+  items = appendResearchActivity(items, { method: 'item/agentMessage/delta', payload: { itemId: 'final', delta: 'PRIVATE_DRAFT' } })
+  items = appendResearchActivity(items, { method: 'item/commandExecution/outputDelta', payload: { delta: 'PRIVATE_COMMAND_OUTPUT' } })
+  expect(items).toHaveLength(1)
+  expect(items[0].text).toBe('正在核对公告。')
+  expect(JSON.stringify(items)).not.toContain('PRIVATE')
+})
+
+it('updates a tool step in place after its completion without repeating the activity', () => {
+  let items = appendResearchActivity([], { method: 'item/started', payload: { item: { id: 'search', type: 'mcpToolCall', tool: 'search_research_sources' } } })
+  items = appendResearchActivity(items, { method: 'item/completed', payload: { item: { id: 'search', type: 'mcpToolCall', tool: 'search_research_sources', result: 'PRIVATE_OUTPUT' } } })
+  expect(items).toEqual([{ id: 'search', label: '正在搜索网页', done: true, phase: undefined, text: undefined }])
 })

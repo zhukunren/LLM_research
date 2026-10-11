@@ -3,6 +3,14 @@ import type { Filter } from './api'
 const operators: Record<string, string> = { gt: '大于', gte: '不低于', lt: '小于', lte: '不高于', eq: '等于' }
 const fields: Record<string, string> = { close: '收盘价', open: '开盘价', high: '最高价', low: '最低价', volume: '成交量', amount: '成交额' }
 
+export function distinctConditionDescription(name: string, description?: string | null): string {
+  const summary = description?.trim() ?? ''
+  const normalized = (text: string) => text.normalize('NFKC').replace(/\s+/g, '')
+    .replace(/^(?:最近|近)?(\d+)(?:个)?交易日涨幅/, '$1日涨幅')
+    .replace(/^(?:最近|近)(\d+)日涨幅/, '$1日涨幅')
+  return summary && normalized(summary) !== normalized(name) ? summary : ''
+}
+
 export function conditionParameter(expression: Filter['expression'], key: string): unknown {
   const parts = key.split('.')
   let current: unknown = expression

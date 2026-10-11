@@ -34,6 +34,53 @@ function renderResearch(props: { onOpenConversation?: (...args: [string, ...unkn
   return render(<SecuritiesProvider><ConversationWorkspace initialWorkflowType="research" initialScope="report" initialConversationId="research" {...props} /></SecuritiesProvider>)
 }
 
+it('regenerates the selected answer without adding a new visible question', async () => {
+  const calls = restore(), originalFetch = globalThis.fetch, user = userEvent.setup()
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith('/answers/regenerate')) {
+      calls.push({ path: '/conversations/research/answers/regenerate', method: 'POST', body: JSON.parse(String(init?.body)) })
+      return json({ conversation_id: 'research', turn_id: 'regenerated-turn' })
+    }
+    return originalFetch(input, init)
+  }))
+  renderResearch()
+  await user.click(await screen.findByRole('button', { name: '重新生成答案' }))
+  await screen.findByText('正在重新生成，原回答已保留。')
+  expect(calls.filter(call => call.method === 'POST')).toEqual([{ path: '/conversations/research/answers/regenerate', method: 'POST', body: { message_id: 'answer', request_id: expect.any(String) } }])
+})
+
+it('opens a branch through the answer menu and navigates to the returned conversation', async () => {
+  const calls = restore(), originalFetch = globalThis.fetch, user = userEvent.setup(), navigate = vi.fn()
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).endsWith('/answers/branch')) {
+      calls.push({ path: '/conversations/research/answers/branch', method: 'POST', body: JSON.parse(String(init?.body)) })
+      return json({ conversation_id: 'branch', turn_id: null })
+    }
+    return originalFetch(input, init)
+  }))
+  renderResearch({ onOpenConversation: navigate })
+  await user.click(await screen.findByRole('button', { name: '更多回答操作' }))
+  await user.click(screen.getByRole('menuitem', { name: /打开新对话分支/ }))
+  await waitFor(() => expect(navigate).toHaveBeenCalledWith('branch', 'report', 'research'))
+  expect(calls.filter(call => call.method === 'POST')).toHaveLength(1)
+  expect(calls.find(call => call.method === 'POST')!.body.message_id).toBe('answer')
+})
+
+it('switches preserved answer versions without extra requests or repeated user messages', async () => {
+  const stored = research()
+  stored.messages.push({ ...stored.messages[0], id: 'shadow', regeneration_of: 'question' },
+    { ...stored.messages[1], id: 'second-answer', regeneration_of: 'answer', content: '新版本现金流结论' })
+  const calls = restore(stored), user = userEvent.setup()
+  renderResearch()
+  await screen.findByText('新版本现金流结论')
+  expect(screen.queryByText('经营改善仍需核对现金流。')).not.toBeInTheDocument()
+  expect(screen.getByRole('group', { name: '回答版本' })).toHaveTextContent('2 / 2')
+  await user.click(screen.getByRole('button', { name: '上一个回答版本' }))
+  expect(screen.getByText('经营改善仍需核对现金流。')).toBeInTheDocument()
+  expect(screen.getAllByText('核对现金流', { selector: '.conversation-plain-message' })).toHaveLength(1)
+  expect(calls.every(call => call.method === 'GET')).toBe(true)
+})
+
 it('saves a completed answer without starting another workflow', async () => {
   const calls = restore(), user = userEvent.setup()
   renderResearch()
@@ -95,7 +142,8 @@ it('clears a prior selection on editing and cannot save an unmatched company or 
 it('creates an editable screening draft from the research excerpt without processing or executing it', async () => {
   const calls = restore(), navigate = vi.fn(), user = userEvent.setup()
   renderResearch({ onOpenConversation: navigate })
-  await user.click(await screen.findByRole('button', { name: '转为选股草稿' }))
+  await user.click(await screen.findByRole('button', { name: '更多回答操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '转为选股草稿' }))
   const input = screen.getByLabelText('可执行选股条件')
   expect((input as HTMLTextAreaElement).value).toContain('经营改善仍需核对现金流。')
   fireEvent.change(input, { target: { value: '只筛选有经营现金流实际改善证据的公司' } })
@@ -165,8 +213,9 @@ it('reports the accepted conversation identity and an explicit new draft without
 it.each(['加入观察', '转为选股草稿'])('opens %s above the reading layout with keyboard focus and restores the launcher on close', async name => {
   const calls = restore(), user = userEvent.setup()
   const { container } = renderResearch()
-  const launch = await screen.findByRole('button', { name })
+  const launch = await screen.findByRole('button', { name: name === '转为选股草稿' ? '更多回答操作' : name })
   await user.click(launch)
+  if (name === '转为选股草稿') await user.click(screen.getByRole('menuitem', { name }))
   const dialog = screen.getByRole('dialog', { name: name === '加入观察' ? '加入研究候选观察' : '研究转选股草稿' })
   expect(container).not.toContainElement(dialog)
   expect(dialog).toHaveAttribute('aria-modal', 'true')

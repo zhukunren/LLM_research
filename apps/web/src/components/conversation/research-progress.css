@@ -69,3 +69,13 @@
 @media (prefers-reduced-motion: reduce) {
   .research-progress-status > .spin { animation: none; }
 }
+
+.research-progress .research-progress-commentary { margin: 10px 0 0 23px; max-width: 760px; color: var(--ui-text); font-size: 14px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.research-activity-history { margin: 10px 0; color: var(--ui-text-muted); font-size: 13px; }
+.research-activity-history > summary { display: flex; align-items: center; gap: 7px; width: fit-content; cursor: pointer; list-style: none; }
+.research-activity-history > summary::-webkit-details-marker { display: none; }
+.research-activity-history[open] > summary > svg { transform: rotate(180deg); }
+.research-activity-list { display: grid; gap: 12px; max-height: 300px; margin: 12px 0 0; padding: 12px 4px 12px 0; overflow-y: auto; list-style: none; }
+.research-activity-list > li { display: flex; align-items: flex-start; gap: 10px; line-height: 1.7; }
+.research-activity-list > li > svg { margin-top: 5px; flex-shrink: 0; }
+.research-activity-list p { margin: 4px 0 0; color: var(--ui-text); white-space: pre-wrap; overflow-wrap: anywhere; }

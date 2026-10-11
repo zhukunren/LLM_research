@@ -47,6 +47,7 @@ function mockResearch(intercept?: (path: string, body: Record<string, unknown>, 
 
 it('keeps a research conversation with a legacy task away from screening data and execution', async () => {
   const calls = mockResearch()
+  const user = userEvent.setup()
   render(<ConversationWorkspace initialWorkflowType="research" initialScope="report" initialConversationId="research" data={{ available: true, last_date: '2026-09-30' }} />)
   await screen.findByText('订单证据需要进一步核验。')
   expect(screen.queryByRole('heading', { name: '筛选方案' })).not.toBeInTheDocument()
@@ -54,7 +55,8 @@ it('keeps a research conversation with a legacy task away from screening data an
   expect(calls.some(call => /screening-runs|revisions|execute/.test(call.path))).toBe(false)
   expect(screen.queryByLabelText('研究深度')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: /选择研究模型/ })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: '转为选股草稿' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '更多回答操作' }))
+  expect(screen.getByRole('menuitem', { name: '转为选股草稿' })).toBeInTheDocument()
 })
 
 it('clears inherited research limits before a new question without changing screening tasks or old turns', async () => {
@@ -77,7 +79,8 @@ it('requires editable conditions before creating a linked screening draft, with 
   const calls = mockResearch(path => path.endsWith('/screening-draft') ? json({ conversation_id: 'draft', turn_id: null, draft_prompt: '请核对订单落地条件', source: { source_conversation_id: 'research', source_message_id: 'answer' } }) : undefined)
   const user = userEvent.setup()
   render(<ConversationWorkspace initialWorkflowType="research" initialScope="report" initialConversationId="research" onOpenConversation={navigate} />)
-  await user.click(await screen.findByRole('button', { name: '转为选股草稿' }))
+  await user.click(await screen.findByRole('button', { name: '更多回答操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '转为选股草稿' }))
   expect((screen.getByLabelText('可执行选股条件') as HTMLTextAreaElement).value).toContain('订单证据需要进一步核验。')
   await user.clear(screen.getByLabelText('可执行选股条件'))
   expect(screen.getByRole('button', { name: '创建选股草稿' })).toBeDisabled()

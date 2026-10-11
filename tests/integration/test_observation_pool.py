@@ -65,6 +65,22 @@ def completed(setup):
     return queued["run_id"]
 
 
+def test_partial_note_edit_preserves_other_fields_and_rejects_stale_notes(setup):
+    client, _, _, _ = setup
+    run_id = completed(setup)
+    url = f'/api/v1/observation/runs/{run_id}/notes/600000.SH'
+    assert client.put(url, json={'status': 'watching', 'note': '保留原备注'}).status_code == 200
+    response = client.patch(url, json={'status': 'priority'})
+    assert response.status_code == 200
+    assert response.json()['note'] == '保留原备注'
+    response = client.patch(url, json={'note': '新备注', 'expected_note': '保留原备注'})
+    assert response.status_code == 200 and response.json()['status'] == 'priority'
+    assert client.patch(url, json={'note': '迟到修改', 'expected_note': '保留原备注'}).status_code == 409
+    assert client.patch(url, json={}).status_code == 422
+    assert client.patch(url, json={'status': None}).status_code == 422
+    assert client.patch(url.replace('600000.SH', 'absent'), json={'status': 'ended'}).status_code == 404
+
+
 def test_entry_metrics_use_each_start_date_and_close_based_drawdown(tmp_path, monkeypatch):
     path = tmp_path / 'metric-bars.parquet'
     closes = [10., 12., 9., 11.]

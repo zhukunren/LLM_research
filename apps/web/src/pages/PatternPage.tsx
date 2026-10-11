@@ -1,13 +1,15 @@
 import { StockText } from '../components/StockMentions'
 import { PointerEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, BookOpen, ImageUp, RefreshCw, Library, MessageCircle, Plus, Save, Search, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowRight, BookOpen, ChartNoAxesCombined, ImageUp, RefreshCw, Library, Maximize2, MessageCircle, Minimize2, PencilLine, Plus, Save, Search, Shapes, Sparkles, Trash2 } from 'lucide-react'
 import { api, type Pattern } from '../api'
 import { appendCombination } from '../libraryContext'
 import { ResponsiveMarketIndicatorChart as MarketIndicatorChart, type ChartBar } from './TechnicalBrowser'
-import { navigateTabs } from '../keyboard'
+import { navigateTabs, trapDialogTab } from '../keyboard'
 import SearchField from '../components/SearchField'
 import { StockName } from '../components/StockSearch'
 import '../pattern-matches.css'
+import './pattern-editor-layout.css'
+import './pattern-studio.css'
 
 type Point = { x: number; y: number }
 type Candle = { open: number; high: number; low: number; close: number }
@@ -36,6 +38,17 @@ function readEditor(): EditorSnapshot | null {
 
 export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () => void; onDiscuss?: (id: string, version: number, name: string) => void }) {
   const [restored] = useState(readEditor)
+  const [descriptionOpen, setDescriptionOpen] = useState(!restored?.activeId)
+  const [drawingFocused, setDrawingFocused] = useState(false)
+  const focusButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!drawingFocused) return
+    const previous = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    focusButton.current?.focus()
+    return () => { document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus({ preventScroll: true }) }
+  }, [drawingFocused])
   const [items, setItems] = useState<Pattern[]>([])
   const [query, setQuery] = useState('')
   const [representation, setRepresentation] = useState('')
@@ -49,6 +62,7 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   const [mode, setMode] = useState<'price_path' | 'ohlc_sequence'>(restored?.mode || 'price_path')
   const [source, setSource] = useState<'drawing' | 'screenshot' | 'natural_language'>(restored?.source || 'drawing')
   const [panel, setPanel] = useState<'browse' | 'create' | 'saved'>(restored?.panel || 'browse')
+  useEffect(() => { if (panel !== 'create') setDrawingFocused(false) }, [panel])
   const [prompt, setPrompt] = useState(() => { try { return localStorage.getItem('library.pattern.prompt') ?? '' } catch { return '' } })
   const [draft, setDraft] = useState<ShapeDraft | null>(restored?.draft || null)
   const [sourceDraftId, setSourceDraftId] = useState(restored?.sourceDraftId || '')
@@ -107,6 +121,7 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   useEffect(() => setInputMatch(null), [rawPoints, candles, targetBars, mode])
 
   function reset() {
+    setDescriptionOpen(true); setDrawingFocused(false)
     setActiveId(''); setVersion(0); setName('新形态'); setMode('price_path'); setSource('drawing'); setTargetBars(40)
     setRawPoints([]); setCandles([]); setSelectedCandle(0); setImageData(''); setSavedImageUrl(''); setQuality(null); setNotice('')
     setDraft(null); setSourceDraftId(''); setMinSimilarity(80); setMatchMode('current'); setRecentBars(20); setDirty(false); setPanel('create')
@@ -226,6 +241,7 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   }
 
   function load(item: Pattern) {
+    setDescriptionOpen(false)
     setActiveId(item.id); setVersion(item.version); setName(item.name); setMode(item.representation); setSource(item.input_type === 'natural_language' ? 'natural_language' : item.input_type === 'screenshot' ? 'screenshot' : 'drawing')
     setSourceDraftId(item.provenance?.draft_id ?? ''); setMinSimilarity(Number(item.params.min_similarity ?? 80)); setMatchMode(item.params.match_mode === 'recent' ? 'recent' : 'current'); setRecentBars(Number(item.params.recent_bars ?? 20)); setDraft(null); setDirty(false); setPanel('browse')
     if (item.provenance?.prompt) setPrompt(item.provenance.prompt)
@@ -269,41 +285,50 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   }
   const selectedValue = (field: keyof Candle) => selected?.[field] ?? 0
   return (
-    <StockText><div className="page-content library-shell library-redesign pattern-library">
-      <div className="page-heading"><div className="library-title"><h1>形态库</h1></div><div className="library-heading-actions">{onDiscuss && <button className="secondary-button" disabled={!displayedPattern || (panel === 'create' && dirty) || busy} onClick={() => displayedPattern && onDiscuss(displayedPattern.id, displayedPattern.version, displayedPattern.name)}><MessageCircle size={15} />研究当前形态</button>}<button className="secondary-button" onClick={reset} disabled={busy}><Plus size={15} />新建形态</button></div></div>
-      <nav className="library-tabs" role="tablist" aria-label="形态库功能" onKeyDown={event => navigateTabs(event, ['browse', 'create', 'saved'] as const, panel, setPanel)}><button role="tab" id="pattern-browse-tab" aria-controls="pattern-content" aria-selected={panel === 'browse'} tabIndex={panel === 'browse' ? 0 : -1} className={panel === 'browse' ? 'active' : ''} onClick={() => setPanel('browse')}><BookOpen size={16} />浏览形态</button><button role="tab" id="pattern-create-tab" aria-controls="pattern-content" aria-selected={panel === 'create'} tabIndex={panel === 'create' ? 0 : -1} className={panel === 'create' ? 'active' : ''} onClick={() => setPanel('create')}><Sparkles size={16} />描述需求</button><button role="tab" id="pattern-saved-tab" aria-controls="pattern-content" aria-selected={panel === 'saved'} tabIndex={panel === 'saved' ? 0 : -1} className={panel === 'saved' ? 'active' : ''} onClick={() => setPanel('saved')}><Library size={16} />我的形态</button></nav>
+    <StockText><div className="page-content library-shell library-redesign pattern-library pattern-studio" data-panel={panel}>
+      <div className="page-heading"><div className="library-title"><h1>形态库</h1><p>收藏目标走势，用真实行情核对你的判断。</p></div><div className="library-heading-actions"><button className="primary-button" onClick={reset} disabled={busy}><Plus size={15} />新建形态</button></div></div>
+      <div className="pattern-studio-navigation">
+      <nav className="library-tabs" role="tablist" aria-label="形态库功能" onKeyDown={event => navigateTabs(event, ['browse', 'create', 'saved'] as const, panel, setPanel)}><button role="tab" id="pattern-browse-tab" aria-controls="pattern-content" aria-selected={panel === 'browse'} tabIndex={panel === 'browse' ? 0 : -1} className={panel === 'browse' ? 'active' : ''} onClick={() => setPanel('browse')}><BookOpen size={16} />浏览形态</button><button role="tab" id="pattern-create-tab" aria-controls="pattern-content" aria-selected={panel === 'create'} tabIndex={panel === 'create' ? 0 : -1} className={panel === 'create' ? 'active' : ''} onClick={() => { setDescriptionOpen(true); setPanel('create') }}><Sparkles size={16} />描述需求</button><button role="tab" id="pattern-saved-tab" aria-controls="pattern-content" aria-selected={panel === 'saved'} tabIndex={panel === 'saved' ? 0 : -1} className={panel === 'saved' ? 'active' : ''} onClick={() => setPanel('saved')}><Library size={16} />我的形态</button></nav>
 
+      <span className="pattern-studio-nav-note"><Shapes size={14} />{panel === 'create' ? '支持文字、手绘与截图' : catalogLoading ? '正在读取形态' : catalogError ? '形态目录待更新' : `${items.length} 个已保存形态`}</span>
+      </div>
       {panel === 'saved' && <div className="workspace-filter-bar pattern-filter-bar"><SearchField label="搜索形态" placeholder="搜索形态名称" value={query} onChange={setQuery} /><select aria-label="形态类型筛选" value={representation} onChange={event => setRepresentation(event.target.value)}><option value="">全部形态类型</option><option value="price_path">走势曲线</option><option value="ohlc_sequence">蜡烛图</option></select><span className="workspace-result-count" aria-live="polite">{filteredItems.length} / {items.length} 个形态</span>{(query || representation) && <button className="text-button" onClick={clearPatternFilters}>重置形态筛选</button>}</div>}
       {panel !== 'create' && catalogLoading && <div className="library-loading" role="status">正在加载形态…</div>}
       {panel !== 'create' && catalogError && <div className="library-error" role="alert">{catalogError}<button className="text-button" onClick={() => void refresh()}>重新加载形态</button></div>}
       {panel !== 'create' && !catalogLoading && !catalogError && !filteredItems.length && <div className="workbench-empty"><Search size={24} /><h3>{items.length ? '没有找到匹配的形态' : '暂无形态'}</h3><button className="secondary-button" onClick={items.length ? clearPatternFilters : reset}>{items.length ? '查看全部形态' : '创建形态'}</button></div>}
       {notice && <div className="inline-notice" role="status">{notice}</div>}
       <section id="pattern-content" role="tabpanel" aria-labelledby={`pattern-${panel}-tab`}>
-      {panel === 'create' && <div className="intent-layout"><section className="pattern-language-panel"><div className="section-title-row"><h2>描述目标走势</h2></div><textarea aria-label="形态需求描述" value={prompt} disabled={busy} maxLength={2000} onChange={e => setPrompt(e.target.value)} /><div className="prompt-bottom"><span>{prompt.length}/2000</span><button className="primary-button" disabled={busy || !prompt.trim()} onClick={describePattern}><Sparkles size={15} />{busy ? '正在生成…' : '生成形态草稿'}</button></div>{draft?.issues.map(item => <div className="clarification-card" key={item}>{item}</div>)}</section><aside className="intent-guide"><section className="draft-history"><h3>最近的描述</h3>{recentDescriptions.map(text => <button key={text} disabled={busy} onClick={() => setPrompt(text)}>{text}</button>)}</section></aside></div>}
+      {panel === 'create' && <button type="button" className="text-button pattern-description-toggle" aria-expanded={descriptionOpen} onClick={() => setDescriptionOpen(value => !value)}>{descriptionOpen ? '收起文字描述' : '用文字描述走势'}</button>}
+      {panel === 'create' && descriptionOpen && <div className="intent-layout"><section className="pattern-language-panel"><div className="section-title-row"><h2>描述目标走势</h2></div><textarea aria-label="形态需求描述" value={prompt} disabled={busy} maxLength={2000} onChange={e => setPrompt(e.target.value)} /><div className="prompt-bottom"><span>{prompt.length}/2000</span><button className="primary-button" disabled={busy || !prompt.trim()} onClick={describePattern}><Sparkles size={15} />{busy ? '正在生成…' : '生成形态草稿'}</button></div>{draft?.issues.map(item => <div className="clarification-card" key={item}>{item}</div>)}</section><aside className="intent-guide"><section className="draft-history"><h3>最近的描述</h3>{recentDescriptions.map(text => <button key={text} disabled={busy} onClick={() => setPrompt(text)}>{text}</button>)}</section></aside></div>}
       {panel === 'browse' && !catalogLoading && !catalogError && <div className="library-reading-workspace" data-mobile-view={mobileView}>
         <nav className="library-mobile-switch" aria-label="形态列表与阅读切换"><button type="button" aria-pressed={mobileView === 'catalog'} onClick={() => setMobileView('catalog')}>形态列表</button><button type="button" aria-pressed={mobileView === 'reader'} disabled={!displayedPattern} onClick={() => setMobileView('reader')}>走势对照</button></nav>
         <div className="pattern-layout">
           <aside className="asset-rail pattern-rail library-catalog-pane" aria-label="形态列表">
-            <div className="rail-heading"><strong>我的形态</strong><span>{filteredItems.length} / {items.length}</span></div>
+            <div className="rail-heading"><strong><Shapes size={15} />形态目录</strong><span>{filteredItems.length} / {items.length}</span></div>
             <SearchField label="搜索形态" placeholder="搜索形态名称" value={query} onChange={setQuery} />
             <select className="pattern-type-filter" aria-label="形态类型筛选" value={representation} onChange={event => setRepresentation(event.target.value)}><option value="">全部形态类型</option><option value="price_path">走势曲线</option><option value="ohlc_sequence">蜡烛图</option></select>
             {(query || representation) && <button className="text-button" onClick={clearPatternFilters}>重置形态筛选</button>}
-            <div className="library-catalog-rows">{filteredItems.map(item => <button className={'asset-row ' + (displayedPattern?.id === item.id ? 'selected' : '')} aria-current={displayedPattern?.id === item.id ? 'true' : undefined} key={item.id} onClick={() => { load(item); setMobileView('reader') }}><span className="asset-row-title">{item.name}</span><span className="asset-row-meta">{item.representation === 'ohlc_sequence' ? '蜡烛图' : '走势曲线'} · {item.target_bars} 根 · v{item.version}</span></button>)}</div>
+            <div className="library-catalog-rows">{filteredItems.map(item => <button className={'asset-row ' + (displayedPattern?.id === item.id ? 'selected' : '')} aria-current={displayedPattern?.id === item.id ? 'true' : undefined} key={item.id} onClick={() => { load(item); setMobileView('reader') }}><PatternThumbnail item={item} /><span className="pattern-catalog-row-copy"><span className="asset-row-title">{item.name}</span><span className="asset-row-meta">{item.representation === 'ohlc_sequence' ? '蜡烛图' : '走势曲线'} · {item.target_bars} 根 · v{item.version}</span><span className="pattern-catalog-threshold">相似度 ≥ {String(item.params.min_similarity ?? 80)} 分</span></span><ArrowRight size={13} className="pattern-catalog-arrow" /></button>)}</div>
+            <div className="pattern-catalog-footer"><ChartNoAxesCombined size={14} /><span>选择形态，查看真实行情与相似样本</span></div>
           </aside>
           <section className="pattern-browse-detail library-reader-pane" aria-label="形态对照">
             <button className="text-button reader-back" onClick={() => setMobileView('catalog')}>返回形态列表</button>
-            {displayedPattern ? <><div className="section-title-row"><h2>{displayedPattern.name}</h2><button className="secondary-button" onClick={() => { load(displayedPattern); setPanel('create') }}>编辑形态</button></div>
-              <div className="pattern-detail-summary"><span>{displayedPattern.target_bars} 个交易日</span><span>最低相似度 {String(displayedPattern.params.min_similarity ?? 80)} 分</span><span>版本 v{displayedPattern.version}</span></div>
+            {displayedPattern ? <><div className="section-title-row pattern-detail-heading"><div><span className="pattern-detail-eyebrow">目标形态 · {displayedPattern.representation === 'ohlc_sequence' ? '蜡烛图' : '走势曲线'}</span><h2>{displayedPattern.name}</h2></div><button className="secondary-button" onClick={() => { load(displayedPattern); setPanel('create') }}><PencilLine size={13} />编辑形态</button></div>
+              <div className="pattern-template-overview"><div className="pattern-detail-summary"><span><small>目标窗口</small><strong>{displayedPattern.target_bars}<em> 个交易日</em></strong></span><span><small>最低相似度</small><strong>{String(displayedPattern.params.min_similarity ?? 80)}<em> 分</em></strong></span><span><small>保存版本</small><strong>v{displayedPattern.version}</strong></span></div><div className="pattern-template-preview"><span>目标模板</span><PatternThumbnail item={displayedPattern} /></div></div>
               <PatternExample key={displayedPattern.id + '@' + displayedPattern.version} item={displayedPattern} allowCurve showSimilar />
-              <div className="pattern-browse-actions">{onDiscuss && <button className="secondary-button pattern-reader-research" onClick={() => onDiscuss(displayedPattern.id, displayedPattern.version, displayedPattern.name)}><MessageCircle size={14} />研究此形态</button>}<button className="primary-button" onClick={() => usePattern(displayedPattern)}>加入组合<ArrowRight size={14} /></button></div>
+              <div className="pattern-browse-actions"><span className="pattern-action-note">采用已保存的 v{displayedPattern.version} 版本</span>{onDiscuss && <button className="secondary-button pattern-reader-research" onClick={() => onDiscuss(displayedPattern.id, displayedPattern.version, displayedPattern.name)}><MessageCircle size={14} />研究此形态</button>}<button className="primary-button" onClick={() => usePattern(displayedPattern)}>加入组合<ArrowRight size={14} /></button></div>
             </> : <div className="library-empty">未选择形态</div>}
           </section>
         </div>
       </div>}
-      {panel === 'saved' && !catalogLoading && !catalogError && <div className="shape-gallery">{filteredItems.slice(0, visibleCount).map(item => <article className="saved-condition-card" key={item.id}><div className="condition-card-title"><h3>{item.name}</h3><span className="condition-category">v{item.version} · {item.target_bars} 个交易日</span></div><PatternExample key={item.id + '@' + item.version} item={item} allowCurve /><p>最低相似度 {String(item.params.min_similarity ?? 80)} 分</p><div className="card-actions"><button className="secondary-button" onClick={() => { load(item); setPanel('create') }}>查看与调整</button><button className="primary-button" onClick={() => usePattern(item)}>加入组合<ArrowRight size={14} /></button></div></article>)}{visibleCount < filteredItems.length && <div className="gallery-more"><button className="secondary-button" onClick={() => setVisibleCount(value => value + 6)}>显示更多形态（还有 {filteredItems.length - visibleCount} 个）</button></div>}</div>}
-      {panel === 'create' && <div className="pattern-create-layout">
+      {panel === 'saved' && !catalogLoading && !catalogError && <div className="shape-gallery">{filteredItems.slice(0, visibleCount).map(item => <article className="saved-condition-card" key={item.id}><div className="pattern-gallery-meta"><span>{item.representation === 'ohlc_sequence' ? '蜡烛图' : '走势曲线'}</span><span>v{item.version}</span></div><div className="condition-card-title"><h3>{item.name}</h3><span className="condition-category">{item.target_bars} 个交易日</span></div><PatternExample key={item.id + '@' + item.version} item={item} allowCurve compact /><p className="pattern-gallery-threshold">最低相似度 <strong>{String(item.params.min_similarity ?? 80)}</strong> 分</p><div className="card-actions"><button className="secondary-button" onClick={() => { load(item); setPanel('create') }}>查看与调整</button><button className="primary-button" onClick={() => usePattern(item)}>加入组合<ArrowRight size={14} /></button></div></article>)}{visibleCount < filteredItems.length && <div className="gallery-more"><button className="secondary-button" onClick={() => setVisibleCount(value => value + 6)}>显示更多形态（还有 {filteredItems.length - visibleCount} 个）</button></div>}</div>}
+      {panel === 'create' && <div className={'pattern-create-layout' + (drawingFocused ? ' pattern-drawing-focused' : '')} role={drawingFocused ? 'dialog' : undefined} aria-modal={drawingFocused ? true : undefined} aria-label={drawingFocused ? '专注绘图' : undefined} onKeyDown={event => {
+        if (!drawingFocused) return
+        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDrawingFocused(false) }
+        else trapDialogTab(event)
+      }}>
         <div className="pattern-editor">
-          <div className="pattern-editor-heading"><h2>{activeId ? '编辑已保存形态' : '创建形态'}</h2><span>{dirty ? '尚未保存' : activeId ? '已保存 · v' + version : '文字、手绘或截图均可开始'}</span></div>
+          <div className="pattern-editor-heading"><div><h2>{activeId ? '编辑已保存形态' : '创建形态'}</h2><span>{dirty ? '尚未保存' : activeId ? '已保存 · v' + version : '文字、手绘或截图均可开始'}</span></div><button ref={focusButton} type="button" className="secondary-button compact" aria-pressed={drawingFocused} onClick={() => setDrawingFocused(value => !value)}>{drawingFocused ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{drawingFocused ? '退出专注绘图' : '专注绘图'}</button></div>
           <section className="editor-section">
             <div className="pattern-topline">
               <div className="segmented">
@@ -326,7 +351,8 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
             </div>}
 
             <div className={`drawing-area ${source !== 'screenshot' && mode === 'price_path' ? 'draw-enabled' : ''}`}>
-              <svg viewBox="0 0 900 280" preserveAspectRatio="none" aria-label={mode === 'price_path' ? '走势曲线编辑区' : '蜡烛形态预览'}
+              <div className="pattern-drawing-caption"><span><PencilLine size={13} />{mode === 'price_path' ? '绘制目标走势' : '编辑目标蜡烛'}</span><span>{mode === 'price_path' ? '从左向右拖动，描绘价格变化' : '选择蜡烛，调整开高低收'}</span></div>
+              <svg role="img" viewBox="0 0 900 280" preserveAspectRatio="none" aria-label={mode === 'price_path' ? '走势曲线编辑区' : '蜡烛形态预览'}
                 onPointerDown={startDraw} onPointerMove={continueDraw} onPointerUp={stopDraw} onPointerCancel={stopDraw}>
                 {[0, 1, 2, 3, 4].map((line) => <line key={`h${line}`} x1="0" x2="900" y1={line * 70} y2={line * 70} className="chart-grid" />)}
                 {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((line) => <line key={`v${line}`} x1={line * 112.5} x2={line * 112.5} y1="0" y2="280" className="chart-grid vertical" />)}
@@ -369,7 +395,23 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
 
 type PatternMatch = { bars: ChartBar[]; similarity?: number; stock_code?: string; start_date?: string; end_date?: string; reason?: string; scope?: string; items?: PatternMatch[]; as_of?: string }
 const exampleRequests = new Map<string, { expires: number; request: Promise<PatternMatch> }>()
-function PatternExample({ item, allowCurve = false, showSimilar = false }: { item: Pattern; allowCurve?: boolean; showSimilar?: boolean }) {
+function PatternThumbnail({ item }: { item: Pattern }) {
+  const candles = (item.candlesticks ?? []).filter(candle => [candle.open, candle.high, candle.low, candle.close].every(Number.isFinite))
+  const points = (item.points ?? []).filter(Number.isFinite)
+  const values = item.representation === 'ohlc_sequence' ? candles.flatMap(candle => [candle.low, candle.high]) : points
+  if (values.length < 2) return <span className="pattern-template-thumbnail pattern-thumbnail-empty" aria-hidden="true"><Shapes size={22} /></span>
+  const low = Math.min(...values), high = Math.max(...values), span = high - low || 1
+  const y = (value: number) => 52 - (value - low) / span * 44
+  const path = points.map((value, index) => `${5 + index * 150 / Math.max(1, points.length - 1)},${y(value)}`).join(' ')
+  const step = 150 / Math.max(1, candles.length)
+  const width = Math.max(.5, Math.min(7, step * .6))
+  return <svg className="pattern-template-thumbnail" viewBox="0 0 160 60" aria-hidden="true" focusable="false">
+    {[20, 40].map(position => <line key={position} x1="0" x2="160" y1={position} y2={position} className="pattern-thumbnail-grid" />)}
+    {item.representation === 'ohlc_sequence' ? candles.map((candle, index) => <g key={index} className={candle.close >= candle.open ? 'positive' : 'negative'}><line x1={5 + (index + .5) * step} x2={5 + (index + .5) * step} y1={y(candle.high)} y2={y(candle.low)} /><rect x={5 + (index + .5) * step - width / 2} y={Math.min(y(candle.open), y(candle.close))} width={width} height={Math.max(1, Math.abs(y(candle.open) - y(candle.close)))} /></g>) : <><polygon points={`5,58 ${path} 155,58`} fill="#e7effa" /><polyline points={path} fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" /></>}
+  </svg>
+}
+
+function PatternExample({ item, allowCurve = false, showSimilar = false, compact = false }: { item: Pattern; allowCurve?: boolean; showSimilar?: boolean; compact?: boolean }) {
   const [curve, setCurve] = useState(false)
   const [result, setResult] = useState<PatternMatch | null>(null)
   const [error, setError] = useState('')
@@ -390,11 +432,10 @@ function PatternExample({ item, allowCurve = false, showSimilar = false }: { ite
   const matches = result?.items?.length ? result.items : result?.bars.length ? [result] : []
   const selectedMatch = matches[selectedIndex] || matches[0]
   return <StockText><div className={'pattern-example' + (showSimilar ? ' pattern-match-browser' : '')}>
-    {allowCurve && <div className="segmented"><button aria-pressed={!curve} className={!curve ? 'selected' : ''} onClick={() => setCurve(false)}>K线</button><button aria-pressed={curve} className={curve ? 'selected' : ''} onClick={() => setCurve(true)}>原始曲线</button></div>}
-    {!curve && result && <button className="text-button pattern-refresh" aria-label="刷新形态匹配" onClick={() => { exampleRequests.delete(key); setRetry(value => value + 1) }}><RefreshCw size={13} />刷新匹配</button>}
+    {allowCurve && <div className="pattern-chart-toolbar">{showSimilar && <span><ChartNoAxesCombined size={14} />{curve ? '原始目标走势' : '真实行情对照'}</span>}<div className="pattern-chart-tools"><div className="segmented"><button aria-pressed={!curve} className={!curve ? 'selected' : ''} onClick={() => setCurve(false)}>K线</button><button aria-pressed={curve} className={curve ? 'selected' : ''} onClick={() => setCurve(true)}>原始曲线</button></div>{!curve && result && <button className="text-button pattern-refresh" aria-label="刷新形态匹配" onClick={() => { exampleRequests.delete(key); setRetry(value => value + 1) }}><RefreshCw size={13} /><span>刷新匹配</span></button>}</div></div>}
     {curve ? <svg viewBox="0 0 600 160" role="img" aria-label={item.name + '原始曲线'}><polyline points={galleryPoints(item.points)} fill="none" stroke="var(--ui-chart-line)" strokeWidth="2.5" /></svg> : error ? <p role="alert">{error}<button className="text-button" onClick={() => setRetry(value => value + 1)}>重试</button></p> : !result ? <div className="pattern-match-loading" role="status"><span className="loading-ring" />正在寻找相似的真实 K 线…</div> : selectedMatch ? <>
       {showSimilar && <div className="pattern-selected-company">{selectedMatch.stock_code && <StockName code={selectedMatch.stock_code} />}<span>相似度 <strong>{selectedMatch.similarity?.toFixed(1)}</strong> 分</span></div>}
-      <MarketIndicatorChart chart={{ bars: selectedMatch.bars, placement: 'overlay', lines: [], histogram: null, reference_lines: [] }} height={showSimilar ? 220 : undefined} />
+      <MarketIndicatorChart chart={{ bars: selectedMatch.bars, placement: 'overlay', lines: [], histogram: null, reference_lines: [] }} height={showSimilar ? 220 : compact ? 150 : undefined} />
       <p className="pattern-example-caption">{selectedMatch.stock_code} · {selectedMatch.start_date} 至 {selectedMatch.end_date} · 形态相似度 {selectedMatch.similarity?.toFixed(1)} 分</p>
       {showSimilar && <section className="pattern-similar-section" aria-label="相似K线样本">
         <div className="pattern-similar-heading"><h3>相似 K 线</h3><span>{matches.length} 个样本{result.as_of && ' · 行情截至 ' + result.as_of}</span></div>

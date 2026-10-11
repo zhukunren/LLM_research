@@ -479,6 +479,7 @@ def get_filter(filter_id: str, version: int | None = None):
 
 @app.post(f"{API_PREFIX}/filters")
 def save_filter(payload: FilterInput):
+    from .condition_names import check_condition_name, ConditionNameError
     errors = validate_filter(payload.library, payload.expression)
     if errors:
         _bad_request("条件结构校验失败", 422, "invalid_filter", errors)
@@ -490,16 +491,20 @@ def save_filter(payload: FilterInput):
             _bad_request("同一个条件不能跨库改写，请另存为新条件")
         if payload.base_version is not None and (not previous or previous[1] != payload.base_version):
             _bad_request("条件已有新版本，请重新载入后再保存", 409, "condition_version_conflict")
+        try:
+            condition_name = check_condition_name(connection, payload.name, condition_id=asset_id)
+        except ConditionNameError as exc:
+            _bad_request(str(exc), exc.status, exc.code)
         version = connection.execute("SELECT COALESCE(MAX(version),0)+1 FROM filters WHERE id=?", (asset_id,)).fetchone()[0]
         now = utc_now()
         dsl = {
-            "schema_version": "1.0", "kind": payload.library, "name": payload.name,
+            "schema_version": "1.0", "kind": payload.library, "name": condition_name,
             "description": payload.description, "expression": payload.expression,
             "status": "validated", "provenance": {**(json_load(previous[2]).get("provenance", {}) if previous else {}), "last_edited_by": "local_user", "based_on_version": previous[1] if previous else None, "edited_at": now},
         }
         connection.execute(
             "INSERT INTO filters(id,library,name,description,version,dsl_json,created_at) VALUES(?,?,?,?,?,?,?)",
-            (asset_id, payload.library, payload.name, payload.description, version, json_dump(dsl), now),
+            (asset_id, payload.library, condition_name, payload.description, version, json_dump(dsl), now),
         )
         connection.execute(
             "INSERT INTO audit_events(action,entity_type,entity_id,version,created_at) VALUES('save','filter',?,?,?)",

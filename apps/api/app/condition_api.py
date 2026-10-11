@@ -181,6 +181,7 @@ def preview_draft(draft_id: str, payload: PreviewRequest):
 
 @router.post("/{draft_id}/confirm")
 def confirm_draft(draft_id: str, payload: ConfirmRequest):
+    from .condition_names import check_condition_name, ConditionNameError
     draft = read_draft(draft_id)
     items = edited_conditions(draft, payload)
     confirmation = payload.model_dump()
@@ -194,6 +195,10 @@ def confirm_draft(draft_id: str, payload: ConfirmRequest):
             return result
         now, refs, filters = utc_now(), {}, []
         for item in items:
+            try:
+                item["name"] = check_condition_name(connection, item["name"])
+            except ConditionNameError as exc:
+                raise HTTPException(exc.status, {"message": str(exc), "code": exc.code}) from exc
             asset_id = str(uuid4())
             provenance = {"created_by": "natural_language", "draft_id": draft_id,
                           "original_prompt": draft["original_prompt"], "prompt": draft["prompt"],

@@ -10,6 +10,23 @@ const pattern = (id: string) => ({ id, version: 1, name: id + '目标形态', re
 const sample = (code: string, date: string, score: number) => ({ stock_code: code, similarity: score, start_date: date, end_date: date, bars: [{ trade_date: date, open: 10, high: 12, low: 9, close: 11 }] })
 beforeEach(() => vi.clearAllMocks())
 
+it('opens focus drawing without changing the shape and exits with Escape', async () => {
+  const user = userEvent.setup()
+  const match = sample('600000.SH', '2026-09-28', 90)
+  mocked.mockImplementation(async path => path === '/patterns' ? { items: [pattern('focus')] } : { ...match, items: [match], scope: '真实行情' })
+  render(<PatternPage />)
+  await user.click(await screen.findByRole('button', { name: '编辑形态' }))
+  expect(screen.getByRole('button', { name: '用文字描述走势' })).toHaveAttribute('aria-expanded', 'false')
+  const input = screen.getByLabelText('模板名称')
+  const points = screen.getByRole('img', { name: '走势曲线编辑区' }).querySelector('polyline')?.getAttribute('points')
+  await user.click(screen.getByRole('button', { name: '专注绘图' }))
+  expect(screen.getByRole('dialog', { name: '专注绘图' })).toBeInTheDocument()
+  expect(input).toHaveValue('focus目标形态')
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog', { name: '专注绘图' })).not.toBeInTheDocument()
+  expect(screen.getByRole('img', { name: '走势曲线编辑区' }).querySelector('polyline')?.getAttribute('points')).toBe(points)
+})
+
 it('shows compact candles with ranked thumbnails and switches the main chart by keyboard', async () => {
   const user = userEvent.setup()
   const items = [sample('600000.SH', '2026-09-14', 99), sample('000002.SZ', '2026-09-15', 96)]

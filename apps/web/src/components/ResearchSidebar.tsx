@@ -4,21 +4,23 @@ import { Bot, BookOpen, ChartNoAxesCombined, ChevronDown, Factory, Bookmark, His
 import { api, conversationWorkflow, type ConversationScope, type ResearchAssistant, type WorkflowType } from '../api'
 import { workspaceMenus, type PageId } from '../navigation'
 import { trapDialogTab } from '../keyboard'
+import ConversationHistoryItem, { type RecentConversation, type ConversationHistoryChange } from './ConversationHistoryItem'
 
-type Recent = { id: string; title: string | null; entry_scope: ConversationScope; workflow_type?: WorkflowType; research_mode?: string; task_revision?: number; last_turn_state?: string }
 const toolMenus = workspaceMenus.filter(item => ['reports', 'news', 'technical', 'patterns'].includes(item.id))
 const assistantIcons = { general: MessageCircle, financial: ChartNoAxesCombined, reports: BookOpen, 'supply-chain': Network, risk: ShieldCheck, 'daily-hotspots': Newspaper, 'policy-tracker': Landmark, 'industry-updates': Factory }
 
-export default function ResearchSidebar({ page, conversationId, revision, mobileOpen, onClose, onNavigate, onNewResearch, onNewScreening, onSearch, onConversation, onSettings, onAssistant, workspace, screeningView, onWorkspaceChange, onScreeningView, busy = false }: {
+export default function ResearchSidebar({ page, conversationId, revision, mobileOpen, onClose, onNavigate, onNewResearch, onNewScreening, onSearch, onConversation, onSettings, onAssistant, workspace, screeningView, onWorkspaceChange, onScreeningView, onConversationChange, busy = false }: {
   workspace?: WorkflowType; screeningView?: string; onWorkspaceChange?: (area: WorkflowType) => void; onScreeningView?: (view: 'saved' | 'history' | 'library' | 'compose') => void
   page: PageId; conversationId?: string; revision: number; mobileOpen: boolean; onClose: () => void
   onNavigate: (page: PageId) => void; onNewResearch: () => void; onNewScreening: () => void; onSearch: () => void
   onConversation: (id: string, scope: ConversationScope, workflow?: WorkflowType) => void; onSettings: () => void
   onAssistant: (id: string, launchMode?: 'immediate' | 'draft', name?: string) => void; busy?: boolean
+  onConversationChange?: (id: string, changes: ConversationHistoryChange) => void
 }) {
   const area = workspace ?? (page === 'conditions' ? 'screening' : 'research')
   const isResearch = area === 'research'
-  const [items, setItems] = useState<Recent[]>([])
+  const [items, setItems] = useState<RecentConversation[]>([])
+  const [archived, setArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
@@ -56,20 +58,24 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
   useEffect(() => {
     const controller = new AbortController()
     setLoading(true); setError('')
-    api<{ items: Recent[] }>(`/conversations?limit=50&workflow_type=${area}`, { signal: controller.signal }).then(result => {
+    api<{ items: RecentConversation[] }>(`/conversations?limit=50&workflow_type=${area}&state=${archived ? 'archived' : 'active'}`, { signal: controller.signal }).then(result => {
       if (!Array.isArray(result.items)) throw new Error('暂时无法读取对话。')
       if (!controller.signal.aborted) setItems(result.items.filter(item => conversationWorkflow(item) === area))
     }).catch(reason => { if (!controller.signal.aborted) setError((reason as Error).message) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [conversationId, revision, retry, area])
-  useEffect(() => { setLimit(12) }, [area])
+  }, [conversationId, revision, retry, area, archived])
+  useEffect(() => { setLimit(12) }, [area, archived])
   const changeArea = (next: WorkflowType) => {
     if (next === area) return
     if (onWorkspaceChange) onWorkspaceChange(next)
     else onNavigate(next === 'research' ? 'screening' : 'conditions')
   }
-  const visibleItems = items.filter(item => conversationWorkflow(item) === area)
+  const visibleItems = items.filter(item => conversationWorkflow(item) === area && (item.state || 'active') === (archived ? 'archived' : 'active')).sort((left, right) => Number(!!right.pinned) - Number(!!left.pinned))
+  function changeConversation(id: string, changes: ConversationHistoryChange) {
+    setItems(current => changes.deleted ? current.filter(item => item.id !== id) : current.map(item => item.id === id ? { ...item, ...changes } : item))
+    onConversationChange?.(id, changes)
+  }
   const tasks = assistants.filter(item => item.launch_mode === 'immediate')
   const methods = assistants.filter(item => item.launch_mode !== 'immediate')
   const assistantButton = (item: ResearchAssistant) => {
@@ -118,13 +124,10 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
         <button className="chat-nav-button chat-tools-toggle" title="资料与工具" aria-label="资料与工具" aria-expanded={toolsOpen} aria-controls="chat-tool-links" onClick={() => setToolsOpen(value => !value)}><Wrench size={18} /><span>资料与工具</span><ChevronDown size={14} /></button>
         <div id="chat-tool-links" className="chat-tool-links" hidden={!toolsOpen}>{toolMenus.map(({ id, label, icon: Icon }) => <button className="chat-nav-button" key={id} aria-label={label} title={label} aria-current={page === id ? 'page' : undefined} onClick={() => onNavigate(id)}><Icon size={16} /><span>{label}</span></button>)}</div>
       </nav>
-      <section className="chat-history" aria-label={isResearch ? "最近对话" : "最近选股"}><h2>{isResearch ? "最近研究" : "最近选股"}</h2>
+      <section className="chat-history" aria-label={isResearch ? "最近对话" : "最近选股"}><div className="chat-history-heading"><h2>{archived ? '已归档对话' : isResearch ? '最近研究' : '最近选股'}</h2><button type="button" className="chat-history-archive-toggle" aria-pressed={archived} onClick={() => { setItems([]); setArchived(value => !value) }}>{archived ? '返回最近' : '已归档'}</button></div>
         {error && <div className="chat-history-error" role="alert"><span>对话记录暂不可用</span><button className="text-button" title={error} onClick={() => setRetry(value => value + 1)}>重试</button></div>}
-        {loading && !visibleItems.length ? <p role="status">正在读取…</p> : !error && !visibleItems.length ? <p>新对话会保存在这里</p> : null}
-        {visibleItems.slice(0, limit).map(item => {
-          const screening = conversationWorkflow(item) === 'screening'
-          return <button key={item.id} className="chat-history-item" title={item.title || '未命名对话'} aria-label={`继续${screening ? '选股' : '研究'}：${item.title || '未命名对话'}`} aria-current={conversationId === item.id ? 'page' : undefined} onClick={() => onConversation(item.id, item.entry_scope, conversationWorkflow(item))}>{screening && <ListFilter size={13} />}<span>{item.title?.trim() || '未命名对话'}</span>{['failed', 'awaiting_user', 'running', 'awaiting_agent'].includes(item.last_turn_state || '') && <i className={item.last_turn_state === 'failed' || item.last_turn_state === 'awaiting_user' ? 'needs-attention' : 'in-progress'} aria-label={item.last_turn_state === 'failed' ? '需重试' : item.last_turn_state === 'awaiting_user' ? '待补充' : '处理中'} />}</button>
-        })}
+        {loading && !visibleItems.length ? <p role="status">正在读取…</p> : !error && !visibleItems.length ? <p>{archived ? '暂无已归档对话' : '新对话会保存在这里'}</p> : null}
+        {visibleItems.slice(0, limit).map(item => <ConversationHistoryItem key={item.id} item={item} current={conversationId === item.id} onOpen={() => onConversation(item.id, item.entry_scope, conversationWorkflow(item))} onChange={changeConversation} />)}
         {limit < visibleItems.length && <button className="chat-history-more" onClick={() => setLimit(value => value + 12)}>更多记录</button>}
         {!isResearch && <button className="chat-nav-button" aria-label="全部筛选记录" title="查看全部筛选运行记录" aria-current={page === 'conditions' && screeningView === 'history' ? 'page' : undefined} onClick={() => onScreeningView?.('history')}><History size={16} /><span>全部筛选记录</span></button>}
       </section>
