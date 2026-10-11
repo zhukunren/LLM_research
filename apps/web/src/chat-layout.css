@@ -2,23 +2,23 @@
 .redesigned-workspace.chat-layout { display: flex; min-height: 0; height: 100dvh; padding: 0; overflow: hidden; background: white; }
 .chat-layout [hidden] { display: none !important; }
 .chat-layout > .main-shell { display: flex; flex-direction: column; flex: 1; width: auto; min-width: 0; height: 100dvh; margin: 0; overflow: hidden; background: white; }
-.chat-sidebar { display: flex; flex-direction: column; flex: 0 0 236px; width: 236px; height: 100dvh; min-height: 0; padding: 22px 12px 14px; border-right: 1px solid var(--ui-sidebar-border); background: var(--ui-sidebar); color: var(--ui-sidebar-text); overflow: hidden; scrollbar-width: thin; scrollbar-color: #c6d2df transparent; }
+.chat-sidebar { display: flex; flex-direction: column; flex: 0 0 244px; width: 244px; height: 100dvh; min-height: 0; padding: 24px 14px 16px; border-right: 1px solid var(--ui-sidebar-border); background: var(--ui-sidebar); color: var(--ui-sidebar-text); overflow: hidden; scrollbar-width: thin; scrollbar-color: #c6d2df transparent; }
 .chat-brand { display: flex; align-items: center; justify-content: space-between; padding: 0 12px; flex-shrink: 0; }
 .chat-brand img { width: 142px; height: auto; object-fit: contain; }
 .chat-brand .chat-brand-symbol { display: none; }
 .chat-sidebar-close { display: none; }
 .chat-workspace-name { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 10px 12px 20px; font-size: 12px; font-weight: 600; color: var(--ui-brand); }
 .chat-workspace-name > span { font-size: 10px; font-weight: 400; color: var(--ui-sidebar-muted); }
-.chat-navigation { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; max-height: 50dvh; overflow-y: auto; }
-.chat-nav-button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 42px; padding: 9px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--ui-sidebar-text); text-align: left; font-size: 13px; cursor: pointer; transition: background var(--ui-transition), color var(--ui-transition); }
+.chat-navigation { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; max-height: 54dvh; overflow-y: auto; }
+.chat-nav-button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 42px; padding: 9px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--ui-sidebar-text); text-align: left; font-size: 14px; cursor: pointer; transition: background var(--ui-transition), color var(--ui-transition); }
 .chat-nav-button > svg { flex-shrink: 0; color: currentColor; }
 .chat-nav-button > span { flex: 1; }
 .chat-nav-button:hover { background: var(--ui-sidebar-hover); }
 .chat-nav-button[aria-current=page] { background: var(--ui-sidebar-active); color: var(--ui-brand); font-weight: 600; }
 .chat-nav-button kbd { font: 10px var(--ui-font-mono); color: var(--ui-sidebar-muted); }
-.chat-nav-button.chat-new { margin-bottom: 4px; color: var(--ui-text); background: transparent; font-weight: 550; }
+.chat-nav-button.chat-new { margin: 6px 0 8px; color: var(--ui-primary); background: var(--ui-primary-soft); font-weight: 600; border: 1px solid var(--ui-primary-border); }
 .chat-nav-button.chat-new svg { color: currentColor; }
-.chat-nav-button.chat-new:hover { background: var(--ui-sidebar-hover); }
+.chat-nav-button.chat-new:hover { background: var(--ui-sidebar-active); }
 .chat-nav-button.chat-new[aria-current=page] { background: var(--ui-sidebar-active); color: var(--ui-brand); }
 .chat-tools-toggle > svg:last-child { transition: transform .15s; }
 .chat-tools-toggle[aria-expanded=true] > svg:last-child { transform: rotate(180deg); }
@@ -158,3 +158,6 @@
   .research-assistant-control .assistant-update { font-size: 10px; }
   .chat-page .research-studio .conversation-composer-footer { gap: 8px; }
 }
+
+.chat-layout :is(.chat-nav-button,.chat-history-item,.chat-history-archive-toggle,.active-tasks-launch):focus-visible { outline: 2px solid var(--ui-focus-outline); outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { .chat-layout .chat-sidebar, .chat-layout .chat-nav-button, .chat-tools-toggle > svg:last-child { transition: none; } }

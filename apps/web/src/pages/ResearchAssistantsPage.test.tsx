@@ -42,6 +42,46 @@ it('reveals the preset research method only when requested', async () => {
   expect(method).not.toBeVisible()
   await user.click(card.getByText('研究方法'))
   expect(method).toBeVisible()
+  await user.click(card.getByText('研究方法'))
+  expect(method).not.toBeVisible()
+})
+
+it('separates immediate tasks from topic research with a clear heading hierarchy', async () => {
+  vi.mocked(api).mockResolvedValue({ items: [...assistants, ...tasks] } as never)
+  render(<ResearchAssistantsPage onUse={vi.fn()} />)
+  await screen.findByRole('article', { name: '今日热点' })
+  expect(screen.getByRole('heading', { level: 1, name: '研究助手' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { level: 2, name: '即用助手' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { level: 2, name: '专题研究' })).toBeInTheDocument()
+  expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(8)
+  expect(screen.getByText('自动检索，保存到对话')).toBeVisible()
+  expect(screen.getByText('输入问题，开始分析')).toBeVisible()
+})
+
+it('keeps the server launch explanation available without starting a task', async () => {
+  vi.mocked(api).mockResolvedValue({ items: tasks } as never)
+  const onUse = vi.fn(), user = userEvent.setup()
+  render(<ResearchAssistantsPage onUse={onUse} />)
+  const card = within(await screen.findByRole('article', { name: '今日热点' }))
+  const explanation = card.getByText(tasks[0].launch_description!)
+  expect(explanation).not.toBeVisible()
+  await user.click(card.getByText('查看说明'))
+  expect(explanation).toBeVisible()
+  expect(onUse).not.toHaveBeenCalled()
+  await user.click(card.getByText('查看说明'))
+  expect(explanation).not.toBeVisible()
+})
+
+it('preserves risk limitations inside the full research method', async () => {
+  vi.mocked(api).mockResolvedValue({ items: [{ ...assistants[4], instructions: '# 风险复核\n\n不构成投资建议。\n\n- 区分事实与假设\n- 明确证据缺口' }] } as never)
+  const user = userEvent.setup()
+  render(<ResearchAssistantsPage onUse={vi.fn()} />)
+  const card = within(await screen.findByRole('article', { name: '风险复核' }))
+  await user.click(card.getByText('研究方法'))
+  expect(card.getByText('不构成投资建议。')).toBeVisible()
+  expect(card.getByText('区分事实与假设')).toBeVisible()
+  expect(card.getByText('明确证据缺口')).toBeVisible()
+  expect(card.getByRole('button', { name: '使用风险复核' })).toBeEnabled()
 })
 
 it('can retry reading the presets after a catalog failure', async () => {

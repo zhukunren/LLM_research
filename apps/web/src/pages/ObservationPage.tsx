@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowRight, ClipboardList, Download, Loader2, RefreshCw, Search, Telescope, X } from 'lucide-react'
 import { api, type DataStatus, type ScreeningTaskRevision } from '../api'
 import { TaskLogic } from '../components/conversation/TaskBrief'
@@ -199,11 +199,12 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     void load()
     return () => controller.abort()
   }, [detailOpen, selectedKey, selected?.run_id, selected?.stock_code, refresh])
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!detailOpen) return
     const previous = document.activeElement as HTMLElement | null
-    const frame = requestAnimationFrame(() => closeRef.current?.focus())
-    return () => { cancelAnimationFrame(frame); if (previous?.isConnected) previous.focus({ preventScroll: true }) }
+    // Focus before paint: an immediate Escape must reach the open dialog.
+    closeRef.current?.focus({ preventScroll: true })
+    return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }) }
   }, [detailOpen])
 
   function clearRoute() {

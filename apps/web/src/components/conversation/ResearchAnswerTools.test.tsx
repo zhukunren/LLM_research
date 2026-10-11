@@ -49,7 +49,7 @@ it('creates a public snapshot link and copies it after publication', async () =>
   expect(clipboard).toHaveBeenCalledWith('https://share.example.test/s/snapshot-token')
   expect(fetcher.mock.calls.find(call => call[1]?.method === 'POST')?.[1]?.body).toContain('request_id')
   expect(within(dialog).getByRole('button', { name: '已复制链接' })).toBeInTheDocument()
-  expect(within(dialog).getByRole('button', { name: '下载对话文件' })).toBeInTheDocument()
+  expect(within(dialog).getByRole('button', { name: '下载已加载对话' })).toBeInTheDocument()
 })
 
 it('supports menu keyboard navigation and branching without triggering regeneration', async () => {
@@ -92,4 +92,24 @@ it('renders a selected answer version once, keeping the original dialogue positi
   expect(displayedMessages(messages).map(item => item.id)).toEqual(['question', 'new-answer'])
   expect(displayedMessages(messages, { answer: 'answer' }).map(item => item.id)).toEqual(['question', 'answer'])
   expect(messages).toHaveLength(4)
+})
+
+it('labels the downloaded file as a loaded fragment and keeps the selected-answer cutoff', async () => {
+  const user = userEvent.setup()
+  const blobs: Blob[] = []
+  const createObjectURL = vi.fn((blob: Blob) => { blobs.push(blob); return 'blob:preview' })
+  vi.stubGlobal('URL', class extends URL { static createObjectURL = createObjectURL; static revokeObjectURL = vi.fn() })
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  const later: ConversationMessage = { ...message, id: 'later', content: '后续回答不应导出' }
+  render(<ResearchAnswerTools conversation={{ ...conversation, messages: [question, message, later] }} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  await user.click(screen.getByRole('button', { name: '分享答复' }))
+  expect(screen.getByText('下载仅包含当前已加载的消息，截至所选回答；较早的对话可能未包含。')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: '下载已加载对话' }))
+  expect(click).toHaveBeenCalledOnce()
+  expect(click.mock.instances[0]).toHaveAttribute('download', '研究对话-已加载片段.md')
+  const content = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blobs[0]) })
+  expect(content).toContain('当前已加载的对话片段，截至所选回答；可能不包含更早的消息。')
+  expect(content).toContain(question.content)
+  expect(content).toContain(message.content)
+  expect(content).not.toContain(later.content)
 })

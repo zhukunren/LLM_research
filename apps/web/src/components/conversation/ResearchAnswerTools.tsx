@@ -108,10 +108,10 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   function download() {
     const messages = displayedMessages(conversation.messages, { [message.regeneration_of || message.id]: message.id })
     const index = messages.findIndex(item => item.id === message.id)
-    const content = `# ${conversation.title || '研究对话'}\n\n` + messages.slice(0, index + 1)
+    const content = `# ${conversation.title || '研究对话'}\n\n> 当前已加载的对话片段，截至所选回答；可能不包含更早的消息。\n\n` + messages.slice(0, index + 1)
       .map(item => `## ${item.role === 'user' ? '我' : '研究助手'}\n\n${item.content}`).join('\n\n---\n\n')
     const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }))
-    const link = document.createElement('a'); link.href = url; link.download = '研究对话.md'; link.click()
+    const link = document.createElement('a'); link.href = url; link.download = '研究对话-已加载片段.md'; link.click()
     globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   return <>
@@ -151,7 +151,8 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
             <p className="research-share-description">创建链接后，任何收到链接的人都能在其他设备查看截至这条回答的对话、完整报告和来源。后续研究不会改变已分享的内容。</p>
             {shareLoading && <p role="status">正在读取分享链接…</p>}
             {share && <input className="research-share-link" aria-label="研究对话分享链接" readOnly value={share.url} onFocus={event => event.target.select()} />}
-            <div className="research-share-actions">{share ? <button type="button" className="primary-button" disabled={sharing} onClick={() => void copyLink()}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? '已复制链接' : '复制链接'}</button> : <button type="button" className="primary-button" disabled={sharing || shareLoading} onClick={() => void createShare()}>{sharing ? <LoaderCircle size={16} className="spin" /> : <Share2 size={16} />}{sharing ? '正在创建…' : '创建分享链接'}</button>}<button type="button" className="secondary-button" onClick={download}><Download size={16} />下载对话文件</button></div>
+            <div className="research-share-actions">{share ? <button type="button" className="primary-button" disabled={sharing} onClick={() => void copyLink()}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? '已复制链接' : '复制链接'}</button> : <button type="button" className="primary-button" disabled={sharing || shareLoading} onClick={() => void createShare()}>{sharing ? <LoaderCircle size={16} className="spin" /> : <Share2 size={16} />}{sharing ? '正在创建…' : '创建分享链接'}</button>}<button type="button" className="secondary-button" onClick={download}><Download size={16} />下载已加载对话</button></div>
+            <p className="research-share-description">下载仅包含当前已加载的消息，截至所选回答；较早的对话可能未包含。</p>
             {share && <button type="button" className="text-button research-share-revoke" disabled={sharing} onClick={() => void revokeShare()}>撤销分享链接</button>}
             {error && <p role="alert" className="research-next-step-submit-error">{error}</p>}
           </>}

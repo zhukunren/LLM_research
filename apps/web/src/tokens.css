@@ -3,7 +3,7 @@
  * Shared neutral surfaces with semantic colors reserved for research data.
  */
 :root {
-  --ui-font-sans: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  --ui-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
   --ui-font-mono: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
   --ui-reading-size: 16px;
 

@@ -1,6 +1,6 @@
 .chat-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; margin-bottom: 9px; }
 .chat-history .chat-history-heading h2 { padding: 0; margin: 0; }
-.chat-history-archive-toggle { border: 0; padding: 3px 0; background: transparent; color: var(--ui-sidebar-muted); font-size: 11px; cursor: pointer; }
+.chat-history-archive-toggle { border: 0; padding: 3px 0; background: transparent; color: var(--ui-sidebar-muted); font-size: 12px; cursor: pointer; }
 .chat-history-archive-toggle:hover { color: var(--ui-brand); }
 .chat-history-row { display: flex; align-items: center; gap: 2px; min-height: 40px; padding-right: 5px; border-radius: 9px; }
 .chat-history-row:hover, .chat-history-row:focus-within, .chat-history-row.menu-open { background: var(--ui-sidebar-hover); }
@@ -34,4 +34,4 @@
 .chat-history-delete-button:disabled { opacity: .5; }
 .chat-history-dialog .chat-history-share-title { font-weight: 600; }
 .chat-history-dialog .chat-history-share-hint { color: var(--ui-text-muted); font-size: 12px; }
-@media (hover: none), (pointer: coarse) { .chat-history-actions { opacity: 1; width: 36px; height: 36px; flex-basis: 36px; } }
+@media (hover: none), (pointer: coarse) { .chat-history-actions { opacity: 1; width: 44px; height: 44px; flex-basis: 44px; } }

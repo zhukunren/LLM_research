@@ -13,6 +13,53 @@ async function openStarter() {
   await userEvent.click(button)
 }
 
+it('uses illustrative starter cards with exact labels and a reversible preview before selecting', async () => {
+  const returns = { id: 'return_above', version: 1, name: '区间涨幅', formula: '区间收益率 > 阈值', parameters: { window: { label: '交易日 N', default: 20, min: 2, max: 250, step: 1 }, threshold: { label: '涨幅阈值', default: 10, min: 0, max: 100, step: 0.1 } } }
+  const cross = { id: 'ma_cross', version: 1, name: '均线上穿', formula: '当日短均线 > 长均线，前日短均线 ≤ 长均线', parameters: { fast: { label: '短周期', default: 5, min: 2, max: 250, step: 1 }, slow: { label: '长周期', default: 20, min: 2, max: 250, step: 1 } } }
+  vi.stubGlobal('fetch', vi.fn(async () => json({ items: [template, returns, cross] })))
+  const selected = vi.fn()
+  render(<ScreeningTemplates disabled={false} onSelect={selected} />)
+  const priceCard = await screen.findByRole('button', { name: '选择基础方案：收盘价高于20日均线' })
+  const returnCard = screen.getByRole('button', { name: '选择基础方案：近20日涨幅大于10%' })
+  const crossCard = screen.getByRole('button', { name: '选择基础方案：5日均线上穿20日均线' })
+  for (const card of [priceCard, returnCard, crossCard]) {
+    expect(card).toHaveAttribute('aria-expanded', 'false')
+    expect(card).toHaveAccessibleDescription('图形仅为条件示意，不代表真实行情或走势预测。选择后可预览与调整参数。')
+    expect(card.querySelector('.screening-template-sketch')).toHaveAttribute('aria-hidden', 'true')
+    expect(card.querySelector('.screening-template-chevron')).toHaveAttribute('aria-hidden', 'true')
+  }
+  priceCard.focus()
+  await userEvent.keyboard('{Enter}')
+  expect(priceCard).toHaveAttribute('aria-expanded', 'true')
+  expect(priceCard).toHaveAttribute('aria-controls', screen.getByRole('article', { name: '基础方案预览' }).id)
+  expect(selected).not.toHaveBeenCalled()
+  await userEvent.click(crossCard)
+  expect(priceCard).toHaveAttribute('aria-expanded', 'false')
+  expect(priceCard).not.toHaveAttribute('aria-controls')
+  expect(crossCard).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByRole('heading', { name: '5日均线上穿20日均线' })).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('均线上穿：短周期'), { target: { value: '20' } })
+  expect(screen.getByRole('button', { name: '查看方案：均线上穿' })).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('均线上穿：短周期'), { target: { value: '5' } })
+  await userEvent.click(screen.getByRole('button', { name: '查看方案：均线上穿' }))
+  expect(selected).toHaveBeenCalledWith(cross, { fast: 5, slow: 20 })
+  await userEvent.click(crossCard)
+  expect(screen.queryByRole('article', { name: '基础方案预览' })).not.toBeInTheDocument()
+  expect(crossCard).toHaveAttribute('aria-expanded', 'false')
+})
+
+it('keeps starter cards and the selected preview disabled while a request is pending', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => json({ items: [template] })))
+  const selected = vi.fn()
+  const view = render(<ScreeningTemplates disabled={false} onSelect={selected} />)
+  await openStarter()
+  view.rerender(<ScreeningTemplates disabled onSelect={selected} />)
+  expect(screen.getByRole('button', { name: '选择基础方案：收盘价高于20日均线' })).toBeDisabled()
+  expect(screen.getByLabelText('收盘价在均线上方：均线周期 N')).toBeDisabled()
+  expect(screen.getByRole('button', { name: '查看方案：收盘价在均线上方' })).toBeDisabled()
+  expect(selected).not.toHaveBeenCalled()
+})
+
 it('shows exact formula, validates edits and sends numbers without model parsing', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => json({ items: [template] })))
   const selected = vi.fn()

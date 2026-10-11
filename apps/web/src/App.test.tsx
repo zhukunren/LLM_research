@@ -130,7 +130,7 @@ it('restores a legacy home question and consumes explicit new research only once
   vi.stubGlobal('fetch', fetcher)
   const user = userEvent.setup()
   render(<App />)
-  expect(await screen.findByRole('heading', { name: '开始研究' }, { timeout: 5000 })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: '想研究什么？' }, { timeout: 5000 })).toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: '工作台研究问题' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '继续未发送的问题' }))
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('核对订单的实际兑现情况'))

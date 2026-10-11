@@ -39,6 +39,7 @@ import { answerVersions, displayedMessages } from './answerVersions'
 import ResearchModelPicker from './ResearchModelPicker'
 import ResearchConversationTools from './ResearchConversationTools'
 import ResearchComposerMenu from './ResearchComposerMenu'
+import ResearchStarters from './ResearchStarters'
 import { DraftAttachmentChips, MessageAttachmentChips } from './AttachmentChips'
 import { useConversationAttachments, type ConversationAttachment } from './useConversationAttachments'
 import { readModelPreference, writeModelPreference, type ModelSelection } from '../../modelSelection'
@@ -91,7 +92,7 @@ type CodexEvent = {
   payload: Record<string, unknown>
 }
 
-type PromptSuggestion = { label: string; prompt: string }
+type PromptSuggestion = { label: string; prompt: string; description?: string }
 
 const scopeLabels: Record<ConversationScope, string> = {
   screening: '所有资料',
@@ -127,9 +128,9 @@ const RUN_PAGE_SIZE = 20
 const suggestionIcons = [ChartNoAxesCombined, GitCompareArrows, FileSearch]
 const promptSuggestions: Record<ConversationScope, PromptSuggestion[]> = {
   screening: [
-    { label: '市场机会', prompt: '最近哪些股票值得进一步研究？请结合走势、成交和已有资料，列出理由与风险。' },
-    { label: '公司比较', prompt: '比较贵州茅台和五粮液最近的经营表现、估值与风险，标明数据日期和来源。' },
-    { label: '研报证据', prompt: '从已有研报中找出有订单增长实际证据的公司，区分已实现与预测，并列出原文。' },
+    { label: '市场机会', description: '走势 · 线索 · 风险', prompt: '最近哪些股票值得进一步研究？请结合走势、成交和已有资料，列出理由与风险。' },
+    { label: '公司比较', description: '经营 · 估值 · 差异', prompt: '比较贵州茅台和五粮液最近的经营表现、估值与风险，标明数据日期和来源。' },
+    { label: '研报证据', description: '原文 · 事实 · 预测', prompt: '从已有研报中找出有订单增长实际证据的公司，区分已实现与预测，并列出原文。' },
   ],
   technical: [
     { label: '均线上方且上涨', prompt: '筛选收盘价高于20日均线，且近5个交易日涨幅大于3%的股票。' },
@@ -719,8 +720,11 @@ export default function ConversationWorkspace({
             }
             setResearchActivities(previous => events.items.reduce(appendResearchActivity, previous))
           }
-          if (!events.has_more || events.next_after <= eventCursor) break
-          eventCursor = events.next_after
+          const advanced = events.next_after > eventCursor
+          // Consume the final page too, so the next poll does not replay deltas
+          // or refresh the apparent progress time with already-seen events.
+          if (advanced) eventCursor = events.next_after
+          if (!events.has_more || !advanced) break
         }
       } catch { /* Conversation polling still delivers completion when events are unavailable. */ }
       finally { polling = false }
@@ -1284,7 +1288,6 @@ export default function ConversationWorkspace({
     })
   }
 
-  const SuggestionContainer = 'details'
 
   async function ensureAttachmentConversation() {
     if (conversation?.id && conversation.id === selectedIdRef.current) return { conversationId: conversation.id, draftKey }
@@ -1453,7 +1456,7 @@ export default function ConversationWorkspace({
         </>}
       </aside>
 
-      <section className="conversation-main" aria-label={isResearch ? '研究对话' : '选股对话'}>{isResearch && !conversation?.messages.length && !loadingConversation && <div className="chat-empty-heading"><h1>开始研究</h1><p>输入公司、行业或你想核实的问题</p></div>}
+      <section className="conversation-main" aria-label={isResearch ? '研究对话' : '选股对话'}>{isResearch && !conversation?.messages.length && !loadingConversation && <div className="chat-empty-heading"><span className="research-welcome-mark" aria-hidden="true"><img src="/brand/soochow-symbol-blue.png" alt="" /></span><h1>想研究什么？</h1></div>}
         {!isResearch && !screeningStarted && <div className="screening-entry-heading"><h2>想筛选什么样的股票？</h2><button type="button" className="text-button" onClick={() => { setLibraryTab('saved'); setSessionsOpen(true) }}><Bookmark size={14} />复用已保存方案</button></div>}
         {!isResearch && <ScreeningReadiness showScope={false} onOpenData={onOpenDataServices} data={data} scope={scope} task={task} asOf={scopeDate} />}
         {error && (isExecutionFailure(error) ? <ResearchFailure content={error} /> : <div className="conversation-error" role="alert"><AlertCircle size={17} /><span>{error}</span><button className="icon-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={15} /></button></div>)}
@@ -1463,9 +1466,9 @@ export default function ConversationWorkspace({
           <div className="conversation-message-list" ref={messageListRef} role="log" aria-live="polite" aria-relevant="additions" onScroll={onMessageListScroll}>
             {!conversation?.messages.length && !task && !loadingConversation && (
               <div className="conversation-empty">
-                <SuggestionContainer className={isResearch ? 'research-examples' : 'screening-examples'} open={isResearch}><summary>{isResearch ? '示例问题' : '更多条件示例（需要模型解析）'}{isResearch && <small>选择后填入草稿，由你确认发送</small>}</summary>{!isResearch && <div className="screening-example-tabs" role="group" aria-label="选股示例分类">{Object.entries(screeningSuggestionLabels).map(([value, label]) => <button key={value} type="button" aria-pressed={suggestionScope === value} onClick={() => setSuggestionScope(value as ConversationScope)}>{label}</button>)}</div>}<div className="conversation-suggestions" aria-label={isResearch ? '常用研究问题' : '常用选股条件'}>
-                  {(isResearch ? researchSuggestions[scope] : promptSuggestions[suggestionScope]).map((item, index) => { const Icon = suggestionIcons[index % suggestionIcons.length]; return <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-icon"><Icon size={20} strokeWidth={1.6} /></span><span className="suggestion-copy"><span className="suggestion-title">{item.label}</span>{isResearch && <span className="suggestion-description">{item.prompt}</span>}</span><ArrowUpRight size={16} className="suggestion-arrow" /></button> })}
-                </div></SuggestionContainer>
+                {isResearch ? <ResearchStarters items={researchSuggestions[scope]} disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions} onSelect={prepareDraft} /> : <details className="screening-examples"><summary>更多条件示例（需要模型解析）</summary><div className="screening-example-tabs" role="group" aria-label="选股示例分类">{Object.entries(screeningSuggestionLabels).map(([value, label]) => <button key={value} type="button" aria-pressed={suggestionScope === value} onClick={() => setSuggestionScope(value as ConversationScope)}>{label}</button>)}</div><div className="conversation-suggestions" aria-label="常用选股条件">
+                  {promptSuggestions[suggestionScope].map((item, index) => { const Icon = suggestionIcons[index % suggestionIcons.length]; return <button type="button" key={item.label} aria-label={item.label} disabled={busy || saving || !conversationReady || loadingConversation || loadingSessions} onClick={() => prepareDraft(item.prompt)}><span className="suggestion-icon"><Icon size={20} strokeWidth={1.6} /></span><span className="suggestion-copy"><span className="suggestion-title">{item.label}</span></span><ArrowUpRight size={16} className="suggestion-arrow" /></button> })}
+                </div></details>}
               </div>
             )}
             {conversation && displayedMessages(conversation.messages, versionSelection).map(message => {

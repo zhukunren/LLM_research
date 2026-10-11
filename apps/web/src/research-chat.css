@@ -8,13 +8,13 @@
 .assistant-launch-status > span { flex: 1; min-width: 160px; }
 .assistant-launch-status > button { border: 0; background: transparent; color: var(--ui-primary); padding: 5px 8px; cursor: pointer; white-space: nowrap; }
 .chat-page .research-studio .conversation-message.user { background: #f3f4f6; }
-.chat-page .research-studio:not(.screening-studio) { --research-reading-width: 1280px; }
+.chat-page .research-studio:not(.screening-studio) { --research-reading-width: 960px; --research-entry-width: 800px; }
 .chat-page .research-studio .conversation-message-list { padding-inline: max(28px, calc((100% - var(--research-reading-width, 960px)) / 2)); }
 .chat-page .research-studio .conversation-composer { width: min(var(--research-reading-width, 960px), calc(100% - 56px)); padding: 10px 16px; gap: 6px; margin-block: 8px 12px; background: #fafafa; border-color: #e5e7eb; }
 .chat-page .research-studio .conversation-composer textarea { min-height: 44px; height: 44px; padding-block: 7px; resize: none; }
-.chat-page .research-studio .conversation-workspace-empty .conversation-composer { padding: 12px 18px; }
-.chat-page .research-studio .conversation-workspace-empty .conversation-composer textarea { min-height: 56px; height: 56px; padding-top: 8px; }
-.chat-page .research-studio .conversation-workspace-empty .conversation-message-stage { width: min(var(--research-reading-width, 960px), calc(100% - 56px)); }
+.chat-page .research-studio .conversation-workspace-empty .conversation-composer { width: min(var(--research-entry-width, 800px), calc(100% - 56px)); padding: 18px 22px 12px; background: var(--ui-surface); border-color: var(--ui-border-strong); box-shadow: 0 8px 32px rgba(25, 52, 80, .055); }
+.chat-page .research-studio .conversation-workspace-empty .conversation-composer textarea { min-height: 72px; height: 72px; padding-top: 8px; }
+.chat-page .research-studio .conversation-workspace-empty .conversation-message-stage { width: min(var(--research-entry-width, 800px), calc(100% - 56px)); }
 .chat-page .research-studio .research-assistant-control select { min-height: 32px; height: 32px; padding-block: 3px; }
 .chat-page .research-studio .conversation-composer-footer > button[type=submit] { width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 50%; font-size: 0; gap: 0; }
 .chat-page .research-studio .conversation-composer-footer > button[type=submit] > svg { width: 19px; height: 19px; }
@@ -27,24 +27,36 @@
 .research-conversation-popover .project-membership { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .research-conversation-popover .project-membership > select { flex: 1; min-width: 0; width: 100%; }
 .chat-nav-button:disabled { opacity: .5; cursor: wait; }
-.assistant-catalog-grid[aria-label="即用助手"] { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.assistant-catalog-grid > .page-description { grid-column: 1 / -1; margin: 0 0 3px; font-size: 12px; }
-.assistant-catalog-grid[aria-label="即用助手"] .assistant-card { display: flex; flex-direction: column; padding: 20px; border: 1px solid var(--ui-border); border-radius: 16px; }
-.assistant-catalog-grid[aria-label="即用助手"] .assistant-card > header { flex-direction: column; gap: 12px; }
-.assistant-catalog-grid[aria-label="即用助手"] .assistant-card-icon { color: var(--ui-brand); background: transparent; width: auto; height: 28px; }
-.assistant-catalog-grid[aria-label="即用助手"] .assistant-card footer { margin: auto 0 0; padding-top: 18px; gap: 8px; }
-.assistant-catalog-grid[aria-label="即用助手"] .assistant-card .secondary-button { padding-inline: 10px; font-size: 12px; }
-.assistant-catalog-grid[aria-label="研究方法"] { margin-top: 36px; }
-@media (max-width: 1100px) {
-  .assistant-catalog-grid[aria-label="即用助手"] { grid-template-columns: 1fr; }
-  .assistant-catalog-grid[aria-label="即用助手"] .assistant-card > header { flex-direction: row; }
-  .assistant-catalog-grid[aria-label="即用助手"] .assistant-card footer { margin-left: 36px; padding-top: 10px; }
-}
 @media (max-width: 600px) {
   .assistant-launch-status { padding: 8px 14px; }
-  .assistant-catalog-grid[aria-label="即用助手"] .assistant-card { padding: 16px; }
   .chat-layout .research-header-actions { flex-shrink: 0; }
   .chat-page .research-studio .conversation-message-list { padding-inline: 18px; }
   .chat-page .research-studio .conversation-composer, .chat-page .research-studio .conversation-workspace-empty .conversation-composer { width: calc(100% - 28px); padding: 8px 12px; }
   .chat-page .research-studio .conversation-workspace-empty .conversation-message-stage { width: calc(100% - 28px); }
+}
+/* Entry, reading and action controls have one owner after the workspace layout. */
+.chat-page .chat-empty-heading { margin-bottom: 28px; }
+.chat-page .chat-empty-heading h1 { font-size: clamp(26px, 3vw, 36px); font-weight: 550; letter-spacing: -.025em; margin: 20px 0 0; line-height: 1.35; }
+.research-welcome-mark { display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: 19px; background: var(--ui-primary-soft); }
+.research-welcome-mark img { display: block; width: 38px; height: auto; }
+.chat-page .research-studio .conversation-workspace-empty .conversation-main { padding-block: 36px 64px; }
+.chat-page .research-studio .conversation-workspace-empty .conversation-composer:focus-within { border-color: var(--ui-primary); box-shadow: var(--ui-focus-shadow); }
+.chat-page .research-studio .research-answer { font-size: 16px; line-height: 1.9; }
+.chat-page .research-studio .research-answer :is(p, li, blockquote) { font-size: inherit; line-height: inherit; }
+.chat-page .research-studio:not(.screening-studio) .conversation-message.assistant { width: 100%; }
+.chat-page .research-studio:not(.screening-studio) .research-answer { width: 100%; max-width: none; }
+.chat-page .research-studio .conversation-message-meta { font-size: 12px; }
+@media (max-width: 700px) {
+  .chat-page .chat-empty-heading { margin-bottom: 22px; }
+  .chat-page .research-studio .conversation-workspace-empty .conversation-main { justify-content: center; padding-block: 24px 32px; }
+  .research-welcome-mark { width: 48px; height: 48px; border-radius: 15px; }
+  .research-welcome-mark img { width: 30px; }
+  .chat-page .research-studio .conversation-workspace-empty .conversation-composer { width: calc(100% - 32px); padding: 14px 16px 10px; }
+  .chat-page .research-studio .conversation-workspace-empty .conversation-message-stage { width: calc(100% - 32px); }
+  .chat-page .research-studio .conversation-composer-footer > button[type=submit] { width: 40px; height: 40px; min-height: 40px; }
+}
+@media (max-height: 680px) {
+  .chat-page .research-studio .conversation-workspace-empty .conversation-main { justify-content: flex-start; padding-block: 24px; }
+  .chat-page .chat-empty-heading { margin-bottom: 18px; }
+  .research-welcome-mark { display: none; }
 }
