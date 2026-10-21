@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -21,6 +21,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from . import codex_runtime, documents, jobs, market, runtime_executor
+from . import auth, authorization, identity
+from .security_context import AccessDenied, LOCAL_ACTOR, actor_scope, auth_mode
 from .conversation_api import router as conversation_router
 from .research_scan_api import router as research_scan_router
 from .screening_api import router as screening_router
@@ -32,11 +34,17 @@ from .pattern_language import router as pattern_language_router
 from .product_api import router as product_router
 from .observation_api import router as observation_router
 from .research_project_api import router as research_project_router
+from .research_workbench_api import router as research_workbench_router
 from .task_api import router as task_router
 from .research_assistant_api import router as research_assistant_router
+from .intelligence_api import router as intelligence_router
 from .research_model_api import router as research_model_router
 from .research_attachment_api import router as research_attachment_router
 from .research_file_api import router as research_file_router
+from .qmt_doc_api import router as qmt_doc_router
+from .financial_data_api import router as financial_data_router
+from .financial_research_api import router as financial_research_router
+from .disclosure_api import router as disclosure_router
 from .condition_contract import filter_object
 from .db import connect, init_db, json_dump, json_load, utc_now
 from .indicators import INDICATORS, chart_display, values
@@ -58,6 +66,7 @@ from .models import (
     StrategyValidationInput,
     WatchlistInput,
     WatchlistItemInput,
+    AdvisorValidationLevelInput,
 )
 from .patterns import extract_path, score_window, store_source_image, validate_candles
 from .rules import filter_parameters, local_draft, pattern_references, references, validate_filter, validate_tree
@@ -80,13 +89,21 @@ API_PREFIX = "/api/v1"
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    init_db()
-    from .conversation_store import recover_expired_turns
-    recover_expired_turns()
+    if auth_mode() == "oidc":
+        from dataclasses import replace
+        auth.settings()
+        identity.initialize()
+        with actor_scope(replace(LOCAL_ACTOR, maintenance=True)):
+            init_db()
+    else:
+        init_db()
+        from .conversation_store import recover_expired_turns
+        recover_expired_turns()
     yield
 
 
-app = FastAPI(title="LLM 投研工作平台", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="LLM 投研工作平台", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authorization.authorize_route)])
+app.include_router(auth.router)
 app.include_router(condition_router)
 app.include_router(dynamic_indicator_router)
 app.include_router(conversation_router)
@@ -98,20 +115,26 @@ app.include_router(pattern_language_router)
 app.include_router(product_router)
 app.include_router(observation_router)
 app.include_router(research_project_router)
+app.include_router(research_workbench_router)
 app.include_router(task_router)
 app.include_router(research_assistant_router)
+app.include_router(intelligence_router)
 app.include_router(research_model_router)
 app.include_router(research_attachment_router)
 app.include_router(research_file_router)
+app.include_router(qmt_doc_router)
+app.include_router(financial_data_router)
+app.include_router(financial_research_router)
+app.include_router(disclosure_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         f"http://127.0.0.1:{os.environ.get('LLMR_WEB_PORT', '5173')}",
         f"http://localhost:{os.environ.get('LLMR_WEB_PORT', '5173')}",
     ],
-    allow_credentials=False,
+    allow_credentials=auth_mode() == "oidc",
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Content-Type", "X-Request-ID"],
+    allow_headers=["Content-Type", "X-Request-ID", "X-CSRF-Token"],
 )
 
 
@@ -121,7 +144,7 @@ async def request_id(request: Request, call_next):
     if not trusted_write_request(request):
         response = JSONResponse(status_code=403, content={
             "code": "untrusted_origin",
-            "message": "请从本机投研工作台提交操作。",
+            "message": "请从当前投研工作台提交操作。" if auth_mode() == "oidc" else "请从本机投研工作台提交操作。",
             "details": None,
             "request_id": request.state.request_id,
         })
@@ -129,6 +152,14 @@ async def request_id(request: Request, call_next):
         response = await call_next(request)
     response.headers["X-Request-ID"] = request.state.request_id
     return response
+
+
+app.middleware("http")(authorization.authenticate_request)
+
+
+@app.exception_handler(AccessDenied)
+async def access_error(request: Request, exc: AccessDenied):
+    return JSONResponse({"code": "access_denied", "message": str(exc)}, status_code=exc.status)
 
 
 @app.exception_handler(HTTPException)
@@ -189,7 +220,7 @@ def capabilities():
         "report_rubric_evaluation": "configured_llm_async",
         "report_security_binding": "automatic_llm_pdf_catalog",
         "news_data": "local_import_and_tushare_sync",
-        "news_external_sync": (PROJECT_ROOT / "tushare_relay.py").is_file(),
+        "news_external_sync": tushare_settings()["configured"],
         "formal_screening": False,
         "worker": "separate_process_required_for_exploratory_full_scan",
         "screening_capabilities": screening_capability_manifest(),
@@ -204,20 +235,17 @@ def screening_capabilities():
 @app.get(f"{API_PREFIX}/settings/status")
 def settings_status():
     llm = llm_settings()
-    relay = tushare_settings()
-    relay_available = (PROJECT_ROOT / "tushare_relay.py").is_file()
+    tushare = tushare_settings()
     return {
         "text_model": {"configured": llm["configured"], "model": llm["model"] if llm["configured"] else None, "api_mode": llm["api_mode"] if llm["configured"] else None, "credential_source": "config.ini" if llm["configured"] else None},
         "codex_runtime": codex_runtime.availability(),
         "tushare": {
-            "configured": relay_available,
-            "credential_source": "config_or_environment" if relay["configured"] else "adapter_default",
-            "uses_adapter_default": relay["uses_adapter_default"],
-            "news_access": relay_available,
-            "market_access": relay_available,
+            "configured": tushare["configured"],
+            "credential_source": tushare["credential_source"] or None,
+            "provider": "official",
         },
         "runtime": {"data_root_configured": STOCK_FILE.exists(), "report_directory_configured": REPORT_DIR.exists()},
-        "notice": "配置文件和密钥不会返回到浏览器。Tushare 同步通过 scripts/update_tushare_data.ps1 受控执行；行情和资讯结果保存在本地库。",
+        "notice": "配置文件和密钥不会返回到浏览器。Tushare 通过官方接口同步，实际接口权限以官方账户为准；行情和资讯结果保存在本地库。",
     }
 
 
@@ -274,6 +302,34 @@ def test_model_connection():
 @app.post(f"{API_PREFIX}/settings/model-tool-test")
 def test_model_tool_connection():
     return probe_function_calling()
+
+
+@app.get(f"{API_PREFIX}/settings/advisor-validation")
+def get_advisor_validation_level():
+    """Get current advisor report validation strictness level."""
+    from .settings import advisor_validation_level, AVAILABLE_VALIDATION_LEVELS
+    level = advisor_validation_level()
+    descriptions = {
+        "basic": "基础级别 - 只检查必填字段和基本格式",
+        "strict": "严格级别 - 检查成交额口径、时区格式、术语规范等所有细节"
+    }
+    return {
+        "level": level,
+        "description": descriptions.get(level, "未知级别"),
+        "available_levels": AVAILABLE_VALIDATION_LEVELS
+    }
+
+
+@app.post(f"{API_PREFIX}/settings/advisor-validation")
+def update_advisor_validation_level(input_data: AdvisorValidationLevelInput):
+    """Set advisor report validation strictness level."""
+    from .settings import set_advisor_validation_level
+
+    try:
+        set_advisor_validation_level(input_data.level)
+        return {"success": True, "level": input_data.level, "message": f"验证级别已设置为 {input_data.level}"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get(f"{API_PREFIX}/data/status")
@@ -928,7 +984,10 @@ def pattern_source_image(pattern_id: str, version: int):
     digest, extension = source.get("sha256", ""), source.get("extension", "")
     if not re.fullmatch(r"[a-f0-9]{64}", digest) or extension not in {".png", ".jpg", ".webp"}:
         _bad_request("截图索引无效", 422, "invalid_pattern_image_ref")
-    path = PATTERN_UPLOAD_DIR / f"{digest}{extension}"
+    from .security_context import current_actor
+    from .patterns import upload_directory
+    directory = PATTERN_UPLOAD_DIR if current_actor().legacy else upload_directory()
+    path = directory / f"{digest}{extension}"
     if not path.is_file():
         _bad_request("来源截图文件缺失", 404, "pattern_image_missing")
     return FileResponse(path, media_type=source["mime_type"], filename=source["filename"])
@@ -992,9 +1051,13 @@ def match_pattern_input(payload: PatternInput):
 
 @app.get(f"{API_PREFIX}/documents")
 def list_documents():
-    source_files = len(list(REPORT_DIR.glob("*.pdf"))) if REPORT_DIR.exists() else 0
-    if REPORT_UPLOAD_DIR.exists():
-        source_files += len(list(REPORT_UPLOAD_DIR.glob("*.pdf")))
+    from .security_context import current_actor
+    from .storage import application_paths
+    legacy = current_actor().legacy
+    upload_directory = REPORT_UPLOAD_DIR if legacy else application_paths().upload_root / "reports"
+    source_files = len(list(REPORT_DIR.glob("*.pdf"))) if legacy and REPORT_DIR.exists() else 0
+    if upload_directory.exists():
+        source_files += len(list(upload_directory.glob("*.pdf")))
     items = documents.list_documents()
     for item in items:
         try:
@@ -1193,10 +1256,13 @@ def list_report_evaluations(filter_id: str, version: int):
 async def upload_document(file: UploadFile = File(...)):
     if file.content_type != "application/pdf" or not file.filename or not file.filename.lower().endswith(".pdf"):
         _bad_request("只支持 PDF 文件")
-    REPORT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    from .security_context import current_actor
+    from .storage import application_paths
+    upload_directory = REPORT_UPLOAD_DIR if current_actor().legacy else application_paths().upload_root / "reports"
+    upload_directory.mkdir(parents=True, exist_ok=True)
     source_name = file.filename.replace("\\", "/").rsplit("/", 1)[-1]
     safe_name = re.sub(r"[^\w .()（）\[\]：_-]", "_", source_name, flags=re.UNICODE).strip(" .")[-160:] or "report.pdf"
-    target = REPORT_UPLOAD_DIR / f"{uuid4()}--{safe_name}"
+    target = upload_directory / f"{uuid4()}--{safe_name}"
     size = 0
     try:
         with target.open("wb") as output:
@@ -1284,4 +1350,11 @@ def remove_watchlist_item(watchlist_id: str, stock_code: str):
 
 WEB_DIST = PROJECT_ROOT / "apps" / "web" / "dist"
 if WEB_DIST.is_dir():
+    @app.get("/", include_in_schema=False)
+    @app.get("/index.html", include_in_schema=False)
+    def web_entry():
+        from fastapi.responses import HTMLResponse
+        content = (WEB_DIST / "index.html").read_text(encoding="utf-8")
+        bootstrap = "<script>window.__LLMR_AUTH_REQUIRED__=" + json.dumps(auth_mode() == "oidc") + ";</script>"
+        return HTMLResponse(content.replace("</head>", bootstrap + "</head>"), headers={"Cache-Control": "no-store"})
     app.mount("/", StaticFiles(directory=WEB_DIST, html=True), name="web")

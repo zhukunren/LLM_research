@@ -5,25 +5,37 @@ import configparser
 import json
 from pathlib import Path
 
+from .storage import storage_paths
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DATA_ROOT = Path(os.environ.get("LLMR_DATA_ROOT", PROJECT_ROOT / "data")).resolve()
-DB_PATH = Path(os.environ.get("LLMR_DB_PATH", PROJECT_ROOT / "runtime" / "app.db")).resolve()
+_STORAGE = storage_paths(project_root=PROJECT_ROOT)
+STATE_ROOT = _STORAGE.state_root
+UPLOAD_ROOT = _STORAGE.upload_root
+ARTIFACT_ROOT = _STORAGE.artifact_root
+SANDBOX_STATE_ROOT = _STORAGE.sandbox_state_root
+PYTHON_DEPS = _STORAGE.python_deps
+DATA_ROOT = _STORAGE.data_root
+DB_PATH = _STORAGE.database
 STOCK_FILE = DATA_ROOT / "stock_data" / "stock_daily.parquet"
 REPORT_DIR = DATA_ROOT / "research_report"
-REPORT_UPLOAD_DIR = PROJECT_ROOT / "runtime" / "uploads" / "reports"
-PATTERN_UPLOAD_DIR = PROJECT_ROOT / "runtime" / "uploads" / "patterns"
+REPORT_UPLOAD_DIR = UPLOAD_ROOT / "reports"
+PATTERN_UPLOAD_DIR = UPLOAD_ROOT / "patterns"
 MIGRATIONS_DIR = PROJECT_ROOT / "apps" / "api" / "migrations"
 MAX_RECENT_BARS = 500
 ALLOWED_MARKETS = {"SH", "SZ", "BJ"}
 
 
+def config_path() -> Path:
+    return Path(os.environ.get("LLMR_CONFIG_FILE") or PROJECT_ROOT / "config.ini").expanduser().resolve()
+
+
 def _read_config() -> configparser.ConfigParser:
     config = configparser.ConfigParser(interpolation=None)
-    config_path = PROJECT_ROOT / "config.ini"
-    if config_path.is_file():
+    target = config_path()
+    if target.is_file():
         try:
-            with config_path.open("r", encoding="utf-8-sig") as stream:
+            with target.open("r", encoding="utf-8-sig") as stream:
                 config.read_file(stream)
         except (OSError, configparser.Error):
             config = configparser.ConfigParser(interpolation=None)
@@ -54,7 +66,7 @@ def llm_settings() -> dict[str, str | bool]:
         key = os.environ.get("LLMR_LLM_API_KEY", "")
     if not model:
         model = os.environ.get("LLMR_LLM_MODEL", "")
-    if not config.has_section(provider_section) or not (PROJECT_ROOT / "config.ini").is_file():
+    if not config.has_section(provider_section) or not config_path().is_file():
         api_mode = os.environ.get("LLMR_LLM_API_MODE", api_mode).strip().lower()
         api_path = os.environ.get("LLMR_LLM_API_PATH", os.environ.get("LLMR_LLM_CHAT_PATH", api_path))
     search_capability = os.environ.get(
@@ -145,6 +157,55 @@ def research_mode_settings(mode: str | None, depth: str | None = None) -> dict[s
     return values
 
 
+AVAILABLE_VALIDATION_LEVELS = [
+    {
+        "value": "basic",
+        "label": "基础级别",
+        "description": "只检查必填字段和基本格式，适合人工审核后交付的场景。"
+    },
+    {
+        "value": "strict",
+        "label": "严格级别",
+        "description": "自动检查成交额口径、时区格式、术语规范等所有细节，确保输出质量。"
+    }
+]
+
+
+def advisor_validation_level() -> str:
+    """
+    Get advisor report validation strictness level.
+
+    Returns:
+        "off" (no validation), "basic" (default, completeness only), "strict" (all checks)
+    """
+    config = _read_config()
+    section = config["advisor"] if config.has_section("advisor") else {}
+    level = os.environ.get("LLMR_ADVISOR_VALIDATION_LEVEL", section.get("validation_level", "basic")).strip().lower()
+    if level not in {"off", "basic", "strict"}:
+        raise ValueError("advisor.validation_level 应为 off、basic 或 strict")
+    return level
+
+
+def set_advisor_validation_level(level: str) -> None:
+    """
+    Set advisor report validation strictness level.
+
+    Args:
+        level: "basic" or "strict"
+    """
+    if level not in {"basic", "strict"}:
+        raise ValueError("validation_level must be 'basic' or 'strict'")
+
+    config = _read_config()
+    if not config.has_section("advisor"):
+        config.add_section("advisor")
+    config.set("advisor", "validation_level", level)
+
+    target = config_path()
+    with target.open("w", encoding="utf-8") as f:
+        config.write(f)
+
+
 def default_research_mode() -> str:
     config = _read_config()
     section = config["research"] if config.has_section("research") else {}
@@ -153,39 +214,26 @@ def default_research_mode() -> str:
 
 
 def tushare_settings() -> dict[str, str | float | int | bool]:
-    """Read relay settings without exposing credentials to API callers.
-
-    ``tushare_relay.py`` can provide its own default key for a local relay.
-    An explicit config or environment value takes precedence, which keeps the
-    project deployable when that adapter default is intentionally removed.
-    """
+    """Read the official Tushare token for server-side requests."""
 
     config = _read_config()
-    relay = config["tushare"] if config.has_section("tushare") else {}
-    api_key = (
-        relay.get("relay_api_key", "")
-        or relay.get("api_key", "")
-        or os.environ.get(relay.get("relay_api_key_env", "TUSHARE_RELAY_API_KEY"), "")
-    ).strip()
-    base_url = (
-        relay.get("relay_base_url", "")
-        or relay.get("base_url", "")
-        or os.environ.get("TUSHARE_RELAY_BASE_URL", "")
-    ).strip()
+    section = config["tushare"] if config.has_section("tushare") else {}
+    token_env = section.get("token_env", "").strip() or "TUSHARE_TOKEN"
+    configured_token = section.get("token", "").strip()
+    token = configured_token or os.environ.get(token_env, "").strip()
     try:
-        timeout = float(relay.get("timeout", "30"))
+        timeout = float(section.get("timeout", "30"))
     except ValueError:
         timeout = 30.0
     try:
-        retries = int(relay.get("retries", "3"))
+        retries = int(section.get("retries", "3"))
     except ValueError:
         retries = 3
     return {
-        "configured": bool(api_key),
-        "uses_adapter_default": not bool(api_key),
-        "api_key_env": relay.get("relay_api_key_env", "TUSHARE_RELAY_API_KEY"),
-        "api_key": api_key,
-        "base_url": base_url,
+        "configured": bool(token),
+        "credential_source": "config" if configured_token else "environment" if token else "",
+        "token_env": token_env,
+        "token": token,
         "timeout": max(1.0, min(timeout, 120.0)),
         "retries": max(0, min(retries, 8)),
     }

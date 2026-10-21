@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Database, ExternalLink, KeyRound, Network, RefreshCw, X, Zap } from 'lucide-react'
+import { Database, ExternalLink, KeyRound, Network, RefreshCw, X, Zap, Shield } from 'lucide-react'
 import { api, type DataStatus } from '../api'
+import { AdvisorValidationSettings } from '../components/AdvisorValidationSettings'
 
 type Settings = {
   text_model: { configured: boolean; model: string | null; api_mode?: string | null; credential_source: string | null }
-  tushare: { configured: boolean; credential_source: string; uses_adapter_default: boolean; news_access: boolean; market_access: boolean }
+  tushare: { configured: boolean; credential_source: string | null; provider: 'official' }
   runtime: { data_root_configured: boolean; report_directory_configured: boolean }
   notice: string
 }
@@ -15,6 +16,7 @@ export default function SystemDrawer({ data, onClose, onRefresh }: { data: DataS
   const [modelCheck, setModelCheck] = useState('')
   const [toolCheck, setToolCheck] = useState('')
   const [checkingModel, setCheckingModel] = useState(false)
+  const [activeTab, setActiveTab] = useState<'data' | 'service' | 'advisor'>('data')
   useEffect(() => {
     api<Settings>('/settings/status').then(setSettings).catch(() => undefined)
     api<{ status: string }>('/health').then((result) => setHealth(result.status === 'ok' ? '运行正常' : '状态异常')).catch(() => setHealth('服务不可用'))
@@ -56,25 +58,91 @@ export default function SystemDrawer({ data, onClose, onRefresh }: { data: DataS
   return (
     <div className="drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <aside className="system-drawer" aria-label="系统设置">
-        <div className="drawer-header"><div><h2>系统设置</h2></div><button className="icon-button" aria-label="关闭设置" onClick={onClose}><X size={18} /></button></div>
-        <div className="drawer-section"><div className="section-title-row"><h3><Database size={16} />数据状态</h3><button className="table-action" title="刷新数据状态" onClick={onRefresh}><RefreshCw size={14} /></button></div>
-          <div className="status-grid"><StatusLine label="本地行情文件" ok={Boolean(data?.available)} value={data?.available ? '已挂载' : '不可用'} /><StatusLine label="行数" value={data?.rows?.toLocaleString() ?? '—'} /><StatusLine label="证券代码" value={data?.securities?.toLocaleString() ?? '—'} /><StatusLine label="行情水位" value={data?.last_date ?? '—'} /><StatusLine label="基础质量检查" ok={data?.quality_status === 'basic_checks_passed'} value={data?.quality_status === 'basic_checks_passed' ? '通过' : data?.quality_status === 'issues_found' ? '发现问题' : '待检查'} /></div>
-          <div className="market-counts">{Object.entries(data?.markets ?? {}).map(([market, count]) => <span key={market}>{market} <b>{count.toLocaleString()}</b></span>)}</div>
-          <div className="unknown-grid"><div><span>价格复权</span><b>未知</b></div><div><span>成交量单位</span><b>未知</b></div><div><span>成交额单位</span><b>未知</b></div></div>
-          {!!data?.formal_blockers?.length && <div className="drawer-blockers">{data.formal_blockers.map((item) => <p key={item}><span className="status-dot warning" />{item}</p>)}</div>}
+        <div className="drawer-header"><div><h2>系统设置</h2></div><button className="icon-button workspace-button" aria-label="关闭设置" onClick={onClose}><X size={18} /></button></div>
+
+        <div style={{ display: 'flex', gap: '8px', padding: '0 20px', borderBottom: '1px solid var(--ui-border)' }}>
+          <button
+            className={`tab-button ${activeTab === 'data' ? 'active' : ''}`}
+            onClick={() => setActiveTab('data')}
+            style={{
+              padding: '12px 16px',
+              border: 'none',
+              background: 'none',
+              borderBottom: activeTab === 'data' ? '2px solid var(--ui-primary)' : '2px solid transparent',
+              color: activeTab === 'data' ? 'var(--ui-primary)' : 'var(--ui-text-soft)',
+              fontWeight: activeTab === 'data' ? 600 : 400,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            数据状态
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'service' ? 'active' : ''}`}
+            onClick={() => setActiveTab('service')}
+            style={{
+              padding: '12px 16px',
+              border: 'none',
+              background: 'none',
+              borderBottom: activeTab === 'service' ? '2px solid var(--ui-primary)' : '2px solid transparent',
+              color: activeTab === 'service' ? 'var(--ui-primary)' : 'var(--ui-text-soft)',
+              fontWeight: activeTab === 'service' ? 600 : 400,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            服务能力
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'advisor' ? 'active' : ''}`}
+            onClick={() => setActiveTab('advisor')}
+            style={{
+              padding: '12px 16px',
+              border: 'none',
+              background: 'none',
+              borderBottom: activeTab === 'advisor' ? '2px solid var(--ui-primary)' : '2px solid transparent',
+              color: activeTab === 'advisor' ? 'var(--ui-primary)' : 'var(--ui-text-soft)',
+              fontWeight: activeTab === 'advisor' ? 600 : 400,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Shield size={14} style={{ marginRight: '4px', verticalAlign: 'text-bottom' }} />
+            投顾验证
+          </button>
         </div>
 
-        <div className="drawer-section"><div className="section-title-row"><h3>服务能力</h3><span className="drawer-health">{health}</span></div>
-          <div className="service-row"><div><b>文本模型</b><small>{settings?.text_model?.configured ? `${settings.text_model.model} · ${settings.text_model.api_mode}` : '未配置'}</small></div><span className={`status-pill ${settings?.text_model?.configured ? 'partial' : 'blocked_dependency'}`}>{settings?.text_model?.configured ? '已配置' : '待配置'}</span></div>
-          <div className="model-test-row"><button className="secondary-button compact" disabled={checkingModel || !settings?.text_model?.configured} onClick={testModel}><Zap size={14} />{checkingModel ? '测试中…' : '测试连接'}</button>{modelCheck && <span role="status">{modelCheck}</span>}</div>
-          <div className="model-test-row"><button className="secondary-button compact" disabled={checkingModel || !settings?.text_model?.configured} onClick={testModelTools}><Network size={14} />{checkingModel ? '测试中…' : '测试工具调用'}</button>{toolCheck && <span role="status">{toolCheck}</span>}</div>
-          <div className="service-row"><div><b>Tushare 中转</b><small>{settings?.tushare?.uses_adapter_default ? '适配器默认配置' : '本地配置'}</small></div><span className={`status-pill ${settings?.tushare?.configured ? 'partial' : 'blocked_dependency'}`}>{settings?.tushare?.configured ? '可同步' : '不可用'}</span></div>
-          <div className="service-row"><div><b>资讯数据</b><small>本地资讯</small></div><span className={`status-pill ${settings?.tushare?.news_access ? 'partial' : 'blocked_dependency'}`}>{settings?.tushare?.news_access ? '已接入' : '未接入'}</span></div>
-          <div className="credential-note"><KeyRound size={15} /><p>模型配置：<code>config.ini</code></p></div>
-        </div>
+        {activeTab === 'data' && (
+          <>
+            <div className="drawer-section"><div className="section-title-row"><h3><Database size={16} />数据状态</h3><button className="table-action workspace-button" data-tooltip="刷新数据状态" aria-label="刷新数据状态" onClick={onRefresh}><RefreshCw size={14} /></button></div>
+              <div className="status-grid"><StatusLine label="本地行情文件" ok={Boolean(data?.available)} value={data?.available ? '已挂载' : '不可用'} /><StatusLine label="行数" value={data?.rows?.toLocaleString() ?? '—'} /><StatusLine label="证券代码" value={data?.securities?.toLocaleString() ?? '—'} /><StatusLine label="行情水位" value={data?.last_date ?? '—'} /><StatusLine label="基础质量检查" ok={data?.quality_status === 'basic_checks_passed'} value={data?.quality_status === 'basic_checks_passed' ? '通过' : data?.quality_status === 'issues_found' ? '发现问题' : '待检查'} /></div>
+              <div className="market-counts">{Object.entries(data?.markets ?? {}).map(([market, count]) => <span key={market}>{market} <b>{count.toLocaleString()}</b></span>)}</div>
+              <div className="unknown-grid"><div><span>价格复权</span><b>未知</b></div><div><span>成交量单位</span><b>未知</b></div><div><span>成交额单位</span><b>未知</b></div></div>
+              {!!data?.formal_blockers?.length && <div className="drawer-blockers">{data.formal_blockers.map((item) => <p key={item}><span className="status-dot warning" />{item}</p>)}</div>}
+            </div>
+            <div className="drawer-section drawer-footer-section"><h3>本地运行</h3><a href="/docs" target="_blank" rel="noreferrer">打开 API 文档 <ExternalLink size={13} /></a></div>
+            <div className="drawer-footer"><button className="secondary-button workspace-button" onClick={onRefresh}><RefreshCw size={14} />刷新数据检查</button></div>
+          </>
+        )}
 
-        <div className="drawer-section drawer-footer-section"><h3>本地运行</h3><a href="/docs" target="_blank" rel="noreferrer">打开 API 文档 <ExternalLink size={13} /></a></div>
-        <div className="drawer-footer"><button className="secondary-button" onClick={onRefresh}><RefreshCw size={14} />刷新数据检查</button></div>
+        {activeTab === 'service' && (
+          <>
+            <div className="drawer-section"><div className="section-title-row"><h3>服务能力</h3><span className="drawer-health">{health}</span></div>
+              <div className="service-row"><div><b>文本模型</b><small>{settings?.text_model?.configured ? `${settings.text_model.model} · ${settings.text_model.api_mode}` : '未配置'}</small></div><span className={["workspace-status", `status-pill ${settings?.text_model?.configured ? 'partial' : 'blocked_dependency'}`].filter(Boolean).join(' ')}>{settings?.text_model?.configured ? '已配置' : '待配置'}</span></div>
+              <div className="model-test-row"><button className="secondary-button compact workspace-button" disabled={checkingModel || !settings?.text_model?.configured} onClick={testModel}><Zap size={14} />{checkingModel ? '测试中…' : '测试连接'}</button>{modelCheck && <span role="status">{modelCheck}</span>}</div>
+              <div className="model-test-row"><button className="secondary-button compact workspace-button" disabled={checkingModel || !settings?.text_model?.configured} onClick={testModelTools}><Network size={14} />{checkingModel ? '测试中…' : '测试工具调用'}</button>{toolCheck && <span role="status">{toolCheck}</span>}</div>
+              <div className="service-row"><div><b>Tushare 官方接口</b><small>{settings?.tushare?.configured ? '已配置 token，数据权限以官方账户为准' : '尚未配置官方 token'}</small></div><span className={["workspace-status", `status-pill ${settings?.tushare?.configured ? 'partial' : 'blocked_dependency'}`].filter(Boolean).join(' ')}>{settings?.tushare?.configured ? '已配置' : '待配置'}</span></div>
+              <div className="credential-note"><KeyRound size={15} /><p>模型配置：<code>config.ini</code></p></div>
+            </div>
+            <div className="drawer-section drawer-footer-section"><h3>本地运行</h3><a href="/docs" target="_blank" rel="noreferrer">打开 API 文档 <ExternalLink size={13} /></a></div>
+          </>
+        )}
+
+        {activeTab === 'advisor' && (
+          <div className="drawer-section" style={{ flex: 1, overflow: 'auto' }}>
+            <AdvisorValidationSettings />
+          </div>
+        )}
       </aside>
     </div>
   )
