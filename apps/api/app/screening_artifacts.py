@@ -10,11 +10,12 @@ from uuid import uuid4
 
 from .db import connect, utc_now
 from .settings import PROJECT_ROOT
+from .storage import storage_paths, application_paths
 
 
 ArtifactKind = Literal["tool_output", "condition_program", "input_manifest"]
 MAX_ARTIFACT_BYTES = 20 * 1024 * 1024
-ARTIFACT_ROOT = PROJECT_ROOT / "runtime" / "artifacts"
+ARTIFACT_ROOT = storage_paths(project_root=PROJECT_ROOT).execution_artifacts
 _ARTIFACT_LOCK = RLock()
 
 
@@ -46,7 +47,8 @@ def store_artifact(
         raise ArtifactError("产物必须是字节内容且不超过20 MB")
     digest = hashlib.sha256(payload).hexdigest()
     storage_key = _relative_key(digest)
-    artifact_root = (root or ARTIFACT_ROOT).resolve()
+    from .security_context import current_actor
+    artifact_root = (root or (ARTIFACT_ROOT if current_actor().legacy else application_paths().execution_artifacts)).resolve()
     target = _resolved_path(artifact_root, storage_key)
     media_type = "text/plain" if kind == "condition_program" else "application/json"
 
@@ -129,7 +131,9 @@ def read_artifact(
         ).fetchone()
     if not row:
         raise ArtifactError("找不到当前对话内的产物")
-    target = _resolved_path((root or ARTIFACT_ROOT).resolve(), row["storage_key"])
+    from .security_context import current_actor
+    artifact_root = root or (ARTIFACT_ROOT if current_actor().legacy else application_paths().execution_artifacts)
+    target = _resolved_path(artifact_root.resolve(), row["storage_key"])
     try:
         payload = target.read_bytes()
     except OSError:

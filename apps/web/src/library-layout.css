@@ -1,0 +1,108 @@
+/* Library controls stay close to the material and use the available workspace. */
+.viewport-workspace .page-frame .workspace-tool-page.page-content:is(.scope-report,.scope-news,.pattern-studio) {
+  max-width: none;
+  margin-inline: 0;
+  padding: 12px 20px 16px;
+  gap: 0;
+  --ui-tool-gap: 12px;
+}
+.viewport-workspace .page-frame .workspace-tool-page.page-content:is(.scope-report,.scope-news,.pattern-studio) > :is(.library-heading,.page-heading) {
+  min-height: 36px;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0 0 12px;
+}
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reading-layout,
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .local-news-grid { grid-template-columns: 300px minmax(0,1fr); }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-catalog { gap: 10px; padding: 14px 12px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-catalog-heading { margin-bottom: 0; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-library-toolbar { justify-content: flex-start; margin: 0; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-import-actions { gap: 6px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-pdf-reader { padding: 10px 12px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reader-heading { gap: 6px 8px; margin-bottom: 2px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reader-heading h2 { font-size: 18px; line-height: 1.4; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reader-summary { display: flex; flex-shrink: 0; align-items: center; flex-wrap: wrap; gap: 2px 12px; margin-bottom: 4px; min-width: 0; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reading-meta { margin: 0; gap: 3px 12px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-info-details { margin: 0; padding: 0; border: 0; min-width: 0; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-info-details > summary { min-height: 24px; padding-block: 2px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-info-details[open] { flex-basis: 100%; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .report-dictionary { margin: 6px 0 8px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .pdf-toolbar { margin: 0 0 4px; padding: 4px 8px; gap: 4px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-report .pdf-canvas-container { padding: 8px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-catalog { padding: 14px 16px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-reading-panel { padding: 10px 12px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-reader-tools { padding-bottom: 4px; gap: 6px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .local-news-reader { max-width: 960px; margin-inline: 0; padding: 6px 0 0; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .local-news-reader > h3 { margin: 0 0 4px; font-size: 18px; line-height: 1.4; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-metadata { margin-block: 4px 8px; gap: 4px 10px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-source-badge { padding: 1px 6px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-company-chart { max-width: 960px; margin: 10px 0 0; padding-top: 8px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-market-toolbar { gap: 6px 12px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-market-icon { flex-basis: 26px; width: 26px; height: 26px; border-radius: 6px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-chart-heading { gap: 6px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-chart-heading > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-chart-heading h2 { font-size: 14px; line-height: 1.4; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-market-date { margin: 0; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-company-charts { margin-top: 6px; gap: 10px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-company-card-header { padding: 8px 12px; gap: 6px 12px; flex-wrap: wrap; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-company-identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-company-identity h3 { margin: 0; font-size: 14px; line-height: 1.4; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-company-identity > div { margin: 0; gap: 4px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-company-quote { display: flex; align-items: baseline; justify-content: flex-end; flex-wrap: wrap; gap: 2px 6px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-quote-label { margin: 0; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-company-quote strong { font-size: 20px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-chart-footer { padding: 6px 12px; }
+.viewport-workspace .page-frame .workspace-tool-page.scope-news .news-research-action { margin-top: 4px; padding-top: 4px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .library-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .page-description { margin: 0; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-studio-navigation { margin-bottom: 12px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .library-tabs > button { min-height: 36px; padding: 4px 0 8px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-layout { grid-template-columns: 264px minmax(0,1fr); }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-browse-detail { padding: 10px 12px 0; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-template-overview { gap: 12px; padding-bottom: 8px; margin-bottom: 8px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-template-preview { width: 104px; min-height: 64px; padding: 4px 6px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-template-preview .pattern-template-thumbnail { height: 38px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-heading { gap: 4px 8px; margin-bottom: 4px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-heading > div { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 3px 10px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-heading h2 { order: -1; font-size: 18px; line-height: 1.4; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-summary { gap: 4px 16px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-summary > span { gap: 5px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-summary strong { font-size: 14px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-summary strong.pattern-window-label { font-size: 12px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-chart-toolbar { gap: 4px 8px; margin-bottom: 4px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-selected-company { margin: 0 0 6px; padding: 8px 10px; gap: 4px 10px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-selected-identity { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 10px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-selected-company > .pattern-selected-score { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-selected-score strong { font-size: 20px; }
+.viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-browse-actions { margin: 8px -12px 0; padding: 8px 12px; gap: 8px; }
+
+@media (min-width: 901px) and (pointer: fine) {
+  .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reader-heading > a { min-height: 28px; padding: 4px 8px; font-size: 12px; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-report .pdf-toolbar :is(button,input,select) { min-height: 30px; height: 30px; padding: 4px 8px; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-report .pdf-toolbar .icon-button { width: 30px; padding: 0; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-news .news-reader-tools button,
+  .viewport-workspace .page-frame .workspace-tool-page.scope-news .news-research-action button,
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-heading > button,
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-browse-actions > button { min-height: 30px; padding: 4px 8px; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-news .news-chart-controls .segmented,
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-match-browser .segmented { padding: 2px; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-news .news-chart-controls .segmented > button,
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-match-browser .segmented > button { min-height: 26px; padding: 3px 8px; }
+}
+
+@media (max-width: 900px) {
+  .viewport-workspace .page-frame .workspace-tool-page.page-content:is(.scope-report,.scope-news,.pattern-studio) { padding: 12px; }
+  .viewport-workspace .page-frame .workspace-tool-page.page-content:is(.scope-report,.scope-news,.pattern-studio) > :is(.library-heading,.page-heading) { gap: 8px; margin-bottom: 10px; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reading-layout,
+  .viewport-workspace .page-frame .workspace-tool-page.scope-news .local-news-grid,
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-layout { grid-template-columns: minmax(0,1fr); }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-pdf-reader { padding: 10px; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reader-heading h2 { font-size: 17px; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-info-details > summary { min-height: 32px; padding-block: 6px; }
+  .viewport-workspace .page-frame .workspace-tool-page.scope-news .local-news-reader > h3,
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-detail-heading h2 { font-size: 17px; }
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .pattern-template-info .pattern-detail-summary { display: flex; flex-wrap: wrap; }
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .library-title { display: block; }
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .page-description { margin-top: 4px; }
+  .viewport-workspace .page-frame .workspace-tool-page.pattern-studio.page-content .library-tabs > button { min-height: 44px; }
+}

@@ -10,9 +10,6 @@
 .observation-metric-disclosure { flex-shrink: 0; margin: 2px 0 8px; }
 .observation-metric-disclosure > summary { padding: 4px 0; font-size: 11px; color: var(--ui-text-muted); cursor: pointer; }
 .observation-metric-disclosure .observation-metric-note { max-height: none; }
-.viewport-workspace .page-frame .observation-density-compact .observation-overview { padding-block: 6px; }
-.viewport-workspace .page-frame .observation-density-compact .observation-overview-card { padding-block: 2px; }
-.viewport-workspace .page-frame .observation-density-compact .observation-overview-card > strong { font-size: 17px; line-height: 1.3; }
 .observation-unified-workspace .observation-results .observation-check-column { width: 28px; padding-inline: 6px; }
 .observation-unified-workspace .observation-results table { table-layout: fixed; width: 100%; }
 .observation-unified-workspace .observation-results table th.observation-check-column,
@@ -23,6 +20,23 @@
 .observation-unified-workspace .observation-results table th:nth-child(5) { width: 13%; }
 .observation-unified-workspace .observation-results table th:nth-child(6) { width: 12%; }
 .observation-unified-workspace .observation-results table th:nth-child(7) { width: 22%; }
+.observation-unified-workspace .observation-results table { min-width: 1100px; }
+.observation-unified-workspace .observation-results table th:nth-child(2) { width: 16%; }
+.observation-unified-workspace .observation-results table th:nth-child(3) { width: 18%; }
+.observation-unified-workspace .observation-results table th:nth-child(4) { width: 9%; }
+.observation-unified-workspace .observation-results table th:nth-child(5) { width: 11%; }
+.observation-unified-workspace .observation-results table th:nth-child(6) { width: 10%; }
+.observation-unified-workspace .observation-results table th:nth-child(7) { width: 17%; }
+.observation-unified-workspace .observation-results table th:nth-child(8) { width: 130px; }
+.observation-sort-button { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
+.observation-sort-button:hover, .observation-sort-button:focus-visible { color: var(--ui-brand); }
+.observation-row-actions-cell { white-space: nowrap; }
+.observation-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.observation-row-action { display: inline-grid; place-items: center; width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--ui-text-muted); }
+.observation-row-action:hover:not(:disabled) { border-color: var(--ui-border); background: var(--ui-surface-subtle); color: var(--ui-text); }
+.observation-row-action.is-active { color: var(--ui-brand); }
+.observation-row-action.is-active svg { fill: currentColor; }
+.observation-row-action:disabled { opacity: .4; cursor: not-allowed; }
 .observation-unified-workspace .observation-results td { min-width: 0; overflow-wrap: anywhere; }
 .observation-unified-workspace .observation-results td.observation-up { color: var(--ui-market-up); }
 .observation-unified-workspace .observation-results td.observation-down { color: var(--ui-market-down); }
@@ -44,15 +58,15 @@
 .observation-quick-note footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
 .observation-quick-note [role=alert] { color: var(--ui-danger, #bf3342); }
 @media (max-width: 620px) {
-  .viewport-workspace .page-frame .observation-density-compact .observation-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; }
+  .observation-unified-workspace .observation-results table { min-width: 0; }
   .viewport-workspace .page-frame .observation-density-compact .observation-overview-card:nth-child(2),
   .viewport-workspace .page-frame .observation-density-compact .observation-overview-card:nth-child(3) { display: none; }
-  .viewport-workspace .page-frame .observation-density-compact .observation-overview-card:nth-child(4) { border-left: 1px solid var(--ui-border-subtle); padding-left: 8px; }
   .viewport-workspace .page-frame .observation-density-compact .observation-results tbody tr { gap: 4px 8px; padding: 8px; }
   .viewport-workspace .page-frame .observation-density-compact .observation-inline-status { min-height: 30px; height: 30px; }
   .viewport-workspace .page-frame .observation-density-compact .observation-results td[data-label="加入时间"] { display: none; }
   .viewport-workspace .page-frame .observation-density-compact .observation-results td[data-label="至今涨跌幅"]::before,
   .viewport-workspace .page-frame .observation-density-compact .observation-results td[data-label="最大回撤"]::before { display: inline; margin-right: 5px; }
+  .observation-unified-workspace .observation-results td[data-label="至今涨跌幅"]::before { content: "涨跌幅"; }
   .viewport-workspace .page-frame .observation-density-compact .observation-results td[data-label="至今涨跌幅"] small:empty { display: none; }
   .viewport-workspace .page-frame .observation-density-compact .observation-results td[data-label="关注备注"] { display: flex; align-items: center; gap: 5px; }
   .viewport-workspace .page-frame .observation-density-compact .observation-results td[data-label="关注备注"]::before { flex-shrink: 0; margin: 0; }
@@ -65,6 +79,10 @@
   .observation-unified-workspace .observation-results td[data-label="至今涨跌幅"] { grid-column: 2; }
   .observation-unified-workspace .observation-results td[data-label="最大回撤"] { grid-column: 3; }
   .observation-unified-workspace .observation-results td[data-label="关注备注"] { grid-column: 2 / -1; }
+  .observation-unified-workspace .observation-results td[data-label="操作"] { grid-column: 2 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .observation-unified-workspace .observation-results td[data-label="操作"]::before { flex-shrink: 0; margin: 0; }
+  .observation-row-actions { margin-left: auto; gap: 4px; }
+  .observation-row-action { width: 30px; min-width: 30px; height: 30px; min-height: 30px; }
   .observation-unified-workspace .observation-results td.observation-check-column::before,
   .observation-unified-workspace .observation-results td[data-label="股票"]::before,
   .observation-unified-workspace .observation-results td[data-label="所属"]::before { display: none; }

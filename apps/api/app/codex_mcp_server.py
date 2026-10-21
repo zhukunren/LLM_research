@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+from contextlib import contextmanager
+from dataclasses import replace
 from uuid import uuid4
 from typing import Any
 
@@ -21,6 +23,18 @@ from .screening_contracts import ScreeningTaskRevision
 
 
 PROTOCOL_VERSION = "2024-11-05"
+
+
+@contextmanager
+def _session_context():
+    from .security_context import actor_scope, auth_mode
+    if auth_mode() == "oidc":
+        from .identity import service_actor
+        actor = service_actor(os.environ.get("LLMR_SERVICE_TOKEN", ""), os.environ.get("LLMR_CODEX_CONVERSATION_ID", ""), os.environ.get("LLMR_CODEX_TURN_ID", ""))
+        with actor_scope(actor):
+            yield
+    else:
+        yield
 
 
 def _debug(message: str) -> None:
@@ -70,16 +84,24 @@ def _context() -> screening_tools.ToolContext:
         )["source_refs"]
     except conversation_store.ConversationNotFound:
         pass
-    return task_tool_context(
+    from .security_context import current_actor
+    actor = current_actor()
+    context = task_tool_context(
         conversation_id,
         turn_id,
         revision,
         task,
         source_refs,
     )
+    return replace(context, user_id=actor.user_id, tenant_id=actor.tenant_id, permissions_version=actor.permissions_version)
 
 
 def _tools() -> list[dict[str, Any]]:
+    with _session_context():
+        return _tools_bound()
+
+
+def _tools_bound() -> list[dict[str, Any]]:
     # Schema inspection is also used before a server is bound to a turn. Only
     # a bound runtime needs its workflow-specific tool catalogue; calls always
     # validate their persisted turn and scope before performing any action.
@@ -88,6 +110,11 @@ def _tools() -> list[dict[str, Any]]:
 
 
 def _call(arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    with _session_context():
+        return _call_bound(arguments)
+
+
+def _call_bound(arguments: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     name = arguments.get("name")
     if not isinstance(name, str):
         return {"ok": False, "error": {"code": "invalid_tool_call", "message": "缺少工具名称"}}, True

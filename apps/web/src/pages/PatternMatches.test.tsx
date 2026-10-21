@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { api } from '../api'
 import PatternPage from './PatternPage'
+import { SecuritiesProvider } from '../components/StockSearch'
+import { StockInteractionsProvider } from '../components/StockMentions'
 
 vi.mock('../api', () => ({ api: vi.fn() }))
 const mocked = vi.mocked(api)
@@ -59,6 +61,27 @@ it('ignores a late match response after changing the selected pattern', async ()
   await act(async () => old({ ...sample('600000.SH', '2026-09-14', 99), items: [sample('600000.SH', '2026-09-14', 99)] }))
   expect(screen.queryByRole('button', { name: /查看 600000.SH/ })).not.toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'next目标形态' })).toBeInTheDocument()
+})
+
+it('selects a sample from its company name without opening the stock menu', async () => {
+  const user = userEvent.setup()
+  const items = [sample('600000.SH', '2026-09-14', 99), sample('000002.SZ', '2026-09-15', 96)]
+  mocked.mockImplementation(async path => path === '/security-catalog'
+    ? { items: [{ stock_code: '600000.SH', name: '浦发银行', market: 'SH' }, { stock_code: '000002.SZ', name: '万科A', market: 'SZ' }] }
+    : path === '/patterns' ? { items: [pattern('stock-menu')] } : { ...items[0], items, scope: '真实行情' })
+  render(<SecuritiesProvider><StockInteractionsProvider><PatternPage /></StockInteractionsProvider></SecuritiesProvider>)
+  const samples = await screen.findByRole('region', { name: '相似K线样本' })
+  const second = within(samples).getByRole('button', { name: /查看 000002.SZ/ })
+  second.focus()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await user.click(within(second).getByText('万科A'))
+  expect(second).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '原始曲线' }))
+  expect(samples).toBeVisible()
+  await user.click(within(samples).getByRole('button', { name: /查看 600000.SH/ }))
+  expect(screen.queryByRole('img', { name: 'stock-menu目标形态原始曲线' })).not.toBeInTheDocument()
+  expect(within(samples).getByRole('button', { name: /查看 600000.SH/ })).toHaveAttribute('aria-pressed', 'true')
 })
 
 it('retries matching errors and handles a market with no samples', async () => {

@@ -145,6 +145,38 @@ def test_source_transport_refuses_explicit_tls_disable(monkeypatch):
             session.get("https://publisher.example/", verify=False)
 
 
+def test_dual_stack_fake_dns_still_pins_independently_verified_public_address(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: dns("198.18.0.5") + dns("2001:2::5"))
+    target = sources.resolve_public_url("https://publisher.example/article", public_dns=lambda _: ("93.184.216.34",))
+    assert target.address == "93.184.216.34"
+    assert "2001:2" not in target.connection_url and "198.18" not in target.connection_url
+    for verified in ((), ("127.0.0.1",), ("93.184.216.34", "::1")):
+        with pytest.raises(sources.PublicSourceError):
+            sources.resolve_public_url("https://publisher.example/article", public_dns=lambda _: verified)
+    for value in ("https://[2001:2::5]/article", "http://publisher.example/article"):
+        with pytest.raises(sources.PublicSourceError):
+            sources.resolve_public_url(value, public_dns=lambda _: ("93.184.216.34",))
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: dns("2001:2::5") + dns("10.0.0.1"))
+    with pytest.raises(sources.PublicSourceError):
+        sources.resolve_public_url("https://publisher.example/article", public_dns=lambda _: ("93.184.216.34",))
+
+
+def test_dual_stack_fake_ip_requires_independent_public_dns_and_pinned_https(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: dns("198.18.0.22") + [
+        (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("2001:2::16", 443, 0, 0))])
+    target = sources.resolve_public_url("https://static.cninfo.com.cn/report.pdf", public_dns=lambda _: ("93.184.216.34",))
+    assert target.address == "93.184.216.34" and target.hostname == "static.cninfo.com.cn"
+    for unsafe in (("127.0.0.1",), ("2001:2::1",), ("93.184.216.34", "10.0.0.1")):
+        with pytest.raises(sources.PublicSourceError):
+            sources.resolve_public_url("https://static.cninfo.com.cn/report.pdf", public_dns=lambda _: unsafe)
+    for url in ("http://static.cninfo.com.cn/report.pdf", "https://[2001:2::16]/report.pdf"):
+        with pytest.raises(sources.PublicSourceError):
+            sources.resolve_public_url(url, public_dns=lambda _: ("93.184.216.34",))
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: dns("198.18.0.22") + dns("10.0.0.1"))
+    with pytest.raises(sources.PublicSourceError):
+        sources.resolve_public_url("https://static.cninfo.com.cn/report.pdf", public_dns=lambda _: ("93.184.216.34",))
+
+
 def test_native_browser_proxy_port_is_reserved_unreachable_and_released_on_close():
     options, handlers = {}, {}
     browser = SimpleNamespace(on=lambda event, callback: handlers.update({event: callback}))

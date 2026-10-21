@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../api'
 import type { DynamicIndicatorDefinition, IndicatorTrial, SavedIndicator } from '../../dynamicIndicators'
 import MyIndicators, { splitIndicatorCharts } from './MyIndicators'
+import { WorkspaceSessionPane } from '../../WorkspaceSession'
 
 vi.mock('../../api', () => ({ api: vi.fn() }))
 const mocked = vi.mocked(api)
@@ -48,6 +49,68 @@ async function open() { await userEvent.click(screen.getByRole('button', { name:
 async function selectSaved() { await userEvent.click(await screen.findByRole('button', { name: /成交加权偏离 v2/ })); await screen.findByText('固定版本 v2 · 数值时序指标') }
 
 describe('contextual dynamic indicators', () => {
+  it('closes the indicator drawer when its workspace is detached', async () => {
+    const tab = { id: 'indicator-tab', route: { page: 'screening' as const }, title: '新研究' }
+    const view = render(<WorkspaceSessionPane tab={tab} active onTitle={vi.fn()}><MyIndicators {...base} /></WorkspaceSessionPane>)
+    await open()
+    view.rerender(<WorkspaceSessionPane tab={tab} active={false} onTitle={vi.fn()}><MyIndicators {...base} /></WorkspaceSessionPane>)
+    expect(screen.queryByRole('dialog', { name: '我的指标' })).not.toBeInTheDocument()
+    expect(document.body.style.overflow).toBe('')
+  })
+  it('merges common formulas into the drawer and keeps the saved version available after browsing', async () => {
+    mocked.mockImplementation(async (path, init) => {
+      if (path === '/indicators') return { items: [{ id: 'sma', name: '简单移动平均线', min_window: 2, max_window: 250 }] }
+      if (path === '/indicators/preview') return { stock_code: base.data.available ? '000001.SH' : '', as_of: base.data.last_date, current: 12, previous: 11, warning: '测试口径', chart: { ...trial.chart, placement: 'overlay' } }
+      return defaultResponse(path, init)
+    })
+    render(<MyIndicators {...base} />)
+    await open(); await selectSaved()
+    await userEvent.click(screen.getByRole('button', { name: /常用指标 均线/ }))
+    await screen.findByRole('img', { name: 'K线主图叠加指标走势' })
+    expect(screen.queryByLabelText('指标保存位置')).not.toBeInTheDocument()
+    await selectSaved()
+    expect(screen.getByRole('button', { name: '用于选股草稿' })).toBeEnabled()
+    expect(screen.getByLabelText('指标历史版本')).toHaveValue('2')
+    fireEvent.change(screen.getByLabelText('指标历史长度'), { target: { value: '' } })
+    await userEvent.click(screen.getByRole('button', { name: /常用指标 均线/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '带入对话生成可保存版本' })).toBeEnabled())
+    await userEvent.click(screen.getByRole('button', { name: '带入对话生成可保存版本' }))
+    expect(base.onPrompt.mock.calls[0][0]).toContain('简单移动平均线')
+    expect(base.onPrompt.mock.calls[0][0]).toContain('最近 500 个交易日')
+    expect(base.onPrompt.mock.calls[0][0]).toContain('preview_dynamic_indicator')
+    expect(base.onPrompt.mock.calls[0][0]).toContain('不要自动保存或执行选股')
+    expect(base.onScreening).not.toHaveBeenCalled()
+    expect(mocked.mock.calls.some(([path]) => path.endsWith('/save') || path.endsWith('/condition'))).toBe(false)
+    expect(saved.version).toBe(2)
+  })
+
+  it('opens legacy links in common indicators, accepts the asynchronously loaded date, and closes on context changes', async () => {
+    mocked.mockImplementation(async (path, init) => path === '/indicators' ? { items: [] } : defaultResponse(path, init))
+    const consumed = vi.fn()
+    const view = render(<MyIndicators {...base} data={null} initialCommon onInitialCommonConsumed={consumed} />)
+    expect(await screen.findByRole('region', { name: '常用指标预览' })).toBeInTheDocument()
+    expect(consumed).toHaveBeenCalledOnce()
+    view.rerender(<MyIndicators {...base} initialCommon={false} />)
+    await waitFor(() => expect(screen.getByLabelText('指标试算日期')).toHaveValue(base.data.last_date))
+    view.rerender(<MyIndicators {...base} contextKey="research:two" conversationId="conversation-two" />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('dismisses the securities list before closing its parent drawer with Escape', async () => {
+    render(<MyIndicators {...base} />)
+    const drawer = await open()
+    const input = screen.getByRole('combobox', { name: '指标试算证券' })
+    await userEvent.click(input)
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.keyboard('{Escape}')
+    expect(drawer).toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-expanded', 'false')
+    expect(input).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: '我的指标' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '我的指标' })).toHaveFocus()
+  })
+
   it('hands arbitrary descriptions to the real Codex conversation without a client generator or automatic save', async () => {
     render(<MyIndicators {...base} />)
     await open()

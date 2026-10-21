@@ -18,6 +18,25 @@ TEMPLATES = [
     {"id": "ma_cross", "version": 1, "name": "短均线上穿长均线", "formula": "当日 SMA(短) > SMA(长)，且前一交易日 SMA(短) ≤ SMA(长)", "parameters": {"fast": {"label": "短均线周期", "default": 5, "min": 2, "max": 249, "step": 1}, "slow": {"label": "长均线周期", "default": 20, "min": 3, "max": 250, "step": 1}}},
 ]
 
+# Keep old versions resolvable for saved requests; the catalogue exposes combinations.
+COMBINATIONS = {
+    "trend_momentum": [("above_sma", {"window": "ma_window"}), ("return_above", {"window": "return_window", "threshold": "threshold"})],
+    "cross_confirm": [("ma_cross", {"fast": "fast", "slow": "slow"}), ("above_sma", {"window": "slow"})],
+    "cross_momentum": [("ma_cross", {"fast": "fast", "slow": "slow"}), ("return_above", {"window": "return_window", "threshold": "threshold"})],
+}
+for template_id, name, rules in [
+    ("trend_momentum", "趋势走强", ["收盘价高于{ma_window}日均线", "近{return_window}日涨幅大于{threshold}%"]),
+    ("cross_confirm", "均线上穿确认", ["{fast}日均线上穿{slow}日均线", "收盘价高于{slow}日均线"]),
+    ("cross_momentum", "上穿并加速", ["{fast}日均线上穿{slow}日均线", "近{return_window}日涨幅大于{threshold}%"]),
+]:
+    parameters = {}
+    for component_id, mapping in COMBINATIONS[template_id]:
+        component = next(item for item in TEMPLATES if item["id"] == component_id)
+        for source, target in mapping.items():
+            parameters.setdefault(target, dict(component["parameters"][source]))
+    TEMPLATES.append({"id": template_id, "version": 1, "name": name, "rules": rules,
+                      "formula": " 且 ".join(rules), "parameters": parameters})
+
 
 class ApplyTemplateRequest(ContractModel):
     base_revision: int = Field(ge=0)
@@ -52,6 +71,10 @@ def compile_template(template_id: str, version: int, parameters: dict):
                 raise ValueError(f"{spec['label']}必须是整数。")
             value = int(value)
         p[key] = value
+    if template_id in COMBINATIONS:
+        parts = [compile_template(component_id, 1, {key: p[value] for key, value in mapping.items()})
+                 for component_id, mapping in COMBINATIONS[template_id]]
+        return template, {"op": "all", "children": [part[1] for part in parts]}, " 且 ".join(f"（{part[2]}）" for part in parts)
     if template_id == "above_sma":
         expression = {"op": "indicator_compare", "indicator": "sma", "field": "close", "window": p["window"], "operator": "lt", "compare_field": "close"}
         description = f"收盘价 > SMA({p['window']})（含当日）"
@@ -100,7 +123,7 @@ def template_program(template, expression, parameters):
 
 @router.get("/screening-templates")
 def list_templates():
-    return {"items": TEMPLATES}
+    return {"items": [item for item in TEMPLATES if item["id"] in COMBINATIONS]}
 
 
 @router.post("/conversations/{conversation_id}/screening-templates/{template_id}", status_code=201)
@@ -120,12 +143,30 @@ def apply_template(conversation_id: str, template_id: str, payload: ApplyTemplat
                 if not connection.execute("SELECT 1 FROM watchlist_items WHERE watchlist_id=? LIMIT 1", (payload.universe.watchlist_id,)).fetchone():
                     raise ValueError("指定的自选股票池为空。")
         content = f"使用基础方案“{template['name']}”：{description}。仅生成方案，确认后执行。"
+        components = COMBINATIONS.get(template_id)
+        parts = []
+        if components:
+            for component_id, mapping in components:
+                parameters = {key: payload.parameters[value] for key, value in mapping.items()}
+                component, leaf, detail = compile_template(component_id, 1, parameters)
+                parts.append((component, leaf, detail, parameters))
+        else:
+            parts.append((template, expression, description, payload.parameters))
+        conditions, references = [], []
+        for index, (component, leaf, detail, parameters) in enumerate(parts):
+            condition_id = f"starter-{index + 1}" if components else "starter"
+            reference_id = f"starter-ref-{index + 1}" if components else "starter-ref"
+            conditions.append({"condition_id": condition_id, "library": "technical", "source_quote": content,
+                               "description": detail, "expression": {}, "program": template_program(component, leaf, parameters),
+                               "implementation_id": "llm-python-screen", "implementation_version": "python-screen-v1"})
+            references.append({"reference_id": reference_id, "condition_id": condition_id})
+        nodes = [{"op": "condition", "reference_id": item["reference_id"]} for item in references]
         task = ScreeningTaskRevision.model_validate({
             "task_id": conversation_id, "revision": payload.base_revision + 1,
             "original_user_messages": [content],
-            "conditions": [{"condition_id": "starter", "library": "technical", "source_quote": content, "description": description, "expression": {}, "program": template_program(template, expression, payload.parameters), "implementation_id": "llm-python-screen", "implementation_version": "python-screen-v1"}],
-            "references": [{"reference_id": "starter-ref", "condition_id": "starter"}],
-            "logic_tree": {"op": "condition", "reference_id": "starter-ref"},
+            "conditions": conditions,
+            "references": references,
+            "logic_tree": {"op": "all", "children": nodes} if components else nodes[0],
             "scope": {"as_of": payload.as_of, "universe": payload.universe, "price_basis": "unknown"}, "unresolved": [],
         })
         validate_executable_task(task)

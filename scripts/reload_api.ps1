@@ -2,8 +2,9 @@
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'python312.ps1')
+. (Join-Path $PSScriptRoot 'storage.ps1')
 . (Join-Path $PSScriptRoot 'processes.ps1')
-$Runtime = Join-Path $ProjectRoot 'runtime'
+$Runtime = Get-LlmStateRoot $ProjectRoot
 $RegistryPath = Join-Path $Runtime 'processes.json'
 $LaunchLock = [IO.File]::Open((Join-Path $Runtime 'services.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
 try {
@@ -12,7 +13,8 @@ try {
     if (-not $OwnedApi) { throw 'Cannot verify the API process owned by this workspace.' }
     $ApiPython = Get-SystemPython312
     $env:PYTHONNOUSERSITE = '1'
-    $env:PYTHONPATH = Join-Path $ProjectRoot 'runtime/python-deps'
+    $env:PYTHONPATH = Get-LlmPythonDeps $ProjectRoot
+    $env:PYTHONDONTWRITEBYTECODE = '1'
     $env:LLMR_WEB_PORT = [string]$ProcessInfo.web_port
     $OldApi = Get-Process -Id $OwnedApi.ProcessId -ErrorAction Stop
     Stop-Process -InputObject $OldApi

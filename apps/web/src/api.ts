@@ -8,9 +8,12 @@ export class ApiRequestError extends Error {
 }
 
 const API = '/api/v1'
+let csrfToken = ''
+export function setCsrfToken(value: string) { csrfToken = value }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
+  if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes((init?.method || 'GET').toUpperCase())) headers.set('X-CSRF-Token', csrfToken)
   if (!(init?.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   let response: Response
   try {
@@ -27,6 +30,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(response.ok ? '服务返回的数据格式异常，请重试。' : `服务暂时不可用（${response.status}），请重试。`)
   }
   if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event('llmr-auth-required'))
     const message = typeof body?.message === 'string' ? body.message : typeof body?.detail?.message === 'string' ? body.detail.message : typeof body?.detail === 'string' ? body.detail : `请求失败 (${response.status})`
     const detail = Array.isArray(body?.details) ? `：${body.details.join('；')}` : ''
     throw new ApiRequestError(message + detail, response.status, body?.code ?? body?.detail?.code, body?.details ?? body?.detail?.details)
@@ -147,6 +151,7 @@ export type ConversationMessage = {
   turn_id?: string | null
   role: 'user' | 'assistant' | 'tool'
   content: string
+  display_content?: string
   source_refs: Record<string, unknown>[]
   attachments?: ConversationAttachment[]
   created_at: string

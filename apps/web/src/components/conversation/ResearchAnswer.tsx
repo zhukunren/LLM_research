@@ -1,5 +1,5 @@
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown'
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import remarkGfm from 'remark-gfm'
 import remarkCjkStrong from './remarkCjkStrong'
 import { StockText } from '../StockMentions'
@@ -18,15 +18,17 @@ function researchUrl(url: string, conversationId: string) {
     let parts: string[]
     try { parts = relative.split('/').map(part => decodeURIComponent(part.replace(/%(?![0-9a-f]{2})/gi, '%25'))) } catch { return '' }
     if (parts.some(part => !part || part.startsWith('.') || /[\\/:\u0000-\u001f\u007f]/.test(part) || /[. ]$/.test(part))) return ''
-    if (!/\.(xlsx|docx|pptx|csv|tsv|json|txt|md|pdf|png|jpe?g|gif|webp)$/i.test(parts.at(-1)!)) return ''
+    if (!/\.(xlsx|docx|pptx|csv|tsv|json|txt|md|pdf|png|jpe?g|gif|webp|py)$/i.test(parts.at(-1)!)) return ''
     return `${conversationPrefix}generated-files/${parts.map(encodeURIComponent).join('/')}`
   }
   if (/\/research\/[^/]+\/work\//.test(normalized) || /^\/api\/v1\/conversations\/[^/]+\/(?:generated-files|research-files)\//.test(normalized)) return ''
   return defaultUrlTransform(url)
 }
 
-export default function ResearchAnswer({ content, conversationId }: { content: string; conversationId: string; messageId?: string }) {
+export default function ResearchAnswer({ content, conversationId, references }: { content: string; conversationId: string; messageId?: string; references?: Record<string, unknown>[] }) {
   const filePrefix = `/api/v1/conversations/${encodeURIComponent(conversationId)}/generated-files/`
+  const referencesRef = useRef(references)
+  referencesRef.current = references
   const components = useMemo<Components>(() => ({
       h1: ({ children }) => <StockText><h3>{children}</h3></StockText>,
       h2: ({ children }) => <StockText><h3>{children}</h3></StockText>,
@@ -35,9 +37,15 @@ export default function ResearchAnswer({ content, conversationId }: { content: s
       li: ({ children }) => <StockText><li>{children}</li></StockText>,
       td: ({ children }) => <StockText><td>{children}</td></StockText>,
       th: ({ children }) => <StockText><th>{children}</th></StockText>,
-      table: ({ children }) => <div className="research-answer-table"><table>{children}</table></div>,
+      table: ({ children }) => <div className="research-answer-table workspace-table-scroll" tabIndex={0} role="region" aria-label="研究答复表格"><table className="workspace-data-table">{children}</table></div>,
       pre: ({ children }) => <details className="research-answer-code"><summary>代码与数据</summary><pre>{children}</pre></details>,
       a: ({ href, children }) => {
+        const source = /^([A-Za-z0-9_-]{1,100})(?:#page=(\d+))?$/.exec(href || '')
+        if (source) {
+          const pages = (referencesRef.current || []).filter(ref => ref.kind === 'report_page' && ref.source_id === source[1] && typeof ref.page_number === 'number' && Number.isInteger(ref.page_number) && ref.page_number > 0).map(ref => ref.page_number as number)
+          const requested = Number(source[2] || /第\s*(\d+)/.exec(String(children))?.[1])
+          if (pages.length) href = `/api/v1/documents/${encodeURIComponent(source[1])}/pdf#page=${pages.includes(requested) ? requested : Math.min(...pages)}`
+        }
         const download = href?.startsWith(filePrefix)
         const external = /^https?:\/\//i.test(href || '')
         return <StockText><a href={href || undefined} download={download ? true : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}>{children}</a></StockText>

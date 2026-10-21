@@ -11,6 +11,7 @@ from .db import connect, json_dump, utc_now
 from .settings import REPORT_DIR, REPORT_UPLOAD_DIR, report_parser_settings
 from .report_parser import parse_report
 from . import db, report_search
+from .storage import application_paths
 
 
 SECURITY_PATTERN = re.compile(r"(?<!\d)(\d{4,6})\.(SH|SZ|BJ|HK|KS)\b", re.I)
@@ -33,7 +34,7 @@ class DocumentIntegrityError(ValueError):
 def _snapshot_path(digest: str) -> Path:
     if not re.fullmatch(r"[a-f0-9]{64}", digest):
         raise DocumentIntegrityError("研报 PDF 原件校验值无效")
-    return db.DB_PATH.parent / "report-originals" / f"{digest}.pdf"
+    return application_paths().report_originals / f"{digest}.pdf"
 
 
 def _verified_bytes(path: Path, digest: str) -> bytes:
@@ -62,8 +63,13 @@ def _store_original(data: bytes, digest: str) -> Path:
     try:
         with temporary.open("xb") as stream:
             stream.write(data)
-        if not path.exists() and not path.is_symlink():
-            os.replace(temporary, path)
+        # Publish exclusively, never replace an original another importer is
+        # already reading. The check/replace race is particularly visible on
+        # Windows, where the reader can deny replacement of the destination.
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            pass
         _verify_original(path, digest)
     finally:
         temporary.unlink(missing_ok=True)
@@ -79,6 +85,44 @@ def original_snapshot(source_path: str, digest: str) -> Path:
     return _store_original(_verified_bytes(Path(source_path), digest), digest)
 
 
+def index_pdf_snapshot(snapshot: Path, digest: str, filename: str, *, material_kind: str = "report") -> dict:
+    """Shared byte-hash/page indexing. Classification belongs to the importing service."""
+    if material_kind not in {"report", "disclosure"}:
+        raise ValueError("未知资料类型")
+    _verify_original(snapshot, digest)
+    with connect() as connection:
+        existing = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()
+        if existing:
+            connection.execute("UPDATE documents SET source_path=? WHERE id=?", (str(snapshot), existing["id"]))
+    if existing:
+        return {"id": existing["id"], "sha256": digest, "filename": filename, "status": "already_imported"}
+    parsed = parse_report(snapshot, **report_parser_settings())
+    _verify_original(snapshot, digest)
+    page_texts = parsed.page_texts
+    chars = sum(map(len, page_texts))
+    status = "indexed" if chars else "no_text"
+    publication_date, market, stock_code = _metadata(filename) if material_kind == "report" else (None, None, None)
+    doc_id = str(uuid4())
+    with connect() as connection:
+        inserted = connection.execute(
+            """INSERT INTO documents
+               (id,sha256,filename,title,publication_date,market,stock_code,pages,extracted_chars,parse_status,
+                source_path,imported_at,available_at,parser_metadata_json,material_kind)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sha256) DO NOTHING""",
+            (doc_id, digest, filename, Path(filename).stem, publication_date, market, stock_code, len(page_texts),
+             chars, status, str(snapshot), utc_now(), publication_date, json_dump(parsed.metadata), material_kind))
+        if not inserted.rowcount:
+            found = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()
+            return {"id": found["id"], "sha256": digest, "filename": filename, "status": "already_imported"}
+        for page_number, text in enumerate(page_texts, start=1):
+            connection.execute("INSERT INTO document_pages(document_id,page_number,text) VALUES(?,?,?)", (doc_id, page_number, text))
+            if text:
+                connection.execute("INSERT INTO document_pages_fts(document_id,page_number,text) VALUES(?,?,?)",
+                                   (doc_id, str(page_number), text))
+    return {"id": doc_id, "sha256": digest, "filename": filename, "status": status, "pages": len(page_texts),
+            "extracted_chars": chars, "parser_metadata": parsed.metadata}
+
+
 def import_local_reports(*, paths: list[Path] | None = None) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     if paths is None:
@@ -87,54 +131,19 @@ def import_local_reports(*, paths: list[Path] | None = None) -> dict[str, Any]:
             paths.extend(REPORT_DIR.glob("*.pdf"))
         if REPORT_UPLOAD_DIR.is_dir():
             paths.extend(REPORT_UPLOAD_DIR.glob("*.pdf"))
+    from .security_context import current_actor
+    upload_directory = REPORT_UPLOAD_DIR if current_actor().legacy else application_paths().upload_root / "reports"
     for path in sorted(paths):
         display_filename = path.name
         digest = None
         try:
-            if path.parent == REPORT_UPLOAD_DIR and "--" in path.name:
+            if path.parent == upload_directory and "--" in path.name:
                 display_filename = path.name.split("--", 1)[1]
             data = path.read_bytes()
             digest = hashlib.sha256(data).hexdigest()
             snapshot = _store_original(data, digest)
             del data
-            with connect() as connection:
-                existing = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()
-                if existing:
-                    connection.execute("UPDATE documents SET source_path=? WHERE sha256=?", (str(snapshot), digest))
-            if existing:
-                results.append({"id": existing[0], "sha256": digest, "filename": display_filename, "status": "already_imported"})
-                continue
-            doc_id = str(uuid4())
-            publication_date, market, stock_code = _metadata(display_filename)
-            parsed = parse_report(snapshot, **report_parser_settings())
-            _verify_original(snapshot, digest)
-            # Parse outside the write transaction; OCR must not hold the writer
-            # lock. A failed insert rolls back every page of this document.
-            page_texts = parsed.page_texts
-            chars = sum(map(len, page_texts))
-            status = "indexed" if chars else "no_text"
-            with connect() as connection:
-                inserted = connection.execute(
-                    """INSERT INTO documents
-                       (id,sha256,filename,title,publication_date,market,stock_code,pages,extracted_chars,parse_status,source_path,imported_at,available_at,parser_metadata_json)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(sha256) DO NOTHING""",
-                    (doc_id, digest, display_filename, Path(display_filename).stem, publication_date, market, stock_code, len(page_texts), chars, status, str(snapshot), utc_now(), publication_date, json_dump(parsed.metadata)),
-                )
-                if not inserted.rowcount:
-                    existing = connection.execute("SELECT id FROM documents WHERE sha256=?", (digest,)).fetchone()
-                    results.append({"id": existing[0], "sha256": digest, "filename": display_filename, "status": "already_imported"})
-                    continue
-                for page_number, text in enumerate(page_texts, start=1):
-                    connection.execute(
-                        "INSERT INTO document_pages(document_id,page_number,text) VALUES(?,?,?)",
-                        (doc_id, page_number, text),
-                    )
-                    if text:
-                        connection.execute(
-                            "INSERT INTO document_pages_fts(document_id,page_number,text) VALUES(?,?,?)",
-                            (doc_id, str(page_number), text),
-                        )
-            results.append({"id": doc_id, "sha256": digest, "filename": display_filename, "status": status, "pages": len(page_texts), "extracted_chars": chars, "parser_metadata": parsed.metadata})
+            results.append(index_pdf_snapshot(snapshot, digest, display_filename))
         except Exception as exc:
             results.append({"filename": display_filename, "sha256": digest, "status": "failed", "reason": str(exc)[:300]})
     from .report_catalog import enqueue
@@ -153,7 +162,7 @@ def list_documents() -> list[dict[str, Any]]:
                       stock_code_status,stock_code_confirmed_at,available_at,available_at_status,available_at_confirmed_at,
                       stock_code_source,stock_code_evidence_json,stock_code_model,stock_code_extracted_at,stock_code_prompt_version,
                       metadata_json,metadata_status,metadata_error,metadata_job_id,parser_metadata_json
-               FROM documents ORDER BY publication_date DESC, filename"""
+               FROM documents WHERE material_kind='report' ORDER BY publication_date DESC, filename"""
         ).fetchall()
         job_states = {row["id"]: dict(row) for row in connection.execute("SELECT id,state,message FROM jobs WHERE kind='report_metadata'")}
     from .db import json_load
@@ -208,6 +217,7 @@ def read_page(
 
     result = {
         "document_id": row["id"],
+        "citation_url": f"/api/v1/documents/{document_id}/pdf#page={page_number}",
         "sha256": row["sha256"],
         "filename": row["filename"],
         "title": row["title"],

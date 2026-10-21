@@ -1,7 +1,9 @@
+import LoadingState from '../components/LoadingState'
 import { StockText } from '../components/StockMentions'
+import EmptyState from '../components/EmptyState'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, MessageCircle, RefreshCw, Search, Upload, X } from 'lucide-react'
-import { api } from '../api'
+import { api, type ConversationSourceReference } from '../api'
 import PdfReader from '../components/PdfReader'
 import { isText, useSessionState } from '../useSessionState'
 import type { LibrarySeed } from '../libraryContext'
@@ -24,7 +26,7 @@ type SearchResult = {
 const validSearchMode = (value: unknown): value is SearchMode => value === 'smart' || value === 'exact'
 const validPositions = (value: unknown): value is Record<string, number> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(n => Number.isInteger(n) && Number(n) >= 1)
 
-export default function ReportPage({ onDescribe, onDefineCondition }: { contentOnly?: boolean; onDescribe?: (seed?: Omit<LibrarySeed, 'id'>) => void; onDefineCondition?: (seed?: Omit<LibrarySeed, 'id'>) => void }) {
+export default function ReportPage({ onDescribe, onDefineCondition, onSourceChange }: { contentOnly?: boolean; onSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void; onDescribe?: (seed?: Omit<LibrarySeed, 'id'>) => void; onDefineCondition?: (seed?: Omit<LibrarySeed, 'id'>) => void }) {
   const [docs, setDocs] = useState<Document[]>([])
   const [selectedId, setSelectedId] = useSessionState('report.selected', '', isText)
   const [positions, setPositions] = useSessionState<Record<string, number>>('report.pages', {}, validPositions)
@@ -52,6 +54,10 @@ export default function ReportPage({ onDescribe, onDefineCondition }: { contentO
   const searchRequest = useRef<AbortController | null>(null)
   const selected = docs.find(item => item.id === selectedId)
   const page = Math.min(positions[selectedId] ?? 1, selected?.pages || 1)
+  useEffect(() => {
+    onSourceChange?.(selected ? { reference: { kind: 'report_page', source_id: selected.id, page_number: page }, label: `${selected.title} · 第${page}页` } : null)
+  }, [selected, page, onSourceChange])
+  useEffect(() => () => onSourceChange?.(null), [onSourceChange])
   const pdfUrl = selected ? '/api/v1/documents/' + selected.id + '/pdf#page=' + page : ''
   const normalizedQuery = query.trim().toLowerCase()
   const filteredDocs = useMemo(() => {
@@ -185,40 +191,40 @@ export default function ReportPage({ onDescribe, onDefineCondition }: { contentO
     setPage(next); setPageInput(String(next))
   }
   return <StockText><div className="report-reading-workspace library-reading-workspace" data-mobile-view={mobileView}>
-    <div className="report-library-toolbar">
-
-      <div className="report-import-actions"><button className="secondary-button" disabled={!!busy} onClick={() => action('index', async () => { const result = await api<{ imported: number; failed: number }>('/documents/import-local', { method: 'POST' }); setNotice('新增 ' + result.imported + ' 份研报' + (result.failed ? '，' + result.failed + ' 份未能读取。' : '。')) })}><RefreshCw size={14} />{busy === 'index' ? '正在索引…' : '索引本地研报'}</button><label className={'upload-label report-upload ' + (busy ? 'disabled' : '')}><Upload size={14} />{busy === 'upload' ? '正在上传…' : '上传 PDF'}<input type="file" accept="application/pdf" disabled={!!busy} aria-label="上传研报 PDF" onChange={event => { void upload(event.target.files?.[0]); event.target.value = '' }} /></label></div>
-    </div>
-    {notice && <div className="library-feedback" role="status">{notice}<button className="icon-button" aria-label="关闭研报提示" onClick={() => setNotice('')}><X size={14} /></button></div>}
-    {actionError && <div className="library-error" role="alert">{actionError}<button className="icon-button" aria-label="关闭研报错误" onClick={() => setActionError('')}><X size={14} /></button></div>}
-    <nav className="library-mobile-switch" aria-label="研报列表与阅读切换"><button type="button" aria-pressed={mobileView === 'catalog'} onClick={() => setMobileView('catalog')}>研报列表</button><button type="button" aria-pressed={mobileView === 'reader'} disabled={!selected} onClick={() => setMobileView('reader')}>阅读研报</button></nav>
+    {notice && <div className="library-feedback workspace-feedback workspace-feedback-success" role="status">{notice}<button className="icon-button workspace-button" aria-label="关闭研报提示" onClick={() => setNotice('')}><X size={14} /></button></div>}
+    {actionError && <div className="library-error workspace-error" role="alert">{actionError}<button className="icon-button workspace-button" aria-label="关闭研报错误" onClick={() => setActionError('')}><X size={14} /></button></div>}
+    <nav className="library-mobile-switch" aria-label="研报列表与阅读切换"><button type="button" aria-pressed={mobileView === 'catalog'} onClick={() => setMobileView('catalog')} className="workspace-button">研报列表</button><button type="button" aria-pressed={mobileView === 'reader'} disabled={!selected} onClick={() => setMobileView('reader')} className="workspace-button">阅读研报</button></nav>
     <div className="report-reading-layout">
       <aside className="report-catalog library-catalog-pane" ref={catalog} aria-label="研报列表">
         <div className="report-catalog-heading"><strong>本地研报</strong><span>{filteredDocs.length} / {docs.length} 份</span>{pending > 0 && <small>{pending} 份整理中</small>}</div>
-        <form onSubmit={event => { event.preventDefault(); retrySearch() }} className="library-search report-search"><Search size={16} /><input aria-label="搜索研报" placeholder="标题、代码、分析师或正文" value={query} onChange={event => changeQuery(event.target.value)} />{query && <button type="button" className="icon-button" aria-label="清除研报搜索" onClick={() => changeQuery('')}><X size={14} /></button>}<button className="text-button" aria-label="搜索" type="submit" disabled={searching}>{searching ? '检索中…' : '搜索'}</button></form>
-        <div className="segmented compact-segment" role="group" aria-label="研报搜索方式"><button type="button" className={searchMode === 'smart' ? 'selected' : ''} aria-pressed={searchMode === 'smart'} onClick={() => changeSearchMode('smart')}>扩展搜索</button><button type="button" className={searchMode === 'exact' ? 'selected' : ''} aria-pressed={searchMode === 'exact'} onClick={() => changeSearchMode('exact')}>精确匹配</button></div>
+        <div className="report-library-toolbar">
+          <div className="report-import-actions"><button className="secondary-button workspace-button" disabled={!!busy} onClick={() => action('index', async () => { const result = await api<{ imported: number; failed: number }>('/documents/import-local', { method: 'POST' }); setNotice('新增 ' + result.imported + ' 份研报' + (result.failed ? '，' + result.failed + ' 份未能读取。' : '。')) })}><RefreshCw size={14} />{busy === 'index' ? '正在索引…' : '索引本地研报'}</button><label className={["workspace-field-label workspace-button", 'upload-label report-upload ' + (busy ? 'disabled' : '')].filter(Boolean).join(' ')}><Upload size={14} />{busy === 'upload' ? '正在上传…' : '上传 PDF'}<input type="file" accept="application/pdf" disabled={!!busy} aria-label="上传研报 PDF" onChange={event => { void upload(event.target.files?.[0]); event.target.value = '' }} /></label></div>
+        </div>
+        <form onSubmit={event => { event.preventDefault(); retrySearch() }} className="library-search report-search workspace-form workspace-field-shell"><Search size={16} /><input aria-label="搜索研报" placeholder="标题、代码、分析师或正文" value={query} onChange={event => changeQuery(event.target.value)} className="workspace-field" />{query && <button type="button" className="icon-button workspace-button" aria-label="清除研报搜索" onClick={() => changeQuery('')}><X size={14} /></button>}<button className="text-button workspace-button" aria-label="搜索" type="submit" disabled={searching}>{searching ? '检索中…' : '搜索'}</button></form>
+        <div className="segmented compact-segment" role="group" aria-label="研报搜索方式"><button type="button" className={["workspace-button", searchMode === 'smart' ? 'selected' : ''].filter(Boolean).join(' ')} aria-pressed={searchMode === 'smart'} onClick={() => changeSearchMode('smart')}>扩展搜索</button><button type="button" className={["workspace-button", searchMode === 'exact' ? 'selected' : ''].filter(Boolean).join(' ')} aria-pressed={searchMode === 'exact'} onClick={() => changeSearchMode('exact')}>精确匹配</button></div>
         {normalizedQuery && (searchInfo?.coverage_note || !!searchInfo?.expanded_terms?.length) && <p className="workbench-help">{searchInfo?.coverage_note}{!!searchInfo?.expanded_terms?.length && <span> 相关词：{searchInfo.expanded_terms.join('、')}</span>}</p>}
         <div className="library-catalog-rows">
-        {loadError && <div className="library-error" role="alert">{loadError}<button className="text-button" onClick={() => setRefresh(value => value + 1)}>重新加载研报</button></div>}
-        {searchError && <div className="library-error" role="alert">正文检索失败，当前仅显示字典匹配。<button className="text-button" onClick={retrySearch}>重试搜索</button></div>}
+        {loadError && <div className="library-error workspace-error" role="alert">{loadError}<button className="text-button workspace-button" onClick={() => setRefresh(value => value + 1)}>重新加载研报</button></div>}
+        {searchError && <div className="library-error workspace-error" role="alert">正文检索失败，当前仅显示字典匹配。<button className="text-button workspace-button" onClick={retrySearch}>重试搜索</button></div>}
         {filteredDocs.map(item => {
           const documentHits = hits.filter(hit => hit.document_id === item.id)
           const firstHit = documentHits[0]
-          return <button key={item.id} aria-current={selectedId === item.id ? 'true' : undefined} className={selectedId === item.id ? 'selected' : ''} onClick={() => select(item.id, firstHit?.page_number)}>
-            <strong>{item.title}</strong><span className="report-security">{item.metadata?.fields?.stock_name?.value || item.stock_code || '行业研究'}{item.metadata?.fields?.stock_name && item.stock_code && <small>{item.stock_code}</small>}</span><small>{item.metadata?.fields?.broker?.value || '券商待识别'} · {item.publication_date ?? '日期待识别'} · {item.pages} 页</small>{firstHit && <><span className="report-hit-badge">正文命中 {documentHits.length} 页 · 第 {firstHit.page_number} 页</span><span className="report-result-snippet">{firstHit.snippet}</span>{!!firstHit.matched_terms?.length && <small>命中词：{firstHit.matched_terms.join('、')}</small>}</>}
+          return <button key={item.id} aria-current={selectedId === item.id ? 'true' : undefined} className={["workspace-button", selectedId === item.id ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => select(item.id, firstHit?.page_number)}>
+            <strong>{item.title}</strong><span className="report-security">{item.metadata?.fields?.stock_name?.value || item.stock_code || '行业研究'}{item.metadata?.fields?.stock_name && item.stock_code && <small>{item.stock_code}</small>}</span><small>{item.metadata?.fields?.broker?.value || '券商待识别'} · {item.publication_date ?? '日期待识别'} · {item.pages} 页</small>{firstHit && <><span className="report-hit-badge workspace-status">正文命中 {documentHits.length} 页 · 第 {firstHit.page_number} 页</span><span className="report-result-snippet">{firstHit.snippet}</span>{!!firstHit.matched_terms?.length && <small>命中词：{firstHit.matched_terms.join('、')}</small>}</>}
           </button>
         })}
         {normalizedQuery && searchInfo && !!hits.length && <p className="workbench-help">已显示 {hits.length} / {searchInfo.total ?? hits.length} 处原文命中</p>}
-        {moreError && <div className="library-error" role="alert">更多结果加载失败：{moreError}</div>}
-        {nextOffset !== null && <button type="button" className="text-button" disabled={searching || loadingMore} onClick={() => void loadMore()}>{loadingMore ? '正在加载更多命中…' : moreError ? '重试加载更多' : '加载更多命中'}</button>}
-        {(loading || searching) && <div className="library-loading" role="status">{loading ? '正在加载研报…' : '正在检索正文…'}</div>}
-        {!loading && !searching && !filteredDocs.length && !loadError && <div className="library-empty">{docs.length ? '没有找到相关研报。' : '暂无研报。'}{query && <button className="text-button" onClick={() => changeQuery('')}>查看全部研报</button>}</div>}
+        {moreError && <div className="library-error workspace-error" role="alert">更多结果加载失败：{moreError}</div>}
+        {nextOffset !== null && <button type="button" className="text-button workspace-button" disabled={searching || loadingMore} onClick={() => void loadMore()}>{loadingMore ? '正在加载更多命中…' : moreError ? '重试加载更多' : '加载更多命中'}</button>}
+        {(loading || searching) && <LoadingState compact label={loading ? '正在加载研报…' : '正在检索正文…'} />}
+        {!loading && !searching && !filteredDocs.length && !loadError && <EmptyState compact title={docs.length ? '没有找到相关研报。' : '暂无研报。'} description={docs.length ? '试试公司名称、证券代码，或缩短搜索关键词。' : '上传 PDF 或索引本地研报后，即可在这里阅读。'} actions={query && <button className="secondary-button workspace-button" onClick={() => changeQuery('')}>查看全部研报</button>} />}
         </div>
       </aside>
       <section className="report-pdf-reader library-reader-pane" ref={reader} aria-label="研报阅读">
         {selected ? <>
-          <div className="report-reader-heading"><div><button className="text-button reader-back" onClick={() => setMobileView('catalog')}><ArrowLeft size={14} />研报列表</button><h2>{selected.title}</h2></div><a className="quiet-button" href={pdfUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={14} />在浏览器中打开</a></div>
-          {normalizedQuery && !searching && !filteredDocs.some(item => item.id === selected.id) && <p className="reader-context-note">当前研报不在搜索结果中。</p>}
+          <div className="report-reader-heading"><div><button className="text-button reader-back workspace-button" onClick={() => setMobileView('catalog')}><ArrowLeft size={14} />研报列表</button><h2>{selected.title}</h2></div><a className="quiet-button workspace-button" href={pdfUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={14} />在浏览器中打开</a></div>
+          {normalizedQuery && !searching && !filteredDocs.some(item => item.id === selected.id) && <p className="reader-context-note workspace-feedback workspace-feedback-info">当前研报不在搜索结果中。</p>}
+          <div className="report-reader-summary">
           <div className="report-reading-meta"><span>{selected.metadata?.fields?.stock_name?.value} {selected.stock_code}</span><span>{selected.metadata?.fields?.broker?.value || '券商待识别'}</span><span>{selected.publication_date ?? '日期待识别'}</span></div>
           <details className="report-info-details"><summary>研报信息</summary>
           <dl className="report-dictionary">{[
@@ -228,14 +234,15 @@ export default function ReportPage({ onDescribe, onDefineCondition }: { contentO
             ['主要观点', selected.metadata?.fields?.main_points?.value], ['发布日期', selected.publication_date],
           ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '—'}</dd></div>)}</dl>
           </details>
+          </div>
           {selected.parse_status === 'indexed' && ['queued', 'running'].includes(selected.metadata_status) && <p className="workbench-help">正在整理研报字典。</p>}
-          {selected.metadata_status === 'failed' && <div className="library-error" role="alert">{selected.metadata_error}<button className="text-button" disabled={!!busy} onClick={() => action('retry', async () => { await api('/documents/catalog?retry_failed=true', { method: 'POST' }) })}>重新整理</button></div>}
+          {selected.metadata_status === 'failed' && <div className="library-error workspace-error" role="alert">{selected.metadata_error}<button className="text-button workspace-button" disabled={!!busy} onClick={() => action('retry', async () => { await api('/documents/catalog?retry_failed=true', { method: 'POST' }) })}>重新整理</button></div>}
           {selected.parse_status === 'no_text' && <p className="workbench-help">此 PDF 没有可提取文字，字典信息暂缺。</p>}
-          {!!selectedHits.length && <details className="report-search-hits" open={!!normalizedQuery}><summary>正文命中 {selectedHits.length} 页</summary>{selectedHits.map(hit => <button key={hit.page_number} onClick={() => setPage(hit.page_number)}><strong>第 {hit.page_number} 页</strong><span>{hit.snippet}</span>{!!hit.matched_terms?.length && <small>命中词：{hit.matched_terms.join('、')}</small>}</button>)}</details>}
+          {!!selectedHits.length && <details className="report-search-hits" open={!!normalizedQuery}><summary>正文命中 {selectedHits.length} 页</summary>{selectedHits.map(hit => <button key={hit.page_number} onClick={() => setPage(hit.page_number)} className="workspace-button"><strong>第 {hit.page_number} 页</strong><span>{hit.snippet}</span>{!!hit.matched_terms?.length && <small>命中词：{hit.matched_terms.join('、')}</small>}</button>)}</details>}
           <PdfReader key={selected.id} url={'/api/v1/documents/' + selected.id + '/pdf'} page={page} onPageChange={setPage}
-            pageControls={<label className="pdf-page-jump"><input aria-label="研报页码" type="number" min={1} max={selected.pages} value={pageInput} onBlur={commitPage} onKeyDown={event => { if (event.key === 'Enter') commitPage() }} onChange={event => { setPageInput(event.target.value); const next = Number(event.target.value); if (Number.isInteger(next) && next >= 1 && next <= selected.pages) setPage(next) }} /><span>/ {selected.pages}</span></label>}
-            actions={<>{onDescribe && <button className="quiet-button" aria-label="研究此页" title="基于当前页研究" onClick={() => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title })}><MessageCircle size={15} /><span className="pdf-study-label">研究此页</span><span className="pdf-study-short">研究</span></button>}{onDefineCondition && <button className="quiet-button" aria-label="据此定义条件" title="用当前页定义选股条件" onClick={() => onDefineCondition({ source_document_id: selected.id, source_page: page, title: selected.title })}>据此定义条件</button>}</>} />
-        </> : <div className="library-empty">{loading ? '正在加载…' : '未选择研报'}</div>}
+            pageControls={<label className="pdf-page-jump workspace-field-label"><input aria-label="研报页码" type="number" min={1} max={selected.pages} value={pageInput} onBlur={commitPage} onKeyDown={event => { if (event.key === 'Enter') commitPage() }} onChange={event => { setPageInput(event.target.value); const next = Number(event.target.value); if (Number.isInteger(next) && next >= 1 && next <= selected.pages) setPage(next) }} className="workspace-field" /><span>/ {selected.pages}</span></label>}
+            actions={<>{onDescribe && <button className="quiet-button workspace-button" aria-label="研究此页" data-tooltip="基于当前页研究" onClick={() => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title })}><MessageCircle size={15} /><span className="pdf-study-label">研究此页</span><span className="pdf-study-short">研究</span></button>}{onDefineCondition && <button className="quiet-button workspace-button" aria-label="据此定义条件" data-tooltip="用当前页定义选股条件" onClick={() => onDefineCondition({ source_document_id: selected.id, source_page: page, title: selected.title })}>据此定义条件</button>}</>} />
+        </> : loading ? <LoadingState compact label="正在加载…" /> : <EmptyState title="未选择研报" description="从左侧列表选择一份研报，阅读 PDF 原文并核对研究依据。" />}
       </section>
     </div>
   </div></StockText>

@@ -54,7 +54,8 @@
   .redesigned-workspace .pattern-library .pattern-match-fields > label { flex:1 1 130px; min-width:0; }
   .redesigned-workspace .library-shell .report-import-actions { flex-wrap:wrap; }
 }
-.redesigned-workspace .library-shell .local-news-list > button.selected { box-shadow:none; }
+.redesigned-workspace .library-shell .local-news-list > button.selected,
+.redesigned-workspace .library-shell .library-catalog-rows > button:is(.selected,.active) { box-shadow:inset 3px 0 var(--ui-primary); }
 .redesigned-workspace .library-shell .local-news-list > button strong,
 .redesigned-workspace .library-shell .local-news-list > button.selected strong,
 .redesigned-workspace .library-shell .news-body { color:#303030; }

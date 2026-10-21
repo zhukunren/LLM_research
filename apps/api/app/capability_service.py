@@ -9,7 +9,7 @@ from .settings import llm_settings
 def screening_capability_manifest(*, stock_file=None, model_configured: bool | None = None):
     from .screening_tools import registry
     with connect() as connection:
-        reports = connection.execute("SELECT COUNT(DISTINCT document_id) FROM document_pages").fetchone()[0]
+        reports = connection.execute("SELECT COUNT(DISTINCT p.document_id) FROM document_pages p JOIN documents d ON d.id=p.document_id WHERE d.material_kind='report'").fetchone()[0]
         patterns = connection.execute("SELECT COUNT(*) FROM patterns").fetchone()[0]
         news = connection.execute("SELECT COUNT(DISTINCT root_id) FROM news_records").fetchone()[0]
     return build_manifest(

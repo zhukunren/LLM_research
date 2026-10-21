@@ -21,6 +21,8 @@ from typing import Any
 
 import numpy as np
 
+from .storage import storage_paths, application_paths
+
 MAX_SOURCE = 12_000
 MAX_NODES = 900
 MAX_DEPTH = 24
@@ -303,7 +305,7 @@ def _safe_invert(value):
 
 def _source_path(source: str) -> tuple[str, Path]:
     digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
-    root = Path(tempfile.gettempdir()) / "llm-research-generated" / "conditions"
+    root = application_paths().sandbox_state_root / "generated-conditions"
     root.mkdir(parents=True, exist_ok=True)
     path = root / f"{digest}.py"
     with _LOAD_LOCK:
@@ -322,11 +324,19 @@ def _source_path(source: str) -> tuple[str, Path]:
     return digest, path
 
 
-@lru_cache(maxsize=128)
 def _load_module(source: str):
+    # Even identical source belongs to a separate user's cache and module.
+    # Resolve the actor on every call before consulting the in-memory cache.
+    root = application_paths().sandbox_state_root / "generated-conditions"
+    return _load_scoped_module(source, str(root))
+
+
+@lru_cache(maxsize=128)
+def _load_scoped_module(source: str, cache_root: str):
     _parse(source)
     digest, path = _source_path(source)
-    module_name = f"_llm_condition_{digest}"
+    scope = hashlib.sha256(cache_root.encode()).hexdigest()[:20]
+    module_name = f"_llm_condition_{scope}_{digest}"
     with _LOAD_LOCK:
         if module_name in sys.modules:
             return digest, path, sys.modules[module_name]

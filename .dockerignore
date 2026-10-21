@@ -1,0 +1,14 @@
+.git
+.env
+config.ini
+runtime
+data
+.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+apps/web/public/pdf-assets
+artifacts
+sites

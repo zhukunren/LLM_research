@@ -12,10 +12,10 @@ export function isExecutionFailure(content: string) {
 export function ResearchFailure({ content, onRetry, disabled }: { content: string; onRetry?: () => void; disabled?: boolean }) {
   const permission = /拒绝访问|access.denied|permission.denied|os error 5/i.test(content)
   const timeout = /timeout|timed.out|超时/i.test(content)
-  return <StockText><div className="research-failure" role="alert">
+  return <StockText><div className="research-failure workspace-error" role="alert">
     <div><AlertCircle size={19} /><strong>{timeout ? '这次研究等待超时' : permission ? '研究服务暂时无法启动' : '这次研究未能完成'}</strong></div>
     <p>{permission ? '服务无法访问所需的本地文件。请检查“数据与服务”，恢复服务后重新处理。' : timeout ? '原问题已保留，可以重新处理，或缩小研究范围后再试。' : '原问题和已有成果已保留。请检查服务状态，再重新处理。'}</p>
-    {onRetry && <button className="secondary-button" disabled={disabled} onClick={onRetry}>重试这次研究</button>}
+    {onRetry && <button className="secondary-button workspace-button" disabled={disabled} onClick={onRetry}>重试这次研究</button>}
     <details><summary>查看技术详情</summary><pre>{content}</pre></details>
   </div></StockText>
 }
@@ -39,9 +39,9 @@ export function ResearchProgress({ label, startedAt, updatedAt, stopping, onStop
   const commentary = [...activities].reverse().find(item => item.phase === 'commentary' && item.text)?.text
   return <div className="research-progress research-progress--compact">
     <div className="research-progress-heading">
-      <span className="research-progress-status" role="status" aria-live="polite" aria-atomic="true"><LoaderCircle size={15} className="spin" aria-hidden="true" /><span title={status}>{status}</span></span>
+      <span className="research-progress-status" role="status" aria-live="polite" aria-atomic="true"><LoaderCircle size={15} className="spin" aria-hidden="true" /><span data-tooltip={status}>{status}</span></span>
       <span className="research-progress-duration" aria-live="off">{Number.isFinite(started) ? duration(elapsed) : '正在计时'}</span>
-      <button type="button" className="text-button" disabled={stopping} onClick={onStop} aria-label="停止当前研究"><Square size={12} aria-hidden="true" />停止</button>
+      <button type="button" className="text-button workspace-button" disabled={stopping} onClick={onStop} aria-label="停止当前研究"><Square size={12} aria-hidden="true" />停止</button>
     </div>
     {commentary && <p className="research-progress-commentary">{commentary}</p>}
     {!!activities.length && <details className="research-activity-history"><summary>查看研究过程<ChevronDown size={14} /></summary><ActivityList items={activities} /></details>}

@@ -41,9 +41,9 @@ export default function SavedScreeningPlans({ data, onOpenConversation }: {
     } catch (reason) { if (mounted.current) setError(`复用未完成：${(reason as Error).message} 可以再次点击复用以继续。`) }
     finally { inFlight.current = false; if (mounted.current) setBusy(false) }
   }
-  return <StockText><div className="page-content saved-screening-page">
+  return <StockText><div className="page-content workspace-tool-page screening-tool-page saved-screening-page">
     <header className="page-heading"><div><h1>已保存方案</h1><p className="page-description">复用已有条件，核对范围与截止日后开始筛选。</p></div></header>
-    {error && <p className="research-error" role="alert">{error}</p>}
+    {error && <p className="research-error workspace-error" role="alert">{error}</p>}
     <SavedTaskLibrary scope="screening" busy={busy} latestDate={data?.last_date} onReuse={(saved, latest) => void reuse(saved, latest)} />
   </div></StockText>
 }

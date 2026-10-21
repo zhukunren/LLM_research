@@ -78,13 +78,16 @@ def resolve_public_url(value: str, *, public_dns=None) -> PublicTarget:
     except OSError as exc:
         raise PublicSourceError("无法解析来源域名，请核对网址或网络。") from exc
     if not addresses or not all(_public(address) for address in addresses):
-        fake_range = ipaddress.ip_network("198.18.0.0/15")
+        fake_ranges = {4: ipaddress.ip_network("198.18.0.0/15"), 6: ipaddress.ip_network("2001:2::/48")}
         try:
             literal = ipaddress.ip_address(hostname)
         except ValueError:
             literal = None
-        fake = bool(addresses) and all(ipaddress.ip_address(address).version == 4
-                                      and ipaddress.ip_address(address) in fake_range for address in addresses)
+        # The local proxy can synthesize both A and AAAA benchmark addresses.
+        # Neither is a permitted destination: HTTPS hostnames must still resolve
+        # independently to public addresses before the transport pins a socket.
+        fake = bool(addresses) and all(ipaddress.ip_address(address) in fake_ranges[ipaddress.ip_address(address).version]
+                                      for address in addresses)
         addresses = set((public_dns or public_dns_addresses)(hostname)) if (
             fake and literal is None and parts.scheme == "https" and port == 443
         ) else set()

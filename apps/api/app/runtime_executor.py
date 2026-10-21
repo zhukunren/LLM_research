@@ -16,9 +16,10 @@ from uuid import uuid4
 import psutil
 
 from .program_conditions import payload_json
+from .storage import storage_paths, application_paths
 
 RUNNER = Path(__file__).with_name("screening_runner.py")
-WORK_ROOT = RUNNER.parents[3] / "runtime" / "program-runs"
+WORK_ROOT = storage_paths().sandbox_state_root / "program-runs"
 MAX_INPUT_BYTES = 64 * 1024 * 1024
 MAX_OUTPUT_BYTES = 20 * 1024 * 1024
 MAX_MEMORY_BYTES = 1024 * 1024 * 1024
@@ -40,7 +41,10 @@ class RuntimeCancelled(RuntimeError):
 
 @contextmanager
 def _program_directory():
-    work = WORK_ROOT / f"screen-{uuid4().hex}"
+    from .security_context import current_actor
+    actor = current_actor()
+    root = WORK_ROOT if actor.legacy else application_paths().sandbox_state_root / "program-runs"
+    work = root / f"screen-{uuid4().hex}"
     try:
         # Windows tempfile retries PermissionError repeatedly; fail once here.
         work.mkdir(parents=True, exist_ok=False)
@@ -58,7 +62,8 @@ def _environment(work_dir: str | None = None) -> dict[str, str]:
            if key.upper() in {"SYSTEMROOT", "WINDIR", "PATH", "PATHEXT", "LANG", "LC_ALL"}}
     if work_dir:
         env.update(TEMP=work_dir, TMP=work_dir, TMPDIR=work_dir)
-    env.update(PYTHONIOENCODING="utf-8", OPENBLAS_NUM_THREADS="2", OMP_NUM_THREADS="2")
+    env.update(PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1", OPENBLAS_NUM_THREADS="2", OMP_NUM_THREADS="2")
+    env["LLMR_PYTHON_DEPS"] = str(storage_paths().python_deps)
     return env
 
 

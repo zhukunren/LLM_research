@@ -1,0 +1,29 @@
+.disclosures-panel { min-width: 0; padding: 12px 0; }
+.library-workspace-panel > .disclosures-panel { flex: 1; min-height: 0; height: 100%; overflow-y: auto; padding-inline: 12px; }
+.disclosure-heading, .disclosure-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 10px 0; }
+.disclosure-heading { justify-content: space-between; }
+.disclosure-editor { padding: 16px; margin: 16px 0; border: 1px solid var(--ui-border); border-radius: 8px; }
+.disclosure-fields, .disclosure-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; gap: 12px; margin: 12px 0; }
+.disclosures-panel label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.disclosure-stock-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.disclosures-panel label.disclosure-check { flex-direction: row; align-items: center; margin: 12px 0; }
+.disclosures-panel label.disclosure-page-jump { flex-direction: row; align-items: center; }
+.disclosures-panel .disclosure-page-jump input { width: 58px; }
+.disclosures-panel input, .disclosures-panel select { max-width: 100%; min-height: 34px; }
+.disclosures-panel input[type="checkbox"] { min-height: auto; width: auto; }
+.disclosure-list { display: flex; flex-direction: column; }
+.disclosure-row { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; text-align: left; padding: 12px; white-space: normal; overflow-wrap: anywhere; width: 100%; margin: 3px 0; }
+.disclosure-import { padding: 8px 0; }
+.disclosure-reader { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--ui-border); min-width: 0; }
+.disclosures-panel .disclosure-reader .pdf-document-viewer:not(.expanded),
+.viewport-workspace .page-frame .disclosures-panel .disclosure-reader .pdf-document-viewer:not(.expanded) {
+  display: flex; flex-direction: column; flex: none; height: clamp(320px, 72dvh, 820px); min-height: 0; overflow: hidden;
+}
+.disclosures-panel .disclosure-reader .pdf-document-viewer:not(.expanded) .pdf-canvas-container,
+.viewport-workspace .page-frame .disclosures-panel .disclosure-reader .pdf-document-viewer:not(.expanded) .pdf-canvas-container {
+  flex: 1; height: auto; min-height: 0; max-height: none; overflow: auto;
+}
+.disclosure-page-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; font: inherit; }
+.disclosure-reader details { margin-top: 12px; overflow-wrap: anywhere; }
+.disclosure-hit { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; white-space: normal; width: 100%; padding: 8px; }
+@media(max-width: 600px) { .disclosure-fields, .disclosure-filters { grid-template-columns: 1fr; } .disclosure-editor { padding: 10px; } }

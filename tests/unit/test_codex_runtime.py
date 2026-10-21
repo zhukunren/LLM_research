@@ -6,6 +6,22 @@ from apps.api.app import codex_runtime, codex_store, conversation_store, db
 from apps.api.app.screening_contracts import ScreeningTaskRevision
 
 
+def test_permission_revocation_interrupts_even_a_silent_model_stream(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from apps.api.app.security_context import AccessDenied
+    monkeypatch.setattr(conversation_store, "get_turn", Mock(side_effect=AccessDenied("revoked", 401)))
+    handle = SimpleNamespace(interrupt=Mock())
+    codex = SimpleNamespace(close=Mock())
+    finished = SimpleNamespace(wait=Mock(return_value=False))
+    reasons = []
+    codex_runtime._supervise_turn("conversation", "turn", handle=handle, codex=codex,
+                                  finished=finished, deadline=float("inf"), stop_reason=reasons)
+    handle.interrupt.assert_called_once()
+    codex.close.assert_called_once()
+    assert reasons == ["用户权限已撤销，研究已停止。"]
+
+
 def test_background_codex_has_explicit_homes_and_retains_system_environment(tmp_path, monkeypatch):
     from pathlib import Path
     import os
@@ -127,6 +143,24 @@ def test_codex_overrides_keep_credentials_out_of_runtime_configuration(monkeypat
     workspace_overrides = codex_runtime._workspace_overrides(tmp_path)
     assert 'sandbox_workspace_write.network_access=true' in workspace_overrides
     assert all("private-test-key" not in item for item in workspace_overrides)
+
+
+def test_mcp_receives_the_configured_tushare_token_variable_without_its_value(monkeypatch):
+    monkeypatch.setattr(codex_runtime, "tushare_settings", lambda: {"token_env": "TEST_TUSHARE_TOKEN"})
+    monkeypatch.setenv("TEST_TUSHARE_TOKEN", "private-official-token")
+    overrides = "\n".join(codex_runtime._mcp_overrides())
+    assert "TEST_TUSHARE_TOKEN" in overrides
+    assert "private-official-token" not in overrides
+
+
+def test_tushare_research_query_explains_missing_official_token(monkeypatch):
+    from apps.api.app import research_tools
+    from apps.api.app.screening_tools import ToolDispatchError
+
+    monkeypatch.setattr(research_tools.tushare_sync, "tushare_settings", lambda: {"token": "", "timeout": 30, "retries": 3})
+    with pytest.raises(ToolDispatchError, match="未配置 Tushare 官方 token"):
+        research_tools.query_tushare(research_tools.TushareQueryArgs(
+            api_name="daily", params={"ts_code": "000001.SZ"}, save_to_file=False), None)
 
 
 def test_tushare_research_query_is_scoped_and_bounded(monkeypatch):

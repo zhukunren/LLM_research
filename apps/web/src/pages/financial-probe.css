@@ -1,0 +1,6 @@
+.financial-probe-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+.financial-probe-capabilities { list-style: none; padding: 0; }
+.financial-probe-capabilities li { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 0; }
+.financial-probe-capabilities small { flex-basis: 100%; }
+.financial-probe-check { padding: 8px 0; overflow-wrap: anywhere; }
+.financial-probe-panel details { margin-top: 12px; }

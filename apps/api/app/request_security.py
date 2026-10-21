@@ -51,6 +51,12 @@ def trusted_write_request(request: Request) -> bool:
     if candidate is None:
         return False
     allowed = set()
+    from .security_context import auth_mode
+    if auth_mode() == "oidc":
+        from .auth import settings
+        public = _origin(settings()["public_url"])
+        if public:
+            allowed.add(public)
     destination = _origin(str(request.url), referer=True)
     if destination and destination[1] in _LOOPBACK_HOSTS:
         allowed.update((destination[0], host, destination[2]) for host in _LOOPBACK_HOSTS)

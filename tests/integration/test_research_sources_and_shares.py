@@ -78,6 +78,21 @@ def test_local_source_read_keeps_title_page_and_original_excerpt(client):
     assert item['excerpt_kind'] == 'original_text'
 
 
+def test_local_document_id_citations_publish_as_working_page_links_and_replay_safely(client):
+    cid = create(client)
+    content = '[年度报告，第5页](report-id)\n\n`[样例](report-id)`\n\n[未知资料](unknown-id)'
+    mid = answer(cid, content=content, events=[{'type':'mcpToolCall','tool':'read_research_source','status':'completed',
+        'arguments':{'kind':'report','source_id':'report-id','page_number':5},
+        'result':{'content':[{'type':'text','text':json.dumps({'ok':True,'result':{'title':'年度报告','source_id':'report-id','page_number':5,'text':'真实原文'}})}]}}])
+    saved = store.get_conversation(cid)['messages'][-1]
+    assert '[年度报告，第5页](/api/v1/documents/report-id/pdf#page=5)' in saved['content']
+    assert '`[样例](report-id)`' in saved['content'] and '[未知资料](unknown-id)' in saved['content']
+    with db.connect() as connection:
+        tid = connection.execute('SELECT id FROM conversation_turns WHERE conversation_id=? ORDER BY rowid DESC LIMIT 1',(cid,)).fetchone()[0]
+    assert store.finish_turn(cid, tid, 0, 'succeeded', content, {})['idempotent_replay']
+    assert store.get_conversation(cid)['messages'][-1]['id'] == mid
+
+
 def test_share_is_frozen_at_selected_answer_and_published_once(client, monkeypatch):
     cid = create(client)
     first = answer(cid, "第一问题", "[一手来源](https://example.com/original)")

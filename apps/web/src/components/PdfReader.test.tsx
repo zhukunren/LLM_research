@@ -61,3 +61,15 @@ it('decreases the actual page size when shrinking from page fit and displays the
   await waitFor(() => expect(renderPage.mock.calls.at(-1)![0].viewport.height).toBe(450))
   expect(screen.getByLabelText('PDF 显示比例')).toHaveTextContent('56%')
 })
+
+it('exits focused reading without dismissing the containing source dialog', async () => {
+  const user = userEvent.setup(), closeSource = vi.fn()
+  render(<section role="dialog" aria-label="原文" onKeyDown={event => { if (event.key === 'Escape') closeSource() }}><PdfReader url="/report.pdf" page={1} onPageChange={vi.fn()} /></section>)
+  await waitFor(() => expect(draw).toHaveBeenCalledOnce())
+  await user.click(screen.getByRole('button', { name: '专注阅读' }))
+  expect(screen.getByRole('dialog', { name: 'PDF 阅读器' })).toHaveAttribute('aria-modal', 'true')
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog', { name: 'PDF 阅读器' })).not.toBeInTheDocument()
+  expect(screen.getByRole('dialog', { name: '原文' })).toBeVisible()
+  expect(closeSource).not.toHaveBeenCalled()
+})

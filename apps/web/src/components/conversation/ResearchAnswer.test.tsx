@@ -3,6 +3,17 @@ import { describe, expect, it } from 'vitest'
 import ResearchAnswer from './ResearchAnswer'
 
 describe('research answer reading', () => {
+  it('resolves legacy document-id links only from recorded report references', () => {
+    render(<ResearchAnswer conversationId="one" references={[{ kind: 'report_page', source_id: 'report-id', page_number: 5 }, { kind: 'report_page', source_id: 'report-id', page_number: 8 }]} content={'[年度报告，第8页](report-id)\n\n[未知资料](unknown-id)'} />)
+    expect(screen.getByRole('link', { name: '年度报告，第8页' })).toHaveAttribute('href', '/api/v1/documents/report-id/pdf#page=8')
+    expect(screen.getByRole('link', { name: '未知资料' })).toHaveAttribute('href', 'unknown-id')
+  })
+  it('links generated QMT source as an attachment and keeps code available for preview', () => {
+    render(<ResearchAnswer conversationId="one" content={'[下载 QMT 脚本](outputs/qmt_strategy_123.py)\n\n```python\ndef init(C):\n    pass\n```'} />)
+    expect(screen.getByRole('link', { name: '下载 QMT 脚本' })).toHaveAttribute('href', '/api/v1/conversations/one/generated-files/qmt_strategy_123.py')
+    expect(screen.getByRole('link', { name: '下载 QMT 脚本' })).toHaveAttribute('download')
+    expect(screen.getByText(/def init/)).toBeInTheDocument()
+  })
   it('renders structured findings and maps output paths to conversation downloads', () => {
     render(<ResearchAnswer conversationId="one" content={'## 研究结论\n\n- 订单已经落地\n- 仍需关注毛利率\n\n| 公司 | 增长 |\n| --- | --- |\n| 示例公司 | 20% |\n\n[下载表格](outputs/results.csv)\n\n[研究笔记](D:/research/one/work/outputs/notes.md)\n\n[原始资料](https://example.com/report)\n\n```python\nprint(20)\n```'} />)
     expect(screen.getByRole('heading', { name: '研究结论' })).toBeInTheDocument()

@@ -3,17 +3,19 @@
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'python312.ps1')
+. (Join-Path $PSScriptRoot 'storage.ps1')
 . (Join-Path $PSScriptRoot 'processes.ps1')
 $ApiPython = Get-SystemPython312
-$PythonDeps = Join-Path $ProjectRoot 'runtime\python-deps'
+$PythonDeps = Get-LlmPythonDeps $ProjectRoot
 $WebRoot = Join-Path $ProjectRoot 'apps\web'
 $ViteScript = Join-Path $WebRoot 'node_modules\vite\bin\vite.js'
 $WebIndex = Join-Path $WebRoot 'dist\index.html'
 $ExpectedServices = if ($UserMode) { @('api','worker') } else { @('api','worker','web') }
-$Runtime = Join-Path $ProjectRoot 'runtime'
+$Runtime = Get-LlmStateRoot $ProjectRoot
 $Logs = Join-Path $Runtime 'logs'
 $ProcessesFile = Join-Path $Runtime 'processes.json'
 $env:PYTHONNOUSERSITE = '1'
+$env:PYTHONDONTWRITEBYTECODE = '1'
 if ($env:PYTHONPATH) { $env:PYTHONPATH = "$PythonDeps;$env:PYTHONPATH" } else { $env:PYTHONPATH = $PythonDeps }
 
 if (-not (Test-Path -LiteralPath $ApiPython) -or -not (Test-Path -LiteralPath $PythonDeps) -or (-not $UserMode -and -not (Test-Path -LiteralPath $ViteScript))) {

@@ -10,6 +10,7 @@ from . import conversation_store, db, research_workspace
 
 
 MEDIA_TYPES = {
+    ".py": "text/x-python",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -50,7 +51,7 @@ def _outputs_root(conversation_id: str) -> Path:
     # directory() validates the identifier. Check every workspace component as
     # well: a conversation/work link to a sibling conversation is still a leak.
     research_workspace.directory(conversation_id)
-    research_root = db.DB_PATH.parent.resolve() / "research"
+    research_root = research_workspace.directory(conversation_id).parents[1]
     root = research_root / conversation_id / "work" / "outputs"
     for path in (research_root, research_root / conversation_id, root.parent, root):
         if _linked(path):

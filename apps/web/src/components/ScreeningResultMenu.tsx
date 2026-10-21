@@ -19,7 +19,7 @@ export default function ScreeningResultMenu({ children, context }: { children: (
     return () => document.removeEventListener('pointerdown', outside)
   }, [open])
   return <div ref={root} className="screening-result-menu">
-    <button ref={trigger} type="button" className="secondary-button compact" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true) } }}>复制与导出<ChevronDown size={13} aria-hidden="true" /></button>
+    <button ref={trigger} type="button" className="secondary-button compact workspace-button" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true) } }}>复制与导出<ChevronDown size={13} aria-hidden="true" /></button>
     {open && <div ref={menu} id={id} role="menu" aria-label="复制与导出" tabIndex={-1} onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return }
       if (event.key === 'Tab') { close(); return }
@@ -28,6 +28,6 @@ export default function ScreeningResultMenu({ children, context }: { children: (
       const items = Array.from(menu.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href]') || [])
       const current = items.indexOf(document.activeElement as HTMLElement)
       items[event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
-    }}>{children(close)}</div>}
+    }} className="workspace-menu">{children(close)}</div>}
   </div>
 }

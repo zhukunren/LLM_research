@@ -65,3 +65,15 @@ it('closes keyboard stock actions with Escape without reopening when focus retur
   expect(screen.queryByRole('dialog', { name: '贵州茅台股票操作' })).not.toBeInTheDocument()
   expect(link).toHaveFocus()
 })
+
+it('dismisses stock actions when the containing card is activated', async () => {
+  const user = userEvent.setup(), select = vi.fn()
+  setup(<StockText><button onClick={select}>阅读贵州茅台研报</button></StockText>)
+  await waitFor(() => expect(screen.getByRole('button', { name: '阅读贵州茅台研报' }).querySelector('.stock-mention')).not.toBeNull())
+  const card = screen.getByRole('button', { name: '阅读贵州茅台研报' })
+  card.focus()
+  await screen.findByRole('dialog', { name: '贵州茅台股票操作' })
+  await user.keyboard('{Enter}')
+  expect(select).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('dialog', { name: '贵州茅台股票操作' })).not.toBeInTheDocument()
+})

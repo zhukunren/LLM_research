@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import re
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import mistune
 
@@ -12,7 +12,24 @@ from .db import connect, json_dump, json_load, utc_now
 
 _markdown = mistune.create_markdown(renderer="ast", plugins=["url"])
 _READ_TOOLS = {"read_research_source", "read_report_page", "read_news_chunk", "read_artifact_chunk",
-               "read_evidence_chunk", "capture_research_page", "download_research_source"}
+               "read_evidence_chunk", "capture_research_page", "download_research_source", "read_financial_evidence", "read_disclosure"}
+
+
+def rewrite_local_citations(content: str, references: list[dict]) -> str:
+    """Resolve bare source IDs only from the answer's recorded report-page evidence."""
+    pages = {}
+    for reference in references:
+        if reference.get("kind") == "report_page" and reference.get("source_id") and type(reference.get("page_number")) is int and reference["page_number"] > 0:
+            pages.setdefault(str(reference["source_id"]), set()).add(reference["page_number"])
+    def replace(match):
+        source_id = match.group("source")
+        if source_id not in pages:
+            return match[0]
+        requested = match.group("page") or (re.search(r"第\s*(\d+)", match.group("title")) or [None, None])[1]
+        page = int(requested) if requested and int(requested) in pages[source_id] else min(pages[source_id])
+        return f'[{match.group("title")}](/api/v1/documents/{quote(source_id, safe="")}/pdf#page={page})'
+    pattern = re.compile(r'```[\s\S]*?```|`[^`\n]*`|(?<!!)\[(?P<title>[^\]\n]+)\]\((?P<source>[A-Za-z0-9_-]{1,100})(?:#page=(?P<page>\d+))?\)')
+    return pattern.sub(lambda match: replace(match) if match.group("source") else match[0], content)
 
 
 def markdown_links(content: str):
@@ -68,6 +85,12 @@ def _public_reference(value, relation="cited"):
         return None
     url = _web_url(value.get("url") or value.get("source_url"))
     kind = value.get("kind")
+    if kind in {"financial", "disclosure"} and value.get("source_id"):
+        from . import financial_evidence
+        try:
+            return {**financial_evidence.public_reference(value["source_id"]), "relation": relation}
+        except financial_evidence.EvidenceError:
+            return None
     if not url and (kind not in {"report_page", "news_item", "security"} or not value.get("source_id")):
         return None
     ref = {key: value[key] for key in ("kind", "source_id", "page_number", "title", "stock_code", "stock_codes",
@@ -102,6 +125,14 @@ def collect(connection, conversation_id: str, turn_id: str | None, content: str,
         add(ref)
     texts = [content]
     for title, url in markdown_links(content):
+        numeric = re.fullmatch(r"/api/v1/research-evidence/([a-f0-9]{64})(?:/view)?", url)
+        if numeric:
+            from . import financial_evidence
+            try:
+                add(financial_evidence.public_reference(numeric[1]))
+            except financial_evidence.EvidenceError:
+                pass
+            continue
         if _web_url(url):
             add({"url": url, "title": title})
             continue
@@ -131,6 +162,12 @@ def collect(connection, conversation_id: str, turn_id: str | None, content: str,
         for title, url in markdown_links(text):
             if _web_url(url):
                 add({"title": title, "url": url})
+            elif (numeric := re.fullmatch(r"/api/v1/research-evidence/([a-f0-9]{64})(?:/view)?", url)):
+                from . import financial_evidence
+                try:
+                    add(financial_evidence.public_reference(numeric[1]))
+                except financial_evidence.EvidenceError:
+                    pass
     joined = "\n".join(texts)
     if turn_id:
         for row in connection.execute("SELECT payload_json FROM codex_turn_events WHERE conversation_id=? AND app_turn_id=? AND method='item/completed' ORDER BY sequence", (origin, turn_id)):
@@ -151,6 +188,9 @@ def collect(connection, conversation_id: str, turn_id: str | None, content: str,
             elif item_type == "mcptoolcall" and item.get("tool") in _READ_TOOLS and item.get("status") not in {"failed", "cancelled"} and not item.get("error"):
                 value = _result(item)
                 if not isinstance(value, dict):
+                    continue
+                if item.get("tool") in {"read_financial_evidence", "read_disclosure"}:
+                    add(value.get("reference", {}), "consulted")
                     continue
                 args = item.get("arguments") or {}
                 if isinstance(args, str):

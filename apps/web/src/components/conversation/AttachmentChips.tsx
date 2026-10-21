@@ -12,9 +12,9 @@ function DraftChip({ item, disabled, onRemove, onCancel, onRetry }: {
   const picker = useRef<HTMLInputElement>(null)
   return <li className={`composer-attachment-chip attachment-${item.status}`}>
     {item.status === 'uploading' ? <LoaderCircle size={18} className="spin" aria-hidden="true" /> : <FileText size={18} aria-hidden="true" />}
-    <span className="attachment-chip-copy"><strong title={item.name}>{item.name}</strong><small>{item.status === 'uploading' ? '正在上传…' : item.status === 'ready' ? fileSize(item.bytes) : item.status === 'cancelled' ? '上传已取消' : item.error || '上传未完成'}</small></span>
-    {item.status !== 'ready' && item.status !== 'uploading' && <><button type="button" className="icon-button" disabled={disabled} aria-label={`${item.canRetry ? '重试上传' : '重新选择'}：${item.name}`} title={item.canRetry ? '重试上传' : '重新选择原文件'} onClick={() => item.canRetry ? onRetry(item.requestId) : picker.current?.click()}><RotateCcw size={14} /></button><input ref={picker} type="file" hidden accept={ATTACHMENT_ACCEPT} aria-label={`重新选择原文件：${item.name}`} onChange={event => { const file = event.target.files?.[0]; if (file) onRetry(item.requestId, file); event.currentTarget.value = '' }} /></>}
-    <button type="button" className="icon-button" disabled={disabled} aria-label={`${item.status === 'uploading' ? '取消上传' : '移除附件'}：${item.name}`} title={item.status === 'uploading' ? '取消上传' : '移除附件'} onClick={() => item.status === 'uploading' ? onCancel(item.requestId) : onRemove(item.requestId)}><X size={14} /></button>
+    <span className="attachment-chip-copy"><strong data-tooltip={item.name}>{item.name}</strong><small>{item.status === 'uploading' ? '正在上传…' : item.status === 'ready' ? fileSize(item.bytes) : item.status === 'cancelled' ? '上传已取消' : item.error || '上传未完成'}</small></span>
+    {item.status !== 'ready' && item.status !== 'uploading' && <><button type="button" className="icon-button workspace-button" disabled={disabled} aria-label={`${item.canRetry ? '重试上传' : '重新选择'}：${item.name}`} data-tooltip={item.canRetry ? '重试上传' : '重新选择原文件'} onClick={() => item.canRetry ? onRetry(item.requestId) : picker.current?.click()}><RotateCcw size={14} /></button><input ref={picker} type="file" hidden accept={ATTACHMENT_ACCEPT} aria-label={`重新选择原文件：${item.name}`} onChange={event => { const file = event.target.files?.[0]; if (file) onRetry(item.requestId, file); event.currentTarget.value = '' }} /></>}
+    <button type="button" className="icon-button workspace-button" disabled={disabled} aria-label={`${item.status === 'uploading' ? '取消上传' : '移除附件'}：${item.name}`} data-tooltip={item.status === 'uploading' ? '取消上传' : '移除附件'} onClick={() => item.status === 'uploading' ? onCancel(item.requestId) : onRemove(item.requestId)}><X size={14} /></button>
   </li>
 }
 
@@ -28,5 +28,5 @@ export function DraftAttachmentChips({ items, disabled, onRemove, onCancel, onRe
 
 export function MessageAttachmentChips({ items }: { items?: ConversationAttachment[] }) {
   if (!items?.length) return null
-  return <ul className="message-attachment-chips" aria-label="消息附件">{items.map(item => <li key={item.id}><a href={attachmentDownloadUrl(item)} download={item.filename} className="composer-attachment-chip" aria-label={`下载附件：${item.filename}`}><FileText size={18} aria-hidden="true" /><span className="attachment-chip-copy"><strong title={item.filename}>{item.filename}</strong><small>{fileSize(item.bytes)}</small></span><Download size={14} aria-hidden="true" /></a></li>)}</ul>
+  return <ul className="message-attachment-chips" aria-label="消息附件">{items.map(item => <li key={item.id}><a href={attachmentDownloadUrl(item)} download={item.filename} className="composer-attachment-chip" aria-label={`下载附件：${item.filename}`}><FileText size={18} aria-hidden="true" /><span className="attachment-chip-copy"><strong data-tooltip={item.filename}>{item.filename}</strong><small>{fileSize(item.bytes)}</small></span><Download size={14} aria-hidden="true" /></a></li>)}</ul>
 }

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextvars import copy_context
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -15,6 +16,8 @@ RUN_TABLES = {"screening": ("screening_runs", "run_id"), "report_evaluation": ("
 RUN_STATE_TABLES = {
     **RUN_TABLES,
     "screening_task": ("screening_task_runs", "run_id"),
+    "research_scan": ("research_scans", "scan_id"),
+    "research_matrix": ("research_matrix_runs", "matrix_run_id"),
 }
 
 
@@ -36,6 +39,13 @@ class JobLease:
     owner: str
 
     def active(self) -> bool:
+        from .security_context import AccessDenied
+        try:
+            return self._active()
+        except AccessDenied:
+            return False
+
+    def _active(self) -> bool:
         with connect() as connection:
             return connection.execute(
                 "SELECT 1 FROM jobs WHERE id=? AND state='running' AND lease_owner=? AND lease_expires_at>?",
@@ -153,7 +163,7 @@ class JobLease:
                     # Losing a lease prevents final writes; a new worker may recover it.
                     return
 
-        self._thread = Thread(target=keepalive, name="job-heartbeat", daemon=True)
+        self._thread = Thread(target=copy_context().run, args=(keepalive,), name="job-heartbeat", daemon=True)
         self._thread.start()
         return self
 
@@ -184,7 +194,7 @@ def claim(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, ex
                 "UPDATE jobs SET state=?,message=?,updated_at=?,lease_owner=NULL,lease_expires_at=NULL WHERE id=?", (state, message, now, row[0])
             )
             _set_run_state(connection, row[1], json_load(row[2]), state, now if state == "failed" else None)
-        predicates = ["state='queued'", "required_protocol IN ('legacy','condition-decisions-v1','screening-task-v1','research-scan-v1','research-turn-v1','research-pdf-v1')", "(? IS NULL OR id=?)"]
+        predicates = ["state='queued'", "required_protocol IN ('legacy','condition-decisions-v1','screening-task-v1','research-scan-v1','research-turn-v1','research-pdf-v1','research-matrix-v1','financial-probe-v1','disclosure-import-v1','intelligence-source-v1','financial-sync-v1')", "(? IS NULL OR id=?)"]
         params: list[Any] = [job_id, job_id]
         if kinds is not None:
             if not kinds:
@@ -199,6 +209,13 @@ def claim(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, ex
         ).fetchone()
         if not row:
             return None
+        from .security_context import can_write, current_actor
+        authorization = json_load(connection.execute("SELECT authorization_json FROM jobs WHERE id=?", (row[0],)).fetchone()[0])
+        actor = current_actor()
+        invalid = authorization and any(authorization.get(key) != getattr(actor, key) for key in ("permissions_version", "tenant_id", "user_id"))
+        if invalid or not can_write(actor) or (not authorization and not actor.legacy):
+            cancel_in_transaction(connection, row[0], message="用户权限已变更")
+            return None
         protocol = connection.execute("SELECT required_protocol FROM jobs WHERE id=?", (row[0],)).fetchone()[0]
         owner = f"{protocol}:{uuid4()}"
         connection.execute(
@@ -210,36 +227,44 @@ def claim(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, ex
         return JobLease(row[0], row[1], payload, owner)
 
 
+def cancel_in_transaction(connection, job_id: str, *, message: str = "用户已取消") -> dict:
+    """One cancellation path for user actions, revocation and invalid queued jobs."""
+    row = connection.execute("SELECT state,kind,payload_json FROM jobs WHERE id=?", (job_id,)).fetchone()
+    if not row:
+        raise KeyError(job_id)
+    if row[0] not in {"queued", "running", "cancelled"}:
+        return {"id": job_id, "state": row[0], "message": "任务已结束"}
+    now, payload = utc_now(), json_load(row[2])
+    if row[1] == "research_turn" and {"conversation_id", "turn_id"} <= payload.keys():
+        from . import conversation_store
+        turn = connection.execute("SELECT state FROM conversation_turns WHERE id=? AND conversation_id=?",
+                                  (payload["turn_id"], payload["conversation_id"])).fetchone()
+        if turn and turn["state"] in {"awaiting_agent", "running"}:
+            revision = connection.execute("SELECT task_revision FROM conversations WHERE id=?", (payload["conversation_id"],)).fetchone()[0]
+            conversation_store.finish_turn(payload["conversation_id"], payload["turn_id"], revision, "cancelled",
+                "研究已停止，已生成的工作文件和成果已保留。可以继续追问。",
+                {"runtime": "codex", "ready_to_execute": False}, _connection=connection)
+    connection.execute("UPDATE jobs SET state='cancelled',message=?,updated_at=?,lease_owner=NULL,lease_expires_at=NULL WHERE id=?",
+                       (message, now, job_id))
+    if row[1] in RUN_STATE_TABLES:
+        table, key = RUN_STATE_TABLES[row[1]]
+        if key in payload:
+            connection.execute(f"UPDATE {table} SET status='cancelled',finished_at=COALESCE(finished_at,?) WHERE id=? AND status IN ('queued','running')",
+                               (now, payload[key]))
+    return {"id": job_id, "state": "cancelled"}
+
+
+def cancel_workspace_jobs(connection, *, message: str) -> None:
+    for row in connection.execute("SELECT id FROM jobs WHERE state IN ('queued','running','cancelled')").fetchall():
+        cancel_in_transaction(connection, row[0], message=message)
+    # Legacy interactive turns can exist without a queued background job.
+    connection.execute("UPDATE conversation_turns SET state='cancelled',updated_at=? WHERE state IN ('awaiting_agent','running')", (utc_now(),))
+
+
 def cancel(job_id: str) -> dict:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute("SELECT state,kind,payload_json FROM jobs WHERE id=?", (job_id,)).fetchone()
-        if not row:
-            raise KeyError(job_id)
-        if row[0] not in {"queued", "running"}:
-            return {"id": job_id, "state": row[0], "message": "任务已结束"}
-        now = utc_now()
-        if row[1] == "research_turn":
-            from . import conversation_store
-            payload = json_load(row[2])
-            turn = connection.execute(
-                "SELECT state FROM conversation_turns WHERE id=? AND conversation_id=?",
-                (payload["turn_id"], payload["conversation_id"]),
-            ).fetchone()
-            if turn and turn["state"] in {"awaiting_agent", "running"}:
-                revision = connection.execute(
-                    "SELECT task_revision FROM conversations WHERE id=?", (payload["conversation_id"],)
-                ).fetchone()[0]
-                conversation_store.finish_turn(
-                    payload["conversation_id"], payload["turn_id"], revision, "cancelled",
-                    "研究已停止，已生成的工作文件和成果已保留。可以继续追问。",
-                    {"runtime": "codex", "ready_to_execute": False}, _connection=connection,
-                )
-        connection.execute(
-            "UPDATE jobs SET state='cancelled',message='用户已取消',updated_at=?,lease_owner=NULL,lease_expires_at=NULL WHERE id=?", (now, job_id)
-        )
-        _set_run_state(connection, row[1], json_load(row[2]), "cancelled", now)
-    return {"id": job_id, "state": "cancelled"}
+        return cancel_in_transaction(connection, job_id)
 
 
 def retry(job_id: str) -> dict:

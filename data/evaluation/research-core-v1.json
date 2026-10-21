@@ -1,0 +1,762 @@
+{
+  "id": "research-core-v1.2",
+  "description": "31个真实公开披露的冻结资料任务：数字、单位、报告期、时点、缺数与缺少口径时的拒答。自动通过不等于开放研究或语义质量通过。",
+  "source_policy": "仅保存短摘录；available_at保守取公告发布后的上海日历日。历史数据仅用于评测，不是当前行情或投资建议。",
+  "sources": [
+    {
+      "id": "msft-fy2024q4",
+      "title": "Microsoft FY2024 Q4",
+      "url": "https://www.microsoft.com/en-us/investor/earnings/fy-2024-q4/press-release-webcast",
+      "available_at": "2024-07-31",
+      "text": "Revenue was $64.7 billion and increased 15% (up 16% in constant currency)",
+      "sha256": "fa9b232d475560bd2ace5e3cfcac379de734a21ea1c52cf345d3336fa48ab2f5"
+    },
+    {
+      "id": "apple-fy2024q4",
+      "title": "Apple FY2024 Q4",
+      "url": "https://www.apple.com/ca/newsroom/2024/10/apple-reports-fourth-quarter-results/",
+      "available_at": "2024-11-01",
+      "text": "The Company posted quarterly revenue of $94.9 billion, up 6 percent year over year, and quarterly diluted earnings per share of $0.97.",
+      "sha256": "dbceff68421ac09cc167d315ebbda26e3bce9a4618a1fc98d6c8009765e4a169"
+    },
+    {
+      "id": "nvda-fy2025",
+      "title": "NVIDIA FY2025",
+      "url": "https://investor.nvidia.com/news/press-release-details/2025/NVIDIA-Announces-Financial-Results-for-Fourth-Quarter-and-Fiscal-2025/",
+      "available_at": "2025-02-27",
+      "text": "For fiscal 2025, revenue was $130.5 billion, up 114% from a year ago.",
+      "sha256": "20bf6d90879e49117fbd03ab647d8e02a516a53e2699beba69aff983f2fa2412"
+    }
+  ],
+  "cases": [
+    {
+      "id": "msft-revenue-extract",
+      "category": "extract",
+      "question": "仅依据给定摘录，核对微软FY2024Q4的营业收入，输出字段msft-revenue，单位USD_billion，报告期FY2024Q4。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "msft-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "msft-revenue",
+          "unit": "USD_billion",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "msft-revenue",
+          "value": "64.7",
+          "unit": "USD_billion",
+          "period": "FY2024Q4",
+          "source_id": "msft-fy2024q4",
+          "numeric_span": [
+            13,
+            17
+          ]
+        }
+      ]
+    },
+    {
+      "id": "msft-revenue-unit_conversion",
+      "category": "unit_conversion",
+      "question": "仅依据给定摘录，核对微软FY2024Q4的营业收入，输出字段msft-revenue，单位USD_million，报告期FY2024Q4。请换算单位并保留原始数值的来源。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "msft-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "msft-revenue",
+          "unit": "USD_million",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "msft-revenue",
+          "value": "64700",
+          "unit": "USD_million",
+          "period": "FY2024Q4",
+          "source_id": "msft-fy2024q4",
+          "numeric_span": [
+            13,
+            17
+          ]
+        }
+      ]
+    },
+    {
+      "id": "msft-revenue-period_scope",
+      "category": "period_scope",
+      "question": "仅依据给定摘录，核对微软FY2024Q4的营业收入，输出字段msft-revenue，单位USD_billion，报告期FY2024Q4。请明确该数字所属季度或财年，不能当成其他报告期的数据。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "msft-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "msft-revenue",
+          "unit": "USD_billion",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "msft-revenue",
+          "value": "64.7",
+          "unit": "USD_billion",
+          "period": "FY2024Q4",
+          "source_id": "msft-fy2024q4",
+          "numeric_span": [
+            13,
+            17
+          ]
+        }
+      ]
+    },
+    {
+      "id": "msft-revenue-historical_cutoff",
+      "category": "historical_cutoff",
+      "question": "仅依据给定摘录，核对微软FY2024Q4的营业收入，输出字段msft-revenue，单位USD_billion，报告期FY2024Q4。只采用截止日前已经披露的资料；没有可用资料时明确拒绝补数。",
+      "as_of": "2024-07-30",
+      "source_ids": [
+        "msft-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "msft-revenue",
+          "unit": "USD_billion",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "msft-revenue-missing_source",
+      "category": "missing_source",
+      "question": "仅依据给定摘录，核对微软FY2024Q4的营业收入，输出字段msft-revenue，单位USD_billion，报告期FY2024Q4。本题没有提供来源，不能使用模型记忆。",
+      "as_of": "2025-03-01",
+      "source_ids": [],
+      "requested_fields": [
+        {
+          "key": "msft-revenue",
+          "unit": "USD_billion",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "msft-revenue-unsupported_forecast",
+      "category": "unsupported_forecast",
+      "question": "仅依据给定摘录，能否确定微软下一报告期营业收入的实际数值？不能把当前数据当作下一期数据。字段msft-revenue，单位USD_billion。本题目标报告期为FY2025Q1，请勿用给定资料所属期的实际值替代。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "msft-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "msft-revenue",
+          "unit": "USD_billion",
+          "period": "FY2025Q1"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "apple-revenue-extract",
+      "category": "extract",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的营业收入，输出字段apple-revenue，单位USD_billion，报告期FY2024Q4。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-revenue",
+          "unit": "USD_billion",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "apple-revenue",
+          "value": "94.9",
+          "unit": "USD_billion",
+          "period": "FY2024Q4",
+          "source_id": "apple-fy2024q4",
+          "numeric_span": [
+            41,
+            45
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apple-revenue-unit_conversion",
+      "category": "unit_conversion",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的营业收入，输出字段apple-revenue，单位USD_million，报告期FY2024Q4。请换算单位并保留原始数值的来源。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-revenue",
+          "unit": "USD_million",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "apple-revenue",
+          "value": "94900",
+          "unit": "USD_million",
+          "period": "FY2024Q4",
+          "source_id": "apple-fy2024q4",
+          "numeric_span": [
+            41,
+            45
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apple-revenue-period_scope",
+      "category": "period_scope",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的营业收入，输出字段apple-revenue，单位USD_billion，报告期FY2024Q4。请明确该数字所属季度或财年，不能当成其他报告期的数据。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-revenue",
+          "unit": "USD_billion",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "apple-revenue",
+          "value": "94.9",
+          "unit": "USD_billion",
+          "period": "FY2024Q4",
+          "source_id": "apple-fy2024q4",
+          "numeric_span": [
+            41,
+            45
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apple-revenue-historical_cutoff",
+      "category": "historical_cutoff",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的营业收入，输出字段apple-revenue，单位USD_billion，报告期FY2024Q4。只采用截止日前已经披露的资料；没有可用资料时明确拒绝补数。",
+      "as_of": "2024-10-31",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-revenue",
+          "unit": "USD_billion",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "apple-revenue-missing_source",
+      "category": "missing_source",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的营业收入，输出字段apple-revenue，单位USD_billion，报告期FY2024Q4。本题没有提供来源，不能使用模型记忆。",
+      "as_of": "2025-03-01",
+      "source_ids": [],
+      "requested_fields": [
+        {
+          "key": "apple-revenue",
+          "unit": "USD_billion",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "apple-revenue-unsupported_forecast",
+      "category": "unsupported_forecast",
+      "question": "仅依据给定摘录，能否确定苹果下一报告期营业收入的实际数值？不能把当前数据当作下一期数据。字段apple-revenue，单位USD_billion。本题目标报告期为FY2025Q1，请勿用给定资料所属期的实际值替代。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-revenue",
+          "unit": "USD_billion",
+          "period": "FY2025Q1"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "apple-eps-extract",
+      "category": "extract",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的披露的稀释每股收益，输出字段apple-eps，单位USD_per_share，报告期FY2024Q4。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-eps",
+          "unit": "USD_per_share",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "apple-eps",
+          "value": "0.97",
+          "unit": "USD_per_share",
+          "period": "FY2024Q4",
+          "source_id": "apple-fy2024q4",
+          "numeric_span": [
+            129,
+            133
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apple-eps-unit_conversion",
+      "category": "unit_conversion",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的披露的稀释每股收益，输出字段apple-eps，单位US_cent_per_share，报告期FY2024Q4。请换算单位并保留原始数值的来源。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-eps",
+          "unit": "US_cent_per_share",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "apple-eps",
+          "value": "97",
+          "unit": "US_cent_per_share",
+          "period": "FY2024Q4",
+          "source_id": "apple-fy2024q4",
+          "numeric_span": [
+            129,
+            133
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apple-eps-period_scope",
+      "category": "period_scope",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的披露的稀释每股收益，输出字段apple-eps，单位USD_per_share，报告期FY2024Q4。请明确该数字所属季度或财年，不能当成其他报告期的数据。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-eps",
+          "unit": "USD_per_share",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "apple-eps",
+          "value": "0.97",
+          "unit": "USD_per_share",
+          "period": "FY2024Q4",
+          "source_id": "apple-fy2024q4",
+          "numeric_span": [
+            129,
+            133
+          ]
+        }
+      ]
+    },
+    {
+      "id": "apple-eps-historical_cutoff",
+      "category": "historical_cutoff",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的披露的稀释每股收益，输出字段apple-eps，单位USD_per_share，报告期FY2024Q4。只采用截止日前已经披露的资料；没有可用资料时明确拒绝补数。",
+      "as_of": "2024-10-31",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-eps",
+          "unit": "USD_per_share",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "apple-eps-missing_source",
+      "category": "missing_source",
+      "question": "仅依据给定摘录，核对苹果FY2024Q4的披露的稀释每股收益，输出字段apple-eps，单位USD_per_share，报告期FY2024Q4。本题没有提供来源，不能使用模型记忆。",
+      "as_of": "2025-03-01",
+      "source_ids": [],
+      "requested_fields": [
+        {
+          "key": "apple-eps",
+          "unit": "USD_per_share",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "apple-eps-unsupported_forecast",
+      "category": "unsupported_forecast",
+      "question": "仅依据给定摘录，能否确定苹果下一报告期披露的稀释每股收益的实际数值？不能把当前数据当作下一期数据。字段apple-eps，单位USD_per_share。本题目标报告期为FY2025Q1，请勿用给定资料所属期的实际值替代。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-eps",
+          "unit": "USD_per_share",
+          "period": "FY2025Q1"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "nvda-revenue-extract",
+      "category": "extract",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入，输出字段nvda-revenue，单位USD_billion，报告期FY2025。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue",
+          "unit": "USD_billion",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "nvda-revenue",
+          "value": "130.5",
+          "unit": "USD_billion",
+          "period": "FY2025",
+          "source_id": "nvda-fy2025",
+          "numeric_span": [
+            30,
+            35
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nvda-revenue-unit_conversion",
+      "category": "unit_conversion",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入，输出字段nvda-revenue，单位USD_million，报告期FY2025。请换算单位并保留原始数值的来源。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue",
+          "unit": "USD_million",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "nvda-revenue",
+          "value": "130500",
+          "unit": "USD_million",
+          "period": "FY2025",
+          "source_id": "nvda-fy2025",
+          "numeric_span": [
+            30,
+            35
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nvda-revenue-period_scope",
+      "category": "period_scope",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入，输出字段nvda-revenue，单位USD_billion，报告期FY2025。请明确该数字所属季度或财年，不能当成其他报告期的数据。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue",
+          "unit": "USD_billion",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "nvda-revenue",
+          "value": "130.5",
+          "unit": "USD_billion",
+          "period": "FY2025",
+          "source_id": "nvda-fy2025",
+          "numeric_span": [
+            30,
+            35
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nvda-revenue-historical_cutoff",
+      "category": "historical_cutoff",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入，输出字段nvda-revenue，单位USD_billion，报告期FY2025。只采用截止日前已经披露的资料；没有可用资料时明确拒绝补数。",
+      "as_of": "2025-02-26",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue",
+          "unit": "USD_billion",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "nvda-revenue-missing_source",
+      "category": "missing_source",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入，输出字段nvda-revenue，单位USD_billion，报告期FY2025。本题没有提供来源，不能使用模型记忆。",
+      "as_of": "2025-03-01",
+      "source_ids": [],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue",
+          "unit": "USD_billion",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "nvda-revenue-unsupported_forecast",
+      "category": "unsupported_forecast",
+      "question": "仅依据给定摘录，能否确定英伟达下一报告期营业收入的实际数值？不能把当前数据当作下一期数据。字段nvda-revenue，单位USD_billion。本题目标报告期为FY2026，请勿用给定资料所属期的实际值替代。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue",
+          "unit": "USD_billion",
+          "period": "FY2026"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "nvda-revenue-growth-extract",
+      "category": "extract",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入同比增长率，输出字段nvda-revenue-growth，单位percent，报告期FY2025。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue-growth",
+          "unit": "percent",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "nvda-revenue-growth",
+          "value": "114",
+          "unit": "percent",
+          "period": "FY2025",
+          "source_id": "nvda-fy2025",
+          "numeric_span": [
+            48,
+            51
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nvda-revenue-growth-unit_conversion",
+      "category": "unit_conversion",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入同比增长率，输出字段nvda-revenue-growth，单位fraction，报告期FY2025。请换算单位并保留原始数值的来源。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue-growth",
+          "unit": "fraction",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "nvda-revenue-growth",
+          "value": "1.14",
+          "unit": "fraction",
+          "period": "FY2025",
+          "source_id": "nvda-fy2025",
+          "numeric_span": [
+            48,
+            51
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nvda-revenue-growth-period_scope",
+      "category": "period_scope",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入同比增长率，输出字段nvda-revenue-growth，单位percent，报告期FY2025。请明确该数字所属季度或财年，不能当成其他报告期的数据。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue-growth",
+          "unit": "percent",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "answered",
+      "expected_facts": [
+        {
+          "key": "nvda-revenue-growth",
+          "value": "114",
+          "unit": "percent",
+          "period": "FY2025",
+          "source_id": "nvda-fy2025",
+          "numeric_span": [
+            48,
+            51
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nvda-revenue-growth-historical_cutoff",
+      "category": "historical_cutoff",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入同比增长率，输出字段nvda-revenue-growth，单位percent，报告期FY2025。只采用截止日前已经披露的资料；没有可用资料时明确拒绝补数。",
+      "as_of": "2025-02-26",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue-growth",
+          "unit": "percent",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "nvda-revenue-growth-missing_source",
+      "category": "missing_source",
+      "question": "仅依据给定摘录，核对英伟达FY2025的营业收入同比增长率，输出字段nvda-revenue-growth，单位percent，报告期FY2025。本题没有提供来源，不能使用模型记忆。",
+      "as_of": "2025-03-01",
+      "source_ids": [],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue-growth",
+          "unit": "percent",
+          "period": "FY2025"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "nvda-revenue-growth-unsupported_forecast",
+      "category": "unsupported_forecast",
+      "question": "仅依据给定摘录，能否确定英伟达下一报告期营业收入同比增长率的实际数值？不能把当前数据当作下一期数据。字段nvda-revenue-growth，单位percent。本题目标报告期为FY2026，请勿用给定资料所属期的实际值替代。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "nvda-fy2025"
+      ],
+      "requested_fields": [
+        {
+          "key": "nvda-revenue-growth",
+          "unit": "percent",
+          "period": "FY2026"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    },
+    {
+      "id": "apple-eps-undisclosed-gaap",
+      "category": "undisclosed_basis",
+      "question": "给定摘录未明示GAAP标签。仅依据这些文字，能否确认该数值一定属于GAAP口径而不是其他口径？无法确认时请说明口径缺失，不自行假设。",
+      "as_of": "2025-03-01",
+      "source_ids": [
+        "apple-fy2024q4"
+      ],
+      "requested_fields": [
+        {
+          "key": "apple-eps",
+          "unit": "USD_per_share",
+          "period": "FY2024Q4"
+        }
+      ],
+      "expected_state": "insufficient_data",
+      "expected_facts": []
+    }
+  ],
+  "revision_notes": "v1.1去除正向EPS问题中摘录未明示的GAAP标签；新增一题专门验证无法确认GAAP口径时应拒答。初次模型运行和题设修订前结果独立保留。"
+}

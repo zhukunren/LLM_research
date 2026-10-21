@@ -14,7 +14,7 @@ from .screening_contracts import ContractModel
 
 
 class EvidenceReference(ContractModel):
-    kind: Literal["news", "report"]
+    kind: Literal["news", "report", "disclosure"]
     source_id: str = Field(min_length=1, max_length=100)
     page_number: int = Field(default=1, ge=1, le=5000)
     offset: int = Field(default=0, ge=0)
@@ -29,7 +29,8 @@ class CreateClaim(ContractModel):
     statement: str = Field(min_length=1, max_length=2000)
     kind: Literal["fact", "forecast", "inference"]
     as_of: date
-    evidence: list[EvidenceReference] = Field(min_length=1, max_length=4)
+    evidence: list[EvidenceReference] = Field(default_factory=list, max_length=4)
+    numeric_evidence: list[str] = Field(default_factory=list, max_length=8)
     request_id: str = Field(min_length=1, max_length=100)
 
 
@@ -45,7 +46,9 @@ def sources(project_id: str, code: str, kind: str, as_of: str, offset=0, limit=2
     with connect() as connection:
         _require_company(connection, project_id, code)
     try:
-        listing = evidence_sources.list_report_sources if kind == "report" else news_sources.list_news_sources
+        listing = {"report": evidence_sources.list_report_sources, "news": news_sources.list_news_sources, "disclosure": evidence_sources.list_disclosure_sources}.get(kind)
+        if listing is None:
+            raise research_projects.ProjectError("资料类型无效")
         return {**listing(code, as_of, offset=offset, limit=limit), "as_of": as_of}
     except evidence_sources.EvidenceSourceError as exc:
         raise research_projects.ProjectError(str(exc)) from exc
@@ -55,7 +58,12 @@ def source(project_id: str, code: str, kind: str, source_id: str, page: int, as_
     with connect() as connection:
         _require_company(connection, project_id, code)
     try:
-        reading = evidence_sources.read_report_chunk if kind == "report" else news_sources.read_news_chunk
+        if kind == "disclosure":
+            return {**evidence_sources.read_disclosure_chunk(source_id, page, code, as_of, offset=offset),
+                    "verification": "source_scope_checked", "offset_unit": "unicode_codepoints"}
+        reading = {"report": evidence_sources.read_report_chunk, "news": news_sources.read_news_chunk}.get(kind)
+        if reading is None:
+            raise research_projects.ProjectError("资料类型无效")
         chunk = reading(source_id, page, code, as_of, offset=offset, limit=12000)
         with connect() as connection:
             if kind == "report":
@@ -79,7 +87,7 @@ def dossier(project_id: str, code: str, as_of: str) -> dict:
                SELECT 1 FROM research_claims c WHERE c.note_id=n.id AND c.stock_code=?))""", (project_id, code, code)
         ).fetchone()[0]
         pending = connection.execute(
-            """SELECT count(*) FROM documents WHERE stock_code=? AND
+            """SELECT count(*) FROM documents WHERE material_kind='report' AND stock_code=? AND
                (stock_code_status!='confirmed' OR available_at_status!='confirmed' OR available_at IS NULL)""", (code,)
         ).fetchone()[0]
     fingerprint = market.source_fingerprint()
@@ -92,8 +100,27 @@ def dossier(project_id: str, code: str, as_of: str) -> dict:
             "market_quality": {key: profile.get(key, "unknown") for key in ("price_basis", "volume_unit", "amount_unit")},
             "invalid_bars": sum(not bar["quality_valid"] for bar in bars),
             "news": sources(project_id, code, "news", as_of), "reports": sources(project_id, code, "report", as_of),
-            "pending_report_count": pending, "note_count": note_count,
+            "disclosures": sources(project_id, code, "disclosure", as_of),
+            "pending_report_count": pending, "note_count": note_count, "research": research_context(project_id, code, as_of),
             "coverage_note": "仅覆盖已接入的本地资料；没有资料不代表没有事件。未确认归属或首次可得日期的研报不用于历史证据。"}
+
+
+def research_context(project_id: str, code: str, as_of: str) -> dict:
+    with connect() as connection:
+        _require_company(connection, project_id, code)
+        notes = [dict(row) for row in connection.execute("""SELECT id,title,status,revision,validation_plan,invalidation_condition,updated_at
+            FROM research_notes n WHERE project_id=? AND (stock_code=? OR EXISTS(
+              SELECT 1 FROM research_claims c WHERE c.note_id=n.id AND c.stock_code=? AND c.as_of<=?))
+            ORDER BY updated_at DESC,rowid DESC LIMIT 50""", (project_id, code, code, as_of))]
+        rows = connection.execute("""SELECT c.*,n.title note_title,n.revision current_note_revision,n.status note_status
+            FROM research_claims c JOIN research_notes n ON n.id=c.note_id WHERE n.project_id=? AND c.stock_code=? AND c.as_of<=?
+            ORDER BY c.created_at DESC,c.rowid DESC LIMIT 50""", (project_id, code, as_of)).fetchall()
+        claims = [{**_claim_payload(row), "needs_revalidation": row["note_revision"] != row["current_note_revision"]} for row in rows]
+        watches = [dict(row) for row in connection.execute("""SELECT id,status,note,verification,invalidation,revision,updated_at
+            FROM research_observation_candidates WHERE project_id=? AND stock_code=? ORDER BY updated_at DESC LIMIT 30""", (project_id, code))]
+    return {"notes": notes, "claims": claims, "observations": watches,
+            "limits": {"notes": 50, "claims": 50, "observations": 30},
+            "note": "最多汇集最近50份笔记、50项判断和30条观察。研究记录按保存版本展示；资料与行情按截止日核验。原文定位不代表论点语义已验证。"}
 
 
 def _claim_payload(row) -> dict:
@@ -101,13 +128,39 @@ def _claim_payload(row) -> dict:
     references = json_load(payload.pop("evidence_json"))
     payload.pop("request_json", None)
     payload["evidence"] = [{key: value for key, value in item.items() if key != "text"} for item in references]
+    payload["numeric_evidence"] = json_load(payload.pop("numeric_evidence_json", "[]"))
     payload["verification"] = "quote_located"
     payload["semantic_support_verified"] = False
     return payload
 
 
 def create_claim(project_id: str, note_id: str, payload: CreateClaim) -> dict:
-    identity = json_dump(payload.model_dump(mode="json", exclude={"request_id"}))
+    if not payload.evidence and not payload.numeric_evidence:
+        raise research_projects.ProjectError("请至少选择一份原文或独立数字依据")
+    from . import financial_evidence
+    numeric = []
+    for key in payload.numeric_evidence:
+        try:
+            reference = financial_evidence.public_reference(key)
+        except financial_evidence.EvidenceError as exc:
+            raise research_projects.ProjectError(str(exc), exc.status) from exc
+        data = reference["data_snapshot"]
+        if reference["stock_code"] != payload.stock_code or data["as_of"] > payload.as_of.isoformat():
+            raise research_projects.ProjectError("数字依据不符合本判断的公司或截止日")
+        from .financial_contracts import timestamp, ZONE
+        observed = [item["record"]["first_observed_at"] for item in data.get("inputs", [])]
+        observed.extend(item["document"].get("created_at", "9999-01-01") for item in data.get("original_links", []))
+        if data["kind"] == "disclosure":
+            observed.append(data.get("first_observed_at", "9999-01-01"))
+        if any(timestamp(value).astimezone(ZONE).date() > payload.as_of for value in observed):
+            raise research_projects.ProjectError("依据包含截止日后才观察到的版本，不能用于严格历史判断")
+        numeric.append(reference)
+    request_identity = payload.model_dump(mode="json", exclude={"request_id"})
+    if not request_identity["numeric_evidence"]:
+        request_identity.pop("numeric_evidence")
+    if len(set(payload.numeric_evidence)) != len(payload.numeric_evidence):
+        raise research_projects.ProjectError("不能重复附加相同数字依据")
+    identity = json_dump(request_identity)
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         research_projects._require_project(connection, project_id, writable=True)
@@ -141,9 +194,9 @@ def create_claim(project_id: str, note_id: str, payload: CreateClaim) -> dict:
         claim_id = str(uuid4())
         connection.execute(
             """INSERT INTO research_claims(id,note_id,note_revision,stock_code,statement,kind,as_of,request_id,
-               request_json,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+               request_json,evidence_json,created_at,numeric_evidence_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
             (claim_id, note_id, payload.note_revision, payload.stock_code, payload.statement, payload.kind,
-             payload.as_of.isoformat(), payload.request_id, identity, json_dump(references), utc_now()),
+             payload.as_of.isoformat(), payload.request_id, identity, json_dump(references), utc_now(), json_dump(numeric)),
         )
         research_projects._touch(connection, project_id)
         return _claim_payload(connection.execute("SELECT * FROM research_claims WHERE id=?", (claim_id,)).fetchone())

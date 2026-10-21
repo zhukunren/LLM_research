@@ -8,7 +8,7 @@ it('keeps the full question in the action and supports repeated keyboard selecti
   const onSelect = vi.fn(), user = userEvent.setup()
   render(<ResearchStarters items={items} disabled={false} onSelect={onSelect} />)
   const button = screen.getByRole('button', { name: '公司比较' })
-  expect(button).toHaveAttribute('title', `填入问题：${items[0].prompt}`)
+  expect(button).toHaveAttribute('data-tooltip', `填入问题：${items[0].prompt}`)
   expect(screen.queryByText(items[0].prompt)).not.toBeInTheDocument()
   button.focus()
   await user.keyboard('{Enter}{Enter}')

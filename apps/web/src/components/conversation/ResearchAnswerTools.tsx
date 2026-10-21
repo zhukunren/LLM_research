@@ -1,3 +1,6 @@
+import EmptyState from '../EmptyState'
+import LoadingState from '../LoadingState'
+import { useWorkspaceSession } from '../../WorkspaceSession'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { BookOpen, Bookmark, Check, ChevronRight, Copy, Download, GitBranch, ListFilter, LoaderCircle, MoreHorizontal, RefreshCw, Share2, Star, X } from 'lucide-react'
@@ -12,6 +15,8 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   onSave: () => void; onCopy: () => void; onObserve: () => void; onDraft: () => void
   onRegenerate?: () => void; onBranch?: () => void
 }) {
+  const workspaceSession = useWorkspaceSession()
+  const portalTarget = workspaceSession.portalTarget ?? document.body
   const [menu, setMenu] = useState(false)
   const [dialog, setDialog] = useState<'sources' | 'share' | null>(null)
   const [copied, setCopied] = useState(false)
@@ -27,6 +32,7 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   const menuId = useId()
   const sources = answerSources({ ...message, source_refs: [...(resolvedSources ?? []), ...message.source_refs] })
   const closeMenu = (focus = true) => { setMenu(false); if (focus) trigger.current?.focus() }
+  useEffect(() => { if (!workspaceSession.active) { setMenu(false); setDialog(null) } }, [workspaceSession.active])
   const openDialog = (kind: 'sources' | 'share') => {
     dialogLauncher.current = kind === 'sources' ? trigger.current : document.activeElement as HTMLElement
     closeMenu(false); setError(''); setCopied(false); setDialog(kind)
@@ -116,17 +122,17 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   }
   return <>
     <div className="research-answer-toolbar" role="group" aria-label="回答操作">
-      <button type="button" aria-label="复制答复" title="复制答复" onClick={onCopy}><Copy size={17} /></button>
-      <button type="button" aria-label="分享答复" title="分享答复" onClick={() => openDialog('share')}><Share2 size={17} /></button>
-      <button type="button" aria-label="重新生成答案" title="重新生成答案" disabled={locked || !onRegenerate} onClick={onRegenerate}><RefreshCw size={17} /></button>
-      <button type="button" aria-label="保存为研究笔记" title={saved ? '已保存为研究笔记' : savingNote ? '正在保存…' : '保存为研究笔记'} disabled={locked || saved} onClick={onSave}>
+      <button type="button" aria-label="复制答复" data-tooltip="复制答复" onClick={onCopy} className="workspace-button"><Copy size={17} /></button>
+      <button type="button" aria-label="分享答复" data-tooltip="分享答复" onClick={() => openDialog('share')} className="workspace-button"><Share2 size={17} /></button>
+      <button type="button" aria-label="重新生成答案" data-tooltip="重新生成答案" disabled={locked || !onRegenerate} onClick={onRegenerate} className="workspace-button"><RefreshCw size={17} /></button>
+      <button type="button" aria-label="保存为研究笔记" data-tooltip={saved ? '已保存为研究笔记' : savingNote ? '正在保存…' : '保存为研究笔记'} disabled={locked || saved} onClick={onSave} className="workspace-button">
         {savingNote ? <LoaderCircle size={17} className="spin" /> : saved ? <Check size={17} /> : <Bookmark size={17} />}<span className="sr-only">{saved ? '已保存为研究笔记' : ''}</span>
       </button>
-      <button type="button" aria-label="加入观察" title="加入观察" disabled={locked} onClick={onObserve}><Star size={17} /></button>
-      <button ref={trigger} type="button" aria-label="更多回答操作" title="更多回答操作" aria-haspopup="menu" aria-expanded={menu} aria-controls={menu ? menuId : undefined}
-        onClick={() => setMenu(value => !value)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setMenu(true) } }}><MoreHorizontal size={19} /></button>
+      <button type="button" aria-label="加入观察" data-tooltip="加入观察" disabled={locked} onClick={onObserve} className="workspace-button"><Star size={17} /></button>
+      <button ref={trigger} type="button" aria-label="更多回答操作" data-tooltip="更多回答操作" aria-haspopup="menu" aria-expanded={menu} aria-controls={menu ? menuId : undefined}
+        onClick={() => setMenu(value => !value)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setMenu(true) } }} className="workspace-button"><MoreHorizontal size={19} /></button>
     </div>
-    {menu && createPortal(<div ref={popup} id={menuId} className="research-answer-menu" style={position} role="menu" aria-label="更多回答操作" onKeyDown={event => {
+    {menu && createPortal(<div ref={popup} id={menuId} className="research-answer-menu workspace-tool-dialog workspace-popover workspace-menu" style={position} role="menu" aria-label="更多回答操作" onKeyDown={event => {
       const buttons = Array.from(popup.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || [])
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeMenu() }
@@ -134,30 +140,30 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
         event.preventDefault(); buttons[event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus()
       } else if (event.key === 'Tab') closeMenu(false)
     }}>
-      <button type="button" role="menuitem" onClick={() => openDialog('sources')}><BookOpen size={17} />查看来源{(sources.length > 0 || resolvedSources !== null) && <span className="research-answer-source-count">{sources.length}</span>}</button>
-      <button type="button" role="menuitem" disabled={locked || !onBranch} onClick={() => { closeMenu(false); onBranch?.() }}><GitBranch size={17} />打开新对话分支<ChevronRight size={15} /></button>
-      <button type="button" role="menuitem" disabled={locked} onClick={() => { closeMenu(); onDraft() }}><ListFilter size={17} />转为选股草稿</button>
-    </div>, document.body)}
+      <button type="button" role="menuitem" onClick={() => openDialog('sources')} className="workspace-button workspace-menu-option"><BookOpen size={17} />查看来源{(sources.length > 0 || resolvedSources !== null) && <span className="research-answer-source-count">{sources.length}</span>}</button>
+      <button type="button" role="menuitem" disabled={locked || !onBranch} onClick={() => { closeMenu(false); onBranch?.() }} className="workspace-button workspace-menu-option"><GitBranch size={17} />打开新对话分支<ChevronRight size={15} /></button>
+      <button type="button" role="menuitem" disabled={locked} onClick={() => { closeMenu(); onDraft() }} className="workspace-button workspace-menu-option"><ListFilter size={17} />转为选股草稿</button>
+    </div>, portalTarget)}
     {dialog && createPortal(<div className={`research-result-dialog-backdrop${dialog === 'sources' ? ' research-sources-backdrop' : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) setDialog(null) }}>
-      <section className={`research-result-dialog${dialog === 'sources' ? ' research-sources-drawer' : ''}`} role="dialog" aria-modal="true" aria-label={dialog === 'sources' ? '回答来源' : '分享研究答复'}
+      <section className={`research-result-dialog workspace-tool-dialog${dialog === 'sources' ? ' research-sources-drawer workspace-drawer' : ' workspace-dialog'}`} role="dialog" aria-modal="true" aria-label={dialog === 'sources' ? '回答来源' : '分享研究答复'}
         onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setDialog(null) }; trapDialogTab(event) }}>
-        <header className="research-result-dialog-header"><h2>{dialog === 'sources' ? '来源' : '分享研究答复'}</h2><button ref={closeButton} type="button" className="icon-button" aria-label={dialog === 'sources' ? '关闭回答来源' : '关闭分享'} onClick={() => setDialog(null)}><X size={20} /></button></header>
+        <header className="research-result-dialog-header"><h2>{dialog === 'sources' ? '来源' : '分享研究答复'}</h2><button ref={closeButton} type="button" className="icon-button workspace-button" aria-label={dialog === 'sources' ? '关闭回答来源' : '关闭分享'} onClick={() => setDialog(null)}><X size={20} /></button></header>
         <div className="research-result-dialog-body">
           {dialog === 'sources' ? <>
-            {loadingSources && <p role="status">正在读取这条答复的来源…</p>}
-            {sources.length ? <AnswerSources references={sources} expanded /> : !loadingSources && !error && <p className="research-answer-empty-sources">这条答复没有附可查看的来源。</p>}
-            {error && <p role="alert" className="research-next-step-submit-error">{error}<button type="button" className="text-button" onClick={() => { setError(''); setSourceRetry(value => value + 1) }}>重试读取来源</button></p>}
+            {loadingSources && <LoadingState compact label="正在读取这条答复的来源…" />}
+            {sources.length ? <AnswerSources references={sources} expanded /> : !loadingSources && !error && <EmptyState compact title="暂无可查看的来源" description="这条答复没有附可查看的来源。" />}
+            {error && <p role="alert" className="research-next-step-submit-error workspace-error">{error}<button type="button" className="text-button workspace-button" onClick={() => { setError(''); setSourceRetry(value => value + 1) }}>重试读取来源</button></p>}
           </> : <>
             <p className="research-share-description">创建链接后，任何收到链接的人都能在其他设备查看截至这条回答的对话、完整报告和来源。后续研究不会改变已分享的内容。</p>
-            {shareLoading && <p role="status">正在读取分享链接…</p>}
-            {share && <input className="research-share-link" aria-label="研究对话分享链接" readOnly value={share.url} onFocus={event => event.target.select()} />}
-            <div className="research-share-actions">{share ? <button type="button" className="primary-button" disabled={sharing} onClick={() => void copyLink()}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? '已复制链接' : '复制链接'}</button> : <button type="button" className="primary-button" disabled={sharing || shareLoading} onClick={() => void createShare()}>{sharing ? <LoaderCircle size={16} className="spin" /> : <Share2 size={16} />}{sharing ? '正在创建…' : '创建分享链接'}</button>}<button type="button" className="secondary-button" onClick={download}><Download size={16} />下载已加载对话</button></div>
+            {shareLoading && <LoadingState compact label="正在读取分享链接…" />}
+            {share && <input className="research-share-link workspace-field" aria-label="研究对话分享链接" readOnly value={share.url} onFocus={event => event.target.select()} />}
+            <div className="research-share-actions">{share ? <button type="button" className="primary-button workspace-button" disabled={sharing} onClick={() => void copyLink()}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? '已复制链接' : '复制链接'}</button> : <button type="button" className="primary-button workspace-button" disabled={sharing || shareLoading} onClick={() => void createShare()}>{sharing ? <LoaderCircle size={16} className="spin" /> : <Share2 size={16} />}{sharing ? '正在创建…' : '创建分享链接'}</button>}<button type="button" className="secondary-button workspace-button" onClick={download}><Download size={16} />下载已加载对话</button></div>
             <p className="research-share-description">下载仅包含当前已加载的消息，截至所选回答；较早的对话可能未包含。</p>
-            {share && <button type="button" className="text-button research-share-revoke" disabled={sharing} onClick={() => void revokeShare()}>撤销分享链接</button>}
-            {error && <p role="alert" className="research-next-step-submit-error">{error}</p>}
+            {share && <button type="button" className="text-button research-share-revoke workspace-button" disabled={sharing} onClick={() => void revokeShare()}>撤销分享链接</button>}
+            {error && <p role="alert" className="research-next-step-submit-error workspace-error">{error}</p>}
           </>}
         </div>
       </section>
-    </div>, document.body)}
+    </div>, portalTarget)}
   </>
 }

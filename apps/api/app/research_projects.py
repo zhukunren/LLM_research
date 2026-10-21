@@ -277,7 +277,7 @@ def save_message(project_id: str, message_id: str, *, source_conversation_id: st
             from .research_pdf_service import enqueue_note
             return {**dict(existing), "pdf": enqueue_note(project_id, existing["id"], existing["revision"], connection=connection)}
         source = connection.execute(
-            """SELECT m.*,c.project_id,t.state turn_state FROM conversation_messages m
+            """SELECT m.*,c.project_id,t.state turn_state,t.research_scope_json source_scope_json FROM conversation_messages m
                JOIN conversations c ON c.id=m.conversation_id
                LEFT JOIN conversation_turns t ON m.client_message_id='assistant:'||t.id AND t.conversation_id=c.id
                WHERE m.id=? AND m.role='assistant' AND
@@ -296,10 +296,16 @@ def save_message(project_id: str, message_id: str, *, source_conversation_id: st
         ).fetchone()
         title = (title_row[0][:200] if title_row else "研究答复")
         note_id, now = str(uuid4()), utc_now()
+        from .research_sources import rewrite_local_citations
+        body = rewrite_local_citations(source["content"], json_load(source["source_refs_json"]))
+        codes = (json_load(source["source_scope_json"]) or {}).get("stock_codes", [])
+        stock_code = codes[0] if len(codes) == 1 and connection.execute(
+            "SELECT 1 FROM research_project_companies WHERE project_id=? AND stock_code=?", (project_id, codes[0])
+        ).fetchone() else None
         connection.execute(
-            """INSERT INTO research_notes(id,project_id,title,body,source_conversation_id,source_message_id,
-               request_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)""",
-            (note_id, project_id, title, source["content"], source["conversation_id"], message_id, f"message:{message_id}", now, now),
+            """INSERT INTO research_notes(id,project_id,title,body,stock_code,source_conversation_id,source_message_id,
+               request_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            (note_id, project_id, title, body, stock_code, source["conversation_id"], message_id, f"message:{message_id}", now, now),
         )
         _touch(connection, project_id)
         return _snapshot_note(connection, note_id)
@@ -360,7 +366,7 @@ def conversation_context(conversation_id: str) -> dict | None:
                FROM research_notes WHERE project_id=? ORDER BY updated_at DESC,rowid DESC LIMIT 6""", (project_id,)
         ).fetchall()
         claims = connection.execute(
-            """SELECT c.id,c.note_id,c.note_revision,c.stock_code,c.statement,c.kind,c.as_of,c.evidence_json
+            """SELECT c.id,c.note_id,c.note_revision,c.stock_code,c.statement,c.kind,c.as_of,c.evidence_json,c.numeric_evidence_json
                FROM research_claims c JOIN research_notes n ON n.id=c.note_id WHERE n.project_id=?
                ORDER BY c.rowid DESC LIMIT 6""", (project_id,)
         ).fetchall()
@@ -372,6 +378,8 @@ def conversation_context(conversation_id: str) -> dict | None:
                              | {"quote": source["quote"][:600], "quote_truncated": len(source["quote"]) > 600}
                              for source in json_load(value.pop("evidence_json"))]
         value["semantic_support_verified"] = False
+        value["numeric_evidence"] = [{key: source[key] for key in ("kind", "source_id", "title", "url", "excerpt")}
+                                     for source in json_load(value.pop("numeric_evidence_json"))]
         claim_context.append(value)
     return {"id": project_id, "name": project["name"], "objective": project["objective"], "stock_codes": codes,
             "recent_claims": claim_context,

@@ -37,6 +37,24 @@ def assistant_answer(cid, content="经营判断仍需要原文验证。"):
     return next(item for item in conversation_store.get_conversation(cid)["messages"] if item["role"] == "assistant")
 
 
+@pytest.mark.parametrize('scope_kind', ['single', 'multiple', 'removed'])
+def test_saved_company_answer_inherits_only_its_single_frozen_project_company(client, scope_kind):
+    from apps.api.app.screening_contracts import ResearchScope
+    saved = project(client)
+    for code in ['600519.SH', '000858.SZ']:
+        client.post(f"/api/v1/research-projects/{saved['id']}/companies", json={'stock_code':code})
+    cid = conversation(client, saved['id'])['id']
+    codes = ['600519.SH','000858.SZ'] if scope_kind == 'multiple' else ['600519.SH']
+    conversation_store.update_research_scope(cid, 0, ResearchScope(stock_codes=codes, as_of='2025-04-30'))
+    message = assistant_answer(cid)
+    conversation_store.update_research_scope(cid, 1, ResearchScope(stock_codes=['000858.SZ']))
+    if scope_kind == 'removed':
+        client.delete(f"/api/v1/research-projects/{saved['id']}/companies/600519.SH")
+    response = client.post(f"/api/v1/research-projects/{saved['id']}/notes/from-message", json={'message_id':message['id']})
+    assert response.status_code == 200, response.text
+    assert response.json()['stock_code'] == ('600519.SH' if scope_kind == 'single' else None)
+
+
 def test_project_create_retry_conflict_search_summary_and_reload(client):
     saved = project(client)
     repeated = project(client)

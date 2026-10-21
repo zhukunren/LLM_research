@@ -12,7 +12,11 @@ KIND_LABELS = {
     "report_evaluation": "研报评估",
     "report_metadata": "研报整理",
     "data_sync": "资料更新",
+    "financial_probe": "财务接口试点",
+    "financial_sync": "财务序列采集",
+    "disclosure_import": "原始披露归档",
     "research_pdf": "报告生成",
+    "research_matrix": "同业对比",
 }
 STATE_LABELS = {
     "queued": "排队中", "running": "处理中", "awaiting_user": "待补充",
@@ -31,7 +35,7 @@ def _presentation(kind: str, state: str, conversation_id: str | None, scope: str
         destination, action = {"kind": "project", "project_id": project_id}, "查看研究笔记"
     elif kind == "data_sync":
         destination, action = {"kind": "settings"}, "查看数据更新"
-    elif kind in {"report_evaluation", "report_metadata"}:
+    elif kind in {"report_evaluation", "report_metadata", "disclosure_import"}:
         destination, action = {"kind": "page", "page": "reports"}, "打开研报库"
     elif kind == "screening":
         destination, action = {"kind": "page", "page": "conditions"}, "打开条件选股"
@@ -74,14 +78,14 @@ def list_tasks(*, active_only: bool = True, limit: int = 100) -> dict:
     limit = max(1, min(limit, 200))
     active_states = "('queued','running')"
     with connect() as connection:
-        job_filter = f"WHERE j.state IN {active_states}" if active_only else ""
+        job_filter = f"WHERE j.kind<>'intelligence_source' AND j.state IN {active_states}" if active_only else "WHERE j.kind<>'intelligence_source'"
         rows = connection.execute(f"""
             SELECT j.id,j.kind,j.state,j.created_at,j.updated_at,
                    COALESCE(tj.conversation_id,sc.conversation_id,sr.conversation_id,pe.conversation_id) conversation_id,
-                   c.entry_scope,c.workflow_type,pe.project_id,
+                   c.entry_scope,c.workflow_type,COALESCE(pe.project_id,mx.project_id) project_id,
                    CASE WHEN j.kind='research_turn' AND t.state='awaiting_user'
                         THEN 'awaiting_user' ELSE j.state END display_state,
-                   COALESCE(sc.name,pe.name,
+                   COALESCE(sc.name,pe.name,mx.name,
                      (SELECT substr(m.content,1,120) FROM conversation_messages m
                       WHERE m.conversation_id=c.id AND m.role='user' ORDER BY m.rowid LIMIT 1),
                      d.title,d.filename,'') title
@@ -91,6 +95,8 @@ def list_tasks(*, active_only: bool = True, limit: int = 100) -> dict:
             LEFT JOIN research_scans sc ON sc.job_id=j.id
             LEFT JOIN screening_task_runs sr ON sr.job_id=j.id
             LEFT JOIN research_pdf_exports pe ON j.kind='research_pdf' AND pe.id=json_extract(j.payload_json,'$.export_id')
+            LEFT JOIN research_matrix_runs mr ON mr.job_id=j.id
+            LEFT JOIN research_matrices mx ON mx.id=mr.matrix_id
             LEFT JOIN conversations c ON c.id=COALESCE(tj.conversation_id,sc.conversation_id,sr.conversation_id,pe.conversation_id)
             LEFT JOIN documents d ON d.metadata_job_id=j.id
             {job_filter}
@@ -109,31 +115,47 @@ def list_tasks(*, active_only: bool = True, limit: int = 100) -> dict:
             ORDER BY CASE WHEN t.state IN ('awaiting_agent','running') THEN 0 ELSE 1 END,
                      t.updated_at DESC,t.id DESC LIMIT ?
         """, (limit,)).fetchall()
-        active_count = connection.execute("SELECT count(*) FROM jobs WHERE state IN ('queued','running')").fetchone()[0]
+        active_count = connection.execute("SELECT count(*) FROM jobs WHERE kind<>'intelligence_source' AND state IN ('queued','running')").fetchone()[0]
         active_count += connection.execute("""SELECT count(*) FROM conversation_turns t JOIN conversations c ON c.id=t.conversation_id
             WHERE c.state='active' AND t.state IN ('awaiting_agent','running')
               AND NOT EXISTS (SELECT 1 FROM research_turn_jobs tj WHERE tj.turn_id=t.id)""").fetchone()[0]
     items = []
+    with connect() as connection:
+        briefs = connection.execute("""SELECT ir.id,ir.kind,ir.conversation_id,ir.turn_id,ir.result_status,ir.last_error,tj.job_id
+            FROM intelligence_runs ir LEFT JOIN research_turn_jobs tj ON tj.turn_id=ir.turn_id""").fetchall()
+    brief_jobs = {row["job_id"]: row for row in briefs if row["job_id"]}
+    brief_turns = {row["turn_id"]: row for row in briefs if row["turn_id"]}
+    def brief_task(item, brief):
+        if not brief:
+            return item
+        from .intelligence_contracts import KIND_DEFINITIONS
+        name = KIND_DEFINITIONS[brief["kind"]]["name"]
+        state = brief["result_status"] or ("blocked_dependency" if brief["last_error"] and not brief["job_id"] else item["state"])
+        return {**item, "title": name, "kind_label": "情报台", "state": state,
+                "stage": "成果与证据快照已保存。" if brief["result_status"] else _stage("research_turn", state),
+                "state_label": STATE_LABELS.get(state, item["state_label"]),
+                "action_label": "查看成果" if brief["result_status"] else "查看进展",
+                "destination": {"kind": "intelligence", "brief_id": brief["id"], "brief_kind": brief["kind"]}}
     for row in rows:
         kind, state = row["kind"], row["display_state"]
         action, destination = _presentation(kind, state, row["conversation_id"], row["entry_scope"], row["project_id"])
-        items.append({
+        items.append(brief_task({
             "id": f"job:{row['id']}", "kind": kind, "title": row["title"] or KIND_LABELS.get(kind, "后台任务"),
             "kind_label": "条件选股" if kind == "research_turn" and row["workflow_type"] == "screening" else KIND_LABELS.get(kind, "后台任务"), "state": state, "state_label": STATE_LABELS.get(state, "待核对"),
             "stage": _stage(kind, state), "created_at": row["created_at"], "updated_at": row["updated_at"],
             "action_label": action, "destination": destination,
-        })
+        }, brief_jobs.get(row["id"])))
     for row in turns:
         state = "queued" if row["state"] == "awaiting_agent" else row["state"]
         action, destination = _presentation("research_turn", state, row["conversation_id"], row["entry_scope"])
         waiting_to_submit = row["state"] == "awaiting_agent"
-        items.append({
+        items.append(brief_task({
             "id": f"turn:{row['id']}", "kind": "research_turn", "title": row["title"] or "待继续的对话",
             "kind_label": "条件选股" if row["workflow_type"] == "screening" else "研究对话",
             "state": state, "state_label": "待继续" if waiting_to_submit else STATE_LABELS.get(state, "待核对"),
             "stage": "尚未进入后台，打开原对话继续处理。" if waiting_to_submit else _stage("research_turn", state),
             "created_at": row["created_at"], "updated_at": row["updated_at"], "action_label": "继续处理" if waiting_to_submit else action, "destination": destination,
-        })
+        }, brief_turns.get(row["id"])))
     items.sort(key=lambda item: (item["updated_at"], item["id"]), reverse=True)
     items.sort(key=lambda item: 0 if item["state"] in {"queued", "running"} else 1)
     return {"items": items[:limit], "active_count": active_count}

@@ -240,6 +240,7 @@ def complete_json(
     *,
     timeout_seconds: int | None = None,
     max_output_tokens: int = 4000,
+    usage_sink: dict | None = None,
 ) -> dict[str, Any]:
     config = llm_settings()
     if not config["configured"]:
@@ -273,6 +274,10 @@ def complete_json(
         raise ModelRequestError(f"模型响应格式或 JSON 无效：{str(exc)[:160]}") from None
     if not isinstance(result, dict):
         raise ModelRequestError("模型输出的 JSON 根节点不是对象")
+    if usage_sink is not None:
+        usage = payload.get("usage")
+        usage_sink.update({"model": config["model"], "tokens": {key: value for key, value in (usage.items() if isinstance(usage, dict) else [])
+            if key in {"input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens"} and type(value) is int and value >= 0}})
     return result
 
 

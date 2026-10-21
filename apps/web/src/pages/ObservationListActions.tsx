@@ -1,3 +1,4 @@
+import LoadingState from '../components/LoadingState'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
@@ -48,11 +49,11 @@ export default function ObservationQuickNote({ entry, onClose, onSaved }: { entr
     finally { locked.current = false; setSaving(false) }
   }
   return createPortal(<div className="observation-quick-note-layer" onMouseDown={event => { if (event.target === event.currentTarget && !locked.current) onClose() }}>
-    <section className="observation-quick-note" role="dialog" aria-modal="true" aria-label="快速编辑观察备注" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!locked.current) onClose() }; trapDialogTab(event) }}>
-      <header><div><h2>{entry.name || entry.stock_code} · 关注备注</h2><p>{entry.owner_label}</p></div><button type="button" className="icon-button" aria-label="关闭快速备注" disabled={saving} onClick={onClose}><X size={18} /></button></header>
-      <form onSubmit={event => { event.preventDefault(); void save() }}><label htmlFor="observation-inline-note">关注备注</label><textarea ref={input} id="observation-inline-note" value={note} maxLength={2000} rows={6} disabled={loading || saving} onChange={event => setNote(event.target.value)} /><small>{note.length} / 2000</small>
-        {loading && <p role="status">正在读取最新备注…</p>}{error && <p role="alert">{error}</p>}
-        <footer><button type="button" className="secondary-button" disabled={saving} onClick={onClose}>取消</button><button type="submit" className="primary-button" disabled={loading || saving || note === original || (entry.kind === 'candidate' && revision === undefined)}>{saving ? '正在保存…' : '保存备注'}</button></footer>
+    <section className="observation-quick-note workspace-tool-dialog workspace-dialog" role="dialog" aria-modal="true" aria-label="快速编辑观察备注" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!locked.current) onClose() }; trapDialogTab(event) }}>
+      <header><div><h2>{entry.name || entry.stock_code} · 关注备注</h2><p>{entry.owner_label}</p></div><button type="button" className="icon-button workspace-button" aria-label="关闭快速备注" disabled={saving} onClick={onClose}><X size={18} /></button></header>
+      <form onSubmit={event => { event.preventDefault(); void save() }} className="workspace-form"><label htmlFor="observation-inline-note">关注备注</label><textarea ref={input} id="observation-inline-note" value={note} maxLength={2000} rows={6} disabled={loading || saving} onChange={event => setNote(event.target.value)} className="workspace-field" /><small>{note.length} / 2000</small>
+        {loading && <LoadingState compact label="正在读取最新备注…" />}{error && <p role="alert" className="workspace-error">{error}</p>}
+        <footer><button type="button" className="secondary-button workspace-button" disabled={saving} onClick={onClose}>取消</button><button type="submit" className="primary-button workspace-button" disabled={loading || saving || note === original || (entry.kind === 'candidate' && revision === undefined)}>{saving ? '正在保存…' : '保存备注'}</button></footer>
       </form>
     </section>
   </div>, document.body)

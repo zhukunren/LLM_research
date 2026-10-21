@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { sessionStorage } from '../../authStorage'
 import { api } from '../../api'
+import { useWorkspaceSession } from '../../WorkspaceSession'
 
 export type ConversationAttachment = {
   id: string; conversation_id: string; request_id?: string; filename: string; media_type: string
@@ -17,9 +19,9 @@ export const ATTACHMENT_ACCEPT = '.pdf,.docx,.xlsx,.pptx,.csv,.tsv,.txt,.md,.jso
 const MAX_FILES = 8
 const MAX_BYTES = 25 * 1024 * 1024
 
-function readDrafts(restore = true): DraftMap | null {
+function readDrafts(restore = true, storageKey = KEY): DraftMap | null {
   try {
-    const stored: unknown = JSON.parse(sessionStorage.getItem(KEY) ?? '{}')
+    const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? '{}')
     if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {}
     const result: DraftMap = {}
     for (const [key, value] of Object.entries(stored)) {
@@ -36,8 +38,8 @@ function readDrafts(restore = true): DraftMap | null {
   } catch { return null }
 }
 
-function saveDrafts(value: DraftMap) {
-  try { sessionStorage.setItem(KEY, JSON.stringify(value)); return true }
+function saveDrafts(value: DraftMap, storageKey = KEY) {
+  try { sessionStorage.setItem(storageKey, JSON.stringify(value)); return true }
   catch { return false /* Current-page files remain available without storage. */ }
 }
 
@@ -53,8 +55,13 @@ export function attachmentDownloadUrl(item: ConversationAttachment) {
 }
 
 export function useConversationAttachments(draftKey: string, conversationId: string | undefined, ensureConversation: () => Promise<Target>) {
-  const [drafts, setDrafts] = useState<DraftMap>(() => readDrafts() ?? {})
+  const session = useWorkspaceSession()
+  const storageKey = session.id ? `tab.${session.id}.${KEY}` : KEY
+  const [drafts, setDrafts] = useState<DraftMap>(() => readDrafts(true, session.legacy && !sessionStorage.getItem(storageKey) ? KEY : storageKey) ?? {})
   const draftsRef = useRef(drafts)
+  useEffect(() => {
+    if (session.legacy && !sessionStorage.getItem(storageKey)) saveDrafts(draftsRef.current, storageKey)
+  }, [storageKey])
   const files = useRef(new Map<string, File>())
   const controllers = useRef(new Map<string, AbortController>())
   const mounted = useRef(true)
@@ -69,9 +76,9 @@ export function useConversationAttachments(draftKey: string, conversationId: str
     if (!mounted.current) return
     // Another mounted draft may have written since this request started. Apply
     // the narrow key/item update to the latest map, never a stale whole copy.
-    const latest = storageAvailable.current ? readDrafts(false) : null
+    const latest = storageAvailable.current ? readDrafts(false, storageKey) : null
     draftsRef.current = change(latest ?? draftsRef.current)
-    storageAvailable.current = saveDrafts(draftsRef.current)
+    storageAvailable.current = saveDrafts(draftsRef.current, storageKey)
     setDrafts(draftsRef.current)
   }
 

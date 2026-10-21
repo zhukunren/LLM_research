@@ -66,10 +66,17 @@ def read_project_company(args: ReadProjectCompanyArgs, context) -> dict:
         result = company_research.dossier(_research_project_id(context), args.stock_code, args.as_of.isoformat())
         result["bars_window_total"] = len(result["bars"])
         result["bars"] = result["bars"][-30:]
-        for key in ("news", "reports"):
+        for key in ("news", "reports", "disclosures"):
             result[key]["items"] = result[key]["items"][:5]
             result[key]["next_offset"] = 5 if result[key]["total"] > 5 else None
             result[key]["preview_limit"] = 5
+        if "research" in result:
+            research = result["research"]
+            for key in ("notes", "claims", "observations"):
+                research[key + "_total"] = len(research[key])
+                research[key] = research[key][:5]
+            for claim in research["claims"]:
+                claim["evidence"] = [{key: value for key, value in item.items() if key not in {"quote", "text"}} for item in claim["evidence"]]
         result["preview_only"] = True
         return result
     except research_projects.ProjectError as exc:
@@ -256,6 +263,8 @@ def query_tushare(args: TushareQueryArgs, context: ToolContext) -> dict[str, Any
         raise ToolDispatchError("tushare_scope_required", "请提供证券代码或查询日期，避免无范围的外部查询")
     try:
         raw_rows = tushare_sync._query(tushare_sync.create_client(), args.api_name, **params)
+    except tushare_sync.TushareError as exc:
+        raise ToolDispatchError("tushare_query_failed", f"{args.api_name} 查询失败：{exc}") from None
     except Exception as exc:
         raise ToolDispatchError("tushare_query_failed", f"{args.api_name} 查询失败：{type(exc).__name__}") from exc
     queried_at = utc_now()
@@ -263,7 +272,7 @@ def query_tushare(args: TushareQueryArgs, context: ToolContext) -> dict[str, Any
     received = len(raw_rows)
     artifact = None
     if args.save_to_file:
-        payload = json.dumps({"api_name": args.api_name, "params": params, "source": "tushare_relay",
+        payload = json.dumps({"api_name": args.api_name, "params": params, "source": "tushare",
                               "queried_at": queried_at, "items": rows, "received": received,
                               "scope_validation": scope_validation}, ensure_ascii=False, allow_nan=False, default=str)
         from .settings import research_mode_settings
@@ -276,7 +285,7 @@ def query_tushare(args: TushareQueryArgs, context: ToolContext) -> dict[str, Any
     return {"api_name": args.api_name, "params": params, "items": rows[:args.limit],
             "returned": len(rows[:args.limit]), "received": received, "matched": len(rows), "truncated": len(rows) > args.limit,
             "scope_validation": scope_validation,
-            "source": "tushare_relay", "queried_at": queried_at, "artifact": artifact,
+            "source": "tushare", "queried_at": queried_at, "artifact": artifact,
             "note": "items 是提示词预览；artifact 保存同一范围内的整页数据，received 是过滤前页行数；排除原因见 scope_validation。缺证券或日期字段的记录不会伪称已核验。目录只供发现，不能证明历史资格；日期核验也不证明财报历史版本。接口可能仍有下一页，请按 offset/limit 分页。外部数据只用于研究，核对单位与复权；正式筛选仍使用冻结的本地数据。"}
 
 
@@ -343,7 +352,7 @@ def search_sources(args: SearchSourcesArgs, context: ToolContext) -> dict:
                                                  stock_codes=research_codes, available_after=report_earliest)
         return {**result, "as_of": args.as_of.isoformat() if args.as_of else None,
                 "note": "资料发现结果仅供定位；须读取原文、核对证券与首次可得日期后才能用于研究判断。"}
-    predicates, params = ["1=1"], []
+    predicates, params = ["d.material_kind='report'"], []
     if args.query:
         predicates.append("(instr(d.title,?)>0 OR EXISTS(SELECT 1 FROM document_pages p WHERE p.document_id=d.id AND instr(p.text,?)>0))")
         params += [args.query, args.query]
@@ -538,12 +547,18 @@ def cancel_research_scan(args: CancelResearchScanArgs, context: ToolContext) -> 
 
 
 def register_tools(registry) -> None:
+    from .financial_research_tools import register as register_financial_tools
+    register_financial_tools(registry)
+    from .intelligence import register_tools as register_intelligence_tools
+    register_intelligence_tools(registry)
+    from .qmt_scripts import register_tools as register_qmt_tools
+    register_qmt_tools(registry)
     from .research_external import register_tools as register_external_tools
     register_external_tools(registry)
     registry.register("read_project_company", "Read this conversation's project company dossier as of an explicit date. Includes actual price dates, unknown units, source counts and bounded previews. No screening task or run is created. Use normal source/data tools for full analysis.", ReadProjectCompanyArgs, read_project_company)
     registry.register("read_saved_research_evidence", "Read the immutable original-text snapshot attached to a research claim in this conversation's project. Claim IDs are in project context. Quote location is verified; semantic support and claim kind are user annotations, not established facts.", ReadSavedEvidenceArgs, read_saved_research_evidence)
     registry.register("discover_research_data", "Inspect this turn's actual Parquet columns and types, units, date range, SQLite snapshot schemas and source paths. No screening task is required. Use native Python/DuckDB for arbitrary exploratory queries; unknown units must be verified.", DiscoverResearchDataArgs, discover_research_data)
-    registry.register("query_tushare", "Read market, calendar, financial or news data through the configured Tushare relay. params is a structured object with endpoint parameters (ts_code, trade_date, start_date, end_date, ann_date, period, exchange, fields, source, offset, limit, is_open, list_status, report_type, type, market, year, month). Query a stock/date scope and inspect pagination; credentials are never returned.", TushareQueryArgs, query_tushare, open_world=True)
+    registry.register("query_tushare", "Read market, calendar, financial or news data through the official Tushare Pro API. params is a structured object with endpoint parameters (ts_code, trade_date, start_date, end_date, ann_date, period, exchange, fields, source, offset, limit, is_open, list_status, report_type, type, market, year, month). Query a stock/date scope and inspect pagination; credentials are never returned.", TushareQueryArgs, query_tushare, open_world=True)
     registry.register("search_research_sources", "Discover reports or news across the library before defining any screening task. Optional date filters; return source metadata and pagination.", SearchSourcesArgs, search_sources)
     registry.register("read_research_source", "Read original research text and provenance without requiring a screening task. Follow next_offset for long pages; optional historical cutoff is enforced.", ReadSourceArgs, read_source)
     registry.register("preview_screening_program", "Run a current Python condition on up to 20 sample securities and return actual metrics or the program error for repair. Does not create a formal run.", PreviewProgramArgs, preview_program, read_only=False)

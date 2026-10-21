@@ -48,29 +48,6 @@ def test_responses_configuration_is_loaded_from_config_ini(tmp_path, monkeypatch
     assert result["api_key"] == "local-test-secret"
 
 
-def test_tushare_relay_uses_only_relay_specific_credentials(tmp_path, monkeypatch) -> None:
-    (tmp_path / "config.ini").write_text(
-        "[tushare]\n"
-        "token=legacy-tushare-token\n"
-        "relay_api_key=relay-test-key\n"
-        "relay_base_url=https://relay.example.test/tushare/pro\n"
-        "timeout=45\n"
-        "retries=4\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(settings, "PROJECT_ROOT", tmp_path)
-    result = settings.tushare_settings()
-    assert result["api_key"] == "relay-test-key"
-    assert result["base_url"] == "https://relay.example.test/tushare/pro"
-    assert result["timeout"] == 45.0
-    assert result["retries"] == 4
-
-    (tmp_path / "config.ini").write_text("[tushare]\ntoken=legacy-tushare-token\n", encoding="utf-8")
-    fallback = settings.tushare_settings()
-    assert fallback["api_key"] == ""
-    assert fallback["uses_adapter_default"] is True
-
-
 def test_responses_request_uses_json_output_store_false_and_extracts_result(monkeypatch) -> None:
     captured = {}
 

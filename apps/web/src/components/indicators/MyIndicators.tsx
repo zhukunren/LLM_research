@@ -1,10 +1,13 @@
+import LoadingState from '../LoadingState'
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Activity, ArrowRight, Bookmark, Check, ChevronLeft, FlaskConical, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { api, type DataStatus } from '../../api'
 import { trapDialogTab } from '../../keyboard'
+import { useWorkspaceSession } from '../../WorkspaceSession'
 import StockSearch from '../StockSearch'
-import { ResponsiveMarketIndicatorChart, type IndicatorChart } from '../../pages/TechnicalBrowser'
+import BuiltinIndicators from './BuiltinIndicators'
+import { ResponsiveMarketIndicatorChart, type IndicatorChart } from '../MarketIndicatorChart'
 import {
   describeIndicatorPrompt, indicatorComparisons, indicatorSaveRequestId, indicatorScreeningPrompt, parameterError, reuseIndicatorPrompt,
   type IndicatorComparison, type IndicatorParameter, type IndicatorTrial,
@@ -22,12 +25,15 @@ type Props = {
   disabled?: boolean
   turnActive: boolean
   refreshKey: number
+  initialCommon?: boolean
+  onInitialCommonConsumed?: () => void
   onPrompt: (prompt: string) => boolean | void
   onScreening?: (prompt: string) => boolean | void
 }
 
 /** An entry in the current conversation, not a second indicator-authoring workflow. */
 export default function MyIndicators(props: Props) {
+  const workspaceSession = useWorkspaceSession()
   const [open, setOpen] = useState(false)
   const [trials, setTrials] = useState<IndicatorTrialSummary[]>([])
   const [trialError, setTrialError] = useState('')
@@ -35,7 +41,21 @@ export default function MyIndicators(props: Props) {
   const [reload, setReload] = useState(0)
   const trigger = useRef<HTMLButtonElement>(null)
   const id = useId()
-  useEffect(() => { setOpen(false); setTrials([]); setTrialError(''); setHandoffError('') }, [props.contextKey])
+  const previousContext = useRef(props.contextKey)
+  const initialCommon = useRef(!!props.initialCommon)
+  useEffect(() => {
+    if (!props.initialCommon || !workspaceSession.active) return
+    initialCommon.current = true
+    setOpen(true)
+    props.onInitialCommonConsumed?.()
+  }, [props.initialCommon, workspaceSession.active])
+  useEffect(() => { if (!workspaceSession.active) { setOpen(false); initialCommon.current = false } }, [workspaceSession.active])
+  useEffect(() => {
+    if (previousContext.current === props.contextKey) return
+    previousContext.current = props.contextKey
+    initialCommon.current = false
+    setOpen(false); setTrials([]); setTrialError(''); setHandoffError('')
+  }, [props.contextKey])
   useEffect(() => {
     const controller = new AbortController()
     let reading = false
@@ -60,8 +80,8 @@ export default function MyIndicators(props: Props) {
     close(false)
   }
   return <>
-    <button type="button" ref={trigger} className="my-indicators-trigger" aria-label="我的指标" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => { setHandoffError(''); setReload(value => value + 1); setOpen(true) }}><Activity size={15} /><span>我的指标</span>{trials.length > 0 && <span className="my-indicators-count" title="当前对话的试算记录">{trials.length}</span>}</button>
-    {open && createPortal(<IndicatorWorkspace key={props.contextKey} {...props} id={id} trials={trials} trialError={trialError} handoffError={handoffError} onReloadTrials={() => setReload(value => value + 1)} onClose={close} onHandoff={handoff} />, document.body)}
+    <button type="button" ref={trigger} className="my-indicators-trigger workspace-button" aria-label="我的指标" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} onClick={() => { setHandoffError(''); setReload(value => value + 1); setOpen(true) }}><Activity size={15} /><span>我的指标</span>{trials.length > 0 && <span className="my-indicators-count" data-tooltip="当前对话的试算记录">{trials.length}</span>}</button>
+    {open && workspaceSession.active && createPortal(<IndicatorWorkspace key={props.contextKey} {...props} initialCommon={initialCommon.current} id={id} trials={trials} trialError={trialError} handoffError={handoffError} onReloadTrials={() => setReload(value => value + 1)} onClose={close} onHandoff={handoff} />, document.body)}
   </>
 }
 
@@ -77,7 +97,8 @@ type WorkspaceProps = Props & {
 type Selection = { kind: 'trial'; id: string } | { kind: 'saved'; id: string; version: number }
 const fmt = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 6 })
 
-function IndicatorWorkspace({ id, conversationId, workflow, data, defaultStock, defaultAsOf, disabled, turnActive, trials, trialError, handoffError, onReloadTrials, onClose, onHandoff, onScreening }: WorkspaceProps) {
+function IndicatorWorkspace({ id, conversationId, workflow, data, defaultStock, defaultAsOf, disabled, turnActive, trials, trialError, handoffError, initialCommon, onReloadTrials, onClose, onHandoff, onScreening }: WorkspaceProps) {
+  const [common, setCommon] = useState(!!initialCommon)
   const [saved, setSaved] = useState<SavedIndicator[]>([])
   const [catalogLoading, setCatalogLoading] = useState(true)
   const [catalogError, setCatalogError] = useState('')
@@ -104,7 +125,7 @@ function IndicatorWorkspace({ id, conversationId, workflow, data, defaultStock, 
   const [output, setOutput] = useState('')
   const [operator, setOperator] = useState<IndicatorComparison>('gt')
   const [threshold, setThreshold] = useState('0')
-  const [mobileDetail, setMobileDetail] = useState(false)
+  const [mobileDetail, setMobileDetail] = useState(!!initialCommon)
   const closeButton = useRef<HTMLButtonElement>(null)
   const mounted = useRef(true)
   const generation = useRef(0)
@@ -125,12 +146,18 @@ function IndicatorWorkspace({ id, conversationId, workflow, data, defaultStock, 
   const savedVersionMatchesTrial = savedParametersUnchanged && savedHistoryUnchanged && savedInputLengthMatchesTrial && (!trial || record?.definition_hash === trial.definition_hash && ['price_basis', 'volume_unit', 'amount_unit'].every(key => record.source_context?.[key] === trial.source_context[key]))
   const numericThreshold = threshold.trim() ? Number(threshold) : NaN
 
+  useEffect(() => { setAsOf(value => value || defaultAsOf || data?.last_date || '') }, [defaultAsOf, data?.last_date])
+
   useEffect(() => {
     mounted.current = true
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     closeButton.current?.focus()
-    const escape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() } }
+    const escape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (event.target instanceof Element && event.target.closest('[role="combobox"][aria-expanded="true"]')) return
+      event.preventDefault(); event.stopPropagation(); onClose()
+    }
     document.addEventListener('keydown', escape, true)
     return () => { document.removeEventListener('keydown', escape, true); mounted.current = false; ++generation.current; operation.current?.abort(); document.body.style.overflow = overflow }
   }, [])
@@ -193,6 +220,7 @@ function IndicatorWorkspace({ id, conversationId, workflow, data, defaultStock, 
     setSaveName(next.definition.name); setOutput(next.definition.outputs[0]?.name || '')
   }
   function select(next: Selection) {
+    setCommon(false)
     setMobileDetail(true)
     if (JSON.stringify(next) === selectionKey) return
     setBusy('')
@@ -270,51 +298,57 @@ function IndicatorWorkspace({ id, conversationId, workflow, data, defaultStock, 
   }
 
   return <div className="my-indicators-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
-    <section id={id} className={`my-indicators-dialog${mobileDetail ? ' my-indicators-detail-open' : ''}`} role="dialog" aria-modal="true" aria-label="我的指标" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }; trapDialogTab(event) }}>
-      <header className="my-indicators-header"><div><h2><Activity size={18} />我的指标</h2><p>描述指标 → Codex 生成 → 行情试算 → 保存复用</p></div><button ref={closeButton} type="button" className="icon-button" aria-label="关闭我的指标" onClick={() => onClose()}><X size={20} /></button></header>
+    <section id={id} className={`my-indicators-dialog workspace-tool-dialog workspace-drawer${mobileDetail ? ' my-indicators-detail-open' : ''}`} role="dialog" aria-modal="true" aria-label="我的指标" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }; trapDialogTab(event) }}>
+      <header className="my-indicators-header"><div><h2><Activity size={18} />我的指标</h2><p>描述指标 → Codex 生成 → 行情试算 → 保存复用</p></div><button ref={closeButton} type="button" className="icon-button workspace-button" aria-label="关闭我的指标" onClick={() => onClose()}><X size={20} /></button></header>
       <div className="my-indicators-body">
         <aside className="my-indicators-catalog" aria-label="指标与试算记录">
-          <button type="button" className="primary-button" onClick={() => { setMobileDetail(true); setDescriptionOpen(true); globalThis.setTimeout(() => descriptionRef.current?.focus(), 0) }}>描述新指标<ArrowRight size={14} /></button>
-          <div className="my-indicators-section-heading"><h3>当前对话试算</h3><button type="button" className="icon-button" aria-label="刷新指标记录" onClick={() => { onReloadTrials(); setReload(value => value + 1) }}><RefreshCw size={14} /></button></div>
+          <button type="button" className="primary-button workspace-button" onClick={() => { setCommon(false); setMobileDetail(true); setDescriptionOpen(true); globalThis.setTimeout(() => descriptionRef.current?.focus(), 0) }}>描述新指标<ArrowRight size={14} /></button>
+          <button type="button" className="my-indicators-item my-indicators-common-entry workspace-button" disabled={!!busy || loading} aria-pressed={common} onClick={() => { setCommon(true); setMobileDetail(true) }}><Activity size={15} /><span><strong>常用指标</strong><small>均线、MACD、RSI、布林带等</small></span></button>
+          <div className="my-indicators-section-heading"><h3>当前对话试算</h3><button type="button" className="icon-button workspace-button" aria-label="刷新指标记录" onClick={() => { onReloadTrials(); setReload(value => value + 1) }}><RefreshCw size={14} /></button></div>
           {turnActive && <p className="my-indicators-muted" role="status"><LoaderCircle size={13} className="spin" />生成中的试算会出现在这里</p>}
-          {trialError && <p className="my-indicators-error" role="alert">试算记录读取失败：{trialError}</p>}
+          {trialError && <p className="my-indicators-error workspace-error" role="alert">试算记录读取失败：{trialError}</p>}
           {!trials.length && !trialError && <p className="my-indicators-muted">描述想观察的规律，发送到当前对话。试算由 Codex 生成，不限于内置指标。</p>}
-          {trials.map(item => <button key={item.trial_id} type="button" className="my-indicators-item" aria-pressed={selection?.kind === 'trial' && selection.id === item.trial_id} onClick={() => select({ kind: 'trial', id: item.trial_id })}><FlaskConical size={15} /><span><strong>{item.definition?.name || item.name || '指标试算'}</strong><small>{item.stock_code || '待查看'}{item.as_of ? ` · ${item.as_of}` : ''}</small></span></button>)}
+          {trials.map(item => <button key={item.trial_id} type="button" className="my-indicators-item workspace-button" aria-pressed={!common && selection?.kind === 'trial' && selection.id === item.trial_id} onClick={() => select({ kind: 'trial', id: item.trial_id })}><FlaskConical size={15} /><span><strong>{item.definition?.name || item.name || '指标试算'}</strong><small>{item.stock_code || '待查看'}{item.as_of ? ` · ${item.as_of}` : ''}</small></span></button>)}
           <h3>已保存指标</h3>
-          {catalogLoading && !saved.length && <p className="my-indicators-muted" role="status">正在读取指标…</p>}
-          {catalogError && <p role="alert" className="my-indicators-error">{catalogError}</p>}
+          {catalogLoading && !saved.length && <LoadingState compact label="正在读取指标…" />}
+          {catalogError && <p role="alert" className="my-indicators-error workspace-error">{catalogError}</p>}
           {!catalogLoading && !catalogError && !saved.length && <p className="my-indicators-muted">先试算，再明确保存。保存后可跨对话复用固定版本。</p>}
-          {saved.map(item => <button type="button" key={item.id} className="my-indicators-item" aria-pressed={record?.id === item.id} onClick={() => select({ kind: 'saved', id: item.id, version: item.version })}><Bookmark size={15} /><span><strong>{item.name}</strong><small>v{item.version} · 已保存</small></span></button>)}
+          {saved.map(item => <button type="button" key={item.id} className="my-indicators-item workspace-button" aria-pressed={!common && record?.id === item.id} onClick={() => select({ kind: 'saved', id: item.id, version: item.version })}><Bookmark size={15} /><span><strong>{item.name}</strong><small>v{item.version} · 已保存</small></span></button>)}
         </aside>
         <div className="my-indicators-detail">
-          <button type="button" className="text-button my-indicators-back" onClick={() => setMobileDetail(false)}><ChevronLeft size={14} />返回指标列表</button>
+          <button type="button" className="text-button my-indicators-back workspace-button" onClick={() => setMobileDetail(false)}><ChevronLeft size={14} />返回指标列表</button>
+          {common ? <>
+            {handoffError && <p className="my-indicators-error workspace-error" role="alert">{handoffError}</p>}
+            <BuiltinIndicators data={data} stock={stock} asOf={asOf} disabled={disabled} onStockChange={setStock} onDateChange={setAsOf} onGenerate={value => onHandoff(describeIndicatorPrompt(value, stock, asOf))} />
+          </> : <>
           <details className="my-indicators-describe" open={descriptionOpen} onToggle={event => setDescriptionOpen(event.currentTarget.open)}>
             <summary>用自然语言创建或修改指标</summary>
-            <label>指标描述<textarea ref={descriptionRef} aria-label="指标描述" value={description} maxLength={4000} disabled={disabled} placeholder="例如：计算收盘价相对20日成交量加权均价的偏离，再除以近期波动率。请画出完整历史曲线。" onChange={event => setDescription(event.target.value)} /></label>
+            <label className="workspace-field-label">指标描述<textarea ref={descriptionRef} aria-label="指标描述" value={description} maxLength={4000} disabled={disabled} placeholder="例如：计算收盘价相对20日成交量加权均价的偏离，再除以近期波动率。请画出完整历史曲线。" onChange={event => setDescription(event.target.value)} className="workspace-field" /></label>
             <p className="my-indicators-muted">请求写入当前{workflow === 'research' ? '研究' : '选股'}对话，发送后由 Codex 编写并试算。原有草稿会保留。</p>
-            <div className="my-indicators-actions"><button type="button" className="primary-button" disabled={disabled || !description.trim() || !!invalid} onClick={() => generate()}>写入生成请求<ArrowRight size={14} /></button>{definition && <button type="button" className="secondary-button" disabled={disabled || !description.trim() || !!invalid} onClick={() => generate(true)}>基于当前指标修改</button>}</div>
+            <div className="my-indicators-actions"><button type="button" className="primary-button workspace-button" disabled={disabled || !description.trim() || !!invalid} onClick={() => generate()}>写入生成请求<ArrowRight size={14} /></button>{definition && <button type="button" className="secondary-button workspace-button" disabled={disabled || !description.trim() || !!invalid} onClick={() => generate(true)}>基于当前指标修改</button>}</div>
           </details>
-          <div className="my-indicators-inputs"><label>试算证券<StockSearch label="指标试算证券" includeIndices value={stock} onChange={setStock} disabled={!!busy} /></label><label>截止日期<input type="date" aria-label="指标试算日期" value={asOf} max={data?.last_date} disabled={!!busy} onChange={event => setAsOf(event.target.value)} /></label><label>历史长度（交易日）<input type="number" aria-label="指标历史长度" min={2} max={500} step={1} value={Number.isNaN(limit) ? '' : limit} disabled={!!busy} onChange={event => setLimit(event.target.value === '' ? NaN : Number(event.target.value))} /></label></div>
-          {handoffError && <p className="my-indicators-error" role="alert">{handoffError}</p>}
-          {invalid && <p className="my-indicators-error" role="alert">{invalid}</p>}
+          <div className="my-indicators-inputs"><label className="workspace-field-label">试算证券<StockSearch label="指标试算证券" includeIndices value={stock} onChange={setStock} disabled={!!busy} /></label><label className="workspace-field-label">截止日期<input type="date" aria-label="指标试算日期" value={asOf} max={data?.last_date} disabled={!!busy} onChange={event => setAsOf(event.target.value)} className="workspace-field" /></label><label className="workspace-field-label">历史长度（交易日）<input type="number" aria-label="指标历史长度" min={2} max={500} step={1} value={Number.isNaN(limit) ? '' : limit} disabled={!!busy} onChange={event => setLimit(event.target.value === '' ? NaN : Number(event.target.value))} className="workspace-field" /></label></div>
+          {handoffError && <p className="my-indicators-error workspace-error" role="alert">{handoffError}</p>}
+          {invalid && <p className="my-indicators-error workspace-error" role="alert">{invalid}</p>}
           {loading && <p role="status" className="my-indicators-muted"><LoaderCircle size={15} className="spin" />正在读取指标版本…</p>}
-          {error && <div className="my-indicators-error" role="alert">{error}{!definition && selection && !loading && <button type="button" className="text-button" onClick={() => setDetailReload(value => value + 1)}>重试指标详情</button>}</div>}
-          {notice && <p className="my-indicators-notice" role="status"><Check size={15} />{notice}</p>}
+          {error && <div className="my-indicators-error workspace-error" role="alert">{error}{!definition && selection && !loading && <button type="button" className="text-button workspace-button" onClick={() => setDetailReload(value => value + 1)}>重试指标详情</button>}</div>}
+          {notice && <p className="my-indicators-notice workspace-feedback workspace-feedback-success" role="status"><Check size={15} />{notice}</p>}
           {definition && !loading && <>
-            <div className="my-indicators-version-heading"><div><h3>{record?.name || definition.name}</h3><p>{record ? `固定版本 v${record.version}` : '待保存试算'} · 数值时序指标</p></div>{record && versions.length > 1 && <label>历史版本<select aria-label="指标历史版本" value={record.version} disabled={!!busy} onChange={event => select({ kind: 'saved', id: record.id, version: Number(event.target.value) })}>{versions.map(item => <option key={item.version} value={item.version}>v{item.version}</option>)}</select></label>}</div>
-            {record && <div className="my-indicators-saved-evidence"><p className="my-indicators-muted">保存于 {record.created_at}{typeof record.source_context?.input_bars === 'number' ? ` · 固定输入 ${record.source_context.input_bars} 个交易日` : ''} · 原始校验{record.validation?.saveable ? '通过' : record.validation ? '见记录' : '待读取'}。此为保存时的证据，重新试算会另建记录。</p>{record.trial_id && <button type="button" className="text-button" disabled={!!busy} onClick={() => void loadOriginalTrial()}>{busy === 'original' ? '正在读取原始试算…' : '查看保存时的原始试算'}</button>}{record.source_context && <SourceContext context={record.source_context} />}</div>}
+            <div className="my-indicators-version-heading"><div><h3>{record?.name || definition.name}</h3><p>{record ? `固定版本 v${record.version}` : '待保存试算'} · 数值时序指标</p></div>{record && versions.length > 1 && <label className="workspace-field-label">历史版本<select aria-label="指标历史版本" value={record.version} disabled={!!busy} onChange={event => select({ kind: 'saved', id: record.id, version: Number(event.target.value) })} className="workspace-field workspace-select">{versions.map(item => <option key={item.version} value={item.version}>v{item.version}</option>)}</select></label>}</div>
+            {record && <div className="my-indicators-saved-evidence"><p className="my-indicators-muted">保存于 {record.created_at}{typeof record.source_context?.input_bars === 'number' ? ` · 固定输入 ${record.source_context.input_bars} 个交易日` : ''} · 原始校验{record.validation?.saveable ? '通过' : record.validation ? '见记录' : '待读取'}。此为保存时的证据，重新试算会另建记录。</p>{record.trial_id && <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => void loadOriginalTrial()}>{busy === 'original' ? '正在读取原始试算…' : '查看保存时的原始试算'}</button>}{record.source_context && <SourceContext context={record.source_context} />}</div>}
             <p className="my-indicators-description">{definition.description}</p>
             <p className="my-indicators-formula">{definition.formula}</p>
             {!!Object.keys(definition.program.parameters).length && <fieldset className="my-indicators-parameters"><legend>试算参数</legend>{Object.entries(definition.program.parameters).map(([name, original]) => {
               const spec = definition.program.parameter_specs?.[name], value = parameters[name] ?? original
-              return <label key={name}>{spec?.label || name}<input type="number" aria-label={`指标参数 ${spec?.label || name}`} disabled={!!busy} min={spec?.minimum} max={spec?.maximum} step={spec?.type === 'integer' ? 1 : 'any'} value={Number.isNaN(value) ? '' : value} onChange={event => setParameters(items => ({ ...items, [name]: event.target.value === '' ? NaN : Number(event.target.value) }))} />{spec?.description && <small>{spec.description}</small>}</label>
+              return <label key={name} className="workspace-field-label">{spec?.label || name}<input type="number" aria-label={`指标参数 ${spec?.label || name}`} disabled={!!busy} min={spec?.minimum} max={spec?.maximum} step={spec?.type === 'integer' ? 1 : 'any'} value={Number.isNaN(value) ? '' : value} onChange={event => setParameters(items => ({ ...items, [name]: event.target.value === '' ? NaN : Number(event.target.value) }))} className="workspace-field" />{spec?.description && <small>{spec.description}</small>}</label>
             })}</fieldset>}
-            <div className="my-indicators-actions"><button type="button" className="secondary-button" disabled={!!busy || !!invalid} onClick={() => void preview()}>{busy === 'preview' ? <LoaderCircle size={14} className="spin" /> : <FlaskConical size={14} />}{trial ? '按当前参数重新试算' : '试算完整走势'}</button>{busy === 'preview' && <button type="button" className="text-button" onClick={cancelPreview}>取消试算</button>}</div>
-            {staleTrial && <p className="my-indicators-stale" role="status">证券、日期、历史长度或参数已改变。下方仍是上次试算，请重新试算后保存或用于选股。</p>}
-            {trial && <>{originalTrial && <p className="my-indicators-stale">正在查看保存此版本时的原始试算，未重新运行。</p>}<TrialResult trial={trial} /></>}
+            <div className="my-indicators-actions"><button type="button" className="secondary-button workspace-button" disabled={!!busy || !!invalid} onClick={() => void preview()}>{busy === 'preview' ? <LoaderCircle size={14} className="spin" /> : <FlaskConical size={14} />}{trial ? '按当前参数重新试算' : '试算完整走势'}</button>{busy === 'preview' && <button type="button" className="text-button workspace-button" onClick={cancelPreview}>取消试算</button>}</div>
+            {staleTrial && <p className="my-indicators-stale workspace-feedback workspace-feedback-warning" role="status">证券、日期、历史长度或参数已改变。下方仍是上次试算，请重新试算后保存或用于选股。</p>}
+            {trial && <>{originalTrial && <p className="my-indicators-stale workspace-feedback workspace-feedback-warning">正在查看保存此版本时的原始试算，未重新运行。</p>}<TrialResult trial={trial} /></>}
             <details className="my-indicators-source"><summary>公式、代码与数据口径</summary><p>协议 {definition.program.contract_version} · 最低历史 {definition.program.required_history_bars} 个交易日</p><p>所需字段：{definition.program.required_fields.join('、')}</p><p>原始描述：{definition.original_prompt}</p><pre>{definition.program.source_code}</pre><p>代码指纹：{trial?.code_hash || record?.code_hash}</p><p>定义指纹：{trial?.definition_hash || record?.definition_hash}</p></details>
-            {trial && <section className="my-indicators-save" aria-label="保存指标版本"><h3>确认后保存</h3><p className="my-indicators-muted">保存公式、代码、参数与校验记录。已有版本不会被覆盖。</p><div className="my-indicators-inputs"><label>指标名称<input aria-label="保存指标名称" maxLength={100} value={saveName} disabled={!!busy} onChange={event => setSaveName(event.target.value)} /></label><label>保存位置<select aria-label="指标保存位置" disabled={!!busy} value={saveTarget} onChange={event => setSaveTarget(event.target.value)}><option value="">保存为新指标</option>{saved.map(item => <option key={item.id} value={item.id}>{item.name} · 新建 v{item.version + 1}</option>)}</select></label></div><button type="button" className="primary-button" disabled={!!busy || catalogLoading || !!catalogError || !!saveTarget && !saved.some(item => item.id === saveTarget) || staleTrial || !!invalid || !trial.validation.saveable || !saveName.trim() || !!record && savedVersionMatchesTrial && record.name === saveName.trim() && saveTarget === record.id} onClick={() => void save()}><Bookmark size={14} />{busy === 'save' ? '正在保存…' : '确认保存此版本'}</button>{!trial.validation.saveable && <p className="my-indicators-error">此试算未通过保存校验。请让 Codex 修正后重新试算。</p>}</section>}
-            {record && <section className="my-indicators-reuse" aria-label="复用已保存指标"><h3>复用固定版本 v{record.version}</h3><button type="button" className="secondary-button" disabled={disabled || !!busy || !!invalid || !savedParametersUnchanged || !savedHistoryUnchanged} onClick={() => onHandoff(reuseIndicatorPrompt(record, stock, asOf, limit))}>在当前对话中研究</button><p className="my-indicators-muted">数值输出需要明确比较方式和阈值，才能作为选股条件。</p><div className="my-indicators-condition"><label>数值输出<select aria-label="选股指标输出" value={output} disabled={!!busy} onChange={event => setOutput(event.target.value)}>{record.definition.outputs.map(item => <option key={item.name} value={item.name}>{item.label}{item.unit ? `（${item.unit}）` : ''}</option>)}</select></label><label>比较方式<select aria-label="指标比较方式" value={operator} disabled={!!busy} onChange={event => setOperator(event.target.value as IndicatorComparison)}>{Object.entries(indicatorComparisons).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>阈值<input type="number" step="any" aria-label="指标选股阈值" value={threshold} disabled={!!busy} onChange={event => setThreshold(event.target.value)} /></label></div>{!savedVersionMatchesTrial && <p className="my-indicators-stale">试算参数、历史长度或行情口径与已保存版本不同。请先保存新版本，再将它用于选股。</p>}<button type="button" className="primary-button" disabled={disabled || !!busy || !onScreening || staleTrial || !!invalid || !savedVersionMatchesTrial || !output || !Number.isFinite(numericThreshold)} onClick={() => void useForScreening()}>{busy === 'condition' ? '正在准备…' : workflow === 'screening' ? '加入当前选股草稿' : '用于选股草稿'}<ArrowRight size={14} /></button><p className="my-indicators-muted">固定版本和参数，缺失值保留“未知”。只准备选股草稿，确认后再运行。</p></section>}
+            {trial && <section className="my-indicators-save" aria-label="保存指标版本"><h3>确认后保存</h3><p className="my-indicators-muted">保存公式、代码、参数与校验记录。已有版本不会被覆盖。</p><div className="my-indicators-inputs"><label className="workspace-field-label">指标名称<input aria-label="保存指标名称" maxLength={100} value={saveName} disabled={!!busy} onChange={event => setSaveName(event.target.value)} className="workspace-field" /></label><label className="workspace-field-label">保存位置<select aria-label="指标保存位置" disabled={!!busy} value={saveTarget} onChange={event => setSaveTarget(event.target.value)} className="workspace-field workspace-select"><option value="">保存为新指标</option>{saved.map(item => <option key={item.id} value={item.id}>{item.name} · 新建 v{item.version + 1}</option>)}</select></label></div><button type="button" className="primary-button workspace-button" disabled={!!busy || catalogLoading || !!catalogError || !!saveTarget && !saved.some(item => item.id === saveTarget) || staleTrial || !!invalid || !trial.validation.saveable || !saveName.trim() || !!record && savedVersionMatchesTrial && record.name === saveName.trim() && saveTarget === record.id} onClick={() => void save()}><Bookmark size={14} />{busy === 'save' ? '正在保存…' : '确认保存此版本'}</button>{!trial.validation.saveable && <p className="my-indicators-error">此试算未通过保存校验。请让 Codex 修正后重新试算。</p>}</section>}
+            {record && <section className="my-indicators-reuse" aria-label="复用已保存指标"><h3>复用固定版本 v{record.version}</h3><button type="button" className="secondary-button workspace-button" disabled={disabled || !!busy || !!invalid || !savedParametersUnchanged || !savedHistoryUnchanged} onClick={() => onHandoff(reuseIndicatorPrompt(record, stock, asOf, limit))}>在当前对话中研究</button><p className="my-indicators-muted">数值输出需要明确比较方式和阈值，才能作为选股条件。</p><div className="my-indicators-condition"><label className="workspace-field-label">数值输出<select aria-label="选股指标输出" value={output} disabled={!!busy} onChange={event => setOutput(event.target.value)} className="workspace-field workspace-select">{record.definition.outputs.map(item => <option key={item.name} value={item.name}>{item.label}{item.unit ? `（${item.unit}）` : ''}</option>)}</select></label><label className="workspace-field-label">比较方式<select aria-label="指标比较方式" value={operator} disabled={!!busy} onChange={event => setOperator(event.target.value as IndicatorComparison)} className="workspace-field workspace-select">{Object.entries(indicatorComparisons).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="workspace-field-label">阈值<input type="number" step="any" aria-label="指标选股阈值" value={threshold} disabled={!!busy} onChange={event => setThreshold(event.target.value)} className="workspace-field" /></label></div>{!savedVersionMatchesTrial && <p className="my-indicators-stale workspace-feedback workspace-feedback-warning">试算参数、历史长度或行情口径与已保存版本不同。请先保存新版本，再将它用于选股。</p>}<button type="button" className="primary-button workspace-button" disabled={disabled || !!busy || !onScreening || staleTrial || !!invalid || !savedVersionMatchesTrial || !output || !Number.isFinite(numericThreshold)} onClick={() => void useForScreening()}>{busy === 'condition' ? '正在准备…' : workflow === 'screening' ? '加入当前选股草稿' : '用于选股草稿'}<ArrowRight size={14} /></button><p className="my-indicators-muted">固定版本和参数，缺失值保留“未知”。只准备选股草稿，确认后再运行。</p></section>}
+          </>}
           </>}
         </div>
       </div>
@@ -327,12 +361,12 @@ function TrialResult({ trial }: { trial: IndicatorTrial }) {
   return <section className="my-indicators-trial" aria-label="指标试算完整走势">
     <div className="my-indicators-trial-summary"><strong>{trial.stock_code}</strong><span>请求截至 {trial.as_of}</span><span>实际行情日 {trial.actual_date || '暂无'}</span></div>
     <p className="my-indicators-muted">完整试算序列：{trial.dates.length} 个交易日{trial.dates.length ? ` · ${trial.dates[0]} 至 ${trial.dates.at(-1)}` : ''}（单次最多 500 日）。预热及缺失值留空。</p>
-    <div className="my-indicators-latest">{trial.definition.outputs.map(item => <div key={item.name}><span>{item.label}{item.unit ? `（${item.unit}）` : ''}</span><strong>{fmt(trial.series[item.name]?.at(-1))}</strong></div>)}</div>
+    <div className="my-indicators-latest workspace-metric-grid">{trial.definition.outputs.map(item => <div key={item.name} className="workspace-metric-card"><span>{item.label}{item.unit ? `（${item.unit}）` : ''}</span><strong>{fmt(trial.series[item.name]?.at(-1))}</strong></div>)}</div>
     {chartGroups.map((chart, index) => <ResponsiveMarketIndicatorChart key={index} chart={chart} />)}
     <SourceContext context={trial.source_context} />
     <p className={trial.validation.passed ? 'my-indicators-muted' : 'my-indicators-error'}>{trial.validation.passed ? '已通过本次试算校验' : '本次试算未通过校验'}。单证券试算不代表全市场数据覆盖或投资效果。</p>
-    {trial.validation.warnings?.map((warning, index) => <p className="my-indicators-stale" key={index}>{warning}</p>)}
-    <details><summary>查看逐日数值</summary><div className="my-indicators-series-table"><table><thead><tr><th>交易日</th>{trial.definition.outputs.map(output => <th key={output.name}>{output.label}</th>)}</tr></thead><tbody>{trial.dates.map((date, index) => <tr key={date}><td>{date}</td>{trial.definition.outputs.map(output => <td key={output.name}>{fmt(trial.series[output.name]?.[index])}</td>)}</tr>)}</tbody></table></div></details>
+    {trial.validation.warnings?.map((warning, index) => <p className="my-indicators-stale workspace-feedback workspace-feedback-warning" key={index}>{warning}</p>)}
+    <details><summary>查看逐日数值</summary><div className="my-indicators-series-table workspace-table-scroll" tabIndex={0} role="region" aria-label="指标逐日数值"><table className="workspace-data-table workspace-numeric-table"><thead><tr><th>交易日</th>{trial.definition.outputs.map(output => <th key={output.name}>{output.label}</th>)}</tr></thead><tbody>{trial.dates.map((date, index) => <tr key={date}><td>{date}</td>{trial.definition.outputs.map(output => <td key={output.name}>{fmt(trial.series[output.name]?.[index])}</td>)}</tr>)}</tbody></table></div></details>
   </section>
 }
 

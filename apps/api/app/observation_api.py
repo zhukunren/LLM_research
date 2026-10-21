@@ -14,6 +14,8 @@ from . import research_observations
 
 router = APIRouter(prefix="/api/v1/observation", tags=["选股与观察池"])
 
+ObservationSort = Literal['manual', 'updated', 'priority', 'name', 'owner', 'joined', 'return', 'drawdown', 'note']
+
 
 @router.post('/quick-add')
 def quick_add_candidate(payload: research_observations.QuickCandidateInput):
@@ -59,8 +61,8 @@ def _task_name(task):
 
 
 _OBSERVATION_ENTRIES = """
-WITH entries AS (
-    SELECT 'candidate' kind,c.id entry_id,c.id candidate_id,NULL run_id,
+WITH source_entries AS (
+    SELECT 'candidate' kind,'candidate:'||c.id entry_key,c.id entry_id,c.id candidate_id,NULL run_id,
            c.stock_code,coalesce(s.name,'') name,c.status,c.note,c.verification,c.updated_at,
            c.origin_kind owner_type,
            CASE WHEN c.origin_kind='manual' THEN 'manual'
@@ -73,7 +75,7 @@ WITH entries AS (
       LEFT JOIN security_catalog s ON s.stock_code=c.stock_code
       LEFT JOIN research_projects p ON p.id=c.project_id
     UNION ALL
-    SELECT 'screening',r.id||':'||d.stock_code,NULL,r.id,
+    SELECT 'screening','screening:'||r.id||':'||d.stock_code,r.id||':'||d.stock_code,NULL,r.id,
            d.stock_code,coalesce(s.name,''),coalesce(n.status,'watching'),coalesce(n.note,''),'',
            coalesce(n.updated_at,r.created_at),'screening','run:'||r.id,
            coalesce(e.name,json_extract(r.snapshot_json,'$.observation.name'),'选股批次')||' · '||r.as_of,
@@ -85,6 +87,10 @@ WITH entries AS (
       LEFT JOIN observation_executions e ON e.conversation_id=r.conversation_id
       LEFT JOIN security_catalog s ON s.stock_code=d.stock_code
       WHERE d.state='true'
+), entries AS (
+    SELECT source_entries.*,coalesce(p.hidden,0) hidden,p.sort_order custom_order
+      FROM source_entries
+      LEFT JOIN observation_entry_preferences p ON p.entry_key=source_entries.entry_key
 )
 """
 
@@ -94,9 +100,8 @@ def _entry_payload(row, metrics=None, latest_date=None):
     if item['kind'] == 'screening' and item['owner_label'].startswith('选股批次 · '):
         snapshot = json_load(item['snapshot_json'])
         item['owner_label'] = _task_name(snapshot['task']) + ' · ' + snapshot.get('effective_market_date', '')
-    item.pop('snapshot_json')
-    item.pop('search_extra')
-    item.pop('exact_base')
+    for field in ('snapshot_json', 'search_extra', 'exact_base', 'hidden', 'custom_order'):
+        item.pop(field, None)
     if metrics is not None:
         item.update(metrics.get(item['entry_id'], {
             'return_latest': None, 'max_drawdown': None, 'base_date': None, 'price_date': None,
@@ -105,51 +110,92 @@ def _entry_payload(row, metrics=None, latest_date=None):
     return item
 
 
-@router.get('/entries')
-def list_entries(query: str = "", status: Literal['watching', 'priority', 'ended'] | None = None,
-                 owner: str = "", sort: Literal['updated', 'priority', 'name'] = 'updated',
-                 offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=100),
-                 include_metrics: bool = True):
-    """One paginated list across research, manual, and screening observations."""
-    clauses, args = [], []
-    query = query.strip()[:100]
-    if query:
-        clauses.append("instr(lower(stock_code||' '||name||' '||note||' '||owner_label||' '||search_extra),lower(?))>0")
-        args.append(query)
-    if status:
-        clauses.append('status=?')
-        args.append(status)
-    if owner:
-        if owner in {'research', 'manual', 'screening'}:
-            clauses.append('owner_type=?')
-            args.append(owner)
-        elif owner == 'inbox' or owner.startswith(('project:', 'run:')):
-            clauses.append('owner_key=?')
-            args.append(owner)
-        else:
-            raise HTTPException(422, '无效的所属筛选。')
-    where = ' WHERE ' + ' AND '.join(clauses) if clauses else ''
-    order = {
-        'updated': 'updated_at DESC,entry_id',
-        'priority': "(status='priority') DESC,updated_at DESC,entry_id",
-        'name': "coalesce(nullif(name,''),stock_code),stock_code,entry_id",
-    }[sort]
-    with connect() as connection:
-        total = connection.execute(_OBSERVATION_ENTRIES + 'SELECT count(*) FROM entries' + where, args).fetchone()[0]
-        rows = connection.execute(_OBSERVATION_ENTRIES + 'SELECT * FROM entries' + where + f' ORDER BY {order} LIMIT ? OFFSET ?', (*args, limit, offset)).fetchall()
-        if not include_metrics:
-            return {'items': [_entry_payload(row) for row in rows], 'total': total}
-        filtered = connection.execute(_OBSERVATION_ENTRIES + 'SELECT entry_id,owner_type,status FROM entries' + where, args).fetchall()
-        metric_inputs = connection.execute(_OBSERVATION_ENTRIES + 'SELECT entry_id,stock_code,basis_date,exact_base FROM entries').fetchall()
+def _filtered_entries(rows, query: str, status: str | None, owner: str):
+    query = query.strip()[:100].casefold()
+    if owner and owner not in {'research', 'manual', 'screening', 'inbox'} \
+            and not owner.startswith(('project:', 'run:')):
+        raise HTTPException(422, '无效的所属筛选。')
+    result = []
+    for row in rows:
+        if status and row['status'] != status:
+            continue
+        if owner in {'research', 'manual', 'screening'} and row['owner_type'] != owner:
+            continue
+        if owner in {'inbox'} or owner.startswith(('project:', 'run:')):
+            if row['owner_key'] != owner:
+                continue
+        if query and query not in ' '.join(str(row[field] or '') for field in
+                                           ('stock_code', 'name', 'note', 'owner_label', 'search_extra')).casefold():
+            continue
+        result.append(row)
+    return result
+
+
+def _entry_metrics(rows):
     profile = market.cached_profile()
     latest_date = profile.get('last_date')
     try:
-        metrics = observation_market.entry_metrics((tuple(row) for row in metric_inputs), latest_date)
+        metrics = observation_market.entry_metrics(
+            ((row['entry_id'], row['stock_code'], row['basis_date'], row['exact_base']) for row in rows),
+            latest_date,
+        )
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
-    usable = [metrics[row['entry_id']] for row in filtered if metrics.get(row['entry_id'], {}).get('return_latest') is not None]
+    return metrics, latest_date, profile
+
+
+def _ordered_entries(rows, sort: str, direction: str, metrics):
+    rows = sorted((dict(row) for row in rows), key=lambda row: row['entry_key'])
+    descending = direction == 'desc'
+    if sort == 'manual':
+        ranked = [row for row in rows if row['custom_order'] is not None]
+        unranked = [row for row in rows if row['custom_order'] is None]
+        ranked.sort(key=lambda row: (row['custom_order'], row['entry_key']))
+        unranked.sort(key=lambda row: (row['updated_at'], row['entry_key']), reverse=True)
+        return ranked + unranked
+    if sort == 'priority':
+        return sorted(rows, key=lambda row: (row['status'] == 'priority', row['updated_at']), reverse=True)
+    metric_field = {'return': 'return_latest', 'drawdown': 'max_drawdown'}.get(sort)
+    if metric_field:
+        measured = [row for row in rows if metrics.get(row['entry_id'], {}).get(metric_field) is not None]
+        missing = [row for row in rows if metrics.get(row['entry_id'], {}).get(metric_field) is None]
+        measured.sort(key=lambda row: metrics[row['entry_id']][metric_field], reverse=descending)
+        missing.sort(key=lambda row: (row['updated_at'], row['entry_key']), reverse=True)
+        return measured + missing
+    if sort == 'name':
+        return sorted(rows, key=lambda row: str(row['name'] or row['stock_code']).casefold(), reverse=descending)
+    field = {'updated': 'updated_at', 'owner': 'owner_label', 'joined': 'joined_at', 'note': 'note'}[sort]
+    if sort == 'note':
+        return sorted(rows, key=lambda row: str(row['note'] or row['verification'] or '').casefold(), reverse=descending)
+    return sorted(rows, key=lambda row: str(row[field] or '').casefold(), reverse=descending)
+
+
+@router.get('/entries')
+def list_entries(query: str = "", status: Literal['watching', 'priority', 'ended'] | None = None,
+                 owner: str = "", sort: ObservationSort = 'updated',
+                 direction: Literal['asc', 'desc'] = 'desc',
+                 offset: int = Query(0, ge=0), limit: int = Query(30, ge=1, le=100),
+                 include_metrics: bool = True):
+    """One paginated list across research, manual, and screening observations."""
+    with connect() as connection:
+        all_rows = [dict(row) for row in connection.execute(
+            _OBSERVATION_ENTRIES + 'SELECT * FROM entries WHERE hidden=0'
+        ).fetchall()]
+    filtered = _filtered_entries(all_rows, query, status, owner)
+    needs_metrics = include_metrics or sort in {'return', 'drawdown'}
+    if needs_metrics:
+        metrics, latest_date, profile = _entry_metrics(all_rows)
+    else:
+        metrics, latest_date, profile = {}, None, {}
+    ordered = _ordered_entries(filtered, sort, direction, metrics)
+    total = len(filtered)
+    page = ordered[offset:offset + limit]
+    if not include_metrics:
+        return {'items': [_entry_payload(row) for row in page], 'total': total}
+    usable = [metrics[row['entry_id']] for row in filtered
+              if metrics.get(row['entry_id'], {}).get('return_latest') is not None]
     movements = [item['return_latest'] for item in usable]
-    drawdowns = [item['max_drawdown'] for item in usable]
+    drawdowns = [item['max_drawdown'] for item in usable if item['max_drawdown'] is not None]
     summary = {
         'total': total,
         'research_count': sum(row['owner_type'] in {'research', 'manual'} for row in filtered),
@@ -162,9 +208,63 @@ def list_entries(query: str = "", status: Literal['watching', 'priority', 'ended
     metric_note = '汇总按观察记录计算，同一股票在不同所属中分别计入；涨跌幅按有效收盘价计算，不含分红和交易费用，最大回撤采用收盘价峰谷。'
     if profile.get('price_basis') not in {'forward_adjusted', 'back_adjusted'}:
         metric_note += ' 复权口径未确认，除权除息可能影响数值。'
-    return {'items': [_entry_payload(row, metrics, latest_date) for row in rows], 'total': total,
+    return {'items': [_entry_payload(row, metrics, latest_date) for row in page], 'total': total,
             'summary': summary, 'metric_note': metric_note,
             'latest_date': latest_date}
+
+
+class EntryReorderInput(ContractModel):
+    entry_key: str = Field(min_length=1, max_length=220)
+    direction: Literal['up', 'down']
+    query: str = Field(default='', max_length=100)
+    status: Literal['watching', 'priority', 'ended'] | None = None
+    owner: str = Field(default='', max_length=120)
+    sort: ObservationSort = 'updated'
+    sort_direction: Literal['asc', 'desc'] = 'desc'
+
+
+@router.post('/entries/reorder')
+def reorder_entry(payload: EntryReorderInput):
+    with connect() as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        all_rows = [dict(row) for row in connection.execute(
+            _OBSERVATION_ENTRIES + 'SELECT * FROM entries WHERE hidden=0'
+        ).fetchall()]
+        metrics = _entry_metrics(all_rows)[0] if payload.sort in {'return', 'drawdown'} else {}
+        ordered = _ordered_entries(all_rows, payload.sort, payload.sort_direction, metrics)
+        ordered_filtered = _filtered_entries(ordered, payload.query, payload.status, payload.owner)
+        current = next((index for index, row in enumerate(ordered_filtered)
+                        if row['entry_key'] == payload.entry_key), None)
+        if current is None:
+            raise HTTPException(404, '这条观察记录已不存在或已从观察池移除。')
+        neighbor_index = current - 1 if payload.direction == 'up' else current + 1
+        if neighbor_index < 0 or neighbor_index >= len(ordered_filtered):
+            raise HTTPException(409, '这条记录已经位于当前列表的边界。')
+        neighbor_key = ordered_filtered[neighbor_index]['entry_key']
+        keys = [row['entry_key'] for row in ordered]
+        keys.remove(payload.entry_key)
+        insert_at = keys.index(neighbor_key) + (1 if payload.direction == 'down' else 0)
+        keys.insert(insert_at, payload.entry_key)
+        now = utc_now()
+        connection.executemany('''INSERT INTO observation_entry_preferences(entry_key,hidden,sort_order,updated_at)
+            VALUES(?,0,?,?) ON CONFLICT(entry_key) DO UPDATE SET sort_order=excluded.sort_order,updated_at=excluded.updated_at''',
+            ((entry_key, index * 1024, now) for index, entry_key in enumerate(keys)))
+    return {'entry_key': payload.entry_key, 'sort': 'manual'}
+
+
+@router.delete('/entries/{entry_key}')
+def hide_entry(entry_key: str):
+    with connect() as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        exists = connection.execute(
+            _OBSERVATION_ENTRIES + 'SELECT 1 FROM entries WHERE entry_key=?', (entry_key,)
+        ).fetchone()
+        if not exists:
+            raise HTTPException(404, '找不到这条观察记录。')
+        connection.execute('''INSERT INTO observation_entry_preferences(entry_key,hidden,updated_at)
+            VALUES(?,1,?) ON CONFLICT(entry_key) DO UPDATE SET hidden=1,updated_at=excluded.updated_at''',
+            (entry_key, utc_now()))
+    return {'entry_key': entry_key, 'hidden': True}
 
 
 @router.get('/owners')
@@ -173,11 +273,14 @@ def observation_owners():
     with connect() as connection:
         candidates = connection.execute("""SELECT c.origin_kind,c.project_id,p.name,count(*) count
             FROM observation_candidate_index c LEFT JOIN research_projects p ON p.id=c.project_id
+            LEFT JOIN observation_entry_preferences pref ON pref.entry_key='candidate:'||c.id
+            WHERE coalesce(pref.hidden,0)=0
             GROUP BY c.origin_kind,c.project_id ORDER BY p.name""").fetchall()
         runs = connection.execute("""SELECT r.id,e.name,r.snapshot_json,r.as_of,count(*) count
             FROM screening_task_decisions d JOIN screening_task_runs r ON r.id=d.run_id
             LEFT JOIN observation_executions e ON e.conversation_id=r.conversation_id
-            WHERE d.state='true' GROUP BY r.id ORDER BY r.created_at DESC""").fetchall()
+            LEFT JOIN observation_entry_preferences pref ON pref.entry_key='screening:'||r.id||':'||d.stock_code
+            WHERE d.state='true' AND coalesce(pref.hidden,0)=0 GROUP BY r.id ORDER BY r.created_at DESC""").fetchall()
     items = []
     for row in candidates:
         if row['origin_kind'] == 'manual':

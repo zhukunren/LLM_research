@@ -31,6 +31,6 @@ export default function ResearchNotePDF({ projectId, noteId, revision, pdf }: { 
     finally { setBusy(false) }
   }
   // Old clients and cached fixtures retain the explicit download route.
-  if (current === undefined || current?.url) return <a className="text-button" href={current?.url || `/api/v1/research-projects/${projectId}/notes/${noteId}/pdf?revision=${revision}`} download>下载第 {revision} 版 PDF</a>
-  return <span className="research-note-pdf">{reportPending(current?.status) ? <small role="status">PDF 后台生成中 · 正文已保存</small> : <button className="text-button" disabled={busy} onClick={() => void generate()}>{busy ? '正在提交…' : current ? '重试报告' : `生成第 ${revision} 版 PDF`}</button>}{error && <small role="alert">{error}</small>}</span>
+  if (current === undefined || current?.url) return <a className="text-button workspace-button" href={current?.url || `/api/v1/research-projects/${projectId}/notes/${noteId}/pdf?revision=${revision}`} download>下载第 {revision} 版 PDF</a>
+  return <span className="research-note-pdf">{reportPending(current?.status) ? <small role="status">PDF 后台生成中 · 正文已保存</small> : <button className="text-button workspace-button" disabled={busy} onClick={() => void generate()}>{busy ? '正在提交…' : current ? '重试报告' : `生成第 ${revision} 版 PDF`}</button>}{error && <small role="alert" className="workspace-inline-error">{error}</small>}</span>
 }

@@ -1,3 +1,5 @@
+import LoadingState from '../LoadingState'
+import { useWorkspaceSession } from '../../WorkspaceSession'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, LockKeyhole, RefreshCw } from 'lucide-react'
@@ -16,6 +18,8 @@ type Props = {
 }
 
 export default function ResearchModelPicker({ value, disabled, onChange, onAvailabilityChange, portalTargetId, visible = true, onCatalogError }: Props) {
+  const workspaceSession = useWorkspaceSession()
+  const popupTarget = workspaceSession.portalTarget ?? document.body
   const [catalog, setCatalog] = useState<ResearchModelCatalog | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -52,6 +56,7 @@ export default function ResearchModelPicker({ value, disabled, onChange, onAvail
     return () => observer.disconnect()
   }, [portalTargetId])
 
+  useEffect(() => { if (!workspaceSession.active) setOpen(false) }, [workspaceSession.active])
   const selectedId = value?.model_id || catalog?.default_model_id
   const selectedModel = catalog?.models.find(model => model.id === selectedId)
   const selectedEffort = value?.reasoning_effort || (value?.model_id ? selectedModel?.default_reasoning_effort : catalog?.default_reasoning_effort)
@@ -138,10 +143,10 @@ export default function ResearchModelPicker({ value, disabled, onChange, onAvail
     buttons[index]?.focus()
   }
 
-  const button = <button ref={trigger} type="button" className="research-model-trigger" disabled={disabled}
+  const button = <button ref={trigger} type="button" className="research-model-trigger workspace-button" disabled={disabled}
     aria-label={`选择研究模型${selectedId ? `，${modelLabel}${effortLabel ? `，${effortLabel}` : ''}` : ''}`}
     aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}
-    title={disabled ? '本次研究结束后可切换模型' : undefined}
+    data-tooltip={disabled ? '本次研究结束后可切换模型' : undefined}
     onClick={() => setOpen(current => !current)} onKeyDown={event => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true) }
     }}>
@@ -154,14 +159,14 @@ export default function ResearchModelPicker({ value, disabled, onChange, onAvail
   return <>
     {portalTarget ? createPortal(button, portalTarget) : button}
     {open && createPortal(<div id={id} ref={popup} role="menu" aria-label="模型与推理设置" tabIndex={-1}
-      className="research-model-popover" style={position} onKeyDown={navigate}>
+      className="research-model-popover workspace-tool-dialog workspace-popover workspace-menu" style={position} onKeyDown={navigate}>
       <div className="research-model-popover-heading"><span>研究模型</span>{catalog && <span className="research-model-tier">{catalog.account_tier === 'free' ? 'Free' : catalog.account_tier}</span>}</div>
-      {loading && <p className="research-model-state" role="status">正在读取可用模型…</p>}
-      {error && <div className="research-model-state" role="alert"><p>{error}</p><button type="button" onClick={() => setAttempt(current => current + 1)}><RefreshCw size={14} aria-hidden="true" />重新加载</button></div>}
+      {loading && <LoadingState compact label="正在读取可用模型…" />}
+      {error && <div className="research-model-state workspace-error" role="alert"><p>{error}</p><button type="button" onClick={() => setAttempt(current => current + 1)} className="workspace-button"><RefreshCw size={14} aria-hidden="true" />重新加载</button></div>}
       {!loading && !error && catalog && <>
         <div role="group" aria-label="模型">
           {catalog.models.map(model => <button key={model.id} type="button" role="menuitemradio" aria-checked={selectedId === model.id}
-            className="research-model-option" disabled={!model.available} onClick={() => {
+            className="research-model-option workspace-button workspace-menu-option" disabled={!model.available} onClick={() => {
               const effort = model.reasoning_efforts.some(item => item.id === selectedEffort) ? selectedEffort! : model.default_reasoning_effort
               choose(model.id, effort)
             }}>
@@ -173,10 +178,10 @@ export default function ResearchModelPicker({ value, disabled, onChange, onAvail
         {selectedModel && <div className="research-model-efforts" role="group" aria-label="推理强度">
           <div className="research-model-section-label">推理强度</div>
           <div className="research-model-effort-options">{selectedModel.reasoning_efforts.map(effort => <button type="button" key={effort.id} role="menuitemradio"
-            aria-checked={selectedEffort === effort.id} disabled={!selectedModel.available} onClick={() => choose(selectedModel.id, effort.id)}>{effort.label}{selectedEffort === effort.id && <Check size={13} aria-hidden="true" />}</button>)}</div>
+            aria-checked={selectedEffort === effort.id} disabled={!selectedModel.available} onClick={() => choose(selectedModel.id, effort.id)} className="workspace-button workspace-menu-option">{effort.label}{selectedEffort === effort.id && <Check size={13} aria-hidden="true" />}</button>)}</div>
           {selectedEffort && !effortLabel && <p className="research-model-unavailable" role="status">当前推理档位不受支持，请重新选择。</p>}
         </div>}
       </>}
-    </div>, document.body)}
+    </div>, popupTarget)}
   </>
 }

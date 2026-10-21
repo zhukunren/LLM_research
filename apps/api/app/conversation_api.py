@@ -242,8 +242,9 @@ def list_conversations(
     active_only: bool = False,
     workflow_type: str | None = Query(default=None, pattern="^(research|screening)$"),
     state: Literal["active", "archived"] | None = None,
+    exclude_intelligence: bool = False,
 ):
-    return {"items": conversation_store.list_conversations(scope, limit, active_only, workflow_type, state)}
+    return {"items": conversation_store.list_conversations(scope, limit, active_only, workflow_type, state, exclude_intelligence=exclude_intelligence)}
 
 
 class UpdateConversationHistory(ContractModel):
@@ -278,6 +279,11 @@ def export_conversation(conversation_id: str):
         current = conversation_store.get_conversation(conversation_id, message_limit=1)
         with conversation_store.connect() as connection:
             messages = connection.execute("SELECT role,content,created_at FROM conversation_messages WHERE conversation_id=? ORDER BY rowid", (conversation_id,)).fetchall()
+            display_prompts = conversation_store.quick_task_display_prompts(connection, conversation_id)
+        messages = [
+            {**dict(row), "content": display_prompts.get(row["content"], row["content"]) if row["role"] == "user" else row["content"]}
+            for row in messages
+        ]
         title = current["title"] or next((row["content"][:120] for row in messages if row["role"] == "user"), "未命名对话")
         labels = {"user": "我", "assistant": "研究助手", "tool": "工具"}
         content = f"# {title}\n\n" + "\n\n---\n\n".join(f"## {labels.get(row['role'], row['role'])}\n\n{row['content']}" for row in messages)

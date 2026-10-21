@@ -39,15 +39,11 @@ describe('original typography scale', () => {
     expect(fontSize('components/conversation/screening-templates.css', '.screening-templates > p')).toBe('inherit')
   })
 
-  it('maps the renamed assistant cards to the former workspace font sizes', () => {
-    const path = 'pages/research-assistants.css'
-    expect(fontSize(path, '.assistant-option h3')).toBe('14px')
-    expect(fontSize(path, '.assistant-option-heading p')).toBe('12px')
-    expect(fontSize(path, '.assistant-option-start')).toBe('13px')
-    expect(fontSize(path, '.assistant-option-immediate .assistant-option-start')).toBe('12px')
-    expect(fontSize(path, '.assistant-section-heading h2')).toBe('13px')
-    expect(fontSize(path, '.assistant-option-details > summary')).toBe('12px')
-    expect(fontSize(path, '.assistant-option-method')).toBe('13px')
+  it('keeps the current inline research-method controls at a compact readable scale', () => {
+    const path = 'components/conversation/composer-attachments.css'
+    expect(fontSize(path, '.composer-assistant-pill')).toBe('12px')
+    expect(fontSize(path, '.composer-menu-label')).toBe('11px')
+    expect(fontSize(path, '.composer-menu-back')).toBe('12px')
   })
 
   it('restores compact result-table labels, coverage and run-history details', () => {
@@ -60,7 +56,6 @@ describe('original typography scale', () => {
   })
 
   it('keeps the redesigned layout and touch targets independently of font scale', () => {
-    expect(readStyle('pages/research-assistants.css')).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))')
     expect(readStyle('components/conversation/screening-templates.css')).toContain('grid-template-columns:repeat(3,minmax(0,1fr))')
     expect(readStyle('components/conversation-history.css')).toContain('width: 44px; height: 44px; flex-basis: 44px;')
     expect(readStyle('components/screening-result-list.css')).toContain('min-height: 44px;')

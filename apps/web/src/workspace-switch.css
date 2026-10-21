@@ -1,13 +1,30 @@
-.workspace-mode-switch { display: flex; gap: 3px; margin: 0 12px 10px; padding: 4px; border-radius: 12px; background: var(--ui-surface-active); }
-.workspace-mode-switch button { display: flex; justify-content: center; align-items: center; gap: 7px; flex: 1; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 9px; color: var(--ui-text-muted); background: transparent; cursor: pointer; font-size: 14px; font-weight: 500; }
-.workspace-mode-switch button[aria-pressed="true"] { background: var(--ui-surface); color: var(--ui-primary); }
+.workspace-mode-switch { display: flex; flex-shrink: 0; gap: 4px; margin: 0 0 14px; padding: 4px; border: 1px solid var(--ui-sidebar-border); border-radius: 11px; background: white; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
+.workspace-mode-switch button { display: flex; justify-content: center; align-items: center; gap: 7px; flex: 1; min-width: 0; min-height: 34px; padding: 6px 10px; border: 0; border-radius: 8px; color: var(--ui-text-muted); background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.18s ease; }
+.workspace-mode-switch button[aria-pressed="true"] { background: var(--ui-primary); color: white; box-shadow: 0 2px 4px rgba(0, 74, 153, 0.15); }
 .workspace-mode-switch button:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
 .workspace-mode-switch button:hover { color: var(--ui-primary); }
-.workspace-shared-label { padding: 16px 12px 6px; color: var(--ui-text-muted); font-size: 11px; }
+.workspace-shared-label { padding: 16px 12px 6px; color: var(--ui-sidebar-muted); font-size: 11px; font-weight: 500; }
 .saved-screening-page { width: 100%; max-width: 920px; margin-inline: auto; }
-.saved-screening-page .saved-task-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+.saved-screening-page .saved-task-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); align-content: start; align-items: start; gap: 12px; max-height: none; padding: 2px 2px 16px; }
+.saved-screening-page .saved-task-count { margin: 16px 0 12px; color: var(--ui-text-muted); font-size: 12px; }
+.saved-screening-page .saved-task-card { min-width: 0; padding: 0; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); overflow: hidden; }
+.saved-screening-page .saved-task-card > summary { display: flex; align-items: center; gap: 12px; padding: 18px; list-style: none; font-size: 14px; line-height: 1.6; }
+.saved-screening-page .saved-task-card > summary::-webkit-details-marker { display: none; }
+.saved-screening-page .saved-task-card > summary > svg { flex-shrink: 0; color: var(--ui-primary); }
+.saved-screening-page .saved-task-title { display: grid; gap: 4px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.saved-screening-page .saved-task-title small { color: var(--ui-text-muted); font-size: 12px; font-weight: 400; }
+.saved-screening-page .saved-task-card > summary > svg:last-child { color: var(--ui-text-muted); }
+.saved-screening-page .saved-task-card[open] > summary { background: var(--ui-primary-soft); border-bottom: 1px solid var(--ui-primary-border); }
+.saved-screening-page .saved-task-card[open] > summary > svg:last-child { transform: rotate(180deg); }
+.saved-screening-page .saved-task-card > summary:hover { background: var(--ui-surface-subtle); }
+.saved-screening-page .saved-task-card > summary:focus-visible { outline: 2px solid var(--ui-focus-outline); outline-offset: -3px; }
+.saved-screening-page .saved-task-body { padding: 0 18px; font-size: 13px; line-height: 1.8; }
+.saved-task-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.saved-screening-page .saved-task-actions { padding: 0 18px 18px; margin-top: 14px; }
 @media (min-width: 901px) {
   .sidebar-collapsed .workspace-mode-switch { flex-direction: column; margin-inline: 8px; padding: 3px; }
   .sidebar-collapsed .workspace-mode-switch button { padding-inline: 4px; }
   .sidebar-collapsed .workspace-mode-switch button span, .sidebar-collapsed .workspace-shared-label { display: none; }
 }
+@media (pointer: coarse) { .workspace-mode-switch button { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .workspace-mode-switch button { transition: none; } }

@@ -44,7 +44,7 @@ it('keeps navigation usable when recent resource reads fail and recovers from no
   await user.click(screen.getByRole('button', { name: '清除搜索' }))
   await user.type(input, '研报库')
   await user.keyboard('{Enter}')
-  expect(props.onNavigate).toHaveBeenCalledWith('reports')
+  expect(props.onNavigate).toHaveBeenCalledWith('library')
 })
 
 it('keeps page shortcuts visible with many projects and finds screening conversations using multiple keywords', async () => {
@@ -54,8 +54,9 @@ it('keeps page shortcuts visible with many projects and finds screening conversa
   const props = callbacks(), user = userEvent.setup()
   render(<QuickNavigation {...props} />)
   await screen.findByRole('option', { name: /订单兑现/ })
-  expect(screen.getByRole('option', { name: /研报库/ })).toBeInTheDocument()
+  expect(screen.getByRole('option', { name: /资料库/ })).toBeInTheDocument()
   expect(screen.getByRole('option', { name: /数据与服务/ })).toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: /研究助手/ })).not.toBeInTheDocument()
   await user.type(screen.getByRole('combobox'), '订单 选股')
   expect(screen.getAllByRole('option')).toHaveLength(1)
   expect(screen.getByRole('option')).toHaveTextContent('继续选股对话')

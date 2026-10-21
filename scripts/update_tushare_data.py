@@ -16,7 +16,7 @@ from apps.api.app.tushare_sync import sync_tushare
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Update local market data and news from the configured Tushare relay."
+        description="Update local market data and news from the official Tushare Pro API."
     )
     parser.add_argument("--as-of", help="Cutoff date in YYYY-MM-DD form; defaults to today")
     parser.add_argument("--days", type=int, default=30, help="Rolling news window in calendar days (default: 30)")

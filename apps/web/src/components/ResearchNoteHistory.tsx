@@ -1,3 +1,4 @@
+import LoadingState from './LoadingState'
 import { StockText } from './StockMentions'
 import { useEffect, useState } from 'react'
 import { api } from '../api'
@@ -20,12 +21,12 @@ export default function ResearchNoteHistory({ projectId, noteId }: { projectId: 
   }, [open, projectId, noteId, reload])
   return <StockText><details className="research-note-history" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>历史版本</summary>
-    {open && (error ? <p role="alert">{error}<button className="text-button" onClick={() => setReload(value => value + 1)}>重试</button></p> : versions.length ? versions.map(version => <details key={version.revision}>
+    {open && (error ? <p role="alert" className="workspace-error">{error}<button className="text-button workspace-button" onClick={() => setReload(value => value + 1)}>重试</button></p> : versions.length ? versions.map(version => <details key={version.revision}>
       <summary>第 {version.revision} 版 · {new Date(version.updated_at).toLocaleString('zh-CN')} · {noteStatuses[version.status]}</summary>
       <h4>{version.title}</h4><ResearchAnswer content={version.body} conversationId={version.source_conversation_id || ''} />
       <ResearchNotePDF projectId={projectId} noteId={noteId} revision={version.revision} pdf={version.pdf} />
       {version.validation_plan && <p>验证事项：{version.validation_plan}</p>}
       {version.invalidation_condition && <p>判断失效条件：{version.invalidation_condition}</p>}
-    </details>) : <p role="status">正在读取历史版本…</p>)}
+    </details>) : <LoadingState compact label="正在读取历史版本…" />)}
   </details></StockText>
 }

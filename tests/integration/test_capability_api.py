@@ -29,6 +29,7 @@ def client(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(main, "STOCK_FILE", stock_file)
     monkeypatch.setattr(main, "llm_settings", lambda: {"configured": False})
+    monkeypatch.setattr(main, "tushare_settings", lambda: {"configured": True, "credential_source": "environment", "token": "private-token"})
     monkeypatch.setattr(
         market,
         "cached_profile",
@@ -77,6 +78,21 @@ def test_data_coverage_returns_scope_and_units_without_local_path(client):
     assert result["formal_execution_ready"] is False
     assert "path" not in result
     assert "example-only" not in response.text
+
+
+@pytest.mark.parametrize("configured", [True, False])
+def test_tushare_status_tracks_official_token_without_exposing_it(client, monkeypatch, configured):
+    monkeypatch.setattr(main, "tushare_settings", lambda: {
+        "configured": configured, "credential_source": "environment" if configured else "",
+        "token": "private-token" if configured else "",
+    })
+    status = client.get("/api/v1/settings/status")
+    assert status.status_code == 200
+    assert status.json()["tushare"] == {
+        "configured": configured, "credential_source": "environment" if configured else None, "provider": "official",
+    }
+    assert "private-token" not in status.text
+    assert client.get("/api/v1/capabilities").json()["news_external_sync"] is configured
 
 
 def test_capability_check_reads_parquet_schema_without_accepting_invalid_files(tmp_path):

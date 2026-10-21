@@ -21,7 +21,7 @@ type ReportEvaluation = {
 
 const libText = {
   news: { title: '资讯库', name: '资讯条件' },
-  technical: { title: '技术指标库', name: '技术指标条件' },
+  technical: { title: '行情条件', name: '技术指标条件' },
   report: { title: '研报条件', name: '研报证据条件' },
 }
 
@@ -226,8 +226,8 @@ export default function LibraryPage({ library }: { library: Library }) {
       <div className="page-heading"><div><h1>{copy.title}</h1></div></div>
       <div className="library-layout">
         <aside className="asset-rail">
-          <div className="rail-heading"><strong>已保存条件</strong><button className="text-button" onClick={resetForm}>新建</button></div>
-          {items.map((item) => <button className={`asset-row ${activeId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => load(item)}>
+          <div className="rail-heading"><strong>已保存条件</strong><button className="text-button workspace-button" onClick={resetForm}>新建</button></div>
+          {items.map((item) => <button className={["workspace-button", `asset-row ${activeId === item.id ? 'selected' : ''}`].filter(Boolean).join(' ')} key={item.id} onClick={() => load(item)}>
             <span className="asset-row-title">{item.name}</span><span className="asset-row-meta">v{item.version} · {item.created_at.slice(0, 10)}</span>
           </button>)}
           {!items.length && <div className="rail-empty">暂无已保存条件</div>}
@@ -237,62 +237,62 @@ export default function LibraryPage({ library }: { library: Library }) {
           <section className="conversation-panel">
             <div className="panel-heading"><div><MessageSquareText size={16} /><strong>条件对话</strong></div><span>结构化草稿</span></div>
             <label className="sr-only" htmlFor="filter-prompt">筛选要求</label>
-            <textarea id="filter-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={3} />
-            <div className="conversation-footer"><span>{draftSource === 'configured_llm' ? '已配置文本模型' : library === 'report' ? '本地通用判断模板' : '本地规则解析'}</span><button className="secondary-button compact" onClick={makeDraft} disabled={busy}><Sparkles size={14} />生成条件草稿</button></div>
+            <textarea id="filter-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={3} className="workspace-field" />
+            <div className="conversation-footer"><span>{draftSource === 'configured_llm' ? '已配置文本模型' : library === 'report' ? '本地通用判断模板' : '本地规则解析'}</span><button className="secondary-button compact workspace-button" onClick={makeDraft} disabled={busy}><Sparkles size={14} />生成条件草稿</button></div>
           </section>
 
           <section className="condition-editor">
             <div className="panel-heading"><div><SlidersIcon /><strong>条件编辑器</strong></div><span>{version ? `当前 v${version}` : '未保存草稿'}</span></div>
             <div className="form-grid two-col">
-              <label className="field"><span>条件名称</span><input value={name} onChange={(event) => setName(event.target.value)} /></label>
-              <label className="field"><span>说明</span><input value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+              <label className="field workspace-field-label"><span>条件名称</span><input value={name} onChange={(event) => setName(event.target.value)} className="workspace-field" /></label>
+              <label className="field workspace-field-label"><span>说明</span><input value={description} onChange={(event) => setDescription(event.target.value)} className="workspace-field" /></label>
             </div>
             {library === 'report' ? <div className="rubric-editor">
-              <div className="rubric-heading"><div><strong>判断标准</strong></div><label className="field"><span>标准关系</span><select value={combineCriteria} onChange={(event) => setCombineCriteria(event.target.value as 'all' | 'any')}><option value="all">全部满足</option><option value="any">任一满足</option></select></label></div>
+              <div className="rubric-heading"><div><strong>判断标准</strong></div><label className="field workspace-field-label"><span>标准关系</span><select value={combineCriteria} onChange={(event) => setCombineCriteria(event.target.value as 'all' | 'any')} className="workspace-field workspace-select"><option value="all">全部满足</option><option value="any">任一满足</option></select></label></div>
               {criteria.map((criterion, index) => <div className="rubric-criterion" key={criterion.id}>
-                <div className="rubric-criterion-heading"><span className="rubric-index">{String(index + 1).padStart(2, '0')}</span><label className="field grow"><span>维度名称</span><input value={criterion.label} onChange={(event) => updateCriterion(index, { label: event.target.value })} /></label><button className="table-action danger-action" title="移除判断维度" disabled={criteria.length <= 1} onClick={() => setCriteria((current) => current.filter((_, position) => position !== index))}>×</button></div>
-                <label className="field"><span>判断问题</span><textarea rows={3} value={criterion.question} onChange={(event) => updateCriterion(index, { question: event.target.value })} /></label>
-                <label className="field"><span>关注信号（逗号分隔）</span><input value={criterion.signals.join('，')} onChange={(event) => updateCriterion(index, { signals: splitSignals(event.target.value) })} /></label>
-                <label className="field"><span>反向信号（逗号分隔）</span><input value={criterion.counter_signals.join('，')} onChange={(event) => updateCriterion(index, { counter_signals: splitSignals(event.target.value) })} /></label>
+                <div className="rubric-criterion-heading"><span className="rubric-index">{String(index + 1).padStart(2, '0')}</span><label className="field grow workspace-field-label"><span>维度名称</span><input value={criterion.label} onChange={(event) => updateCriterion(index, { label: event.target.value })} className="workspace-field" /></label><button className="table-action danger-action workspace-button" data-tooltip="移除判断维度" aria-label="移除判断维度" disabled={criteria.length <= 1} onClick={() => setCriteria((current) => current.filter((_, position) => position !== index))}>×</button></div>
+                <label className="field workspace-field-label"><span>判断问题</span><textarea rows={3} value={criterion.question} onChange={(event) => updateCriterion(index, { question: event.target.value })} className="workspace-field" /></label>
+                <label className="field workspace-field-label"><span>关注信号（逗号分隔）</span><input value={criterion.signals.join('，')} onChange={(event) => updateCriterion(index, { signals: splitSignals(event.target.value) })} className="workspace-field" /></label>
+                <label className="field workspace-field-label"><span>反向信号（逗号分隔）</span><input value={criterion.counter_signals.join('，')} onChange={(event) => updateCriterion(index, { counter_signals: splitSignals(event.target.value) })} className="workspace-field" /></label>
               </div>)}
-              <div className="rubric-footer"><button className="secondary-button compact" disabled={criteria.length >= 8} onClick={() => setCriteria((current) => [...current, { id: `criterion_${Date.now()}`, label: '新增判断维度', question: '', signals: [], counter_signals: [] }])}>添加判断维度</button><label className="field"><span>回溯自然日</span><input type="number" min={1} max={3650} value={lookback} onChange={(event) => setLookback(Number(event.target.value))} /></label></div>
+              <div className="rubric-footer"><button className="secondary-button compact workspace-button" disabled={criteria.length >= 8} onClick={() => setCriteria((current) => [...current, { id: `criterion_${Date.now()}`, label: '新增判断维度', question: '', signals: [], counter_signals: [] }])}>添加判断维度</button><label className="field workspace-field-label"><span>回溯自然日</span><input type="number" min={1} max={3650} value={lookback} onChange={(event) => setLookback(Number(event.target.value))} className="workspace-field" /></label></div>
             </div> : library === 'technical' && kind !== 'evidence_query' ? <>
               <div className="segmented compact-segment">
-                <button className={kind === 'indicator_compare' ? 'selected' : ''} onClick={() => setKind('indicator_compare')}>指标比较</button>
-                <button className={kind === 'ma_cross' ? 'selected' : ''} onClick={() => setKind('ma_cross')}>均线穿越</button>
+                <button className={["workspace-button", kind === 'indicator_compare' ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => setKind('indicator_compare')}>指标比较</button>
+                <button className={["workspace-button", kind === 'ma_cross' ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => setKind('ma_cross')}>均线穿越</button>
               </div>
               {kind === 'ma_cross' ? <div className="rule-line">
-                <span>MA</span><NumberField value={fast} onChange={setFast} min={2} max={249} /><select aria-label="穿越方向" value={direction} onChange={(event) => setDirection(event.target.value)}><option value="up">上穿</option><option value="down">下穿</option></select><span>MA</span><NumberField value={slow} onChange={setSlow} min={3} max={250} />
+                <span>MA</span><NumberField value={fast} onChange={setFast} min={2} max={249} /><select aria-label="穿越方向" value={direction} onChange={(event) => setDirection(event.target.value)} className="workspace-field workspace-select"><option value="up">上穿</option><option value="down">下穿</option></select><span>MA</span><NumberField value={slow} onChange={setSlow} min={3} max={250} />
               </div> : <div className="rule-line wrap-line">
-                <label className="field"><span>指标</span><select value={indicator} onChange={(event) => { const next = event.target.value; setIndicator(next); if (next !== 'sma') setField('close'); if (next.startsWith('macd_')) setWindow(9); else if (next.startsWith('kdj_')) setWindow(9); else if (next === 'atr') setWindow(14) }}><option value="sma">简单均线 SMA</option><option value="ema">指数均线 EMA</option><option value="rsi">RSI</option><option value="bollinger">布林上轨</option><option value="macd_dif">MACD DIF</option><option value="macd_dea">MACD DEA</option><option value="macd_hist">MACD 柱值</option><option value="kdj_k">KDJ K</option><option value="kdj_d">KDJ D</option><option value="kdj_j">KDJ J</option><option value="atr">ATR</option></select></label>
-                {indicator === 'sma' && <label className="field"><span>计算字段</span><select value={field} onChange={(event) => setField(event.target.value)}><option value="close">收盘价</option><option value="volume">成交量</option></select></label>}
-                <label className="field"><span>{indicator.startsWith('macd_') ? 'MACD 信号期' : '窗口'}</span><input type="number" min={2} max={indicator.startsWith('kdj_') || indicator === 'atr' ? 100 : 250} value={window} disabled={indicator.startsWith('macd_')} onChange={(event) => setWindow(Number(event.target.value))} /></label>
-                <label className="field"><span>比较</span><select value={operator} onChange={(event) => setOperator(event.target.value)}><option value="gt">大于</option><option value="gte">大于等于</option><option value="lt">小于</option><option value="lte">小于等于</option><option value="eq">等于</option></select></label>
-                <label className="field"><span>比较对象</span><select value={target} onChange={(event) => setTarget(event.target.value)}><option value="close">当前收盘价</option><option value="open">当前开盘价</option><option value="high">当前最高价</option><option value="low">当前最低价</option><option value="volume">当前成交量</option><option value="amount">当前成交额</option><option value="value">固定数值</option></select></label>
-                {target === 'value' && <label className="field"><span>阈值</span><input type="number" step="any" value={threshold} onChange={(event) => setThreshold(Number(event.target.value))} /></label>}
+                <label className="field workspace-field-label"><span>指标</span><select value={indicator} onChange={(event) => { const next = event.target.value; setIndicator(next); if (next !== 'sma') setField('close'); if (next.startsWith('macd_')) setWindow(9); else if (next.startsWith('kdj_')) setWindow(9); else if (next === 'atr') setWindow(14) }} className="workspace-field workspace-select"><option value="sma">简单均线 SMA</option><option value="ema">指数均线 EMA</option><option value="rsi">RSI</option><option value="bollinger">布林上轨</option><option value="macd_dif">MACD DIF</option><option value="macd_dea">MACD DEA</option><option value="macd_hist">MACD 柱值</option><option value="kdj_k">KDJ K</option><option value="kdj_d">KDJ D</option><option value="kdj_j">KDJ J</option><option value="atr">ATR</option></select></label>
+                {indicator === 'sma' && <label className="field workspace-field-label"><span>计算字段</span><select value={field} onChange={(event) => setField(event.target.value)} className="workspace-field workspace-select"><option value="close">收盘价</option><option value="volume">成交量</option></select></label>}
+                <label className="field workspace-field-label"><span>{indicator.startsWith('macd_') ? 'MACD 信号期' : '窗口'}</span><input type="number" min={2} max={indicator.startsWith('kdj_') || indicator === 'atr' ? 100 : 250} value={window} disabled={indicator.startsWith('macd_')} onChange={(event) => setWindow(Number(event.target.value))} className="workspace-field" /></label>
+                <label className="field workspace-field-label"><span>比较</span><select value={operator} onChange={(event) => setOperator(event.target.value)} className="workspace-field workspace-select"><option value="gt">大于</option><option value="gte">大于等于</option><option value="lt">小于</option><option value="lte">小于等于</option><option value="eq">等于</option></select></label>
+                <label className="field workspace-field-label"><span>比较对象</span><select value={target} onChange={(event) => setTarget(event.target.value)} className="workspace-field workspace-select"><option value="close">当前收盘价</option><option value="open">当前开盘价</option><option value="high">当前最高价</option><option value="low">当前最低价</option><option value="volume">当前成交量</option><option value="amount">当前成交额</option><option value="value">固定数值</option></select></label>
+                {target === 'value' && <label className="field workspace-field-label"><span>阈值</span><input type="number" step="any" value={threshold} onChange={(event) => setThreshold(Number(event.target.value))} className="workspace-field" /></label>}
               </div>}
             </> : <div className="rule-line wrap-line">
-              <label className="field grow"><span>同一页需出现的关键词</span><input value={terms} onChange={(event) => setTerms(event.target.value)} /></label>
-              <label className="field"><span>回溯自然日</span><input type="number" min={1} max={3650} value={lookback} onChange={(event) => setLookback(Number(event.target.value))} /></label>
+              <label className="field grow workspace-field-label"><span>同一页需出现的关键词</span><input value={terms} onChange={(event) => setTerms(event.target.value)} className="workspace-field" /></label>
+              <label className="field workspace-field-label"><span>回溯自然日</span><input type="number" min={1} max={3650} value={lookback} onChange={(event) => setLookback(Number(event.target.value))} className="workspace-field" /></label>
             </div>}
             <div className="expression-preview"><span>规则预览</span><code>{expressionLabel(expression)}</code></div>
-            <div className="button-row"><button className="secondary-button" onClick={validate}><Check size={15} />校验依赖</button><button className="primary-button" disabled={busy} onClick={save}><Save size={15} />保存新版本</button></div>
+            <div className="button-row"><button className="secondary-button workspace-button" onClick={validate}><Check size={15} />校验依赖</button><button className="primary-button workspace-button" disabled={busy} onClick={save}><Save size={15} />保存新版本</button></div>
           </section>
 
           {library !== 'news' && <section className="preview-panel">
             <div className="panel-heading"><div><Play size={15} /><strong>{library === 'report' ? '按口径评估本地研报' : '单证券试算'}</strong></div><span>{library === 'report' ? '异步 · 逐条校验引用' : '探索模式'}</span></div>
             {library === 'report' ? <>
-              <div className="preview-control"><label className="field"><span>报告截止日</span><input type="date" value={evaluationAsOf} onChange={(event) => setEvaluationAsOf(event.target.value)} /></label><button className="secondary-button" disabled={busy || !activeId} onClick={startReportEvaluation}><Play size={14} />评估研报</button></div>
+              <div className="preview-control"><label className="field workspace-field-label"><span>报告截止日</span><input type="date" value={evaluationAsOf} onChange={(event) => setEvaluationAsOf(event.target.value)} className="workspace-field" /></label><button className="secondary-button workspace-button" disabled={busy || !activeId} onClick={startReportEvaluation}><Play size={14} />评估研报</button></div>
 
               {evaluation && <ReportEvaluationPanel evaluation={evaluation} busy={busy} onConfirmLlm={confirmReportSecurity} onJobAction={controlEvaluation} />}
             </> : <>
-              <div className="preview-control"><label className="field"><span>证券代码</span><input value={stock} onChange={(event) => setStock(event.target.value.toUpperCase())} /></label><button className="secondary-button" disabled={busy || !activeId} onClick={tryPreview}><Play size={14} />试算</button></div>
+              <div className="preview-control"><label className="field workspace-field-label"><span>证券代码</span><input value={stock} onChange={(event) => setStock(event.target.value.toUpperCase())} className="workspace-field" /></label><button className="secondary-button workspace-button" disabled={busy || !activeId} onClick={tryPreview}><Play size={14} />试算</button></div>
               {preview && <div className={`preview-result ${preview.state}`}><strong>{stateName(preview.state)}</strong>{preview.actual !== undefined && <span>实际值 {format(preview.actual)} {preview.operator} {format(preview.threshold)}</span>}<small>{preview.reason ?? preview.warning}</small></div>}
             </>}
           </section>}
 
           {blockers.length > 0 && <div className="dependency-list">{blockers.map((item) => <div key={item}><span className="status-dot warning" />{item}</div>)}</div>}
-          {notice && <div className="inline-notice" role="status">{notice}</div>}
+          {notice && <div className="inline-notice workspace-feedback workspace-feedback-success" role="status">{notice}</div>}
         </div>
       </div>
     </div>
@@ -300,7 +300,7 @@ export default function LibraryPage({ library }: { library: Library }) {
 }
 
 function NumberField({ value, onChange, min, max }: { value: number; onChange: (value: number) => void; min: number; max: number }) {
-  return <input className="short-number" type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+  return <input className="short-number workspace-field" type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} />
 }
 
 function SlidersIcon() { return <span className="mini-slider-icon">≡</span> }
@@ -346,11 +346,11 @@ function ReportEvaluationPanel({ evaluation, busy, onConfirmLlm, onJobAction }: 
   const [confirmedBindings, setConfirmedBindings] = useState<Record<string, string>>({})
   return <div className="report-evaluation-result">
     <div className="evaluation-summary">
-      <span className={`status-pill ${state}`}>{evaluationStatus(state)}</span>
+      <span className={["workspace-status", `status-pill ${state}`].filter(Boolean).join(' ')}>{evaluationStatus(state)}</span>
       <span>模型：{evaluation.model}</span>
       <span>截止 {evaluation.as_of}</span>
       {evaluation.job && <span>{evaluation.job.message} {Math.round(evaluation.job.progress * 100)}%</span>}
-      {(evaluation.job?.id || evaluation.job_id) && <div className="job-actions">{['queued', 'running'].includes(state) && <button className="secondary-button compact" disabled={busy} onClick={() => onJobAction('cancel')}>取消评估</button>}{['failed', 'cancelled', 'partial'].includes(state) && <button className="secondary-button compact" disabled={busy} onClick={() => onJobAction('retry')}>重试评估</button>}</div>}
+      {(evaluation.job?.id || evaluation.job_id) && <div className="job-actions">{['queued', 'running'].includes(state) && <button className="secondary-button compact workspace-button" disabled={busy} onClick={() => onJobAction('cancel')}>取消评估</button>}{['failed', 'cancelled', 'partial'].includes(state) && <button className="secondary-button compact workspace-button" disabled={busy} onClick={() => onJobAction('retry')}>重试评估</button>}</div>}
     </div>
     {Object.entries(coverage).length > 0 && <div className="evaluation-coverage">
       <span>本地报告 {String(coverage.documents_indexed ?? 0)}</span>
@@ -364,7 +364,7 @@ function ReportEvaluationPanel({ evaluation, busy, onConfirmLlm, onJobAction }: 
     {typeof coverage.message === 'string' && <div className="dependency-row">{coverage.message}</div>}
     {assessments.map((assessment) => <article className="assessment-card" key={assessment.document_id}>
       <div className="assessment-heading"><div><strong>{assessment.title}</strong><small>首次可用 {assessment.available_at}{assessment.availability_status === 'confirmed' ? '' : '（未确认）'} · 文件日期候选 {assessment.publication_date} · {assessment.stock_code ?? assessment.candidate_code ?? '证券代码待确认'} · {confirmedBindings[assessment.document_id] ? `已确认 ${confirmedBindings[assessment.document_id]}` : bindingStatusName(assessment.binding_status)}</small></div><span className={`state-text ${assessment.state}`}>{stateName(assessment.state)}</span></div>
-      {assessment.security_candidates?.length ? <div className="assessment-security-candidates"><strong>LLM 证券代码候选 · {evaluation.model}</strong>{assessment.security_candidates.map((candidate, index) => <div className="assessment-security-candidate" key={`${candidate.canonical_code}-${candidate.page}-${index}`}><span><b>{candidate.company_name || candidate.canonical_code}</b> · {candidate.canonical_code} · {securityRoleName(candidate.role)} · p.{candidate.page}</span><q>{candidate.quote}</q></div>)}{assessment.binding_status === 'llm_candidate' && !confirmedBindings[assessment.document_id] && <button className="secondary-button compact" disabled={busy} onClick={async () => { const code = await onConfirmLlm(assessment.document_id); if (code) setConfirmedBindings((current) => ({ ...current, [assessment.document_id]: code })) }}><Check size={13} />确认 LLM 主体代码</button>}</div> : null}
+      {assessment.security_candidates?.length ? <div className="assessment-security-candidates"><strong>LLM 证券代码候选 · {evaluation.model}</strong>{assessment.security_candidates.map((candidate, index) => <div className="assessment-security-candidate" key={`${candidate.canonical_code}-${candidate.page}-${index}`}><span><b>{candidate.company_name || candidate.canonical_code}</b> · {candidate.canonical_code} · {securityRoleName(candidate.role)} · p.{candidate.page}</span><q>{candidate.quote}</q></div>)}{assessment.binding_status === 'llm_candidate' && !confirmedBindings[assessment.document_id] && <button className="secondary-button compact workspace-button" disabled={busy} onClick={async () => { const code = await onConfirmLlm(assessment.document_id); if (code) setConfirmedBindings((current) => ({ ...current, [assessment.document_id]: code })) }}><Check size={13} />确认 LLM 主体代码</button>}</div> : null}
       {assessment.criteria.map((criterion) => <div className="assessment-criterion" key={criterion.criterion_id}>
         <div className="assessment-criterion-title"><b>{criterion.label}</b><span className={`state-text ${criterion.state}`}>{stateName(criterion.state)}</span></div>
         <p>{criterion.summary}</p>

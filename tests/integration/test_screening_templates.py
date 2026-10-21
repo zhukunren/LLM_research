@@ -30,13 +30,16 @@ def setup_plan(client, template_id='above_sma', params=None, workflow='screening
     return cid, msg, f'/api/v1/conversations/{cid}/screening-templates/{template_id}', payload
 
 
-@pytest.mark.parametrize('template_id', ['above_sma', 'return_above', 'ma_cross'])
+@pytest.mark.parametrize('template_id', ['above_sma', 'return_above', 'ma_cross', 'trend_momentum', 'cross_confirm', 'cross_momentum'])
 def test_full_deterministic_lifecycle(client, monkeypatch, template_id):
     cid, msg, url, payload = setup_plan(client, template_id)
     created = client.post(url, json=payload)
     assert created.status_code == 201, created.text
     msg = {'turn_id': created.json()['turn_id']}
     task = created.json()['task']
+    if template_id in {'trend_momentum', 'cross_confirm', 'cross_momentum'}:
+        assert len(task['conditions']) == 2 and len(task['references']) == 2
+        assert task['logic_tree']['op'] == 'all' and len(task['logic_tree']['children']) == 2
     assert task['conditions'][0]['program']['source_code'].startswith('def screen(')
     with db.connect() as connection:
         assert connection.execute('SELECT count(*) FROM jobs').fetchone()[0] == 0
@@ -130,3 +133,30 @@ def test_runtime_unavailable_blocks_execution_but_not_plan(client, monkeypatch):
     execute = client.post(f"/api/v1/conversations/{cid}/turns/{plan.json()['turn_id']}/execute", json={'action': 'button', 'revision': 1, 'request_id': 'runtime-check'})
     assert execute.status_code == 503 and execute.json()['code'] == 'runtime_unavailable'
     assert client.get(f'/api/v1/conversations/{cid}/screening-runs').json()['items'] == []
+
+
+def test_catalogue_presents_three_combinations_and_rejects_invalid_cross_periods(client):
+    items = client.get('/api/v1/screening-templates').json()['items']
+    assert [item['id'] for item in items] == ['trend_momentum', 'cross_confirm', 'cross_momentum']
+    assert all(len(item['rules']) == 2 for item in items)
+    cid, _, url, payload = setup_plan(client, 'cross_confirm', {'fast': 20, 'slow': 5})
+    assert client.post(url, json=payload).status_code == 422
+    assert client.get(f'/api/v1/conversations/{cid}').json()['task_revision'] == 0
+
+
+def test_combination_requires_both_independent_conditions(client, monkeypatch):
+    cid, _, url, payload = setup_plan(client, 'trend_momentum')
+    plan = client.post(url, json=payload)
+    assert plan.status_code == 201, plan.text
+    queued = client.post(f"/api/v1/conversations/{cid}/turns/{plan.json()['turn_id']}/execute",
+                         json={'action': 'button', 'revision': 1, 'request_id': 'and-confirmed'}).json()
+    prices = {'600000.SH': [20.] * 15 + [10.] * 5 + [11.],
+              '600001.SH': [10.] * 20 + [10.1], '600002.SH': [10.] * 20 + [12.]}
+    def bars(_date, limit, codes):
+        return [(code, [{'trade_date': (date(2026, 9, 14) - timedelta(days=len(values)-1-i)).isoformat(),
+                         'close': price, 'quality_valid': True} for i, price in enumerate(values)])
+                for code in codes for values in [prices[code][-limit:]]]
+    monkeypatch.setattr(market, 'iter_recent_bars', bars)
+    assert worker.execute_job(queued['job_id'])
+    decisions = client.get(f"/api/v1/conversations/{cid}/screening-runs/{queued['run_id']}/decisions").json()['items']
+    assert {item['stock_code']: item['state'] for item in decisions} == {'600000.SH': 'false', '600001.SH': 'false', '600002.SH': 'true'}

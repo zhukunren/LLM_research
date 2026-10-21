@@ -5,7 +5,8 @@ import json
 from fastapi.testclient import TestClient
 import pytest
 
-from apps.api.app import (codex_runtime, conversation_store, db, jobs, main, market, research_assistants,
+from apps.api.app import (codex_runtime, conversation_store, db, jobs, main, market, research_answer_actions,
+                          research_assistants, research_shares,
                           research_assistant_runs as runs, research_models, research_turn_service, worker)
 
 
@@ -43,7 +44,8 @@ def test_catalog_describes_server_owned_tasks_without_client_special_cases(clien
     assert {item["id"] for item in tasks} == {"daily-hotspots", "policy-tracker", "industry-updates"}
     assert all(item["builtin"] and item["enabled"] and item["launch_label"] and item["default_prompt"] for item in tasks)
     assert all(item["input_schema"] == {"type": "object", "properties": {}, "additionalProperties": False} for item in tasks)
-    assert len([item for item in catalog["items"] if item["launch_mode"] == "draft"]) == 5
+    draft_ids = {item["id"] for item in catalog["items"] if item["launch_mode"] == "draft"}
+    assert draft_ids == {"general", "financial", "reports", "supply-chain", "risk", "qmt-script"}
 
 
 @pytest.mark.parametrize("assistant", ["daily-hotspots", "policy-tracker", "industry-updates"])
@@ -63,8 +65,46 @@ def test_one_click_queues_research_with_frozen_shanghai_cutoff_and_model(client,
     assert chosen["id"] == assistant and chosen["launch_mode"] == "immediate"
     assert chosen["skill_hash"] == result["skill_hash"]
     assert saved["messages"][0]["role"] == "user" and "2026-10-08T00:30:00+08:00" in saved["messages"][0]["content"]
+    expected_label = f'{chosen["name"]}｜2026-10-08'
+    assert saved["messages"][0]["display_content"] == expected_label
+    restored = client.get(f'/api/v1/conversations/{result["conversation_id"]}').json()
+    assert restored["messages"][0]["display_content"] == expected_label
+    assert restored["title"] == expected_label
+    assert client.get('/api/v1/conversations').json()["items"][0]["title"] == expected_label
+    exported = client.get(f'/api/v1/conversations/{result["conversation_id"]}/export').text
+    assert expected_label in exported and "研究时间：" not in exported and "请检索" not in exported
     assert counts() == {"research_assistant_launches": 1, "conversations": 1, "conversation_messages": 1,
                         "conversation_turns": 1, "jobs": 1, "screening_task_runs": 0}
+
+
+def test_quick_task_presentation_preserves_model_prompt_and_followup_in_branches_and_shares(client):
+    started = launch(client).json()
+    cid, tid = started["conversation_id"], started["turn_id"]
+    original = conversation_store.get_conversation(cid)["messages"][0]
+    prompt = json.loads(codex_runtime._prompt(cid, tid))
+    assert prompt["current_user_request"] == original["content"]
+    assert "请检索真实网页" in prompt["current_user_request"]
+    lease = jobs.claim(started["job_id"])
+    conversation_store.start_turn(cid, tid)
+    conversation_store.finish_turn(cid, tid, 0, "succeeded", "已整理今日热点。", {})
+    assert lease.finish("succeeded", "完成")
+    answer = conversation_store.get_conversation(cid)["messages"][-1]
+    branch = research_answer_actions.apply(cid, answer["id"], "task-branch", "branch")
+    branch_messages = conversation_store.get_conversation(branch["conversation_id"])["messages"]
+    copied = branch_messages[0]
+    assert copied["content"] == original["content"]
+    assert copied["display_content"] == "今日热点｜2026-10-08"
+    for target, answer_id in [(cid, answer["id"]), (branch["conversation_id"], branch_messages[-1]["id"])]:
+        snapshot = research_shares._snapshot(target, answer_id)
+        assert snapshot["messages"][0]["content"] == "今日热点｜2026-10-08"
+        assert "请检索真实网页" not in json.dumps(snapshot, ensure_ascii=False)
+    # A failed task may be resubmitted with a new client ID; keep that prompt compact too.
+    conversation_store.add_user_message(cid, "task-retry", 0, original["content"])
+    assert conversation_store.get_conversation(cid)["messages"][-1]["display_content"] == original["display_content"]
+    followup = "只分析其中与半导体相关的事件，并说明依据。"
+    conversation_store.add_user_message(branch["conversation_id"], "followup", 0, followup)
+    message = conversation_store.get_conversation(branch["conversation_id"])["messages"][-1]
+    assert message["content"] == followup and "display_content" not in message
 
 
 def test_retry_preserves_original_date_snapshot_and_completed_job(client, monkeypatch):

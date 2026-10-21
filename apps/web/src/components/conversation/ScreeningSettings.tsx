@@ -18,7 +18,7 @@ export default function ScreeningSettings({ children }: { children: (open: boole
     if (event.key !== 'Escape' || !open || root.current?.querySelector('.research-model-trigger[aria-expanded="true"]')) return
     event.stopPropagation(); setOpen(false); trigger.current?.focus()
   }}>
-    <button ref={trigger} type="button" className="text-button screening-settings-trigger" aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}><Settings2 size={16} aria-hidden="true" />选股设置</button>
+    <button ref={trigger} type="button" className="text-button screening-settings-trigger workspace-button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}><Settings2 size={16} aria-hidden="true" />选股设置</button>
     <div id={id} className="screening-settings-panel" hidden={!open} role="group" aria-label="选股设置">{children(open)}</div>
   </div>
 }

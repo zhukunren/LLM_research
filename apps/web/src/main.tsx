@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import AuthBoundary from './AuthBoundary'
+import WorkspaceTooltips from './components/WorkspaceTooltips'
 import { SecuritiesProvider } from './components/StockSearch'
 import { StockInteractionsProvider } from './components/StockMentions'
 import './tokens.css'
@@ -32,9 +34,18 @@ import './minimalist-workspace.css'
 import './library-minimal.css'
 import './workspace-screen.css'
 import './research-chat.css'
+import './workspace-tabs.css'
+import './compact-workspace.css'
+import './workspace-tools.css'
+import './detail-surfaces.css'
+import './data-surfaces.css'
+import './control-states.css'
+import './chart-feedback.css'
+import './library-layout.css'
+import './workspace-chrome.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <SecuritiesProvider><StockInteractionsProvider><App /></StockInteractionsProvider></SecuritiesProvider>
+    <WorkspaceTooltips><AuthBoundary><SecuritiesProvider><StockInteractionsProvider><App /></StockInteractionsProvider></SecuritiesProvider></AuthBoundary></WorkspaceTooltips>
   </React.StrictMode>,
 )

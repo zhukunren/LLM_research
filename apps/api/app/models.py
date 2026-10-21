@@ -154,3 +154,7 @@ class ConfirmAvailabilityInput(StrictModel):
         except ValueError as exc:
             raise ValueError("研报可用日期不是有效日期") from exc
         return value
+
+
+class AdvisorValidationLevelInput(StrictModel):
+    level: str = Field(pattern=r"^(off|basic|strict)$")

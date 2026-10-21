@@ -147,6 +147,10 @@
 }
 @media (max-width: 700px) {
   .page-content.workbench.workbench-composing { padding: 10px 12px; gap: 9px; }
+  /* Keep a usable editor height; execution settings follow in the page scroll. */
+  .viewport-workspace .page-frame > .page-content.workbench-composing { overflow-y: auto; }
+  .workbench-composing .condition-compose-workspace.compose-workspace { flex: 0 0 auto; grid-template-rows: minmax(560px, 72dvh) auto; }
+  .workbench-composing .compose-main { min-height: 560px; }
   .advanced-composition-heading { gap: 10px; }
   .advanced-composition-heading h1 { font-size: 21px; }
   .advanced-composition-heading p { font-size: 10px; margin-top: 4px; }

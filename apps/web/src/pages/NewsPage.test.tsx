@@ -40,6 +40,23 @@ it('opens the first article for reading and changes its font size without showin
   await user.click(screen.getByRole('button', { name: '缩小资讯字体' }))
   expect(body.closest('article')).toHaveStyle({ fontSize: '14px' })
 })
+it('returns to the same position in the mobile catalogue page after reading', async () => {
+  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+  const user = userEvent.setup()
+  const { container } = render(<div className="workspace-tool-page"><NewsPage /></div>)
+  await screen.findByText(record.body)
+  const page = container.firstElementChild as HTMLElement
+  page.scrollTo = vi.fn((options?: ScrollToOptions | number, y?: number) => { page.scrollTop = typeof options === 'number' ? Number(y || 0) : Number(options?.top || 0) })
+  const reader = screen.getByLabelText('资讯阅读')
+  reader.scrollIntoView = vi.fn(() => { page.scrollTop = 0 })
+  page.scrollTop = 240
+  await user.click(screen.getByRole('button', { name: /新增订单/ }))
+  expect(page.scrollTop).toBe(0)
+  page.scrollTop = 80
+  await user.click(screen.getByRole('button', { name: '返回资讯列表' }))
+  expect(page.scrollTop).toBe(240)
+  expect(page.querySelector('.library-reading-workspace')).toHaveAttribute('data-mobile-view', 'catalog')
+})
 it('imports a URL with a stable retry request ID', async () => {
   const user = userEvent.setup(), close = vi.fn()
   render(<NewsPage importOpen onImportClose={close} />)
@@ -55,6 +72,20 @@ it('passes the date range to the backend before selecting an article', async () 
   fireEvent.change(screen.getByLabelText('资讯开始日期'), { target: { value: '2026-09-01' } })
   fireEvent.change(screen.getByLabelText('资讯结束日期'), { target: { value: '2026-09-14' } })
   await waitFor(() => expect(mocked.mock.calls.some(([path]) => path.includes('start_date=2026-09-01') && path.includes('end_date=2026-09-14'))).toBe(true))
+})
+
+it('blocks pagination and replaces the old range when the date filter is invalid', async () => {
+  mocked.mockImplementation(async path => path.startsWith('/securities/') ? { items: [] } : path === '/news/news-1' ? record : { items: [record], total: 45, next_offset: 20 })
+  render(<NewsPage />)
+  const pager = screen.getByRole('navigation', { name: '资讯列表分页' })
+  await waitFor(() => expect(within(pager).getByRole('button', { name: '下一页' })).toBeEnabled())
+  fireEvent.change(screen.getByLabelText('资讯开始日期'), { target: { value: '2026-09-14' } })
+  fireEvent.change(screen.getByLabelText('资讯结束日期'), { target: { value: '2026-09-01' } })
+  expect(screen.getByRole('alert')).toHaveTextContent('开始日期不能晚于结束日期。')
+  expect(pager).toHaveTextContent('请先修正日期范围')
+  expect(pager).not.toHaveTextContent('1–20 / 45')
+  expect(within(pager).getByRole('button', { name: '上一页' })).toBeDisabled()
+  expect(within(pager).getByRole('button', { name: '下一页' })).toBeDisabled()
 })
 
 it('shows a retryable loading failure without reporting an empty library', async () => {

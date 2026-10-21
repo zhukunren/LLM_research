@@ -33,7 +33,8 @@ def test_workspace_exports_originals_without_application_tables_and_keeps_output
     manifest = research_workspace.prepare(cid, tid)
     with closing(sqlite3.connect(manifest["sources"]["sqlite"])) as connection:
         names = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        assert names == {"reports", "report_pages", "news"}
+        assert {"reports", "report_pages", "news", "financial_facts", "financial_source_records", "disclosure_pages", "disclosure_metadata"} <= names
+        assert not {"conversations", "users", "jobs", "settings"} & names
         assert connection.execute("SELECT body FROM news").fetchone()[0] == "完成投产，保留完整正文。"
     output = Path(manifest["outputs"]) / "result.csv"
     output.write_text("return\n0.2\n", encoding="utf-8")
@@ -199,7 +200,9 @@ def test_tushare_saves_the_complete_returned_page_without_credentials(research, 
     saved = json.loads(Path(page["artifact"]["path"]).read_text(encoding="utf-8"))
     assert len(saved["items"]) == 250
     assert saved["params"] == {"trade_date": "20260914"}
+    assert saved["source"] == page["source"] == "tushare"
     assert "api_key" not in json.dumps(saved)
+    assert "token" not in json.dumps(saved)
     replay = screening_tools.registry.dispatch(call, context)
     assert replay["result"]["artifact"] == page["artifact"]
     assert len(research_workspace.list_outputs(cid)) == 1

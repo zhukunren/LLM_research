@@ -1,0 +1,93 @@
+/* Charts and their readouts share the workspace's neutral surfaces. */
+.workspace-chart-frame, .workspace-chart, .workspace-chart-canvas { min-width: 0; max-width: 100%; }
+.workspace-chart.workspace-chart { position: relative; color: var(--ui-text); font-size: 13px; line-height: 1.7; }
+.workspace-chart.workspace-chart > svg { display: block; width: 100%; height: auto; min-height: 0; max-height: none; overflow: hidden; border-radius: var(--ui-radius-sm); }
+.workspace-chart.workspace-chart > svg:focus-visible { outline: 2px solid var(--ui-focus-outline); outline-offset: 2px; }
+.workspace-chart svg text { fill: var(--ui-text-muted); font-family: var(--ui-font-sans); font-size: 12px; font-variant-numeric: tabular-nums; }
+.workspace-chart .indicator-grid { stroke: var(--ui-border-subtle); stroke-width: 1; }
+.workspace-chart :is(.indicator-reference-line,.indicator-pane-divider) { stroke: var(--ui-border-strong); }
+.workspace-chart .indicator-chart-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 12px; color: var(--ui-text-muted); font-size: 12px; line-height: 1.6; }
+.workspace-chart .indicator-chart-legend > span { min-width: 0; max-width: 100%; gap: 6px; overflow-wrap: anywhere; }
+.workspace-chart .indicator-chart-legend i { flex-shrink: 0; width: 16px; height: 2px; }
+.workspace-chart .indicator-series-line { stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.workspace-chart .indicator-crosshair line { stroke: var(--ui-text-faint); stroke-dasharray: 3 4; }
+.workspace-chart .indicator-crosshair rect { fill: var(--ui-primary); }
+.workspace-chart .indicator-crosshair text { font-size: 11px; }
+.workspace-chart .news-chart-reference line { stroke: var(--ui-accent); opacity: .65; }
+.workspace-chart .news-chart-reference rect { fill: var(--ui-primary-soft); }
+.workspace-chart .news-chart-reference text { fill: var(--ui-primary); }
+.workspace-chart .workspace-chart-readout.workspace-chart-readout { position: static; display: grid; grid-template-columns: repeat(auto-fit,minmax(110px,1fr)); gap: 6px 16px; width: 100%; max-width: none; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--ui-border-subtle); border-radius: var(--ui-radius-sm); background: var(--ui-sidebar); box-shadow: none; color: var(--ui-text); font-size: 12px; line-height: 1.7; font-variant-numeric: tabular-nums; pointer-events: auto; }
+.workspace-chart-readout > strong { grid-column: 1 / -1; margin-bottom: 2px; color: var(--ui-text-muted); font-size: 12px; font-weight: 500; }
+.workspace-chart-readout > span { min-width: 0; overflow-wrap: anywhere; }
+.workspace-chart-canvas { padding: 12px 0 0; }
+.indicator-chart svg { display: block; width: 100%; }
+.indicator-chart :is(text,small) { color: var(--ui-text-muted); fill: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
+.news-company-candles .workspace-chart { margin: 0; padding: 12px 16px 16px; }
+.news-company-candles .news-company-quote strong { font-size: 24px; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.news-company-candles .news-price-change { font-size: 13px; font-weight: 500; }
+.news-company-candles .news-company-card-header { gap: 12px; padding: 16px; border-bottom-color: var(--ui-border-subtle); background: var(--ui-surface); }
+.news-company-candles .news-chart-footer { gap: 8px 16px; padding: 12px 16px; border-top-color: var(--ui-border-subtle); background: var(--ui-surface); }
+.news-company-candles :is(.news-chart-caption,.news-reference-key) { color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
+
+/* A quiet card, readable figures and consistent labels across research tools. */
+.workspace-metric-grid.workspace-metric-grid { --ui-metric-padding: 16px; --ui-metric-value: 24px; display: grid; grid-template-columns: repeat(auto-fit,minmax(min(140px,100%),1fr)); align-items: stretch; gap: 12px; min-width: 0; margin: 16px 0; padding: 0; border: 0; }
+.workspace-metric-grid > div.workspace-metric-card,
+:is(.viewport-workspace .page-frame,.workspace-tool-dialog) .workspace-metric-grid > div.workspace-metric-card { min-width: 0; min-height: 88px; padding: var(--ui-metric-padding); border: 1px solid var(--ui-border-subtle); border-radius: var(--ui-radius-md); background: var(--ui-surface); box-shadow: none; color: var(--ui-text); }
+.workspace-metric-grid .workspace-metric-card > :is(span,dt) { display: block; color: var(--ui-text-muted); font-size: 12px; font-weight: 400; line-height: 1.6; }
+.workspace-metric-grid .workspace-metric-card > :is(strong,dd),
+:is(.viewport-workspace .page-frame,.workspace-tool-dialog) .workspace-metric-grid .workspace-metric-card > :is(strong,dd) { display: block; max-width: 100%; margin: 8px 0 0; font-size: var(--ui-metric-value); font-weight: 600; line-height: 1.35; letter-spacing: -.015em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; white-space: normal; }
+.workspace-metric-grid .workspace-metric-card > small { display: block; margin-top: 6px; color: var(--ui-text-muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.observation-density-compact .workspace-metric-grid { --ui-metric-value: 22px; --ui-metric-padding: 14px; }
+.indicator-numbers.workspace-metric-grid .workspace-metric-card:last-child strong { font-size: 16px; line-height: 1.7; }
+.my-indicators-latest.workspace-metric-grid { grid-template-columns: repeat(auto-fit,minmax(min(160px,100%),1fr)); }
+
+.workspace-tooltip { position: fixed; z-index: 6000; box-sizing: border-box; width: max-content; max-width: min(280px,calc(100vw - 24px)); max-height: min(220px,calc(100dvh - 24px)); overflow: hidden; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius-sm); background: var(--ui-surface); box-shadow: var(--ui-shadow-raised); color: var(--ui-text); font: 12px/1.7 var(--ui-font-sans); white-space: pre-line; overflow-wrap: anywhere; pointer-events: none; }
+
+/* Operation feedback stays close to the action and keeps recovery controls clear. */
+.workspace-feedback.workspace-feedback { --ui-feedback-fill: var(--ui-primary-soft); --ui-feedback-border: var(--ui-primary-border); --ui-feedback-ink: var(--ui-primary); position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-width: 0; max-width: 100%; margin: 12px 0; padding: 12px 16px; border: 1px solid var(--ui-feedback-border); border-radius: var(--ui-radius-sm); background: var(--ui-feedback-fill); color: var(--ui-text); font-size: 13px; line-height: 1.75; white-space: normal; overflow-wrap: anywhere; }
+.workspace-feedback.workspace-feedback-success { --ui-feedback-fill: var(--ui-success-soft); --ui-feedback-border: var(--ui-success-border); --ui-feedback-ink: var(--ui-success); }
+.workspace-feedback.workspace-feedback-warning { --ui-feedback-fill: var(--ui-warning-soft); --ui-feedback-border: var(--ui-warning-border); --ui-feedback-ink: var(--ui-warning); }
+.workspace-feedback > svg { flex-shrink: 0; color: var(--ui-feedback-ink); }
+.workspace-feedback > span { flex: 1; min-width: 0; }
+.workspace-feedback > p { margin: 0; }
+.workspace-feedback > :is(button,a) { flex-shrink: 0; margin: 0; }
+.workspace-feedback > .icon-button { width: 36px; height: 36px; min-height: 36px; padding: 0; margin-left: auto; color: var(--ui-text-muted); background: var(--ui-surface); border-color: var(--ui-feedback-border); }
+.workspace-feedback-inline { color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.stock-action-notice.workspace-feedback { position: fixed; top: 104px; right: 24px; bottom: auto; left: auto; z-index: 3200; width: max-content; max-width: min(420px,calc(100vw - 32px)); margin: 0; transform: none; box-shadow: var(--ui-shadow-raised); }
+.stock-action-notice.workspace-feedback > button { width: 32px; height: 32px; border: 0; border-radius: var(--ui-radius-sm); background: transparent; color: var(--ui-feedback-ink); font-size: 20px; }
+.research-progress.research-progress--compact { margin-block: 12px; padding: 12px 0; font-size: 13px; line-height: 1.75; }
+.research-progress--compact .research-progress-heading { flex-wrap: wrap; gap: 10px 12px; }
+.research-progress--compact .research-progress-status { flex: 1 1 140px; font-size: 13px; line-height: 1.7; }
+.research-progress--compact .research-progress-status > span { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.research-progress--compact .research-progress-duration { margin-left: auto; font-size: 12px; }
+.research-progress .research-progress-commentary { margin-top: 12px; font-size: 13px; line-height: 1.8; }
+.research-progress .research-activity-list { gap: 14px; padding-block: 12px; scrollbar-gutter: stable; overscroll-behavior: contain; }
+progress { max-width: 100%; height: 6px; accent-color: var(--ui-primary); border: 0; border-radius: 6px; overflow: hidden; background: var(--ui-sidebar); }
+progress::-webkit-progress-bar { border-radius: 6px; background: var(--ui-sidebar); }
+progress::-webkit-progress-value { border-radius: 6px; background: var(--ui-primary); }
+progress::-moz-progress-bar { border-radius: 6px; background: var(--ui-primary); }
+
+@media (max-width: 620px) {
+  .workspace-chart .indicator-chart-legend { gap: 6px 12px; margin-bottom: 10px; }
+  .workspace-chart .workspace-chart-readout.workspace-chart-readout { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px 12px; padding: 12px; }
+  .workspace-metric-grid.workspace-metric-grid { --ui-metric-padding: 12px; --ui-metric-value: 20px; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .workspace-metric-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .conversation-run-counts.workspace-metric-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+  .conversation-run-counts.workspace-metric-grid > :last-child { grid-column: auto; }
+  .workspace-feedback.workspace-feedback { gap: 8px; padding: 12px; }
+  .workspace-feedback > :is(button,a), .workspace-feedback > .icon-button { min-height: 44px; }
+  .workspace-feedback > .icon-button { width: 44px; height: 44px; }
+  .stock-action-notice.workspace-feedback { top: 112px; right: 12px; left: 12px; width: auto; max-width: none; }
+  .stock-action-notice.workspace-feedback > button { width: 44px; height: 44px; }
+  .news-company-candles .workspace-chart { padding: 12px; }
+  .news-company-candles .news-company-card-header { padding: 14px 12px; }
+  .news-company-candles .news-company-quote strong { font-size: 22px; }
+  .research-progress--compact .research-progress-heading button { min-height: 44px; }
+  .research-progress--compact .research-progress-status { flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-tooltip, .workspace-feedback { animation: none; transition: none; }
+}
+@media (forced-colors: active) {
+  .workspace-tooltip, .workspace-feedback, .workspace-metric-card { border-color: CanvasText; }
+}

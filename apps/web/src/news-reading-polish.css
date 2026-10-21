@@ -15,7 +15,7 @@
 .redesigned-workspace .scope-news .local-news-list > button.selected { border-color: #d6e4f4; background: #ecf3fc; box-shadow: inset 3px 0 #376aa5; }
 .redesigned-workspace .scope-news .local-news-list > button strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #344a64; font-size: 13px; line-height: 1.6; }
 .redesigned-workspace .scope-news .local-news-list > button.selected strong { color: #24517e; }
-.redesigned-workspace .scope-news .local-news-list .news-item-meta span, .redesigned-workspace .scope-news .local-news-list .news-item-meta small { font-size: 10px; color: #8492a4; }
+.redesigned-workspace .scope-news .local-news-list .news-item-meta span, .redesigned-workspace .scope-news .local-news-list .news-item-meta small { font-size: 11px; color: var(--ui-text-muted); }
 .redesigned-workspace .scope-news .news-reader-tools { padding-bottom: 12px; border-color: #edf1f6; }
 .redesigned-workspace .scope-news .news-reader-tools .secondary-button { border-color: #e4eaf1; background: #fbfcfe; min-height: 29px; }
 .news-company-chart { margin-top: 24px; padding-top: 22px; border-color: #e8edf4; }

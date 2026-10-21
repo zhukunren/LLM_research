@@ -13,6 +13,7 @@ from . import conversation_store as store, research_sources
 from .db import connect, json_dump, json_load, utc_now
 from .research_answer_actions import visible_messages
 from .settings import PROJECT_ROOT
+from .storage import storage_paths
 
 
 class ShareUnavailable(ValueError):
@@ -21,7 +22,7 @@ class ShareUnavailable(ValueError):
 
 def service_settings():
     settings = {}
-    config = PROJECT_ROOT / "runtime" / "share-service.json"
+    config = storage_paths(project_root=PROJECT_ROOT).state_root / "share-service.json"
     if config.is_file():
         try:
             settings = json.loads(config.read_text(encoding="utf-8-sig"))
@@ -41,6 +42,7 @@ def _snapshot(conversation_id, message_id):
         if not conversation:
             raise store.ConversationNotFound(conversation_id)
         rows = [dict(row) for row in connection.execute("SELECT * FROM conversation_messages WHERE conversation_id=? ORDER BY rowid", (conversation_id,))]
+        display_prompts = store.quick_task_display_prompts(connection, conversation_id)
     answer = next((row for row in rows if row["id"] == message_id and row["role"] == "assistant"), None)
     if not answer:
         raise store.ConversationStoreError("请选择要分享的研究答复")
@@ -67,7 +69,10 @@ def _snapshot(conversation_id, message_id):
                     news = connection.execute("SELECT body FROM news_records WHERE id=?", (ref.get("source_id"),)).fetchone()
                     if news: ref["excerpt"] = news[0][:20000]
                 sources.append(ref)
-        content = row["content"]
+        content = display_prompts.get(row["content"], row["content"]) if row["role"] == "user" else row["content"]
+        if row["role"] == "assistant":
+            from .financial_evidence import append_citations
+            content = append_citations(content)
         for file in evidence["files"]:
             shared_id = f"file-{len(files)}"
             files.append({"id": shared_id, "title": file["title"], "content": file["content"]})
@@ -75,7 +80,7 @@ def _snapshot(conversation_id, message_id):
                 if file["path"] in unquote(url):
                     content = content.replace(url, "#" + shared_id)
         messages.append({"id": row["id"], "role": row["role"], "content": content, "sources": sources, "created_at": row["created_at"]})
-    title = conversation["title"] or next((row["content"][:120] for row in prefix if row["role"] == "user"), "研究对话")
+    title = conversation["title"] or next((row["content"][:120] for row in messages if row["role"] == "user"), "研究对话")
     return {"schema_version": 1, "title": title, "messages": messages, "files": files, "created_at": utc_now(), "cutoff_at": answer["created_at"]}
 
 

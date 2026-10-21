@@ -1,4 +1,5 @@
-import type { IndicatorChart } from './pages/TechnicalBrowser'
+import type { IndicatorChart } from './components/MarketIndicatorChart'
+import { sessionStorage } from './authStorage'
 
 export type IndicatorParameter = number
 export type IndicatorParameterSpec = {

@@ -7,13 +7,34 @@ import type { Conversation, ScreeningTaskRevision } from '../../api'
 
 const template = { id: 'above_sma', version: 1, name: '收盘价在均线上方', formula: '收盘价 > 最近 N 个交易日均价（含当日）', parameters: { window: { label: '均线周期 N', default: 20, min: 2, max: 250, step: 1 } } }
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
+
+it('previews an AND combination as text and sends all edited parameters', async () => {
+  const combined = { id: 'trend_momentum', version: 1, name: '趋势走强', formula: '收盘价高于{ma_window}日均线 且 近{return_window}日涨幅大于{threshold}%',
+    rules: ['收盘价高于{ma_window}日均线', '近{return_window}日涨幅大于{threshold}%'], parameters: {
+      ma_window: { label: '均线周期', default: 20, min: 2, max: 250, step: 1 },
+      return_window: { label: '回看周期', default: 5, min: 1, max: 250, step: 1 },
+      threshold: { label: '涨幅阈值', default: 3, min: -100, max: 1000, step: 0.1 },
+    } }
+  vi.stubGlobal('fetch', vi.fn(async () => json({ items: [combined] })))
+  const selected = vi.fn()
+  const { container } = render(<ScreeningTemplates disabled={false} onSelect={selected} />)
+  await userEvent.click(await screen.findByRole('button', { name: '选择基础方案：趋势走强' }))
+  expect(container.querySelector('.screening-template-sketch')).toBeNull()
+  expect(container.querySelectorAll('.screening-template-preview-rules li')).toHaveLength(2)
+  expect(screen.getByText(/以上条件需同时满足/)).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('趋势走强：涨幅阈值'), { target: { value: '6' } })
+  expect(screen.getByText('近5日涨幅大于6%')).toBeInTheDocument()
+  expect(selected).not.toHaveBeenCalled()
+  await userEvent.click(screen.getByRole('button', { name: '查看方案：趋势走强' }))
+  expect(selected).toHaveBeenCalledWith(combined, { ma_window: 20, return_window: 5, threshold: 6 })
+})
 async function openStarter() {
   const button = await screen.findByRole('button', { name: '选择基础方案：收盘价高于20日均线' })
   await waitFor(() => expect(button).toBeEnabled())
   await userEvent.click(button)
 }
 
-it('uses illustrative starter cards with exact labels and a reversible preview before selecting', async () => {
+it('uses text-only starter cards with exact labels and a reversible preview before selecting', async () => {
   const returns = { id: 'return_above', version: 1, name: '区间涨幅', formula: '区间收益率 > 阈值', parameters: { window: { label: '交易日 N', default: 20, min: 2, max: 250, step: 1 }, threshold: { label: '涨幅阈值', default: 10, min: 0, max: 100, step: 0.1 } } }
   const cross = { id: 'ma_cross', version: 1, name: '均线上穿', formula: '当日短均线 > 长均线，前日短均线 ≤ 长均线', parameters: { fast: { label: '短周期', default: 5, min: 2, max: 250, step: 1 }, slow: { label: '长周期', default: 20, min: 2, max: 250, step: 1 } } }
   vi.stubGlobal('fetch', vi.fn(async () => json({ items: [template, returns, cross] })))
@@ -24,8 +45,8 @@ it('uses illustrative starter cards with exact labels and a reversible preview b
   const crossCard = screen.getByRole('button', { name: '选择基础方案：5日均线上穿20日均线' })
   for (const card of [priceCard, returnCard, crossCard]) {
     expect(card).toHaveAttribute('aria-expanded', 'false')
-    expect(card).toHaveAccessibleDescription('图形仅为条件示意，不代表真实行情或走势预测。选择后可预览与调整参数。')
-    expect(card.querySelector('.screening-template-sketch')).toHaveAttribute('aria-hidden', 'true')
+    expect(card).toHaveAccessibleDescription('每组条件需同时满足。选择后可预览与调整参数，确认后才执行。')
+    expect(card.querySelector('.screening-template-sketch')).toBeNull()
     expect(card.querySelector('.screening-template-chevron')).toHaveAttribute('aria-hidden', 'true')
   }
   priceCard.focus()

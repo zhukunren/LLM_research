@@ -28,7 +28,9 @@ def download_generated_file(conversation_id: str, path: str):
         return FileResponse(
             target, filename=target.name, media_type=research_files.MEDIA_TYPES[target.suffix.lower()],
             content_disposition_type="attachment",
-            headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
+            headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store",
+                     # Python downloads may be GBK; do not label their bytes UTF-8.
+                     **({"Content-Type": "text/x-python"} if target.suffix.lower() == ".py" else {})},
         )
     except (conversation_store.ConversationNotFound, research_files.GeneratedFileError,
             research_workspace.WorkspaceError, OSError, ValueError) as exc:

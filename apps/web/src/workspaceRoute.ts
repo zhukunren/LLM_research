@@ -1,7 +1,10 @@
+import { briefKinds, type BriefKind } from './intelligence'
 import type { ConversationScope, WorkflowType } from './api'
+import { localStorage, sessionStorage } from './authStorage'
 import { isPageId, type PageId } from './navigation'
 
 export type ScreeningView = 'conversation' | 'create' | 'library' | 'compose' | 'history' | 'saved'
+export type ObservationTab = 'all' | 'candidates' | 'batches' | 'updates' | 'expectations' | 'portfolio'
 export type WorkspaceRoute = {
   page: PageId
   conversationId?: string
@@ -12,14 +15,19 @@ export type WorkspaceRoute = {
   scope?: ConversationScope
   view?: ScreeningView
   newDraft?: boolean
-  observationTab?: 'candidates' | 'batches'
+  observationTab?: ObservationTab
   workspace?: WorkflowType
+  indicators?: 'common'
+  briefKind?: BriefKind
+  briefId?: string
+  libraryTab?: 'news' | 'reports'
 }
 const scopes: ConversationScope[] = ['screening', 'technical', 'news', 'report', 'pattern']
 const views: ScreeningView[] = ['conversation', 'create', 'library', 'compose', 'history', 'saved']
+const observationTabs: ObservationTab[] = ['all', 'candidates', 'batches', 'updates', 'expectations', 'portfolio']
 const objectId = /^[A-Za-z0-9_-]{1,100}$/
 const stockCode = /^\d{6}\.(SH|SZ|BJ)$/
-const simplePaths: Partial<Record<PageId, string>> = { home: 'home', assistants: 'assistants', news: 'library/news', patterns: 'library/patterns', reports: 'library/reports' }
+const simplePaths: Partial<Record<PageId, string>> = { home: 'home', qmt: 'tools/qmt', news: 'library/news', patterns: 'library/patterns', reports: 'library/reports' }
 
 /** Public paths use product names; legacy page IDs stay behind this mapping. */
 export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
@@ -33,8 +41,19 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   const sharedWorkspace = workspace ? { workspace: workspace as WorkflowType } : {}
   const scope = params.get('scope')
   if (scope && !scopes.includes(scope as ConversationScope)) return null
+  if (parts[0] === 'intelligence' && parts.length <= 3) {
+    if (parts[1] && !briefKinds.some(item => item.id === parts[1]) || parts[2] && !objectId.test(parts[2])) return null
+    return { page: 'intelligence', briefKind: (parts[1] || 'market') as WorkspaceRoute['briefKind'], ...(parts[2] ? { briefId: parts[2] } : {}) }
+  }
+  if (parts[0] === 'library' && parts.length === 1) {
+    const type = params.get('type')
+    if (type && !['news', 'reports'].includes(type)) return null
+    return { page: 'library', libraryTab: type === 'reports' ? 'reports' : 'news', ...sharedWorkspace }
+  }
   if (parts.length === 1 && parts[0] === 'home') return { page: 'screening', newDraft: true }
-  if (parts.length === 1 && parts[0] === 'assistants') return { page: 'assistants' }
+  if (parts.length === 1 && parts[0] === 'assistants') return { page: 'screening', newDraft: true }
+  if (parts.length === 2 && parts[0] === 'tools' && parts[1] === 'qmt') return { page: 'qmt', ...sharedWorkspace }
+  if (parts.length === 2 && parts[0] === 'library' && parts[1] === 'technical') return { page: workspace === 'screening' ? 'conditions' : 'screening', newDraft: true, scope: 'technical', indicators: 'common', ...(workspace === 'screening' ? { view: 'conversation' } : {}) }
   if (parts[0] === 'library' && parts.length === 2 && ['news', 'patterns', 'reports'].includes(parts[1])) return { page: parts[1] as PageId, ...sharedWorkspace }
   if (parts[0] === 'research' || parts[0] === 'screening') {
     if (parts.length > 2 || (parts[1] && !objectId.test(parts[1]))) return null
@@ -42,15 +61,16 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
     if (view && !views.includes(view as ScreeningView)) return null
     const page = parts[0] === 'research' ? 'screening' : 'conditions'
     return { page, ...(parts[1] === 'new' ? { newDraft: true } : parts[1] ? { conversationId: parts[1] } : {}),
-      ...(scope ? { scope: scope as ConversationScope } : {}), ...(page === 'conditions' ? { view: parts[1] ? 'conversation' : (view as ScreeningView || 'conversation') } : {}) }
+      ...(scope ? { scope: scope as ConversationScope } : {}), ...(params.get('indicators') === 'common' ? { indicators: 'common' as const } : {}), ...(page === 'conditions' ? { view: parts[1] ? 'conversation' : (view as ScreeningView || 'conversation') } : {}) }
   }
   if (parts[0] === 'projects' && parts.length <= 2 && (!parts[1] || objectId.test(parts[1]))) return { page: 'research', ...(parts[1] ? { projectId: parts[1] } : {}) }
   if (parts[0] === 'observation') {
     if (parts.length === 1) return { page: 'watchlist', ...sharedWorkspace }
-    if (parts.length > 4 || !['candidates', 'batches'].includes(parts[1]) || (parts[2] && !objectId.test(parts[2]))
+    if (!observationTabs.includes(parts[1] as ObservationTab) || parts.length > 4 || (parts[2] && !objectId.test(parts[2]))
         || (parts[1] === 'candidates' && parts.length > 3)
+        || (parts[1] !== 'candidates' && parts[1] !== 'batches' && parts.length > 2)
         || (parts[3] && (parts[1] !== 'batches' || !parts[2] || !stockCode.test(parts[3])))) return null
-    return { page: 'watchlist', ...sharedWorkspace, observationTab: parts[1] as 'candidates' | 'batches',
+    return { page: 'watchlist', ...sharedWorkspace, observationTab: parts[1] as ObservationTab,
       ...(parts[2] ? parts[1] === 'candidates' ? { candidateId: parts[2] } : { runId: parts[2], ...(parts[3] ? { observationCode: parts[3] } : {}) } : {}) }
   }
   return null
@@ -58,9 +78,12 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
 
 export function workspaceRouteHash(route: WorkspaceRoute): string {
   if (route.page === 'home') return '#/research/new'
+  if (route.page === 'intelligence') return `#/intelligence/${route.briefKind || 'market'}${route.briefId ? '/' + encodeURIComponent(route.briefId) : ''}`
+  if (route.page === 'library') return `#/library?type=${route.libraryTab || 'news'}${route.workspace === 'screening' ? '&workspace=screening' : ''}`
   const params = new URLSearchParams()
-  if (route.workspace === 'screening' && ['news', 'patterns', 'reports', 'watchlist'].includes(route.page)) params.set('workspace', 'screening')
+  if (route.workspace === 'screening' && ['news', 'patterns', 'reports', 'watchlist', 'qmt'].includes(route.page)) params.set('workspace', 'screening')
   if ((route.page === 'screening' || route.page === 'conditions') && route.scope && route.scope !== 'screening') params.set('scope', route.scope)
+  if ((route.page === 'screening' || route.page === 'conditions') && route.indicators === 'common') params.set('indicators', 'common')
   if (route.page === 'conditions' && !route.conversationId && !route.newDraft && route.view && route.view !== 'conversation') params.set('view', route.view)
   const id = route.conversationId ? encodeURIComponent(route.conversationId) : route.newDraft ? 'new' : ''
   const path = route.page === 'screening' ? `research${id ? '/' + id : ''}`
@@ -84,6 +107,7 @@ export function storedScreeningView(): ScreeningView {
 }
 export function legacyWorkspaceRoute(): WorkspaceRoute {
   const page = stored<string>('app.page', 'home')
+  if (page === 'technical') return parseWorkspaceRoute('#/library/technical')!
   if (!isPageId(page) || page === 'home') return { page: 'screening', newDraft: true }
   const scope = storedConversationScope()
   if (page === 'conditions') {

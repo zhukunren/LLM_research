@@ -34,6 +34,11 @@ BUILTINS = (
     AssistantDefinition("supply-chain", "产业链研究", "梳理供需、关键环节和公司受益证据", "supply-chain-research"),
     AssistantDefinition("risk", "风险复核", "寻找反证，检验关键假设和失效条件", "risk-review"),
     AssistantDefinition(
+        "qmt-script", "QMT 脚本生成", "用自然语言编写、检查和下载 QMT 客户端内置 Python 策略", "qmt-script",
+        launch_label="编写 QMT 脚本", launch_description="描述策略，在对话中生成代码、静态检查并下载 .py 文件。",
+        revision=2,
+    ),
+    AssistantDefinition(
         "daily-hotspots", "今日热点", "检索并精选今日最重要的 10 条财经、市场与产业资讯", "daily-hotspots",
         launch_mode="immediate", launch_label="查看今日热点", launch_description="立即检索网页，按重要性整理资讯及来源。",
         default_prompt="今日热点｜{as_of_date}\n请检索真实网页，精选今天截至当前最重要的 10 条财经、市场与产业资讯，去重排序并解释重要性。逐条给出事件时间、发布时间和可打开的原始来源；可靠资讯不足 10 条时按实际数量交付。",

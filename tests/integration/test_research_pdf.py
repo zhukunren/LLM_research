@@ -1,4 +1,5 @@
 from io import BytesIO
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -45,7 +46,9 @@ def test_completed_answer_is_a_cached_branded_pdf_with_frozen_scope(research):
     first = pdf.export_turn(cid, tid)
     assert_branded(read(first, cid))
     text = "\n".join(page.extract_text() for page in read(first, cid).pages)
-    assert "2026-09-14" in text and "600519.SH" in text
+    provenance = json.loads(read(first, cid).metadata.subject)
+    assert provenance["研究截止日"] == "2026-09-14" and provenance["研究范围"] == "600519.SH"
+    assert "研究截止日" not in text and "研究范围" not in text
     assert "20%" in text and "https://example.com/source" in text and "原始实验图" in text
     store.update_research_scope(cid, 1, ResearchScope(as_of="2026-10-05", stock_codes=["600000.SH"]))
     Image.new("RGB", (300, 180), "red").save(root / "chart.png")
@@ -154,7 +157,7 @@ def test_atomic_generation_failure_is_visible_and_never_publishes_partial_pdf(re
     assert not list(pdf._root(cid).glob("*.partial"))
 
 
-def test_fixed_template_is_available_without_mutating_business_data(research):
+def test_branded_template_is_available_without_mutating_business_data(research):
     cid, tid, root = research
     with TestClient(main.app) as client:
         response = client.get("/api/v1/conversations/research-pdf-template")
@@ -162,6 +165,23 @@ def test_fixed_template_is_available_without_mutating_business_data(research):
         assert response.headers["content-disposition"].startswith("inline")
         assert_branded(PdfReader(BytesIO(response.content)))
     assert store.get_turn(cid, tid)["state"] == "running"
+
+
+def test_cover_keeps_brand_and_title_without_inserting_research_fields(tmp_path):
+    target = tmp_path / "flexible-report.pdf"
+    body = "## 自定义讨论\n\n仅保留用户需要的研究内容。"
+    metadata = {"研究截止日": "2026-10-16", "研究范围": "600519.SH", "记录时间": "内部记录", "成果编号": "内部编号"}
+    pdf.render_document(target, title="自定义标题", content=body, metadata=metadata)
+    reader = PdfReader(target)
+    assert_branded(reader)
+    assert len(reader.pages) == 2
+    cover = reader.pages[0].extract_text()
+    text = "\n".join(page.extract_text() for page in reader.pages)
+    assert "自定义标题" in cover and "仅保留用户需要的研究内容" not in cover
+    assert "自定义讨论" in text and "仅保留用户需要的研究内容" in text
+    for value in [*metadata, *metadata.values(), "内容摘要", "核心判断", "验证计划", "模板 v1.0"]:
+        assert value not in text
+    assert json.loads(reader.metadata.subject)["成果编号"] == "内部编号"
 
 
 def test_codex_completion_queues_fixed_pdf_after_publishing_answer(research, monkeypatch):

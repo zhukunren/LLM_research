@@ -1,6 +1,7 @@
+import Pagination from '../Pagination'
 import { StockText } from '../StockMentions'
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Download, LoaderCircle, RefreshCw, Square } from 'lucide-react'
+import { Download, LoaderCircle, RefreshCw, Square } from 'lucide-react'
 import { api } from '../../api'
 import type { ResearchFile } from '../../research'
 import ResearchFileList, { isOriginalFormatOnlyDiscovery, reportPending } from '../ResearchFileList'
@@ -149,34 +150,34 @@ export default function ResearchPanel({ conversationId, turnActive, refreshKey, 
   if (!showGenerate && !scans.length && !outputs.length && !generatedFiles.length && !error && !generatedError) return null
   const coverage = scan?.result.coverage
   return <StockText><section className="conversation-research-section" aria-label="研究计算与成果">
-    <div className="conversation-panel-heading"><h2>研究计算与成果</h2><button className="icon-button" title="刷新研究成果" aria-label="刷新研究成果" onClick={() => setReload(value => value + 1)}><RefreshCw size={15} /></button></div>
-    <button className="text-button" disabled={!!reportBusy || turnActive} onClick={() => void generateReports()}>{reportBusy === 'generate' ? '正在提交…' : '生成已有报告'}</button>
+    <div className="conversation-panel-heading"><h2>研究计算与成果</h2><button className="icon-button workspace-button" data-tooltip="刷新研究成果" aria-label="刷新研究成果" onClick={() => setReload(value => value + 1)}><RefreshCw size={15} /></button></div>
+    <button className="text-button workspace-button" disabled={!!reportBusy || turnActive} onClick={() => void generateReports()}>{reportBusy === 'generate' ? '正在提交…' : '生成已有报告'}</button>
     {reportNotice && <p role="status" className="conversation-muted">{reportNotice}</p>}
-    {error && <p role="alert">{error}</p>}
+    {error && <p role="alert" className="workspace-error">{error}</p>}
     {!!scans.length && <>
-      <select className="research-scan-select" aria-label="查看研究扫描" value={selected} onChange={event => setSelected(event.target.value)}>
+      <select className="research-scan-select workspace-field workspace-select" aria-label="查看研究扫描" value={selected} onChange={event => setSelected(event.target.value)}>
         {scans.map(item => <option key={item.id} value={item.id}>{item.name} · {item.as_of} · {labels[item.status] || item.status}</option>)}
       </select>
       {scan && <>
         <div className="research-scan-status"><span>{labels[scan.status] || scan.status} · 截至 {scan.as_of}</span>{pending(scan.status)
-          ? <button className="icon-button" title="停止研究扫描" aria-label="停止研究扫描" disabled={cancelling} onClick={() => void cancel()}><Square size={14} /></button>
-          : <a className="icon-button" href={scan.export_url} title="下载研究扫描 PDF" aria-label="下载研究扫描 PDF"><Download size={15} /></a>}</div>
+          ? <button className="icon-button workspace-button" data-tooltip="停止研究扫描" aria-label="停止研究扫描" disabled={cancelling} onClick={() => void cancel()}><Square size={14} /></button>
+          : <a className="icon-button workspace-button" href={scan.export_url} data-tooltip="下载研究扫描 PDF" aria-label="下载研究扫描 PDF"><Download size={15} /></a>}</div>
         {pending(scan.status) && <progress aria-label="研究扫描进度" value={scan.job.progress} max={1} />}
         <p className="conversation-muted">{scan.job.message}</p>
         {coverage && <p className="research-coverage">目标 {coverage.target_total} · 满足实验判据 {coverage.true_count || 0} · 未满足实验判据 {coverage.false_count || 0} · 未知 {coverage.unknown_count || 0} · 失败 {coverage.failed_count || 0} · 未处理 {coverage.not_evaluated_count || 0}</p>}
-        {scan.result.error && <p role="alert" className="research-scan-error">{scan.result.error}</p>}
+        {scan.result.error && <p role="alert" className="research-scan-error workspace-error">{scan.result.error}</p>}
         {['failed', 'cancelled'].includes(scan.status) && items.length > 0 && <p className="research-scan-error">以下为中断前记录，未完成本次范围验证。</p>}
       </>}
-      <div className="research-decision-filters"><select aria-label="研究结果状态" value={state} onChange={event => { setState(event.target.value); setOffset(0) }}><option value="">全部状态</option>{['true', 'false', 'unknown'].map(value => <option value={value} key={value}>{labels[value]}</option>)}</select><input aria-label="搜索研究证券" placeholder="证券代码" value={query} maxLength={32} onChange={event => { setQuery(event.target.value); setOffset(0) }} /></div>
-      {detailError && <p role="alert">{detailError}</p>}
+      <div className="research-decision-filters workspace-filters"><select aria-label="研究结果状态" value={state} onChange={event => { setState(event.target.value); setOffset(0) }} className="workspace-field workspace-select"><option value="">全部状态</option>{['true', 'false', 'unknown'].map(value => <option value={value} key={value}>{labels[value]}</option>)}</select><input aria-label="搜索研究证券" placeholder="证券代码" value={query} maxLength={32} onChange={event => { setQuery(event.target.value); setOffset(0) }} className="workspace-field" /></div>
+      {detailError && <p role="alert" className="workspace-error">{detailError}</p>}
       {loading ? <p className="conversation-muted"><LoaderCircle size={14} className="spin" />正在读取研究结果</p> : <>
-        <div className="research-decision-table"><table><thead><tr><th>证券</th><th>状态</th><th>指标与依据</th></tr></thead><tbody>{items.map(item => <tr key={item.stock_code}><td>{item.stock_code}</td><td>{labels[item.state] || item.state}</td><td>{metricText(item) && <div>{metricText(item)}</div>}<span>{item.explanation}</span></td></tr>)}</tbody></table></div>
+        <div className="research-decision-table workspace-table-scroll" tabIndex={0} role="region" aria-label="研究扫描结果"><table className="workspace-data-table"><thead><tr><th>证券</th><th>状态</th><th>指标与依据</th></tr></thead><tbody>{items.map(item => <tr key={item.stock_code}><td>{item.stock_code}</td><td>{labels[item.state] || item.state}</td><td>{metricText(item) && <div>{metricText(item)}</div>}<span>{item.explanation}</span></td></tr>)}</tbody></table></div>
         {!items.length && <p className="conversation-muted">暂无已提交记录</p>}
-        <div className="research-pagination"><span>{total ? `${offset + 1}-${Math.min(offset + PAGE_SIZE, total)} / ${total}` : '0 / 0'}</span><button className="icon-button" title="上一页研究结果" aria-label="上一页研究结果" disabled={offset === 0} onClick={() => setOffset(value => Math.max(0, value - PAGE_SIZE))}><ChevronLeft size={16} /></button><button className="icon-button" title="下一页研究结果" aria-label="下一页研究结果" disabled={offset + PAGE_SIZE >= total} onClick={() => setOffset(value => value + PAGE_SIZE)}><ChevronRight size={16} /></button></div>
+        <Pagination offset={offset} total={total} pageSize={PAGE_SIZE} onChange={setOffset} label="研究结果分页" unit="只" previousLabel="上一页研究结果" nextLabel="下一页研究结果" />
       </>}
     </>}
     {!!outputs.length && <section aria-label="PDF 报告"><h3>PDF 报告</h3><ResearchFileList files={outputs} busyId={reportBusy} onRetry={file => void generateReports(file)} /></section>}
-    {generatedError && <p role="alert">{generatedError}</p>}
+    {generatedError && <p role="alert" className="workspace-error">{generatedError}</p>}
     <GeneratedFiles files={generatedFiles} />
   </section></StockText>
 }

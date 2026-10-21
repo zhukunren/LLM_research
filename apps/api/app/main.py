@@ -43,6 +43,7 @@ from .research_attachment_api import router as research_attachment_router
 from .research_file_api import router as research_file_router
 from .qmt_doc_api import router as qmt_doc_router
 from .financial_data_api import router as financial_data_router
+from .investment_tracking import router as investment_tracking_router
 from .financial_research_api import router as financial_research_router
 from .disclosure_api import router as disclosure_router
 from .condition_contract import filter_object
@@ -124,6 +125,7 @@ app.include_router(research_attachment_router)
 app.include_router(research_file_router)
 app.include_router(qmt_doc_router)
 app.include_router(financial_data_router)
+app.include_router(investment_tracking_router)
 app.include_router(financial_research_router)
 app.include_router(disclosure_router)
 app.add_middleware(

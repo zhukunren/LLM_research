@@ -1,3 +1,4 @@
+import LoadingState from './LoadingState'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react'
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist'
@@ -6,7 +7,7 @@ import { trapDialogTab } from '../keyboard'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
-export default function PdfReader({ url, page, onPageChange, pageControls, actions }: { url: string; page: number; onPageChange: (page: number) => void; pageControls?: ReactNode; actions?: ReactNode }) {
+export default function PdfReader({ url, page, onPageChange, pageControls, actions, label = '研报' }: { url: string; page: number; onPageChange: (page: number) => void; pageControls?: ReactNode; actions?: ReactNode; label?: string }) {
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null)
   const [frame, setFrame] = useState({ width: 600, height: 650 })
   const [zoom, setZoom] = useState(1)
@@ -77,20 +78,20 @@ export default function PdfReader({ url, page, onPageChange, pageControls, actio
   }, [document, page, frame, fit, zoom])
   function changeZoom(delta: number) { setZoom(Math.max(.1, Math.min(6, (fit === 'custom' ? zoom : renderedScale.current) + delta))); setFit('custom') }
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape' && expanded) { setExpanded(false); event.preventDefault() }
+    if (event.key === 'Escape' && expanded) { setExpanded(false); event.preventDefault(); event.stopPropagation() }
     if (expanded) trapDialogTab(event)
     if ((event.target as HTMLElement).matches('input,select,textarea')) return
     if (event.key === 'ArrowLeft' && page > 1) { onPageChange(page - 1); event.preventDefault() }
     if (event.key === 'ArrowRight' && document && page < document.numPages) { onPageChange(page + 1); event.preventDefault() }
   }
-  return <div className={'pdf-document-viewer' + (expanded ? ' expanded' : '')} onKeyDown={onKeyDown} tabIndex={0} aria-label="PDF 阅读器" aria-keyshortcuts="ArrowLeft ArrowRight Escape">
+  return <div className={'pdf-document-viewer' + (expanded ? ' expanded workspace-tool-dialog workspace-fullscreen-surface' : '')} role={expanded ? 'dialog' : undefined} aria-modal={expanded || undefined} onKeyDown={onKeyDown} tabIndex={0} aria-label="PDF 阅读器" aria-keyshortcuts="ArrowLeft ArrowRight Escape">
     <div className="pdf-toolbar">
-      <div><button className="icon-button" aria-label="上一页" title="上一页" disabled={page <= 1 || !document} onClick={() => onPageChange(page - 1)}><ChevronLeft size={16} /></button>{pageControls ?? <span className="pdf-page-count">{page} / {document?.numPages ?? '…'}</span>}<button className="icon-button" aria-label="下一页" title="下一页" disabled={!document || page >= document.numPages} onClick={() => onPageChange(page + 1)}><ChevronRight size={16} /></button></div>
+      <div><button className="icon-button workspace-button" aria-label="上一页" data-tooltip="上一页" disabled={page <= 1 || !document} onClick={() => onPageChange(page - 1)}><ChevronLeft size={16} /></button>{pageControls ?? <span className="pdf-page-count">{page} / {document?.numPages ?? '…'}</span>}<button className="icon-button workspace-button" aria-label="下一页" data-tooltip="下一页" disabled={!document || page >= document.numPages} onClick={() => onPageChange(page + 1)}><ChevronRight size={16} /></button></div>
       {actions && <div className="pdf-source-action">{actions}</div>}
-      <div className="pdf-zoom-controls"><button className="icon-button" aria-label="缩小 PDF" title="缩小" disabled={rendering || !document || (fit === 'custom' ? zoom : renderedScale.current) <= .1} onClick={() => changeZoom(-.25)}><ZoomOut size={16} /></button><select aria-label="PDF 显示比例" value={fit} onChange={event => { setFit(event.target.value as typeof fit); setZoom(1) }}><option value="width">适合宽度</option><option value="page">整页显示</option>{fit === 'custom' && <option value="custom">{Math.round(zoom * 100)}%</option>}</select><button className="icon-button" aria-label="放大 PDF" title="放大" disabled={rendering || !document || (fit === 'custom' ? zoom : renderedScale.current) >= 6} onClick={() => changeZoom(.25)}><ZoomIn size={16} /></button><button className="icon-button" aria-label={expanded ? '退出专注阅读' : '专注阅读'} title={expanded ? '退出专注阅读（Esc）' : '专注阅读'} onClick={() => setExpanded(value => !value)}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button></div>
+      <div className="pdf-zoom-controls"><button className="icon-button workspace-button" aria-label="缩小 PDF" data-tooltip="缩小" disabled={rendering || !document || (fit === 'custom' ? zoom : renderedScale.current) <= .1} onClick={() => changeZoom(-.25)}><ZoomOut size={16} /></button><select aria-label="PDF 显示比例" value={fit} onChange={event => { setFit(event.target.value as typeof fit); setZoom(1) }} className="workspace-field workspace-select"><option value="width">适合宽度</option><option value="page">整页显示</option>{fit === 'custom' && <option value="custom">{Math.round(zoom * 100)}%</option>}</select><button className="icon-button workspace-button" aria-label="放大 PDF" data-tooltip="放大" disabled={rendering || !document || (fit === 'custom' ? zoom : renderedScale.current) >= 6} onClick={() => changeZoom(.25)}><ZoomIn size={16} /></button><button className="icon-button workspace-button" aria-label={expanded ? '退出专注阅读' : '专注阅读'} data-tooltip={expanded ? '退出专注阅读（Esc）' : '专注阅读'} onClick={() => setExpanded(value => !value)}>{expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button></div>
     </div>
-    {error && <div role="alert" className="library-error">{error}<button className="text-button" onClick={() => setRetry(value => value + 1)}>重试</button></div>}
-    <div className="pdf-canvas-container" ref={container} aria-busy={rendering}>{rendering && !error && <div className="pdf-loading" role="status">正在显示 PDF…</div>}<canvas ref={canvas} role="img" aria-label={'研报 PDF 第 ' + page + ' 页'} style={{ visibility: rendering || error ? 'hidden' : 'visible' }} /></div>
+    {error && <div role="alert" className="library-error workspace-error">{error}<button className="text-button workspace-button" onClick={() => setRetry(value => value + 1)}>重试</button></div>}
+    <div className="pdf-canvas-container" ref={container} aria-busy={rendering}>{rendering && !error && <div className="pdf-loading"><LoadingState label="正在显示 PDF…" /></div>}<canvas ref={canvas} role="img" aria-label={label + ' PDF 第 ' + page + ' 页'} style={{ visibility: rendering || error ? 'hidden' : 'visible' }} /></div>
   </div>
 }
 

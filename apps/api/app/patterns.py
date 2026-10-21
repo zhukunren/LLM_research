@@ -19,6 +19,12 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
 
 
+def upload_directory() -> Path:
+    from .security_context import current_actor
+    from .storage import application_paths
+    return PATTERN_UPLOAD_DIR if current_actor().legacy else application_paths().upload_root / "patterns"
+
+
 def _decode_image(payload: str, mime_type: str) -> np.ndarray:
     try:
         raw = base64.b64decode(payload, validate=True)
@@ -47,12 +53,13 @@ def store_source_image(payload: str, mime_type: str, filename: str | None) -> di
     raw = base64.b64decode(payload, validate=True)
     digest = __import__("hashlib").sha256(raw).hexdigest()
     extension = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}[mime_type]
-    PATTERN_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    target = PATTERN_UPLOAD_DIR / f"{digest}{extension}"
+    directory = upload_directory()
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / f"{digest}{extension}"
     if not target.exists():
         temporary = None
         try:
-            with tempfile.NamedTemporaryFile(dir=PATTERN_UPLOAD_DIR, delete=False, suffix=".tmp") as stream:
+            with tempfile.NamedTemporaryFile(dir=directory, delete=False, suffix=".tmp") as stream:
                 temporary = Path(stream.name)
                 stream.write(raw)
             os.replace(temporary, target)

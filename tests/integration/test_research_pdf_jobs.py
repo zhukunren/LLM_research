@@ -287,8 +287,10 @@ def test_replacement_project_pdf_keeps_previous_report_until_success(case, monke
         completed = client.get(endpoint).json()["items"]
         assert len(completed) == 1 and completed[0]["status"] == "succeeded"
         assert completed[0]["url"] != old["url"]
-        current_text = "\n".join(page.extract_text() for page in PdfReader(BytesIO(client.get(completed[0]["url"]).content)).pages)
-        assert "修改后的专题名" in current_text and "原研究正文" in current_text
+        reader = PdfReader(BytesIO(client.get(completed[0]["url"]).content))
+        current_text = "\n".join(page.extract_text() for page in reader.pages)
+        assert json.loads(reader.metadata.subject)["研究项目"] == "修改后的专题名"
+        assert "原研究正文" in current_text
         assert client.get(old["url"]).content == old_bytes
 
 

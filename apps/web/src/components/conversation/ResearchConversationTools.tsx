@@ -68,15 +68,15 @@ export default function ResearchConversationTools({
   const content = <div ref={root} className="research-conversation-tools" onBlur={event => {
     if (open && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) close(false)
   }}>
-    {hasResults && <button ref={resultsToggleRef} type="button" className="icon-button research-conversation-results"
-      aria-label="成果与文件" title="成果与文件" aria-expanded={resultsOpen} aria-controls="research-results-drawer"
+    {hasResults && <button ref={resultsToggleRef} type="button" className="icon-button research-conversation-results workspace-button"
+      aria-label="成果与文件" data-tooltip="成果与文件" aria-expanded={resultsOpen} aria-controls="research-results-drawer"
       onClick={() => { close(false); onToggleResults() }}><FileSearch size={18} aria-hidden="true" /></button>}
-    <button ref={trigger} type="button" className="icon-button research-conversation-options-trigger"
-      aria-label="研究对话选项" title="研究对话选项" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
+    <button ref={trigger} type="button" className="icon-button research-conversation-options-trigger workspace-button"
+      aria-label="研究对话选项" data-tooltip="研究对话选项" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
       onClick={() => setOpen(value => !value)} onKeyDown={event => {
         if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true) }
       }}><Ellipsis size={20} aria-hidden="true" /></button>
-    {open && <div ref={popup} id={id} className="research-conversation-popover" role="dialog" aria-label="项目归属" tabIndex={-1}>
+    {open && <div ref={popup} id={id} className="research-conversation-popover workspace-tool-dialog workspace-popover" role="dialog" aria-label="项目归属" tabIndex={-1}>
       <p className="research-conversation-popover-title">项目归属</p>
       <ProjectMembership key={conversationId} conversationId={conversationId} projectId={projectId} disabled={disabled}
         onChange={onProjectChange} onError={onError}

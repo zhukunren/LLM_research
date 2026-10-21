@@ -1,0 +1,11 @@
+.workspace-loading-state { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; width: 100%; min-width: 0; min-height: 220px; padding: 32px 24px; color: var(--ui-text-muted); font-size: 13px; line-height: 1.7; }
+.workspace-loading-label { display: inline-flex; align-items: center; justify-content: center; gap: 10px; max-width: 100%; overflow-wrap: anywhere; }
+.workspace-loading-label > svg { flex-shrink: 0; color: var(--ui-text-faint); animation: workspace-loading-turn 1.2s linear infinite; }
+.workspace-loading-lines { display: grid; gap: 12px; width: min(440px, 100%); }
+.workspace-loading-lines > span { height: 10px; border-radius: 4px; background: var(--ui-surface-subtle); }
+.workspace-loading-lines > span:nth-child(2) { width: 88%; }
+.workspace-loading-lines > span:last-child { width: 64%; }
+.workspace-loading-state.workspace-loading-compact { min-height: 64px; padding: 16px 12px; gap: 16px; }
+@keyframes workspace-loading-turn { to { transform: rotate(360deg); } }
+@media (max-width: 620px) { .workspace-loading-state { min-height: 180px; padding: 24px 16px; } }
+@media (prefers-reduced-motion: reduce) { .workspace-loading-label > svg { animation: none; } }

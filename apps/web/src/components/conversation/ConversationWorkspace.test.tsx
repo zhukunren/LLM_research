@@ -527,3 +527,15 @@ it('reports an oversized indicator handoff inside the drawer without replacing t
   expect(screen.getByRole('dialog', { name: '我的指标' })).toHaveTextContent('当前草稿加上指标请求过长')
   expect(screen.getByLabelText('研究要求')).toHaveValue(draft)
 })
+
+it.each(['news', 'report'] as const)('preserves the library %s source when resetting a new research draft', async scope => {
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ items: [] })))
+  const source = scope === 'news'
+    ? { reference: { kind: 'news_item' as const, source_id: 'news-1' }, label: 'News source' }
+    : { reference: { kind: 'report_page' as const, source_id: 'report-1', page_number: 3 }, label: 'Report page 3' }
+  const onSourceChange = vi.fn(), onConsumed = vi.fn()
+  render(<ConversationWorkspace initialScope={scope} initialWorkflowType="research" initialNewDraft newResearchKey={1} initialSource={source} onSourceChange={onSourceChange} onNewResearchConsumed={onConsumed} />)
+  await waitFor(() => expect(onConsumed).toHaveBeenCalled())
+  expect(screen.getByText(source.label)).toBeInTheDocument()
+  expect(onSourceChange).toHaveBeenLastCalledWith(source)
+})

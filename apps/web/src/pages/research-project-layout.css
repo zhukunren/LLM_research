@@ -14,11 +14,22 @@
 .viewport-workspace .page-frame .research-project-page .research-note-layout-editing > .research-project-tabs,
 .viewport-workspace .page-frame .research-project-page .research-note-layout-editing .research-content-heading:empty { display: none; }
 .viewport-workspace .page-frame .research-project-page .research-note-editor { padding: 4px 0 0; }
+.viewport-workspace .page-frame .research-project-page .research-note-editor > h3 { margin: 0; font-size: 16px; line-height: 1.7; }
+.viewport-workspace .page-frame .research-project-page .research-note-editor textarea { font-size: 13px; line-height: 1.8; }
 .viewport-workspace .page-frame .research-project-page .research-note-editor textarea[aria-label="研究内容"] { min-height: 230px; resize: vertical; }
 .viewport-workspace .page-frame .research-project-page .research-note-layout-editing .research-project-heading > .heading-actions { display: none; }
 .viewport-workspace .page-frame .research-project-page .research-note-editor .research-editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .viewport-workspace .page-frame .research-project-page .research-note-editor .research-editor-fields > label { min-width: 0; }
 @media (max-width: 620px) {
+  /* Let the project header scroll away so notes retain a full reading surface. */
+  .viewport-workspace .page-frame .research-project-page .research-project-detail { overflow-y: auto; }
+  .viewport-workspace .page-frame .research-project-page #research-project-panel,
+  .viewport-workspace .page-frame .research-project-page #research-project-panel[data-tab=notes] { flex: 0 0 auto; overflow: visible; }
+  .viewport-workspace .page-frame .research-project-page .research-note-list { flex: none; overflow: visible; }
+  .viewport-workspace .page-frame .research-project-page .company-workspace-entry { flex-shrink: 0; margin-block: 10px; }
+  .viewport-workspace .page-frame .research-project-page .research-note-editor { height: auto; overflow: visible; }
+  .viewport-workspace .page-frame .research-project-page .research-note-editor .research-editor-fields { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .viewport-workspace .page-frame .research-project-page .research-note-editor textarea { font-size: 16px; }
   .viewport-workspace .page-frame .research-project-page .research-project-heading { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .viewport-workspace .page-frame .research-project-page .research-project-heading > .heading-actions { justify-content: flex-start; width: 100%; }
   .viewport-workspace .page-frame .research-project-page .research-project-topline { font-size: 11px; }

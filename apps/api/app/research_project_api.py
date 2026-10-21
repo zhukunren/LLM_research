@@ -160,13 +160,13 @@ def company_dossier(project_id: str, stock_code: str, as_of: date):
 
 
 @router.get("/research-projects/{project_id}/companies/{stock_code}/sources")
-def company_sources(project_id: str, stock_code: str, kind: Literal["news", "report"], as_of: date,
+def company_sources(project_id: str, stock_code: str, kind: Literal["news", "report", "disclosure"], as_of: date,
                     offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=50)):
     return _call(company.sources, project_id, stock_code, kind, as_of.isoformat(), offset, limit)
 
 
 @router.get("/research-projects/{project_id}/companies/{stock_code}/source")
-def company_source(project_id: str, stock_code: str, kind: Literal["news", "report"], source_id: str,
+def company_source(project_id: str, stock_code: str, kind: Literal["news", "report", "disclosure"], source_id: str,
                    as_of: date, page: int = Query(1, ge=1, le=5000), offset: int = Query(0, ge=0)):
     return _call(company.source, project_id, stock_code, kind, source_id, page, as_of.isoformat(), offset)
 

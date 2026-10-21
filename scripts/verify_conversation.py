@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 from datetime import datetime, timezone
@@ -50,7 +51,7 @@ def offline() -> dict:
 
 def live(case_set: str) -> dict:
     try:
-        sys.path.insert(0, str(ROOT / "runtime" / "python-deps"))
+        sys.path.insert(0, str(Path(os.environ.get("LLMR_PYTHON_DEPS") or ROOT / "runtime" / "python-deps")))
         from apps.api.app.model_client import ModelRequestError, complete_json
         from apps.api.app.settings import llm_settings
         settings = llm_settings()

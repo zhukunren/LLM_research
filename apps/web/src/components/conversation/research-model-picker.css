@@ -27,7 +27,7 @@
 .research-model-option > svg { flex-shrink: 0; color: var(--ui-brand, #00337a); }
 .research-model-popover .research-model-option:hover:not(:disabled) { background: var(--ui-surface-hover, #f0f0f0); }
 .research-model-popover .research-model-option[aria-checked="true"]:not(:disabled) { background: var(--ui-primary-soft, #edf3fa); }
-.research-model-popover .research-model-option:disabled { color: var(--ui-text-disabled, #999); cursor: not-allowed; }
+.research-model-popover .research-model-option:disabled { color: var(--ui-text-disabled, #999); opacity: 1; cursor: not-allowed; }
 .research-model-option:disabled small, .research-model-option:disabled > svg { color: var(--ui-text-disabled, #999); }
 .research-model-efforts { border-top: 1px solid var(--ui-border-subtle, #eee); padding: 12px 8px 6px; margin-top: 8px; }
 .research-model-section-label { color: var(--ui-text-muted, #666); font-size: 12px; margin-bottom: 10px; }

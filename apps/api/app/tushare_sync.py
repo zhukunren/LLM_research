@@ -1,6 +1,6 @@
-"""Controlled ingestion from the project's Tushare relay adapter.
+"""Controlled ingestion from the official Tushare Pro API.
 
-The relay is intentionally kept outside request handling.  Running the sync
+Data ingestion is intentionally kept outside request handling. Running the sync
 command stages external data, validates it, and only then replaces the market
 Parquet file or commits news records to SQLite.
 """
@@ -14,7 +14,7 @@ import re
 import time
 from datetime import date, datetime, time as clock_time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from uuid import uuid4
 
 import duckdb
@@ -24,6 +24,7 @@ import pyarrow.parquet as pq
 from . import news_sources
 from .db import utc_now
 from .settings import ALLOWED_MARKETS, STOCK_FILE, tushare_settings
+from .tushare_client import TushareClient, TushareError
 
 
 NEWS_ENDPOINT_SOURCES = (
@@ -41,31 +42,20 @@ DAILY_MAX_PAGES = 20
 MARKET_DAYS_PER_SYNC = 30
 SOURCE_DELAY_SECONDS = 0.15
 STOCK_CODE_PATTERN = re.compile(r"(?<!\d)(\d{6})\.(SH|SZ|BJ)(?![A-Z])", re.I)
+SyncProgress = Callable[[str, dict[str, Any]], None]
 
 
-class RelaySyncError(RuntimeError):
-    """A relay failure that can be reported without revealing credentials."""
+def _report_progress(callback: SyncProgress | None, stage: str, **details: Any) -> None:
+    if callback:
+        callback(stage, details)
 
 
-def create_client() -> Any:
-    """Create the bundled relay client using explicit settings when provided."""
-
-    try:
-        import tushare_relay
-    except ImportError as exc:  # pragma: no cover - deployment configuration failure
-        raise RelaySyncError("找不到项目根目录中的 tushare_relay.py") from exc
-
+def create_client() -> TushareClient:
+    """Create a direct official API client using the configured token."""
     config = tushare_settings()
-    options: dict[str, Any] = {
-        "timeout": config["timeout"],
-        "retries": config["retries"],
-        "retry_backoff": 0.6,
-    }
-    if config["base_url"]:
-        options["base_url"] = config["base_url"]
-    # An empty token deliberately lets the adapter use its own configured
-    # default.  The key itself never enters a result payload or log message.
-    return tushare_relay.pro_api(str(config["api_key"]), **options)
+    from .tushare_limits import configured_limiter
+    return TushareClient(str(config["token"]), timeout=float(config["timeout"]), retries=int(config["retries"]),
+                         limiter=configured_limiter())
 
 
 def _as_date(value: date | str | None) -> date:
@@ -105,17 +95,17 @@ def _payload_rows(payload: Any, api_name: str) -> list[dict[str, Any]]:
     if items is None:
         return []
     if not isinstance(items, list):
-        raise RelaySyncError(f"{api_name} 返回了无法识别的记录格式")
+        raise TushareError(f"{api_name} 返回了无法识别的记录格式")
     if not items:
         return []
     if isinstance(items[0], Mapping):
         return [{str(key): value for key, value in row.items()} for row in items if isinstance(row, Mapping)]
     if not isinstance(fields, list) or not all(isinstance(field, str) for field in fields):
-        raise RelaySyncError(f"{api_name} 返回的字段定义无效")
+        raise TushareError(f"{api_name} 返回的字段定义无效")
     rows: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, (list, tuple)) or len(item) != len(fields):
-            raise RelaySyncError(f"{api_name} 返回了字段数量不匹配的记录")
+            raise TushareError(f"{api_name} 返回了字段数量不匹配的记录")
         rows.append(dict(zip(fields, item, strict=True)))
     return rows
 
@@ -123,9 +113,10 @@ def _payload_rows(payload: Any, api_name: str) -> list[dict[str, Any]]:
 def _query(client: Any, api_name: str, **params: Any) -> list[dict[str, Any]]:
     try:
         payload = client.raw_query(api_name, **params)
+    except TushareError:
+        raise
     except Exception as exc:
-        message = str(exc).replace("\n", " ").strip()
-        raise RelaySyncError(f"{api_name} 请求失败：{message or type(exc).__name__}") from exc
+        raise TushareError(f"{api_name} 请求失败：{type(exc).__name__}") from None
     return _payload_rows(payload, api_name)
 
 
@@ -236,7 +227,7 @@ def _daily_record(row: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def _daily_rows(client: Any, trade_day: date) -> list[dict[str, Any]]:
+def _daily_rows(client: Any, trade_day: date, on_page: Callable[[int, int], None] | None = None) -> list[dict[str, Any]]:
     """Read every paged daily row for one exchange day or fail as a whole."""
 
     rows: list[dict[str, Any]] = []
@@ -251,26 +242,23 @@ def _daily_rows(client: Any, trade_day: date) -> list[dict[str, Any]]:
         )
         if not page_rows:
             break
-        # Some relay cache paths ignore a high offset and return the entire
-        # requested day.  That response is complete, but it overlaps earlier
-        # pages; accept it and let the per-day key de-duplication below choose
-        # one bar per security/date instead of issuing another duplicate page.
         if len(page_rows) > DAILY_PAGE_SIZE:
-            rows.extend(page_rows)
-            break
+            raise TushareError(f"daily {trade_day.isoformat()} 返回记录超过分页上限")
         page_keys = {
             (str(item.get("ts_code") or ""), str(item.get("trade_date") or ""))
             for item in page_rows
         }
         if page_keys and page_keys <= seen_page_keys:
-            raise RelaySyncError(f"daily {trade_day.isoformat()} 分页重复，已拒绝不完整日线")
+            raise TushareError(f"daily {trade_day.isoformat()} 分页重复，已拒绝不完整日线")
         seen_page_keys.update(page_keys)
         rows.extend(page_rows)
+        if on_page:
+            on_page(page + 1, len(rows))
         if len(page_rows) < DAILY_PAGE_SIZE:
             break
         time.sleep(SOURCE_DELAY_SECONDS)
     else:
-        raise RelaySyncError(f"daily {trade_day.isoformat()} 超过最大分页数")
+        raise TushareError(f"daily {trade_day.isoformat()} 超过最大分页数")
     return rows
 
 
@@ -335,9 +323,10 @@ def _write_market_update(rows: list[dict[str, Any]]) -> tuple[int, int]:
     return len(staged_rows), STOCK_FILE.stat().st_size
 
 
-def sync_market_data(client: Any, *, as_of: date, initial_days: int = 30) -> dict[str, Any]:
+def sync_market_data(client: Any, *, as_of: date, initial_days: int = 30, on_progress: SyncProgress | None = None) -> dict[str, Any]:
     """Append missing A-share daily bars without publishing partial days."""
 
+    _report_progress(on_progress, "market", status="running", message="正在核对本地行情与交易日历…")
     earliest, previous_watermark = _market_bounds()
     state = _market_completion()
     # MAX is only a display watermark, not evidence that preceding days are
@@ -383,12 +372,27 @@ def sync_market_data(client: Any, *, as_of: date, initial_days: int = 30) -> dic
     # requests in one run. Unprocessed days remain absent from the ledger and
     # will be resumed on subsequent syncs.
     result["deferred_days"] = [day.isoformat() for day in pending_days[MARKET_DAYS_PER_SYNC:]]
+    scheduled_days = pending_days[:MARKET_DAYS_PER_SYNC]
+    result.update(completed=0, total=len(scheduled_days), unit="交易日")
+
+    def report_day(message: str, **details: Any) -> None:
+        _report_progress(on_progress, "market", **{
+            **result, "status": "running", "message": message, **details,
+        })
+
     updates: list[dict[str, Any]] = []
-    for trade_day in pending_days[:MARKET_DAYS_PER_SYNC]:
+    for index, trade_day in enumerate(scheduled_days):
+        report_day(f"正在读取 {trade_day.isoformat()} 行情（{index + 1}/{len(scheduled_days)} 个交易日）", current=trade_day.isoformat())
         try:
-            source_rows = _daily_rows(client, trade_day)
-        except RelaySyncError as exc:
+            on_page = lambda page, count: report_day(
+                f"{trade_day.isoformat()} 已读取 {page} 页、{count:,} 条行情",
+                current=trade_day.isoformat(), current_rows=count,
+            )
+            source_rows = _daily_rows(client, trade_day, on_page) if on_progress else _daily_rows(client, trade_day)
+        except TushareError as exc:
             result["missing_or_failed_days"].append({"date": trade_day.isoformat(), "reason": str(exc)})
+            result["completed"] = index + 1
+            report_day(f"{trade_day.isoformat()} 行情读取失败，继续处理其他交易日")
             continue
         result["rows_received"] += len(source_rows)
         valid_for_day = []
@@ -408,6 +412,8 @@ def sync_market_data(client: Any, *, as_of: date, initial_days: int = 30) -> dic
             result["missing_or_failed_days"].append(
                 {"date": trade_day.isoformat(), "reason": "日线含无效记录，整日待重试" if rejected else "未收到可用的 A 股日线"}
             )
+            result["completed"] = index + 1
+            report_day(f"{trade_day.isoformat()} 行情校验未通过，整日待重试")
             continue
         unique_for_day = {(item["stock_code"], item["trade_date"]): item for item in valid_for_day}
         updates.extend(unique_for_day.values())
@@ -416,8 +422,11 @@ def sync_market_data(client: Any, *, as_of: date, initial_days: int = 30) -> dic
         # Same-day bars can still be incomplete or corrected after close.
         if trade_day < today:
             complete_days.add(trade_day.isoformat())
+        result["completed"] = index + 1
+        report_day(f"{trade_day.isoformat()} 校验通过，{len(unique_for_day):,} 条行情待写入")
         time.sleep(SOURCE_DELAY_SECONDS)
 
+    report_day("正在合并并保存行情文件…", current=None)
     rows_written, bytes_written = _write_market_update(updates)
     retry_days.difference_update(result["updated_days"])
     retry_days.update(item["date"] for item in result["missing_or_failed_days"])
@@ -476,13 +485,20 @@ def _chunks(values: list[Any], size: int) -> list[list[Any]]:
     return [values[index : index + size] for index in range(0, len(values), size)]
 
 
-def sync_news(client: Any, *, start: date, as_of: date) -> dict[str, Any]:
-    """Fetch relay news while recording whether the requested history was supplied."""
+def sync_news(client: Any, *, start: date, as_of: date, on_progress: SyncProgress | None = None) -> dict[str, Any]:
+    """Fetch official news while recording whether the requested history was supplied."""
 
     failures: list[dict[str, str]] = []
     returned_timestamps: list[datetime] = []
     imported = {"created": 0, "duplicates": 0, "requests": 0}
-    for source in NEWS_ENDPOINT_SOURCES:
+    def report_source(message: str, completed: int, source: str) -> None:
+        _report_progress(on_progress, "news", status="running", message=message,
+                         completed=completed, total=len(NEWS_ENDPOINT_SOURCES), unit="资讯来源",
+                         current=source, **{"import": dict(imported)}, failed_sources=list(failures),
+                         requested_start=start.isoformat(), requested_end=as_of.isoformat())
+
+    for index, source in enumerate(NEWS_ENDPOINT_SOURCES):
+        report_source(f"正在读取 {source} 资讯（{index + 1}/{len(NEWS_ENDPOINT_SOURCES)} 个来源）", index, source)
         try:
             rows = _query(
                 client,
@@ -491,8 +507,9 @@ def sync_news(client: Any, *, start: date, as_of: date) -> dict[str, Any]:
                 start_date=f"{start.isoformat()} 00:00:00",
                 end_date=f"{as_of.isoformat()} 23:59:59",
             )
-        except RelaySyncError as exc:
+        except TushareError as exc:
             failures.append({"source": source, "reason": str(exc)})
+            report_source(f"{source} 资讯读取失败，继续处理其他来源", index + 1, source)
             continue
         items = [item for row in rows if (item := _news_item(row, source)) is not None]
         for item in items:
@@ -511,6 +528,8 @@ def sync_news(client: Any, *, start: date, as_of: date) -> dict[str, Any]:
             imported["created"] += response["created"]
             imported["duplicates"] += response["duplicates"]
             imported["requests"] += 1
+            report_source(f"{source} 正在保存资讯，累计新增 {imported['created']:,} 条、重复 {imported['duplicates']:,} 条", index, source)
+        report_source(f"{source} 已处理，返回 {len(rows):,} 条资讯", index + 1, source)
         time.sleep(SOURCE_DELAY_SECONDS)
     earliest = min(returned_timestamps) if returned_timestamps else None
     latest = max(returned_timestamps) if returned_timestamps else None
@@ -525,11 +544,14 @@ def sync_news(client: Any, *, start: date, as_of: date) -> dict[str, Any]:
         "latest_returned_at": latest.isoformat() if latest else None,
         "history_complete": history_complete,
         "import": imported,
+        "completed": len(NEWS_ENDPOINT_SOURCES),
+        "total": len(NEWS_ENDPOINT_SOURCES),
+        "unit": "资讯来源",
         "status": "partial" if failures or not history_complete else "completed",
         "coverage_note": (
-            "中转站未返回完整的请求时间窗；已导入实际返回的原文，未把缺失日期当作无资讯。"
+            "Tushare 未返回完整的请求时间窗；已导入实际返回的原文，未把缺失日期当作无资讯。"
             if not history_complete
-            else "中转站返回的最早和最新资讯时间覆盖了请求时间窗。"
+            else "Tushare 返回的最早和最新资讯时间覆盖了请求时间窗。"
         ),
     }
 
@@ -541,14 +563,15 @@ def sync_tushare(
     include_market: bool = True,
     include_news: bool = True,
     client: Any | None = None,
+    on_progress: SyncProgress | None = None,
 ) -> dict[str, Any]:
-    """Run the requested relay sync stages and retain useful partial results."""
+    """Run the requested official API sync stages and retain useful partial results."""
 
     if type(days) is not int or not 1 <= days <= 365:
         raise ValueError("同步窗口必须是 1 至 365 个自然日")
     cutoff = _as_date(as_of)
     start = cutoff - timedelta(days=days - 1)
-    relay = client or create_client()
+    client = client if client is not None else create_client()
     result: dict[str, Any] = {
         "started_at": utc_now(),
         "as_of": cutoff.isoformat(),
@@ -558,21 +581,17 @@ def sync_tushare(
     }
     stages: list[tuple[str, Any]] = []
     if include_market:
-        stages.append(("market", lambda: sync_market_data(relay, as_of=cutoff, initial_days=days)))
+        stages.append(("market", lambda: sync_market_data(client, as_of=cutoff, initial_days=days, on_progress=on_progress)))
     if include_news:
-        stages.append(("news", lambda: sync_news(relay, start=start, as_of=cutoff)))
+        stages.append(("news", lambda: sync_news(client, start=start, as_of=cutoff, on_progress=on_progress)))
     for name, action in stages:
+        _report_progress(on_progress, name, status="running", message="正在更新行情…" if name == "market" else "正在更新资讯…")
         try:
             result["stages"][name] = action()
         except Exception as exc:
-            result["stages"][name] = {"status": "failed", "reason": f"{type(exc).__name__}: {str(exc)[:240]}"}
+            result["stages"][name] = {"status": "failed", "reason": str(exc)[:240] if isinstance(exc, TushareError) else "更新处理失败，请保存诊断信息交给维护者。"}
+        _report_progress(on_progress, name, **result["stages"][name])
     states = [stage.get("status") for stage in result["stages"].values()]
     result["status"] = "completed" if states and all(state in {"completed", "updated", "up_to_date", "no_new_rows"} for state in states) else "partial"
     result["finished_at"] = utc_now()
-    session = getattr(relay, "_session", None)
-    if session is not None:
-        try:
-            session.close()
-        except Exception:
-            pass
     return result

@@ -29,12 +29,12 @@ export default function ProjectMembership({ conversationId, projectId, disabled,
   }
   return <div className="project-membership">
     <FolderOpen size={15} aria-hidden="true" />
-    <select aria-label="所属研究项目" value={projectId || ''} disabled={disabled || saving || loadError} onChange={event => void change(event.target.value)}>
+    <select aria-label="所属研究项目" value={projectId || ''} disabled={disabled || saving || loadError} onChange={event => void change(event.target.value)} className="workspace-field workspace-select">
       <option value="">未归入项目</option>
       {projectId && !projects.some(item => item.id === projectId) && <option value={projectId}>当前研究项目</option>}
       {projects.filter(item => item.status === 'active' || item.id === projectId).map(item => <option key={item.id} value={item.id}>{item.name}{item.status === 'archived' ? '（已归档）' : ''}</option>)}
     </select>
-    {loadError ? <button className="text-button" onClick={() => setReload(value => value + 1)}>重试项目列表</button>
-      : projectId && onOpenProject && <button className="text-button" onClick={() => onOpenProject(projectId)}>查看项目</button>}
+    {loadError ? <button className="text-button workspace-button" onClick={() => setReload(value => value + 1)}>重试项目列表</button>
+      : projectId && onOpenProject && <button className="text-button workspace-button" onClick={() => onOpenProject(projectId)}>查看项目</button>}
   </div>
 }

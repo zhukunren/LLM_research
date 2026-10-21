@@ -7,18 +7,28 @@ beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => window.history.replaceState(null, '', '/'))
 
 describe('stable workspace URLs', () => {
+  it.each(['research', 'screening'] as const)('redirects old indicator bookmarks into the %s conversation drawer', workspace => {
+    const route = parseWorkspaceRoute('#/library/technical?workspace=' + workspace)!
+    expect(route).toMatchObject({ page: workspace === 'research' ? 'screening' : 'conditions', newDraft: true, scope: 'technical', indicators: 'common' })
+    expect(workspaceRouteHash(route)).toBe(`#/${workspace}/new?scope=technical&indicators=common`)
+    expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route)
+    sessionStorage.setItem('app.page', '"technical"')
+    expect(legacyWorkspaceRoute()).toMatchObject({ page: 'screening', indicators: 'common' })
+  })
   it.each<WorkspaceRoute>([
+    { page: 'qmt' }, { page: 'qmt', workspace: 'screening' },
     { page: 'screening', newDraft: true }, { page: 'screening', conversationId: 'one', scope: 'report' },
     { page: 'conditions', conversationId: 'task-1', scope: 'news', view: 'conversation' },
     { page: 'conditions', view: 'compose' }, { page: 'research', projectId: 'project-1' },
     { page: 'watchlist', candidateId: 'candidate-1', observationTab: 'candidates' },
     { page: 'watchlist', runId: 'batch-1', observationTab: 'batches' },
     { page: 'watchlist', runId: 'batch-1', observationCode: '600000.SH', observationTab: 'batches' },
-    { page: 'watchlist', observationTab: 'candidates' }, { page: 'news' }, { page: 'reports' },
+    { page: 'watchlist', observationTab: 'candidates' }, { page: 'screening', newDraft: true, scope: 'technical', indicators: 'common' }, { page: 'reports' },
   ])('round-trips an explicit location %#', route => expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route))
 
   it('keeps new drafts separate from saved objects and legacy page IDs', () => {
     expect(parseWorkspaceRoute('#/home')).toEqual({ page: 'screening', newDraft: true })
+    expect(parseWorkspaceRoute('#/assistants')).toEqual({ page: 'screening', newDraft: true })
     expect(legacyWorkspaceRoute()).toEqual({ page: 'screening', newDraft: true })
     expect(parseWorkspaceRoute('#/research/new')).toEqual({ page: 'screening', newDraft: true })
     expect(parseWorkspaceRoute('#/screening/new')).toEqual({ page: 'conditions', newDraft: true, view: 'conversation' })
@@ -125,31 +135,4 @@ describe('stable workspace URLs', () => {
     expect(result.current.route).toEqual({ page: 'conditions', conversationId: 'saved-screening', scope: 'technical', view: 'conversation' })
     expect(window.location.hash).toBe('#/screening/saved-screening?scope=technical')
   })
-})
-
-it.each(['#/library/technical', '#/library/technical?workspace=screening'])('retires the built-in page bookmark without deleting drafts: %s', hash => {
-  expect(parseWorkspaceRoute(hash)).toBeNull()
-  sessionStorage.setItem('app.page', '"technical"')
-  sessionStorage.setItem('conversation.drafts', JSON.stringify({ 'research:screening:new': '保留研究草稿', 'screening:technical:new': '保留行情条件' }))
-  expect(legacyWorkspaceRoute()).toEqual({ page: 'screening', newDraft: true })
-  window.history.replaceState(null, '', hash)
-  const historyLength = window.history.length
-  const { result } = renderHook(() => useWorkspaceRoute())
-  expect(result.current.route).toEqual({ page: 'screening', newDraft: true })
-  expect(window.location.hash).toBe('#/research/new')
-  expect(window.history.length).toBe(historyLength)
-  expect(JSON.parse(sessionStorage.getItem('conversation.drafts')!)).toEqual({ 'research:screening:new': '保留研究草稿', 'screening:technical:new': '保留行情条件' })
-})
-
-it('does not reopen the retired page through hash navigation or browser history', async () => {
-  window.history.replaceState(null, '', '#/projects/one')
-  const { result } = renderHook(() => useWorkspaceRoute())
-  act(() => { window.location.hash = '#/library/technical' })
-  await waitFor(() => expect(result.current.route).toEqual({ page: 'screening', newDraft: true }))
-  act(() => result.current.navigate({ page: 'conditions', conversationId: 'saved', scope: 'technical', view: 'conversation' }))
-  expect(result.current.route.scope).toBe('technical')
-  act(() => window.history.back())
-  await waitFor(() => expect(result.current.route).toEqual({ page: 'screening', newDraft: true }))
-  act(() => window.history.forward())
-  await waitFor(() => expect(result.current.route).toEqual({ page: 'conditions', conversationId: 'saved', scope: 'technical', view: 'conversation' }))
 })

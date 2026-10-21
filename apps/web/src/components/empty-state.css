@@ -1,0 +1,19 @@
+.workspace-empty-state { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; width: 100%; min-width: 0; min-height: 220px; padding: 32px 20px; color: var(--ui-text-muted); text-align: center; overflow-wrap: anywhere; }
+.workspace-empty-state .workspace-empty-icon { display: grid; place-items: center; flex-shrink: 0; width: 48px; height: 48px; margin-bottom: 4px; border: 1px solid var(--ui-border-subtle); border-radius: 12px; background: var(--ui-surface-subtle); color: var(--ui-text-muted); }
+.workspace-empty-state .workspace-empty-title { max-width: 100%; margin: 0; white-space: normal; color: var(--ui-text); font-size: 15px; font-weight: 600; line-height: 1.6; }
+.workspace-empty-state .workspace-empty-description { max-width: 40ch; margin: 0; color: var(--ui-text-muted); font-size: 13px; line-height: 1.8; }
+.workspace-empty-actions { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.workspace-empty-actions > button { min-height: 36px; margin: 0; border-radius: var(--ui-radius-sm); font-size: 13px; }
+.workspace-empty-state.workspace-empty-compact { min-height: 180px; padding: 24px 12px; }
+.workspace-empty-compact .workspace-empty-icon { width: 40px; height: 40px; border-radius: 12px; }
+.workspace-empty-compact .workspace-empty-title { font-size: 14px; }
+.workspace-empty-compact .workspace-empty-description { font-size: 12px; }
+/* Keep small inline and chart placeholders quiet, with the same reading scale. */
+:is(.workspace-tool-page,.workspace-tool-dialog) :is(.library-empty,.catalog-empty,.rail-empty,.side-empty,.empty-inline,.indicator-placeholder,.observation-chart-placeholder) { min-width: 0; color: var(--ui-text-muted); font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+:is(.workspace-tool-page,.workspace-tool-dialog) :is(.workbench-empty,.condition-transfer-empty) > :is(strong,h3) { font-size: 14px; font-weight: 600; line-height: 1.6; }
+:is(.workspace-tool-page,.workspace-tool-dialog) :is(.workbench-empty,.condition-transfer-empty) > p { font-size: 13px; line-height: 1.8; }
+@media (max-width: 620px) {
+  .workspace-empty-state { min-height: 180px; padding: 24px 16px; }
+  .workspace-empty-actions { width: 100%; }
+  .workspace-empty-actions > button { min-height: 44px; max-width: 100%; white-space: normal; }
+}

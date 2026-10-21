@@ -75,8 +75,8 @@ function backend({ loseMessage = false, loseCreation = false }: { loseMessage?: 
 }
 
 async function uploadFile(user: ReturnType<typeof userEvent.setup>) {
-  await waitFor(() => expect(screen.getByRole('button', { name: '添加文件或研究助手' })).toBeEnabled())
-  await user.click(screen.getByRole('button', { name: '添加文件或研究助手' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '添加文件' })).toBeEnabled())
+  await user.click(screen.getByRole('button', { name: '添加文件' }))
   await user.click(screen.getByRole('menuitem', { name: '上传文件' }))
   await user.upload(screen.getByLabelText('上传研究文件'), new File(['财报原文'], 'quarterly.txt', { type: 'text/plain', lastModified: 10 }))
   await waitFor(() => expect(screen.getByRole('button', { name: '移除附件：quarterly.txt' })).toBeEnabled())
@@ -123,32 +123,28 @@ it('restores text and attachment IDs after a failed send and retries its frozen 
   expect(screen.getByRole('log').querySelectorAll('.conversation-message.user')).toHaveLength(1)
 })
 
-it('changes methods without sending and keeps draft text and files when an immediate assistant is launched', async () => {
-  const state = backend(), user = userEvent.setup(), onLaunchAssistant = vi.fn()
-  render(<ConversationWorkspace initialNewDraft onLaunchAssistant={onLaunchAssistant} />)
+it('changes research methods without sending or losing draft text and uploaded files', async () => {
+  const state = backend(), user = userEvent.setup()
+  render(<ConversationWorkspace initialNewDraft />)
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
   await user.type(screen.getByLabelText('研究要求'), '尚未发送的问题')
   await uploadFile(user)
-  await user.click(screen.getByRole('button', { name: '添加文件或研究助手' }))
-  await user.click(screen.getByRole('menuitem', { name: '调用研究助手' }))
+  await user.click(screen.getByRole('button', { name: '研究方法' }))
+  expect(screen.queryByRole('menuitem', { name: '启动今日热点' })).not.toBeInTheDocument()
   await user.click(await screen.findByRole('menuitem', { name: '使用财报分析' }))
-  await waitFor(() => expect(screen.getByLabelText('当前研究助手')).toHaveTextContent('财报分析'))
+  await waitFor(() => expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('财报分析'))
   expect(state.messages).toHaveLength(0)
-  await user.click(screen.getByRole('button', { name: '添加文件或研究助手' }))
-  await user.click(screen.getByRole('menuitem', { name: '调用研究助手' }))
-  await user.click(await screen.findByRole('menuitem', { name: '启动今日热点' }))
-  expect(onLaunchAssistant).toHaveBeenCalledExactlyOnceWith('daily-hotspots', '今日热点')
   expect(screen.getByLabelText('研究要求')).toHaveValue('尚未发送的问题')
   expect(screen.getByRole('list', { name: '待发送附件' })).toHaveTextContent('quarterly.txt')
-  await user.click(screen.getByRole('button', { name: '移除研究助手，恢复通用投研' }))
-  await waitFor(() => expect(screen.queryByLabelText('当前研究助手')).not.toBeInTheDocument())
+  await user.click(screen.getByRole('button', { name: '恢复通用投研' }))
+  await waitFor(() => expect(screen.queryByLabelText('当前研究方法')).not.toBeInTheDocument())
   expect(state.messages).toHaveLength(0)
 })
 
 it('reuses metadata creation intent after a lost response and refresh instead of creating a ghost conversation', async () => {
   const state = backend({ loseCreation: true }), user = userEvent.setup()
   const first = render(<ConversationWorkspace initialNewDraft />)
-  await waitFor(() => expect(screen.getByRole('button', { name: '添加文件或研究助手' })).toBeEnabled())
+  await waitFor(() => expect(screen.getByRole('button', { name: '添加文件' })).toBeEnabled())
   await user.upload(screen.getByLabelText('上传研究文件'), new File(['财报原文'], 'quarterly.txt', { type: 'text/plain', lastModified: 10 }))
   await screen.findByText('创建响应丢失')
   expect(state.createdByRequest.size).toBe(1)

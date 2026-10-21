@@ -8,7 +8,7 @@ from types import MappingProxyType
 from typing import Any
 
 if __name__ == "__main__":
-    dependency_dir = Path(__file__).resolve().parents[3] / "runtime" / "python-deps"
+    dependency_dir = Path(os.environ.get("LLMR_PYTHON_DEPS") or Path(__file__).resolve().parents[3] / "runtime" / "python-deps")
     if dependency_dir.is_dir():
         sys.path.insert(0, str(dependency_dir))
 

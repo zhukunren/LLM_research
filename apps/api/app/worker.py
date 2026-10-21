@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
-from threading import Event, Thread
+from threading import Event, Thread, local
 from typing import Any
 from uuid import uuid4
 
@@ -487,7 +487,36 @@ def _execute_screening_task(lease: JobLease) -> None:
     )
 
 
+_consumer_state = local()
+
+
 def execute_job(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, exclude_kinds: tuple[str, ...] = ()) -> bool:
+    from .security_context import AccessDenied, actor_scope, auth_mode, has_actor_scope
+    if auth_mode() == "oidc" and not has_actor_scope():
+        from .identity import execution_actors
+        from .db import database_path
+        from .identity import identity_path
+        actors = execution_actors()
+        lane = (str(identity_path()), kinds, exclude_kinds)
+        cursors = getattr(_consumer_state, "cursors", {})
+        last = cursors.get(lane)
+        keys = [(actor.tenant_id, actor.user_id) for actor in actors]
+        start = (keys.index(last) + 1) % len(actors) if last in keys else 0
+        for actor in actors[start:] + actors[:start]:
+            try:
+                with actor_scope(actor):
+                    if database_path().is_file() and _execute_owned_job(job_id, kinds=kinds, exclude_kinds=exclude_kinds):
+                        cursors[lane] = (actor.tenant_id, actor.user_id)
+                        _consumer_state.cursors = cursors
+                        return True
+            except AccessDenied:
+                continue  # Revoked between listing workspaces and claiming a job.
+        return False
+    return _execute_owned_job(job_id, kinds=kinds, exclude_kinds=exclude_kinds)
+
+
+def _execute_owned_job(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, exclude_kinds: tuple[str, ...] = ()) -> bool:
+    from .security_context import AccessDenied
     lease = claim(job_id, kinds=kinds, exclude_kinds=exclude_kinds)
     if lease is None:
         return False
@@ -511,9 +540,15 @@ def execute_job(job_id: str | None = None, *, kinds: tuple[str, ...] | None = No
             elif lease.kind == "research_turn":
                 from .research_turn_service import execute_turn
                 execute_turn(lease)
+            elif lease.kind == "intelligence_source":
+                from .intelligence import execute_source
+                execute_source(lease)
             elif lease.kind == "research_pdf":
                 from .research_pdf_service import execute_export
                 execute_export(lease)
+            elif lease.kind == "research_matrix":
+                from .research_matrices import execute
+                execute(lease)
             elif lease.kind == "report_evaluation":
                 _execute_report_evaluation(lease)
             elif lease.kind == "report_metadata":
@@ -522,11 +557,27 @@ def execute_job(job_id: str | None = None, *, kinds: tuple[str, ...] | None = No
             elif lease.kind == "data_sync":
                 from .maintenance_service import refresh_data
                 refresh_data(lease)
+            elif lease.kind == "financial_probe":
+                from .financial_probe import execute
+                execute(lease)
+            elif lease.kind == "financial_sync":
+                from .financial_sync import execute
+                execute(lease)
+            elif lease.kind == "disclosure_import":
+                from .disclosure_sync import execute
+                execute(lease)
             else:
                 lease.finish("failed", "未知任务类型")
+        except AccessDenied:
+            # The trusted permission change already cancelled this user's jobs.
+            # Do not write a late result or retry using elevated credentials.
+            return True
         except Exception as exc:
             logging.getLogger(__name__).exception("Job failed: %s", lease.id)
-            lease.finish("failed", f"后台任务执行失败：{type(exc).__name__}；请检查数据和固定版本引用后重试")
+            try:
+                lease.finish("failed", f"后台任务执行失败：{type(exc).__name__}；请检查数据和固定版本引用后重试")
+            except AccessDenied:
+                return True
     return True
 
 
@@ -553,18 +604,32 @@ def run_worker(poll_seconds: float = 1.0, *, stop_event: Event | None = None) ->
     # A Codex turn can wait for a scan, so its consumer must run independently.
     research = Thread(target=consume, kwargs={"kinds": ("research_turn",)}, name="research-turn-worker", daemon=True)
     pdf = Thread(target=consume, kwargs={"kinds": ("research_pdf",)}, name="research-pdf-worker", daemon=True)
+    matrix = Thread(target=consume, kwargs={"kinds": ("research_matrix",)}, name="research-matrix-worker", daemon=True)
+    intelligence_sources = Thread(target=consume, kwargs={"kinds": ("intelligence_source",)}, name="intelligence-source-worker", daemon=True)
     research.start()
     pdf.start()
+    matrix.start()
+    intelligence_sources.start()
     try:
-        consume(exclude_kinds=("research_turn", "research_pdf"))
+        consume(exclude_kinds=("research_turn", "research_pdf", "research_matrix", "intelligence_source"))
     finally:
         stop.set()
         research.join(timeout=2)
         pdf.join(timeout=2)
+        matrix.join(timeout=2)
+        intelligence_sources.join(timeout=2)
 
 
 if __name__ == "__main__":
     from .db import init_db
 
-    init_db()
+    from .security_context import auth_mode, actor_scope, LOCAL_ACTOR
+    if auth_mode() == "oidc":
+        from dataclasses import replace
+        from .identity import initialize
+        initialize()
+        with actor_scope(replace(LOCAL_ACTOR, maintenance=True)):
+            init_db()
+    else:
+        init_db()
     run_worker()

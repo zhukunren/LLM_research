@@ -8,8 +8,9 @@
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'python312.ps1')
+. (Join-Path $PSScriptRoot 'storage.ps1')
 $PythonExe = Get-SystemPython312
-$PythonDeps = Join-Path $ProjectRoot 'runtime\python-deps'
+$PythonDeps = Get-LlmPythonDeps $ProjectRoot
 if (-not (Test-Path -LiteralPath $PythonDeps)) {
     throw '项目依赖尚未安装。请先运行 .\scripts\bootstrap.ps1 -SkipFrontend。'
 }

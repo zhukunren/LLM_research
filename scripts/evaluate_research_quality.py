@@ -22,7 +22,7 @@ def main() -> int:
     parser.add_argument("--prompt", type=Path, required=True, help="UTF-8 public research question")
     parser.add_argument("--as-of", required=True, help="Information cutoff, YYYY-MM-DD")
     parser.add_argument("--depth", choices=("standard", "deep", "both"), default="both")
-    parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "runtime" / "verification" / "research-quality")
+    parser.add_argument("--output-root", type=Path, default=Path(os.environ.get("LLMR_STATE_ROOT") or PROJECT_ROOT / "runtime") / "verification" / "research-quality")
     args = parser.parse_args()
     from datetime import date
 

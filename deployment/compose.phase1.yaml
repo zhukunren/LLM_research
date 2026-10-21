@@ -1,0 +1,49 @@
+# Local validation only. Authentication and execution gateways arrive later.
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: app
+    image: llmr-app:phase1
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      LLMR_CONFIG_FILE: /run/secrets/model_config
+    secrets: [model_config]
+    ports: ["127.0.0.1:8000:8000"]
+    volumes:
+      - state:/var/lib/llmr/state
+      - uploads:/var/lib/llmr/uploads
+      - artifacts:/var/lib/llmr/artifacts
+      - sandbox-state:/var/lib/llmr/sandbox
+      - data:/var/lib/llmr/data
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=256m,mode=1777"]
+  worker:
+    image: llmr-app:phase1
+    command: ["python", "-m", "apps.api.app.worker"]
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      LLMR_CONFIG_FILE: /run/secrets/model_config
+    secrets: [model_config]
+    volumes:
+      - state:/var/lib/llmr/state
+      - uploads:/var/lib/llmr/uploads
+      - artifacts:/var/lib/llmr/artifacts
+      - sandbox-state:/var/lib/llmr/sandbox
+      - data:/var/lib/llmr/data
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=256m,mode=1777"]
+volumes:
+  state:
+  uploads:
+  artifacts:
+  sandbox-state:
+  data:
+secrets:
+  model_config:
+    file: ${LLMR_CONFIG_FILE:?Set LLMR_CONFIG_FILE to a read-only service configuration file}

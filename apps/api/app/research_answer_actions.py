@@ -139,8 +139,13 @@ def apply(conversation_id: str, message_id: str, request_id: str, kind: str):
                     if old_turn:
                         copied_turns[old_turn["id"]] = str(uuid4())
                     key = row["client_message_id"] or ""
+                    copied_key = "branch:" + row["id"]
+                    if key.startswith("assistant:") and key[10:] in copied_turns:
+                        copied_key = "assistant:" + copied_turns[key[10:]]
+                    elif key.startswith(("assistant-launch:", "intelligence:")):
+                        copied_key = key
                     copied = {**row, "id": mapping[row["id"]], "conversation_id": target, "regeneration_of": None,
-                              "client_message_id": "assistant:" + copied_turns[key[10:]] if key.startswith("assistant:") and key[10:] in copied_turns else "branch:" + row["id"],
+                              "client_message_id": copied_key,
                               "file_conversation_id": row["file_conversation_id"] or conversation_id,
                               "attachments_json": json_dump([replacements[item["id"]] for item in json_load(row["attachments_json"])])}
                     _insert(connection, "conversation_messages", copied)

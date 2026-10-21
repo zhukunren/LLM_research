@@ -1,0 +1,343 @@
+{
+  "version": "2026-10-15.1",
+  "target": "qmt_builtin_python",
+  "hash_algorithm": "sha256-utf8-lf",
+  "verified_at": "2026-10-15",
+  "compatibility": "依据迅投公开内置 Python 文档整理；用户券商客户端版本与库依赖尚未验证。项目示例使用 Python 3.6 兼容语法，仅完成本地模拟逻辑测试。",
+  "documents": [
+    {
+      "id": "official-lifecycle",
+      "title": "官方接口参考：生命周期与触发时序",
+      "kind": "official_reference",
+      "path": "official/lifecycle.md",
+      "sha256": "df192bed3a6f29c0f3685d56c1c365b33e44d2cf3ebc18194d86f8737904169d",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/system_function.html"
+      ],
+      "symbols": [
+        "init",
+        "after_init",
+        "handlebar",
+        "stop",
+        "is_last_bar",
+        "is_new_bar",
+        "run_time",
+        "schedule_run"
+      ],
+      "tags": [
+        "初始化",
+        "回测",
+        "逐K线",
+        "回调",
+        "定时器"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "official-context",
+      "title": "官方接口参考：ContextInfo 属性与时间",
+      "kind": "official_reference",
+      "path": "official/context.md",
+      "sha256": "4e17f8ac91e2a5492a8e3ffc472142b8a3adada4591af89d5930d0bff0e41fde",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/variable_convention.html",
+        "https://dict.thinktrader.net/innerApi/start_now.html"
+      ],
+      "symbols": [
+        "do_back_test",
+        "barpos",
+        "set_universe",
+        "get_bar_timetag",
+        "timetag_to_datetime",
+        "capital",
+        "start",
+        "end"
+      ],
+      "tags": [
+        "回测模式",
+        "时间戳",
+        "股票池",
+        "上下文"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "official-market-data",
+      "title": "官方接口参考：行情与历史数据",
+      "kind": "official_reference",
+      "path": "official/market-data.md",
+      "sha256": "ddb9baebbd87e97da318678227604ccb8b0820a99e18207f94356ce222023d31",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/data_function.html"
+      ],
+      "symbols": [
+        "get_market_data_ex",
+        "get_history_data",
+        "get_market_data",
+        "subscribe_quote",
+        "unsubscribe_quote",
+        "download_history_data",
+        "get_full_tick"
+      ],
+      "tags": [
+        "行情",
+        "历史",
+        "数据",
+        "复权",
+        "截止时间",
+        "订阅",
+        "预热"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "official-trading",
+      "title": "官方接口参考：委托与交易查询",
+      "kind": "official_reference",
+      "path": "official/trading.md",
+      "sha256": "a7428b6ba2b5add4565895d5cd21e03d998aa71f0a686d492f79eb1ab8b2a027",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/trading_function.html"
+      ],
+      "symbols": [
+        "passorder",
+        "get_trade_detail_data",
+        "can_cancel_order",
+        "cancel",
+        "ACCOUNT",
+        "POSITION",
+        "ORDER",
+        "DEAL"
+      ],
+      "tags": [
+        "委托",
+        "下单",
+        "持仓",
+        "资金",
+        "撤单"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "official-enums",
+      "title": "官方接口参考：下单枚举与数量单位",
+      "kind": "official_reference",
+      "path": "official/enums.md",
+      "sha256": "08b958f66c40b92cb11ec53714c48a1e1fbbb650d133557933f478c237b9de0c",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/enum_constants.html"
+      ],
+      "symbols": [
+        "opType",
+        "orderType",
+        "prType",
+        "volume",
+        "quickTrade",
+        "1101",
+        "23",
+        "24"
+      ],
+      "tags": [
+        "枚举",
+        "数量",
+        "单位",
+        "股票",
+        "委托状态"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "official-callbacks",
+      "title": "官方接口参考：交易回调",
+      "kind": "official_reference",
+      "path": "official/callbacks.md",
+      "sha256": "99862b35a9f5adcbf08b636d057b4b17ff9a35c13b7d02c94c04ba216209ebc6",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/callback_function.html"
+      ],
+      "symbols": [
+        "order_callback",
+        "deal_callback",
+        "account_callback",
+        "position_callback",
+        "orderError_callback",
+        "set_account"
+      ],
+      "tags": [
+        "回报",
+        "部分成交",
+        "错误",
+        "异步",
+        "状态"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "official-data-structures",
+      "title": "官方接口参考：交易对象字段",
+      "kind": "official_reference",
+      "path": "official/data-structures.md",
+      "sha256": "170d203f7336d82879b23f6e347f713e0da9056d50eba9939add278b121df3b0",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/data_structure.html"
+      ],
+      "symbols": [
+        "m_dAvailable",
+        "m_nCanUseVolume",
+        "m_nVolume",
+        "m_nOrderStatus",
+        "m_nVolumeTraded",
+        "m_strOrderSysID",
+        "m_strRemark"
+      ],
+      "tags": [
+        "对象",
+        "字段",
+        "可卖",
+        "可用资金",
+        "委托号"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "official-runtime-notes",
+      "title": "官方资料参考：环境、数据准备与状态保存",
+      "kind": "official_reference",
+      "path": "official/runtime-notes.md",
+      "sha256": "c51f6b38ff795a6bc193227cd6da22405490bd8a23ee597e948775421f89e4eb",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/start_now.html",
+        "https://dict.thinktrader.net/innerApi/user_attention.html"
+      ],
+      "symbols": [
+        "ContextInfo",
+        "Python 3.6",
+        "GBK"
+      ],
+      "tags": [
+        "运行",
+        "兼容",
+        "编码",
+        "回滚",
+        "状态",
+        "历史下载"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "official-examples-guide",
+      "title": "官方完整示例入口与选用说明",
+      "kind": "official_reference",
+      "path": "official/examples-guide.md",
+      "sha256": "da9632dc1c0bdfb5f4c2886bb073e38fa1cb9556003bbc0e480b36577a427474",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/code_examples.html",
+        "https://dict.thinktrader.net/innerApi/start_now.html"
+      ],
+      "symbols": [
+        "handlebar",
+        "subscribe",
+        "run_time"
+      ],
+      "tags": [
+        "官方示例",
+        "策略模板",
+        "驱动方式"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "strategy-handbook",
+      "title": "项目手册：QMT 内置 Python 策略编写",
+      "kind": "manual",
+      "path": "manuals/strategy-handbook.md",
+      "sha256": "5d46d162a5d35793aa305aa309309ee3297f30ed3bed5108566f58808c2dc8ed",
+      "sources": [],
+      "symbols": [],
+      "tags": [
+        "编写手册",
+        "策略规范",
+        "前视",
+        "重复委托",
+        "验证",
+        "交付"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "example-ma-signal",
+      "title": "项目示例：日线均线交叉信号",
+      "kind": "example",
+      "path": "examples/ma_signal.py",
+      "sha256": "30868b73374d16d28ac530907ec64d7c5d0014f341f2d8070bdf05da825d2d40",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/data_function.html",
+        "https://dict.thinktrader.net/innerApi/variable_convention.html"
+      ],
+      "symbols": [
+        "get_market_data_ex",
+        "get_bar_timetag",
+        "set_universe"
+      ],
+      "tags": [
+        "均线",
+        "金叉",
+        "死叉",
+        "信号",
+        "日线",
+        "不下单"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "example-volume-breakout",
+      "title": "项目示例：日线放量突破信号",
+      "kind": "example",
+      "path": "examples/volume_breakout.py",
+      "sha256": "2282685eac115a7d2fc8df0f38bc9f5881c48b39099efbfa5ba5249c5a3f0c7a",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/data_function.html"
+      ],
+      "symbols": [
+        "get_market_data_ex",
+        "volume",
+        "high",
+        "close"
+      ],
+      "tags": [
+        "放量",
+        "突破",
+        "成交量",
+        "信号",
+        "不下单"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "example-backtest-ma",
+      "title": "项目示例：仅回测的均线委托",
+      "kind": "example",
+      "path": "examples/backtest_ma.py",
+      "sha256": "ff467c4eb9972c5fd856f9dde8d9d4f823d9545dab735c8e43838aaee2515239",
+      "sources": [
+        "https://dict.thinktrader.net/innerApi/trading_function.html",
+        "https://dict.thinktrader.net/innerApi/variable_convention.html",
+        "https://dict.thinktrader.net/innerApi/enum_constants.html"
+      ],
+      "symbols": [
+        "do_back_test",
+        "get_trade_detail_data",
+        "passorder"
+      ],
+      "tags": [
+        "回测",
+        "仓位",
+        "可卖",
+        "可用资金",
+        "委托",
+        "均线"
+      ],
+      "runtime_verified": false
+    }
+  ]
+}

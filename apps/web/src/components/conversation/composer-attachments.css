@@ -3,6 +3,12 @@
 .composer-assistant-pill { display:inline-flex; align-items:center; gap:5px; max-width:190px; border:1px solid var(--ui-border,#e5e5e5); border-radius:20px; padding:3px 5px 3px 9px; color:var(--ui-brand,#00337a); background:var(--ui-surface,#fff); font-size:12px; }
 .composer-assistant-pill > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .composer-assistant-pill .icon-button { min-width:24px; width:24px; height:24px; padding:3px; }
+.composer-method-control { padding:0 4px; gap:0; }
+.composer-method-trigger { display:inline-flex; align-items:center; gap:5px; min-width:0; max-width:100%; min-height:32px; padding:3px 5px; border:0; border-radius:18px; background:transparent; color:inherit; font:inherit; cursor:pointer; }
+.composer-method-trigger span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.composer-method-trigger svg { flex-shrink:0; }
+.composer-method-trigger:focus-visible { outline:2px solid var(--ui-focus-outline,#0079c2); outline-offset:1px; }
+.composer-method-trigger:disabled { cursor:default; opacity:.5; }
 .research-composer-popover { position:fixed; z-index:1300; box-sizing:border-box; overflow:auto; overscroll-behavior:contain; padding:7px; border:1px solid var(--ui-border,#e5e5e5); border-radius:14px; background:var(--ui-surface,#fff); color:var(--ui-text,#242424); box-shadow:0 8px 34px rgb(0 35 85 / 12%); font-family:var(--ui-font-sans,sans-serif); }
 .composer-menu-option { display:flex; align-items:center; gap:10px; width:100%; border:0; border-radius:8px; background:transparent; padding:10px; color:inherit; text-align:left; font:inherit; font-size:13px; cursor:pointer; }
 .composer-menu-option > span { flex:1; min-width:0; }

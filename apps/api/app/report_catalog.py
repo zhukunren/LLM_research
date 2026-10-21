@@ -17,7 +17,7 @@ def enqueue(*, retry_failed: bool = False) -> dict:
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         rows = connection.execute("""SELECT d.id,d.metadata_status,j.state job_state FROM documents d
-            LEFT JOIN jobs j ON j.id=d.metadata_job_id WHERE d.parse_status='indexed'""").fetchall()
+            LEFT JOIN jobs j ON j.id=d.metadata_job_id WHERE d.parse_status='indexed' AND d.material_kind='report'""").fetchall()
         for row in rows:
             if row["metadata_status"] == "ready" or row["job_state"] in {"queued", "running"}:
                 continue

@@ -167,6 +167,9 @@ class ToolContext:
     workflow_type: str = "screening"
     research_depth: str = "standard"
     research_scope_revision: int = 0
+    user_id: str | None = None
+    tenant_id: str | None = None
+    permissions_version: int = 1
 
 
 @dataclass(frozen=True)
@@ -948,10 +951,16 @@ class ToolRegistry:
 
         manifest = screening_capability_manifest()
         availability = {item["id"]: item["availability"] for item in manifest["capabilities"]}
+        intelligence_turn = context is None
+        if context is not None:
+            with connect() as connection:
+                intelligence_turn = connection.execute("SELECT 1 FROM intelligence_runs WHERE conversation_id=? AND turn_id=?",
+                    (context.conversation_id, context.turn_id)).fetchone() is not None
         return [
             registration.tool
             for registration in self._registrations.values()
             if (context is None or context.workflow_type == "screening" or registration.tool.name not in SCREENING_WORKFLOW_TOOLS)
+            and (intelligence_turn or registration.tool.name not in {"capture_intelligence_source", "read_intelligence_source", "publish_intelligence_brief", "read_advisor_context"})
             and (context is None or context.workflow_type != "research" or context.as_of
                  or registration.tool.name not in FIXED_CUTOFF_EVIDENCE_TOOLS)
             and (registration.capability_id is None

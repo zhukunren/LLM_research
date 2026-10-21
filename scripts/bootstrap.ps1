@@ -3,9 +3,10 @@
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'python312.ps1')
+. (Join-Path $PSScriptRoot 'storage.ps1')
 $PythonExe = Get-SystemPython312
 
-$PythonDeps = Join-Path $ProjectRoot 'runtime\python-deps'
+$PythonDeps = Get-LlmPythonDeps $ProjectRoot
 New-Item -ItemType Directory -Path $PythonDeps -Force | Out-Null
 & $PythonExe -m pip install --disable-pip-version-check --target $PythonDeps -r (Join-Path $ProjectRoot 'requirements.lock')
 if ($LASTEXITCODE -ne 0) { throw 'Python dependency installation failed.' }

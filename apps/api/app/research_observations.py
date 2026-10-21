@@ -82,6 +82,8 @@ def quick_add(payload: QuickCandidateInput) -> dict:
                     connection.execute("INSERT INTO manual_observation_candidates(id,request_id,request_json,stock_code,created_at,updated_at) VALUES(?,?,?,?,?,?)", (candidate_id,payload.request_id,request_json,payload.stock_code,now,now))
             connection.execute("INSERT INTO observation_quick_requests VALUES(?,?,?,?)", (payload.request_id,request_json,candidate_id,utc_now()))
         row = connection.execute("SELECT c.*,coalesce(s.name,'') name FROM observation_candidate_index c LEFT JOIN security_catalog s ON s.stock_code=c.stock_code WHERE c.id=?", (candidate_id,)).fetchone()
+        connection.execute("UPDATE observation_entry_preferences SET hidden=0,updated_at=? WHERE entry_key=?",
+                           (utc_now(), 'candidate:' + candidate_id))
     if row is None:
         raise CandidateError('观察记录不存在，请重新加入。', 409)
     return {**_payload(row), 'idempotent_replay': replay is not None}
@@ -147,6 +149,8 @@ def create(payload: CandidateInput) -> dict:
             if existing["request_json"] != request_json:
                 raise CandidateError("相同加入观察请求不能更换来源、股票或记录内容。", 409)
             name = connection.execute("SELECT name FROM security_catalog WHERE stock_code=?", (existing["stock_code"],)).fetchone()
+            connection.execute("UPDATE observation_entry_preferences SET hidden=0,updated_at=? WHERE entry_key=?",
+                               (utc_now(), 'candidate:' + existing['id']))
             return _payload(existing, name[0] if name else "")
         _read_source(connection, payload)
         known = connection.execute("SELECT name FROM security_catalog WHERE stock_code=?", (payload.stock_code,)).fetchone()
@@ -159,6 +163,8 @@ def create(payload: CandidateInput) -> dict:
         if existing:
             if existing["request_json"] != request_json:
                 raise CandidateError("相同加入观察请求不能更换来源、股票或记录内容。", 409)
+            connection.execute("UPDATE observation_entry_preferences SET hidden=0,updated_at=? WHERE entry_key=?",
+                               (utc_now(), 'candidate:' + existing['id']))
             return _payload(existing, known[0] if known else "")
         conversation, message, scope, scope_revision = _read_source(connection, payload)
         connection.execute("""INSERT INTO research_observation_candidates

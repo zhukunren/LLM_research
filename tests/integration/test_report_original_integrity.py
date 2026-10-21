@@ -169,7 +169,7 @@ def test_concurrent_imports_publish_one_complete_original(library, tmp_path):
     path.write_bytes(original)
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: documents.import_local_reports(paths=[path]), range(2)))
-    assert all(result["failed"] == 0 for result in results)
+    assert all(result["failed"] == 0 for result in results), results
     assert sum(result["imported"] for result in results) == 1
     assert results[0]["results"][0]["id"] == results[1]["results"][0]["id"]
     with db.connect() as connection:

@@ -17,6 +17,7 @@ from PIL import Image
 from pypdf import PdfReader
 
 from . import db
+from .storage import application_paths
 
 MAX_FILE_BYTES = 25 * 1024 * 1024
 MAX_FILES_PER_MESSAGE = 8
@@ -63,14 +64,17 @@ def _linked(path: Path) -> bool:
 def _directory(conversation_id: str, *, create: bool = False) -> Path:
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,100}', conversation_id):
         raise AttachmentError('附件所属对话标识无效', 404)
-    root = db.DB_PATH.parent.resolve() / 'research-attachments'
+    root = application_paths().attachments_root
     target = root / conversation_id
-    if _linked(root) or _linked(target) or not target.resolve().is_relative_to(root.resolve()):
+    if _linked(root) or _linked(target):
         raise AttachmentError('附件目录不可用', 409)
     if create:
         target.mkdir(parents=True, exist_ok=True)
-        if _linked(root) or _linked(target):
-            raise AttachmentError('附件目录不可用', 409)
+    # On Windows, resolving a missing path while another upload creates its
+    # parents can briefly retain the extended-path prefix for only one side.
+    # Check containment after creation, before writing any attachment files.
+    if _linked(root) or _linked(target) or not target.resolve().is_relative_to(root.resolve()):
+        raise AttachmentError('附件目录不可用', 409)
     return target
 
 

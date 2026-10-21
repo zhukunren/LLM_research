@@ -1,7 +1,6 @@
 /* A bounded workspace: page controls stay visible, content scrolls in its pane. */
 .viewport-workspace .page-frame { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
-.viewport-workspace .chat-navigation { flex: 0 1 auto; min-height: 0; max-height: none; overflow-y: auto; }
-.viewport-workspace .chat-navigation:has(.chat-assistant-links:not([hidden])) { max-height: none; }
+.viewport-workspace .chat-navigation { flex: 0 1 auto; min-height: 0; max-height: 58dvh; overflow-y: auto; }
 .viewport-workspace .chat-history { flex: 1 1 0%; min-height: 0; }
 .viewport-workspace .chat-settings { flex-shrink: 0; margin-top: 8px; }
 .viewport-workspace .page-frame > .page-content,
@@ -56,7 +55,7 @@
 .viewport-workspace .page-frame .condition-library-grid { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
 .viewport-workspace .page-frame .condition-inspector { flex-shrink: 0; max-height: 42%; overflow: auto; margin-top: 10px; padding: 12px; }
 .viewport-workspace .page-frame .saved-task-library { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.viewport-workspace .page-frame .saved-task-list { flex: 1; min-height: 0; overflow-y: auto; }
+.viewport-workspace .page-frame .saved-task-list { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
 .viewport-workspace .page-frame .history-workspace { flex: 1; min-height: 0; display: grid; align-items: stretch; gap: 14px; }
 .viewport-workspace .page-frame .run-history { position: static; min-height: 0; height: 100%; max-height: none; overflow-y: auto; }
 .viewport-workspace .page-frame .run-results { min-height: 0; height: 100%; padding: 16px; overflow-y: auto; }

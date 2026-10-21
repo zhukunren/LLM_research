@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react'
+import { sessionStorage } from './authStorage'
+import { useWorkspaceSession } from './WorkspaceSession'
 
 // Session storage restores a reading position without carrying it to another browser session.
 export function useSessionState<T>(key: string, initial: T, valid: (value: unknown) => value is T) {
+  const session = useWorkspaceSession()
+  const legacyKey = key
+  key = session.id ? `tab.${session.id}.${key}` : key
   const [value, setState] = useState<T>(() => {
     try {
-      const saved: unknown = JSON.parse(sessionStorage.getItem(key) ?? 'null')
+      const saved: unknown = JSON.parse(sessionStorage.getItem(key) ?? (session.legacy ? sessionStorage.getItem(legacyKey) : null) ?? 'null')
       return valid(saved) ? saved : initial
     } catch { return initial }
   })

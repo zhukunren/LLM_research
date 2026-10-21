@@ -1,4 +1,4 @@
-"""Fixed, branded PDF delivery for research answers, files and scan results."""
+"""Branded PDF delivery with a cover and freely structured research content."""
 from __future__ import annotations
 
 import csv
@@ -32,8 +32,9 @@ from reportlab.platypus import (
 
 from . import conversation_store, db, research_workspace
 from .settings import PROJECT_ROOT, research_mode_settings
+from .storage import application_paths
 
-TEMPLATE_VERSION = "soochow-zhangjiagang-research-v1.1"
+TEMPLATE_VERSION = "soochow-zhangjiagang-research-v2"
 ASSETS = PROJECT_ROOT / "apps" / "api" / "assets" / "research-pdf"
 LOGO = ASSETS / "soochow-blue.png"
 BRANCH = "张家港营业部"
@@ -88,7 +89,7 @@ def _footer(c: canvas.Canvas, number: int, total: int, size=A4) -> None:
     c.line(20 * mm, 20 * mm, width - 20 * mm, 20 * mm)
     c.setFillColor(MUTED)
     c.setFont("ResearchSans", 7.5)
-    c.drawString(20 * mm, 14 * mm, f"{BRANCH} · 研究成果   |   模板 v1.0")
+    c.drawString(20 * mm, 14 * mm, f"{BRANCH} · 研究成果")
     c.drawRightString(width - 20 * mm, 14 * mm, f"第 {number} 页 / 共 {total} 页")
     c.restoreState()
 
@@ -267,20 +268,14 @@ class _Content:
 
 
 def render_document(target: Path, *, title: str, content: str, metadata: dict[str, str], image_resolver=None, cover_only=False, include_footer=True) -> None:
-    """A4 cover, running brand header, embedded Chinese fonts and numbered body."""
+    """Branded title cover and supplied body; provenance stays in PDF properties."""
     _fonts()
     target.parent.mkdir(parents=True, exist_ok=True)
-    doc = BaseDocTemplate(str(target), pagesize=A4, title=title, author=f"东吴证券 · {BRANCH}", subject=f"研究成果 · {TEMPLATE_VERSION}", creator="投研工作台", leftMargin=20 * mm, rightMargin=20 * mm)
+    doc = BaseDocTemplate(str(target), pagesize=A4, title=title, author=f"东吴证券 · {BRANCH}", subject=json.dumps({"template_version": TEMPLATE_VERSION, **metadata}, ensure_ascii=False), creator="投研工作台", leftMargin=20 * mm, rightMargin=20 * mm)
     frame = Frame(20 * mm, 26 * mm, 170 * mm, 236 * mm, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
     doc.addPageTemplates([PageTemplate(id="cover", frames=frame, onPage=lambda c, _: _header(c)), PageTemplate(id="body", frames=frame, onPage=lambda c, _: _header(c))])
     parsed = _markdown(content)
-    summary = next((_plain(node.get("children", [])) for node in parsed if node["type"] == "paragraph" and _plain(node.get("children", []))), "")
     story = [Spacer(1, 22 * mm), Paragraph("研 究 成 果", _style("eyebrow", fontSize=10, leading=16, textColor=BLUE, spaceAfter=18)), Paragraph(_text(title[:240]), _style("title", fontName="ResearchSansBold", fontSize=25, leading=36, textColor=BLUE, spaceAfter=22))]
-    rows = [[key, value] for key, value in metadata.items() if value]
-    if rows:
-        story.extend([_table(rows, header=False, widths=[31 * mm, 139 * mm]), Spacer(1, 16 * mm)])
-    if summary:
-        story.extend([Paragraph("内容摘要", _style("summary_head", fontName="ResearchSansBold", fontSize=11, leading=18, textColor=BLUE)), Paragraph(_text(summary[:400] + ("…（全文见正文）" if len(summary) > 400 else "")), _style("summary", fontSize=10, leading=18))])
     if cover_only:
         doc.build(story, canvasmaker=_NumberedCanvas if include_footer else canvas.Canvas)
         return
@@ -299,17 +294,17 @@ def _metadata(conversation_id: str, *, turn: dict | None = None, created_at: str
     stamp = created_at or (turn or {}).get("created_at") or conversation["created_at"]
     timestamp = _beijing_stamp(stamp)
     codes = scope.get("stock_codes") or []
-    return {"研究截止日": str(scope.get("as_of") or "未指定"), "研究范围": "、".join(codes) if codes else "未限定股票", "记录时间": timestamp + "（北京时间）", "成果来源": f"研究对话 {conversation_id[:8]}", "模板版本": "v1.0"}
+    return {"研究截止日": str(scope.get("as_of") or "未指定"), "研究范围": "、".join(codes) if codes else "未限定股票", "记录时间": timestamp + "（北京时间）", "成果来源": f"研究对话 {conversation_id[:8]}"}
 
 
 def _root(conversation_id: str, *, project=False, create=True) -> Path:
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", conversation_id):
         raise PDFError("成果归属标识无效")
-    root = db.DB_PATH.parent.resolve() / "research-project-pdfs" / conversation_id if project else research_workspace.directory(conversation_id).parent / "deliverables"
+    root = application_paths().artifact_root / "research-project-pdfs" / conversation_id if project else research_workspace.directory(conversation_id).parent / "deliverables"
     for part in (root, *root.parents):
         if part.is_symlink() or (hasattr(part, "is_junction") and part.is_junction()):
             raise PDFError("PDF 成果目录不能使用链接")
-        if part == db.DB_PATH.parent.resolve():
+        if part == application_paths().artifact_root:
             break
     if create:
         root.mkdir(parents=True, exist_ok=True)
@@ -343,7 +338,7 @@ def _image_resolver(conversation_id: str, relative_to: str = "", *, read_only=Fa
                 for part in (path, *path.parents):
                     if part.is_symlink() or (hasattr(part, "is_junction") and part.is_junction()):
                         return None
-                    if part == db.DB_PATH.parent.resolve():
+                    if part == application_paths().artifact_root:
                         break
             else:
                 path = research_workspace.output_path(conversation_id, value)
@@ -425,6 +420,8 @@ def export_turn(conversation_id: str, turn_id: str, *, response_text: str | None
     if response_text is None and turn["state"] not in {"succeeded", "awaiting_user"}:
         raise PDFError("研究回合尚未完成")
     content = response_text if response_text is not None else turn.get("response_text", "")
+    from .financial_evidence import append_citations
+    content = append_citations(content)
     if not content.strip():
         raise PDFError("研究答复为空")
     identity = sha256((TEMPLATE_VERSION + content).encode()).hexdigest()
@@ -468,7 +465,7 @@ def _wrap_pdf(target: Path, data: bytes, *, title: str, metadata: dict) -> None:
     writer = PdfWriter()
     cover_path = target.with_name(f"cover-{uuid4().hex}.partial")
     try:
-        render_document(cover_path, title=title, content="原始 PDF 内容保留在后续页面。本成果采用统一封面、标识、营业部名称和页码，原件信息及校验值记录于封面。", metadata=metadata, cover_only=True, include_footer=False)
+        render_document(cover_path, title=title, content="", metadata=metadata, cover_only=True, include_footer=False)
         for page in PdfReader(cover_path).pages:
             writer.add_page(page)
     finally:
@@ -496,7 +493,7 @@ def _wrap_pdf(target: Path, data: bytes, *, title: str, metadata: dict) -> None:
         _footer(c, index, total, size)
         c.save()
         page.merge_page(PdfReader(overlay).pages[0])
-    writer.add_metadata({"/Title": title, "/Author": f"东吴证券 · {BRANCH}", "/Subject": TEMPLATE_VERSION})
+    writer.add_metadata({"/Title": title, "/Author": f"东吴证券 · {BRANCH}", "/Subject": json.dumps({"template_version": TEMPLATE_VERSION, **metadata}, ensure_ascii=False)})
     with target.open("wb") as output:
         writer.write(output)
 
@@ -608,7 +605,7 @@ def export_note(project_id: str, note_id: str, *, revision: int | None = None, s
         claims = source_snapshot["claims"]
     else:
         with db.connect() as connection:
-            rows = connection.execute("SELECT statement,kind,as_of,evidence_json FROM research_claims WHERE note_id=? AND note_revision=? ORDER BY rowid", (note_id, note["revision"])).fetchall()
+            rows = connection.execute("SELECT statement,kind,as_of,evidence_json,numeric_evidence_json FROM research_claims WHERE note_id=? AND note_revision=? ORDER BY rowid", (note_id, note["revision"])).fetchall()
         claims = [dict(row) for row in rows]
     if claims:
         kinds = {"fact": "事实陈述", "forecast": "预测", "inference": "推断"}
@@ -619,9 +616,13 @@ def export_note(project_id: str, note_id: str, *, revision: int | None = None, s
             for evidence in db.json_load(claim["evidence_json"]):
                 location = f"第 {evidence['page_number']} 页" if evidence.get("page_number") else f"原文位置 {evidence.get('quote_start', '')}–{evidence.get('quote_end', '')}"
                 body += f"{stances.get(evidence.get('stance'), evidence.get('stance', ''))}：{evidence.get('title', '')} · {evidence.get('source_id', '')} · {location}\n\n> {evidence.get('quote', '')}\n\n"
+            for evidence in db.json_load(claim.get("numeric_evidence_json", "[]")):
+                body += "\n\n独立数字依据：" + evidence["title"] + "\n\n" + evidence["excerpt"] + "\n\n"
     for label, key in [("接下来验证", "validation_plan"), ("判断失效条件", "invalidation_condition")]:
         if note.get(key):
             body += f"\n\n## {label}\n\n{note[key]}"
+    from .financial_evidence import append_citations
+    body = append_citations(body)
     cid = note.get("source_conversation_id")
     signature = json.dumps({"note": note, "metadata": meta, "claims": claims}, ensure_ascii=False, sort_keys=True).encode()
     resolver = _frozen_image_resolver(cid, source_snapshot.get("images", {})) if cid and source_snapshot else _image_resolver(cid) if cid else None

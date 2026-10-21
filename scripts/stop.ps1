@@ -1,13 +1,16 @@
 ﻿$ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'python312.ps1')
+. (Join-Path $PSScriptRoot 'storage.ps1')
 . (Join-Path $PSScriptRoot 'processes.ps1')
 $PythonPath = [System.IO.Path]::GetFullPath((Get-SystemPython312))
-$ProcessesFile = Join-Path $ProjectRoot 'runtime\processes.json'
-$PythonDeps = Join-Path $ProjectRoot 'runtime\python-deps'
+$Runtime = Get-LlmStateRoot $ProjectRoot
+$ProcessesFile = Join-Path $Runtime 'processes.json'
+$PythonDeps = Get-LlmPythonDeps $ProjectRoot
 $env:PYTHONNOUSERSITE = '1'
 if ($env:PYTHONPATH) { $env:PYTHONPATH = "$PythonDeps;$env:PYTHONPATH" } else { $env:PYTHONPATH = $PythonDeps }
-$StopLock = [System.IO.File]::Open((Join-Path $ProjectRoot 'runtime\services.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+New-Item -ItemType Directory -Path $Runtime -Force | Out-Null
+$StopLock = [System.IO.File]::Open((Join-Path $Runtime 'services.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
 try {
 & $PythonPath (Join-Path $PSScriptRoot 'service_processes.py') stop
 if ($LASTEXITCODE -ne 0) { throw '未能完整停止项目服务。' }

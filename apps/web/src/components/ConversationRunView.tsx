@@ -42,9 +42,9 @@ export default function ConversationRunView({ conversationId, runId, onContinue 
     }, 180)
     return () => { active = false; clearTimeout(timer) }
   }, [base, run?.status, state, query, offset, reload])
-  if (!run) return <StockText><div><p role={error ? 'alert' : 'status'}>{error || '正在读取历史筛选…'}</p>{error && <button onClick={() => setReload(i => i + 1)}>重试</button>}</div></StockText>
-  return <StockText><div className="conversation-history-result"><div className="section-title-row"><h2>选股记录</h2><button className="primary-button" onClick={onContinue}>打开原对话与方案</button></div>
-    <div className="history-run-context"><p className="history-date-notice">截止日期：{run.as_of}</p>
+  if (!run) return <StockText><div><p className={error ? 'workspace-error' : undefined} role={error ? 'alert' : 'status'}>{error || '正在读取历史筛选…'}</p>{error && <button onClick={() => setReload(i => i + 1)} className="workspace-button">重试</button>}</div></StockText>
+  return <StockText><div className="conversation-history-result"><div className="section-title-row"><h2>选股记录</h2><button className="primary-button workspace-button" onClick={onContinue}>打开原对话与方案</button></div>
+    <div className="history-run-context"><p className="history-date-notice workspace-feedback workspace-feedback-info">截止日期：{run.as_of}</p>
     <details><summary>本次采用的筛选规则</summary><TaskLogic task={run.task} /></details></div>
     <ScreeningResultView asOf={run.as_of} revision={run.task_revision} status={run.status} isCurrent={false}
       coverage={run.result.coverage} progress={{ message: run.job.message, percent: run.job.progress }}

@@ -148,7 +148,7 @@ def enqueue_note(project_id: str, note_id: str, revision: int | None = None, *, 
         if not version:
             raise ExportError("找不到此笔记版本。", 404)
         note_snapshot = db.json_load(version[0])
-        claims = [dict(row) for row in conn.execute("SELECT statement,kind,as_of,evidence_json FROM research_claims WHERE note_id=? AND note_revision=? ORDER BY rowid", (note_id, revision))]
+        claims = [dict(row) for row in conn.execute("SELECT statement,kind,as_of,evidence_json,numeric_evidence_json FROM research_claims WHERE note_id=? AND note_revision=? ORDER BY rowid", (note_id, revision))]
         snapshot = {"note": note_snapshot, "project_name": project["name"], "claims": claims}
         previous = conn.execute("SELECT snapshot_json FROM research_pdf_exports WHERE project_id=? AND source_kind='note' AND source_id=? AND source_revision=? ORDER BY rowid LIMIT 1", (project_id, note_id, revision)).fetchone()
         snapshot["images"] = db.json_load(previous[0]).get("images", {}) if previous else _capture_images(note_snapshot.get("source_conversation_id"), note_snapshot["body"])

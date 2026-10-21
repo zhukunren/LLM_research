@@ -1,3 +1,5 @@
+import Pagination from './Pagination'
+import { useWorkspaceSession } from '../WorkspaceSession'
 import { StockText } from './StockMentions'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -128,6 +130,9 @@ export default function ScreeningResultView({
   onReload,
   addingStockCode,
 }: ScreeningResultViewProps) {
+  const workspaceSession = useWorkspaceSession()
+  const portalTarget = workspaceSession.portalTarget ?? document.body
+
   const [copying, setCopying] = useState(false)
   const [listMode, setListMode] = useSessionState<'compact' | 'detailed'>('screening.resultListMode', 'compact', (value): value is 'compact' | 'detailed' => value === 'compact' || value === 'detailed')
   const [expandedCode, setExpandedCode] = useState('')
@@ -231,7 +236,7 @@ export default function ScreeningResultView({
                       {onAskStock && (
                         <button
                           type="button"
-                          className="text-button"
+                          className="text-button workspace-button"
                           onClick={() => { setExpandedCode(''); onAskStock(decision.stock_code, decision.state) }}
                         >
                           追问这只股票
@@ -240,7 +245,7 @@ export default function ScreeningResultView({
                       {onViewChart && (
                         <button
                           type="button"
-                          className="text-button"
+                          className="text-button workspace-button"
                           onClick={() => { setExpandedCode(''); onViewChart(decision.stock_code, decision.as_of ?? asOf ?? undefined) }}
                         >
                           <TrendingUp size={12} />
@@ -251,7 +256,7 @@ export default function ScreeningResultView({
                     {onAddToWatchlist && (
                       <button
                         type="button"
-                        className="text-button conversation-add-watchlist-btn"
+                        className="text-button conversation-add-watchlist-btn workspace-button"
                         disabled={addingStockCode === decision.stock_code}
                         onClick={() => onAddToWatchlist(decision.stock_code)}
                       >
@@ -268,7 +273,7 @@ export default function ScreeningResultView({
     <StockText><div className={`screening-result-view screening-list-${listMode}`}>
       <div className="conversation-run-title">
         <span>{title || `${isCurrent ? '当前运行' : '历史运行'} · v${revision ?? 1}`}</span>
-        <span className={`conversation-turn-state ${stateClass(status)}`}>{stateLabels[status] ?? status}</span>
+        <span className={["workspace-status", `conversation-turn-state ${stateClass(status)}`].filter(Boolean).join(' ')}>{stateLabels[status] ?? status}</span>
       </div>
 
       <p className="conversation-result-date">数据截止日：{asOf || '未提供'}</p>
@@ -278,7 +283,7 @@ export default function ScreeningResultView({
           <p>{progress.message || '正在执行全市场扫描…'}</p>
           <progress aria-label="筛选运行进度" max={1} value={progress.percent} />
           {onCancel && (
-            <button type="button" className="text-button" onClick={onCancel}>
+            <button type="button" className="text-button workspace-button" onClick={onCancel}>
               取消运行
             </button>
           )}
@@ -287,10 +292,10 @@ export default function ScreeningResultView({
 
       {coverage && (
         <section aria-label="本次运行覆盖情况">
-          <div className="conversation-run-counts">
-            <div><span>符合</span><strong>{coverage.true_count}</strong></div>
-            <div><span>已判断覆盖</span><strong>{resolvedCount} / {coverage.target_total}</strong></div>
-            <div><span>数据不足</span><strong>{Math.max(0, coverage.unknown_count - (coverage.failed_count ?? 0) - (coverage.not_evaluated_count ?? 0))}</strong></div>
+          <div className="conversation-run-counts workspace-metric-grid">
+            <div className="workspace-metric-card"><span>符合</span><strong>{coverage.true_count}</strong></div>
+            <div className="workspace-metric-card"><span>已判断覆盖</span><strong>{resolvedCount} / {coverage.target_total}</strong></div>
+            <div className="workspace-metric-card"><span>数据不足</span><strong>{Math.max(0, coverage.unknown_count - (coverage.failed_count ?? 0) - (coverage.not_evaluated_count ?? 0))}</strong></div>
           </div>
           <p className="conversation-coverage-note">已有明确判断 {resolvedCount} / {coverage.target_total} 只；不符合 {coverage.false_count} 只。尚无法判断共 {coverage.unknown_count} 只，包含 {coverage.failed_count ?? 0} 只处理失败、{coverage.not_evaluated_count ?? 0} 只未处理。</p>
           {coverage.unknown_count > 0 && <p className="conversation-coverage-note">结果覆盖不完整，未能判断的股票不等于不符合。</p>}
@@ -299,46 +304,46 @@ export default function ScreeningResultView({
 
       {!isRunning && (
         <>
-          <div className="conversation-decision-controls">
+          <div className="conversation-decision-controls workspace-filters">
             {onStateFilterChange && <select
               aria-label="判断状态"
               disabled={addingSelected}
               value={stateFilter}
-              onChange={(e) => onStateFilterChange?.(e.target.value)}
+              onChange={(e) => onStateFilterChange?.(e.target.value)} className="workspace-field workspace-select"
             >
               <option value="">全部判断</option>
               <option value="true">符合</option>
               <option value="false">不符合</option>
               <option value="unknown">尚无法判断（含失败 / 未处理）</option>
             </select>}
-            {onQueryChange && <label className="conversation-search">
+            {onQueryChange && <label className="conversation-search workspace-field-shell">
               <Search size={14} />
               <input
                 aria-label="搜索股票名称或代码"
                 disabled={addingSelected}
                 value={query}
                 onChange={(e) => onQueryChange?.(e.target.value)}
-                placeholder="名称、拼音或代码"
+                placeholder="名称、拼音或代码" className="workspace-field"
               />
             </label>}
             <ScreeningResultMenu context={JSON.stringify([status, revision, asOf, offset, stateFilter, query, loading, error])}>{closeMenu => <><button
               type="button"
               role="menuitem"
-              className="secondary-button compact conversation-copy-button"
-              title="仅复制当前页显示的股票代码，包含本页全部判断状态；不包含其他页"
+              className="secondary-button compact conversation-copy-button workspace-button workspace-menu-option"
+              data-tooltip="仅复制当前页显示的股票代码，包含本页全部判断状态；不包含其他页"
               disabled={loading || !!error || !decisions.length}
               onClick={() => { closeMenu(); void copyCodes() }}
             >
               <Copy size={13} />
               <span>{copying ? '已复制' : '复制本页代码'}</span>
             </button>
-            {onCopyAll && <button type="button" role="menuitem" className="secondary-button compact" onClick={() => { closeMenu(); onCopyAll() }}>{query ? '复制搜索范围全部符合项' : '复制全部符合项'}</button>}
+            {onCopyAll && <button type="button" role="menuitem" className="secondary-button compact workspace-button workspace-menu-option" onClick={() => { closeMenu(); onCopyAll() }}>{query ? '复制搜索范围全部符合项' : '复制全部符合项'}</button>}
             {onExportUrl && (
               <a
                 role="menuitem"
-                className="secondary-button compact"
+                className="secondary-button compact workspace-button workspace-menu-option"
                 href={onExportUrl}
-                title="按当前状态和搜索条件导出所有页，不限当前页"
+                data-tooltip="按当前状态和搜索条件导出所有页，不限当前页"
                 onClick={closeMenu}
               >
                 <Download size={13} />
@@ -349,9 +354,9 @@ export default function ScreeningResultView({
             {onRetry && ['failed', 'cancelled', 'partial'].includes(status) && (
               <button
                 type="button"
-                className="secondary-button compact"
+                className="secondary-button compact workspace-button"
                 onClick={onRetry}
-                title="重试运行"
+                data-tooltip="重试运行"
               >
                 <RotateCcw size={13} />
                 <span>重试</span>
@@ -359,18 +364,18 @@ export default function ScreeningResultView({
             )}
           </div>
 
-          {copyNotice && <div className="inline-feedback-badge">{copyNotice}</div>}
-          <div className="screening-list-toolbar"><div role="group" aria-label="筛选结果显示方式"><button type="button" aria-pressed={listMode === 'compact'} onClick={() => setListMode('compact')}>紧凑列表</button><button type="button" aria-pressed={listMode === 'detailed'} onClick={() => setListMode('detailed')}>详细卡片</button></div><span>{decisions.length ? `本页 ${decisions.length} 只 · 点击查看完整依据` : ''}</span></div>
-          {!!selectedCodes.length && <div className="screening-selection-toolbar" role="group" aria-label="所选结果操作"><strong>已选 {selectedCodes.length} 只</strong><button type="button" className="text-button" disabled={addingSelected || loading} onClick={() => void copySelected()}>复制所选</button><button type="button" className="text-button" disabled={addingSelected || loading} onClick={exportSelected}>导出所选</button><button type="button" className="secondary-button compact" disabled={addingSelected || loading} title="所选股票加入手动观察，已有关注记录直接复用" onClick={() => void addSelected()}>{addingSelected ? '正在加入…' : '加入观察池'}</button><button type="button" className="text-button" disabled={addingSelected} onClick={() => setSelectedCodes([])}>清除勾选</button></div>}
-          {batchMessage && <p role="status" className="screening-selection-message">{batchMessage}</p>}{batchError && <p role="alert" className="screening-selection-error">{batchError}</p>}
+          {copyNotice && <div className="inline-feedback-badge workspace-status workspace-feedback-inline">{copyNotice}</div>}
+          <div className="screening-list-toolbar workspace-view-toolbar"><div role="group" aria-label="筛选结果显示方式"><button type="button" aria-pressed={listMode === 'compact'} onClick={() => setListMode('compact')} className="workspace-button">紧凑列表</button><button type="button" aria-pressed={listMode === 'detailed'} onClick={() => setListMode('detailed')} className="workspace-button">详细卡片</button></div><span>{decisions.length ? `本页 ${decisions.length} 只 · 点击查看完整依据` : ''}</span></div>
+          {!!selectedCodes.length && <div className="screening-selection-toolbar" role="group" aria-label="所选结果操作"><strong>已选 {selectedCodes.length} 只</strong><button type="button" className="text-button workspace-button" disabled={addingSelected || loading} onClick={() => void copySelected()}>复制所选</button><button type="button" className="text-button workspace-button" disabled={addingSelected || loading} onClick={exportSelected}>导出所选</button><button type="button" className="secondary-button compact workspace-button" disabled={addingSelected || loading} data-tooltip="所选股票加入手动观察，已有关注记录直接复用" onClick={() => void addSelected()}>{addingSelected ? '正在加入…' : '加入观察池'}</button><button type="button" className="text-button workspace-button" disabled={addingSelected} onClick={() => setSelectedCodes([])}>清除勾选</button></div>}
+          {batchMessage && <p role="status" className="screening-selection-message workspace-feedback-inline">{batchMessage}</p>}{batchError && <p role="alert" className="screening-selection-error workspace-error">{batchError}</p>}
 
 
           {!loading && !error && completeNoMatches && (
             <div className="conversation-result-guidance">
               <strong>本次没有找到符合条件的股票</strong>
               <p>目标范围内的股票均已有明确判断。可查看不符合项的条件明细，再决定是否调整要求。</p>
-              {onStateFilterChange && <button type="button" className="text-button" onClick={showAllResults}>查看全部判断与原因</button>}
-              {onAdjustRequirements && <button type="button" className="text-button" onClick={onAdjustRequirements}>调整筛选要求</button>}
+              {onStateFilterChange && <button type="button" className="text-button workspace-button" onClick={showAllResults}>查看全部判断与原因</button>}
+              {onAdjustRequirements && <button type="button" className="text-button workspace-button" onClick={onAdjustRequirements}>调整筛选要求</button>}
             </div>
           )}
 
@@ -378,8 +383,8 @@ export default function ScreeningResultView({
             <div className="conversation-result-guidance">
               <strong>{coverage?.target_total === 0 ? '本次没有可筛选的股票' : '暂未确认符合项，仍有未完成的判断'}</strong>
               <p>{coverage?.target_total === 0 ? '请检查目标范围后再运行。' : '当前结果不能说明目标范围内没有符合项。请查看数据不足、处理失败或未处理的记录及原因。'}</p>
-              {onStateFilterChange && <button type="button" className="text-button" onClick={showAllResults}>查看全部判断与原因</button>}
-              {onAdjustRequirements && coverage?.target_total === 0 && <button type="button" className="text-button" onClick={onAdjustRequirements}>检查筛选范围</button>}
+              {onStateFilterChange && <button type="button" className="text-button workspace-button" onClick={showAllResults}>查看全部判断与原因</button>}
+              {onAdjustRequirements && coverage?.target_total === 0 && <button type="button" className="text-button workspace-button" onClick={onAdjustRequirements}>检查筛选范围</button>}
             </div>
           )}
 
@@ -388,7 +393,7 @@ export default function ScreeningResultView({
               <strong>{status === 'failed' ? '这次筛选未能完成' : '这次筛选已取消'}</strong>
               {progress?.message && <p>{progress.message}</p>}
               <p>这不是零匹配结论。请先检查运行信息；已有记录可在全部判断中查看。</p>
-              {onStateFilterChange && <button type="button" className="text-button" onClick={showAllResults}>查看全部判断与原因</button>}
+              {onStateFilterChange && <button type="button" className="text-button workspace-button" onClick={showAllResults}>查看全部判断与原因</button>}
             </div>
           )}
 
@@ -398,21 +403,21 @@ export default function ScreeningResultView({
                 <LoaderCircle size={14} className="spin" /> 正在更新结果…
               </p>
             ) : error ? (
-              <div className="saved-task-empty" role="alert">
+              <div className="saved-task-empty workspace-error" role="alert">
                 <strong>筛选结果加载失败</strong><p>{error}</p><p>结果尚未读取成功，请重新加载；这不是零匹配结论。</p>
                 {onReload && (
-                  <button type="button" className="secondary-button compact" onClick={onReload}>
+                  <button type="button" className="secondary-button compact workspace-button" onClick={onReload}>
                     重新加载结果
                   </button>
                 )}
               </div>
             ) : (
-              listMode === 'compact' && decisions.length ? <div className="screening-compact-scroll"><table className="screening-compact-table" aria-label="筛选结果股票列表"><thead><tr><th><input type="checkbox" aria-label="勾选本页全部筛选结果" checked={decisions.length > 0 && decisions.every(item => selectedCodes.includes(item.stock_code))} disabled={addingSelected} onChange={event => setSelectedCodes(event.target.checked ? decisions.map(item => item.stock_code) : [])} /></th><th>股票</th><th>判断</th><th>关键值与条件</th><th>完整依据</th></tr></thead><tbody>{decisions.map(decision => <tr key={decision.stock_code}>
-                <td data-label="勾选"><input type="checkbox" aria-label={`勾选筛选结果 ${decision.stock_code}`} checked={selectedCodes.includes(decision.stock_code)} disabled={addingSelected} onChange={() => selectCode(decision.stock_code)} /></td>
+              listMode === 'compact' && decisions.length ? <div className="screening-compact-scroll workspace-table-scroll workspace-table-cards"><table className="screening-compact-table workspace-data-table" aria-label="筛选结果股票列表"><thead><tr><th><input type="checkbox" aria-label="勾选本页全部筛选结果" checked={decisions.length > 0 && decisions.every(item => selectedCodes.includes(item.stock_code))} disabled={addingSelected} onChange={event => setSelectedCodes(event.target.checked ? decisions.map(item => item.stock_code) : [])} className="workspace-check" /></th><th>股票</th><th>判断</th><th>关键值与条件</th><th>完整依据</th></tr></thead><tbody>{decisions.map(decision => <tr key={decision.stock_code}>
+                <td data-label="勾选"><input type="checkbox" aria-label={`勾选筛选结果 ${decision.stock_code}`} checked={selectedCodes.includes(decision.stock_code)} disabled={addingSelected} onChange={() => selectCode(decision.stock_code)} className="workspace-check" /></td>
                 <td data-label="股票"><StockName code={decision.stock_code} />{typeof decision.close === 'number' && <small>收盘 {decision.close.toFixed(2)}（行情原始单位）</small>}</td>
-                <td data-label="判断"><span className={`conversation-turn-state ${stateClass(decision.state)}`}>{stateLabels[decision.state] || decision.state}</span><small>{decision.conditions.length ? `${decision.conditions.filter(item => item.state === 'true').length} / ${decision.conditions.length} 条符合` : '暂无条件明细'}</small></td>
-                <td data-label="关键值与条件" className="screening-key-values">{decision.conditions.slice(0, 2).map((condition, index) => <span key={condition.reference_id || index} title={`${condition.name}：${condition.explanation}`}><i className={`screening-condition-marker ${condition.state}`} aria-label={stateLabels[condition.state] || condition.state} />{stateLabels[condition.state] || condition.state} · {conciseCondition(condition)}</span>)}</td>
-                <td data-label="完整依据"><button type="button" className="text-button" aria-label={`查看 ${decision.stock_code} 条件与依据`} onClick={() => setExpandedCode(decision.stock_code)}>查看依据</button></td>
+                <td data-label="判断"><span className={["workspace-status", `conversation-turn-state ${stateClass(decision.state)}`].filter(Boolean).join(' ')}>{stateLabels[decision.state] || decision.state}</span><small>{decision.conditions.length ? `${decision.conditions.filter(item => item.state === 'true').length} / ${decision.conditions.length} 条符合` : '暂无条件明细'}</small></td>
+                <td data-label="关键值与条件" className="screening-key-values">{decision.conditions.slice(0, 2).map((condition, index) => <span key={condition.reference_id || index} data-tooltip={`${condition.name}：${condition.explanation}`}><i className={`screening-condition-marker ${condition.state}`} aria-label={stateLabels[condition.state] || condition.state} />{stateLabels[condition.state] || condition.state} · {conciseCondition(condition)}</span>)}</td>
+                <td data-label="完整依据"><button type="button" className="text-button workspace-button" aria-label={`查看 ${decision.stock_code} 条件与依据`} onClick={() => setExpandedCode(decision.stock_code)}>查看依据</button></td>
               </tr>)}</tbody></table></div> : decisions.map((decision) => (
                 <details key={decision.stock_code} className="conversation-decision-row">
                   <summary>
@@ -432,7 +437,7 @@ export default function ScreeningResultView({
                         <small>{decision.conditions.length ? '展开查看全部条件与证据' : '未提供条件明细；展开查看操作'}</small>
                       </div>
                     </div>
-                    <span className={`conversation-turn-state ${stateClass(decision.state)}`}>
+                    <span className={["workspace-status", `conversation-turn-state ${stateClass(decision.state)}`].filter(Boolean).join(' ')}>
                       {stateLabels[decision.state] ?? decision.state}
                     </span>
                   </summary>
@@ -452,7 +457,7 @@ export default function ScreeningResultView({
                 {(query || stateFilter) && (
                   <button
                     type="button"
-                    className="text-button"
+                    className="text-button workspace-button"
                     onClick={showAllResults}
                   >
                     查看全部结果
@@ -463,30 +468,10 @@ export default function ScreeningResultView({
           </div>
 
           {total > pageSize && onPageChange && (
-            <div className="conversation-pagination">
-              <button
-                type="button"
-                className="secondary-button compact"
-                disabled={addingSelected || loading || offset === 0}
-                onClick={() => onPageChange?.(Math.max(0, offset - pageSize))}
-              >
-                上一页
-              </button>
-              <span>
-                {offset + 1}-{Math.min(offset + pageSize, total)} / {total}
-              </span>
-              <button
-                type="button"
-                className="secondary-button compact"
-                disabled={addingSelected || loading || offset + pageSize >= total}
-                onClick={() => onPageChange?.(offset + pageSize)}
-              >
-                下一页
-              </button>
-            </div>
+            <Pagination offset={offset} total={total} pageSize={pageSize} onChange={value => onPageChange?.(value)} disabled={addingSelected || loading} label="筛选结果分页" unit="只" />
           )}
         </>
       )}
-    </div>{activeDecision && createPortal(<div className="screening-evidence-layer"><div className="screening-evidence-backdrop" onClick={() => setExpandedCode('')} aria-hidden="true" /><section className="screening-evidence-drawer" role="dialog" aria-modal="true" aria-label="个股条件与依据" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setExpandedCode('') }; trapDialogTab(event) }}><header><div><StockName code={activeDecision.stock_code} /><p>数据截止日：{activeDecision.as_of || asOf || '未提供'}</p></div><button ref={detailClose} type="button" className="icon-button" aria-label="关闭个股依据" onClick={() => setExpandedCode('')}><X size={19} /></button></header><div className="screening-evidence-body">{decisionDetails(activeDecision)}</div></section></div>, document.body)}</StockText>
+    </div>{activeDecision && createPortal(<div className="screening-evidence-layer"><div className="screening-evidence-backdrop" onClick={() => setExpandedCode('')} aria-hidden="true" /><section className="screening-evidence-drawer workspace-tool-dialog workspace-drawer" role="dialog" aria-modal="true" aria-label="个股条件与依据" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setExpandedCode('') }; trapDialogTab(event) }}><header><div><StockName code={activeDecision.stock_code} /><p>数据截止日：{activeDecision.as_of || asOf || '未提供'}</p></div><button ref={detailClose} type="button" className="icon-button workspace-button" aria-label="关闭个股依据" onClick={() => setExpandedCode('')}><X size={19} /></button></header><div className="screening-evidence-body">{decisionDetails(activeDecision)}</div></section></div>, portalTarget)}</StockText>
   )
 }

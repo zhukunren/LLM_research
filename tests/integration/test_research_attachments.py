@@ -205,6 +205,24 @@ def test_concurrent_upload_retries_commit_once_and_remove_unreferenced_staging_f
     assert len(list(research_attachments._directory(cid).iterdir())) == 2
 
 
+@pytest.mark.skipif(os.name != 'nt', reason='Windows extended-path resolution race')
+def test_upload_validates_directory_after_missing_path_resolution_race(client, monkeypatch):
+    cid = create(client)['id']
+    target = research_attachments.application_paths().attachments_root / cid
+    resolve = Path.resolve
+
+    def racing_resolve(path, *args, **kwargs):
+        result = resolve(path, *args, **kwargs)
+        if path == target and not path.exists():
+            return Path('\\\\?\\' + str(result))
+        return result
+
+    monkeypatch.setattr(Path, 'resolve', racing_resolve)
+    response = upload(client, cid)
+    assert response.status_code == 201, response.text
+    assert len(list(target.iterdir())) == 2
+
+
 def test_conversation_quota_rejection_rolls_back_new_files(client, monkeypatch):
     cid = create(client)['id']
     monkeypatch.setattr(research_attachments, 'MAX_FILES_PER_CONVERSATION', 1)

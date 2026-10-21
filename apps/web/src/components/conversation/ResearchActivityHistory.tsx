@@ -1,3 +1,4 @@
+import LoadingState from '../LoadingState'
 import { useEffect, useRef, useState } from 'react'
 import { Check, Circle, ChevronDown } from 'lucide-react'
 import { api } from '../../api'
@@ -34,8 +35,8 @@ export default function ResearchActivityHistory({ conversationId, turnId }: { co
   }, [open, conversationId, turnId, retry])
   return <details className="research-activity-history" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>查看研究过程<ChevronDown size={14} /></summary>
-    {loading && <p role="status">正在读取研究过程…</p>}
-    {error && <p role="alert">{error}<button type="button" className="text-button" onClick={() => setRetry(value => value + 1)}>重试</button></p>}
+    {loading && <LoadingState compact label="正在读取研究过程…" />}
+    {error && <p role="alert" className="workspace-error">{error}<button type="button" className="text-button workspace-button" onClick={() => setRetry(value => value + 1)}>重试</button></p>}
     {loaded && (items.length ? <ActivityList items={items} /> : <p>这次研究没有保留活动记录。</p>)}
   </details>
 }

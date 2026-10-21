@@ -12,6 +12,9 @@
 .my-indicators-catalog { padding:20px 14px; border-right:1px solid var(--ui-border); overflow-y:auto; }
 .my-indicators-catalog > h3 { margin:26px 8px 10px; }
 .my-indicators-catalog > .primary-button { width:100%; justify-content:center; }
+.my-indicators-common-entry { margin-top:12px; }
+.my-indicators-builtins > * + * { margin-top:18px; }
+.my-indicators-builtins > h3 { font-size:16px; }
 .my-indicators-section-heading { display:flex; align-items:center; justify-content:space-between; margin:22px 0 6px; padding-left:8px; }
 .my-indicators-item { display:flex; align-items:flex-start; gap:9px; width:100%; text-align:left; padding:12px 9px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--ui-text); }
 .my-indicators-item svg { flex-shrink:0; margin-top:2px; color:var(--ui-text-muted); }

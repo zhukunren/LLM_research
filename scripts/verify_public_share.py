@@ -1,6 +1,7 @@
 """Exercise the local API publisher against the public host using synthetic data only."""
 from pathlib import Path
 import json
+import os
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -10,7 +11,8 @@ from apps.api.app import db, main, conversation_store
 
 
 def main_check():
-    run = Path('runtime/verification') / ('share-api-' + uuid4().hex)
+    verification_root = Path(os.environ.get('LLMR_STATE_ROOT') or 'runtime') / 'verification'
+    run = verification_root / ('share-api-' + uuid4().hex)
     run.mkdir(parents=True)
     db.DB_PATH = run / 'synthetic.db'
     with TestClient(main.app) as client:
@@ -33,7 +35,7 @@ def main_check():
         assert snapshot['messages'][-1]['sources'][0]['url'] == 'https://example.com'
         assert '后续提问' not in json.dumps(snapshot, ensure_ascii=False)
         assert client.post(endpoint, json={'request_id': 'synthetic-share'}).json() == result
-        Path('runtime/verification/public-share-api-proof.json').write_text(json.dumps({'passed': True, 'url': result['url']}, ensure_ascii=False), encoding='utf-8')
+        (verification_root / 'public-share-api-proof.json').write_text(json.dumps({'passed': True, 'url': result['url']}, ensure_ascii=False), encoding='utf-8')
         print(json.dumps({'passed': True, 'url': result['url'], 'messages': 2, 'sources': 1}, ensure_ascii=False))
 
 

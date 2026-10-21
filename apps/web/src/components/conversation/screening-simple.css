@@ -28,6 +28,7 @@
 .conversation-product.research-studio.screening-studio .screening-example-tabs { border:0; background:transparent; padding:8px 0; }
 .conversation-product.research-studio.screening-studio .studio-project { padding:0; }
 @media(max-width:600px) {
+  .conversation-product.research-studio.screening-studio { width: calc(100% - 28px); }
   .conversation-product.research-studio.screening-studio .screening-entry-heading { flex-wrap:wrap; }
   .conversation-product.research-studio.screening-studio .screening-entry-heading > button { margin-left:0; padding-left:0; }
   .conversation-product.research-studio.screening-studio .screening-entry-heading h2 { font-size:20px; }

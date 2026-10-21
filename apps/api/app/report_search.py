@@ -67,7 +67,7 @@ def query_plan(query: str, mode: str = "smart") -> dict[str, Any]:
 
 
 def _scope(as_of, stock_code, allowed_source_ids, stock_codes, confirmed_security_only, available_after):
-    predicates = ["d.parse_status='indexed'"]
+    predicates = ["d.parse_status='indexed'", "d.material_kind='report'"]
     params: list[Any] = []
     if as_of is not None:
         date.fromisoformat(as_of)

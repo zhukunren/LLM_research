@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-12T06:03:14.977292+00:00",
+  "scope": "local_closed_environment_acceptance",
+  "public_deployment_ready": false,
+  "runsc": {
+    "release_source": "https://storage.googleapis.com/gvisor/releases/release/20261005.0/x86_64/",
+    "sha512": "79869ae9a589355a46d46fdac068d9a954e741741ffe77c64e38c56ea955498c1cb04e9bce44e1cce5155333e6b76bee72347c6661bb7c78fd2fe3aad198c8fe",
+    "runtime_version": "runsc version release-20261005.0\nspec: 1.2.1",
+    "platform": "kvm",
+    "default_runtime": "runc",
+    "existing_containers_preserved": 5
+  },
+  "images": {
+    "llmr-app:phase2": "sha256:0fab8133b8173a286adb9c3e3b5712160d8e5720e37dc68cb1818ee9e603b404",
+    "llmr-sdk-probe:phase2": "sha256:691bbcdc217d9329bd538fe4bad6c41b15b2e2d3746d4f8ced58a7609c048baf"
+  },
+  "sdk": {
+    "status": "passed",
+    "verification": "linux_gvisor",
+    "version": "0.159.0",
+    "external_sandbox": true,
+    "checks": {
+      "runtime_code_read_only": true,
+      "sdk_initialize": true,
+      "shell_python_artifacts": true,
+      "headless_browser": true,
+      "turn_stream_completed": true,
+      "mcp_tool_call": true,
+      "image_input": true,
+      "thread_resume": true
+    }
+  },
+  "readonly_application": {
+    "local": {
+      "status": "passed",
+      "checks": {
+        "code_read_only": true,
+        "api_boot": true,
+        "web_boot": true,
+        "attachments": true,
+        "research_workspace": true,
+        "pdf": true,
+        "original_formats": true,
+        "compute": true
+      }
+    },
+    "oidc": {
+      "status": "passed",
+      "checks": {
+        "code_read_only": true,
+        "authenticated_web": true,
+        "unauthenticated_denied": true,
+        "user_isolation": true,
+        "attachments": true,
+        "research_workspace": true,
+        "pdf": true,
+        "compute": true,
+        "permission_revocation": true
+      }
+    }
+  },
+  "regression": {
+    "backend": {
+      "passed": 1005,
+      "skipped": 2
+    },
+    "frontend": {
+      "passed": 504
+    },
+    "supplemental_guards": {
+      "passed": 6
+    },
+    "web_build": "passed",
+    "powershell_syntax": "passed",
+    "compose_configuration": "passed"
+  },
+  "remaining_batches": [
+    "PostgreSQL/RLS and private object storage",
+    "Tool/model gateways and per-task agent sandboxes",
+    "Isolated code execution and parsing",
+    "Production adversarial deployment acceptance"
+  ]
+}

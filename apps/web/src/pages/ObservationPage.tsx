@@ -1,17 +1,24 @@
+import Pagination from '../components/Pagination'
+import LoadingState from '../components/LoadingState'
+import WorkspacePageHeading from '../components/WorkspacePageHeading'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowRight, ClipboardList, Download, Loader2, RefreshCw, Search, Telescope, X } from 'lucide-react'
+import { localStorage } from '../authStorage'
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, ClipboardList, Download, RefreshCw, Search, Star, Telescope, Trash2, X } from 'lucide-react'
 import { api, type DataStatus, type ScreeningTaskRevision } from '../api'
 import { TaskLogic } from '../components/conversation/TaskBrief'
 import ObservationChart from '../components/ObservationChart'
 import { CandidateDetail, type ResearchCandidate } from './ResearchCandidatePanel'
 import { trapDialogTab } from '../keyboard'
 import { useSessionState } from '../useSessionState'
+import EmptyState from '../components/EmptyState'
+import InvestmentTracking, { InvestmentTrackingTabs, type InvestmentTab } from './InvestmentTracking'
 import '../observation.css'
 import './observation-unified.css'
 import ObservationQuickNote, { updateObservationEntry } from './ObservationListActions'
 import './observation-list-editing.css'
 
 type OwnerType = 'research' | 'manual' | 'screening'
+type ObservationSort = 'manual' | 'updated' | 'priority' | 'name' | 'owner' | 'joined' | 'return' | 'drawdown' | 'note'
 export type Entry = {
   kind: 'candidate' | 'screening'; entry_id: string; candidate_id: string | null; run_id: string | null
   stock_code: string; name: string; status: string; note: string; verification: string; updated_at: string
@@ -35,11 +42,10 @@ export type ObservationItem = {
 }
 type Performance = { items: ObservationItem[]; latest_date: string | null; warning: string }
 type Detail = { kind: 'candidate'; item: ResearchCandidate } | { kind: 'screening'; run: Run; item: ObservationItem; performance: Performance }
-type SourceTab = 'candidates' | 'batches'
 type Props = {
   data: DataStatus | null; onNavigateScreening?: () => void; onOpenResearch?: (conversationId: string) => void
-  onStartResearch?: () => void; initialRunId?: string; initialCode?: string; initialCandidateId?: string; initialTab?: SourceTab
-  onLocationChange?: (tab: SourceTab | null, id: string, userNavigation?: boolean, code?: string) => void
+  onStartResearch?: () => void; initialRunId?: string; initialCode?: string; initialCandidateId?: string; initialTab?: InvestmentTab
+  onLocationChange?: (tab: InvestmentTab | null, id: string, userNavigation?: boolean, code?: string) => void
 }
 const watchLabels: Record<string, string> = { watching: '观察中', priority: '重点关注', ended: '结束观察' }
 const runLabels: Record<string, string> = { queued: '排队中', running: '执行中', succeeded: '已完成', partial: '部分数据不足', failed: '执行失败', cancelled: '已取消' }
@@ -51,16 +57,17 @@ export const percent = (value: number | null | undefined) => value == null ? '�
 const returnClass = (value: number | null | undefined) => value == null || value === 0 ? 'observation-neutral' : value > 0 ? 'observation-up' : 'observation-down'
 const metricText = (value: number | null | undefined, loading: boolean) => value === undefined && loading ? '计算中…' : percent(value)
 const metricTitle = (item: Entry) => item.metric_reason || ('起算 ' + (item.base_date || item.basis_date) + ' · 行情截至 ' + (item.price_date || '—'))
+const defaultSortDirection = (value: ObservationSort): 'asc' | 'desc' => ['updated', 'priority', 'return'].includes(value) ? 'desc' : 'asc'
 
 export default function ObservationPage({ data, onNavigateScreening, onOpenResearch, onStartResearch, initialRunId, initialCode, initialCandidateId, initialTab, onLocationChange }: Props) {
-  type SavedView = { id: string; name: string; query: string; status: string; owner: string; sort: string }
-  const [density, setDensity] = useSessionState<'compact' | 'comfortable'>('observation.listDensity', 'compact', (value): value is 'compact' | 'comfortable' => value === 'compact' || value === 'comfortable')
+  type SavedView = { id: string; name: string; query: string; status: string; owner: string; sort: string; direction?: 'asc' | 'desc' }
+  const [activeTab, setActiveTab] = useState<InvestmentTab>(initialTab ?? 'all')
   const [checkedKeys, setCheckedKeys] = useState<string[]>([])
   const [savingKeys, setSavingKeys] = useState<string[]>([])
   const [batchBusy, setBatchBusy] = useState(false)
   const [editNote, setEditNote] = useState<Entry | null>(null)
   const [views, setViews] = useState<SavedView[]>(() => {
-    try { const stored = JSON.parse(localStorage.getItem('observation.savedViews') || '[]'); return Array.isArray(stored) ? stored.filter(item => item && ['id', 'name', 'query', 'status', 'owner', 'sort'].every(key => typeof item[key] === 'string')).slice(0, 20) : [] }
+    try { const stored = JSON.parse(localStorage.getItem('observation.savedViews') || '[]'); return Array.isArray(stored) ? stored.filter(item => item && ['id', 'name', 'query', 'status', 'owner', 'sort'].every(key => typeof item[key] === 'string') && (item.direction === undefined || item.direction === 'asc' || item.direction === 'desc')).slice(0, 20) : [] }
     catch { return [] }
   })
   const [selectedView, setSelectedView] = useState('')
@@ -74,7 +81,8 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('')
   const [owner, setOwner] = useState(initialRunId ? 'run:' + initialRunId : initialCandidateId ? '' : initialTab === 'batches' ? 'screening' : initialTab === 'candidates' ? 'research' : '')
-  const [sort, setSort] = useState('updated')
+  const [sort, setSort] = useState<ObservationSort>('updated')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [offset, setOffset] = useState(0)
   const [items, setItems] = useState<Entry[]>([])
   const [total, setTotal] = useState(0)
@@ -109,9 +117,9 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   useEffect(() => {
     if (routeRef.current.candidate === initialCandidateId && routeRef.current.run === initialRunId && routeRef.current.code === initialCode && routeRef.current.tab === initialTab) return
     routeRef.current = { candidate: initialCandidateId, run: initialRunId, code: initialCode, tab: initialTab }
-    if (initialCandidateId) { setOwner(''); setSelectedKey('candidate:' + initialCandidateId); setDetailOpen(true) }
-    else if (initialRunId) { setOwner('run:' + initialRunId); setSelectedKey(initialCode ? 'screening:' + initialRunId + ':' + initialCode : ''); setDetailOpen(true) }
-    else if (initialTab) { setOwner(initialTab === 'batches' ? 'screening' : 'research'); setSelectedKey(''); setDetailOpen(false) }
+    if (initialCandidateId) { setActiveTab('candidates'); setOwner(''); setSelectedKey('candidate:' + initialCandidateId); setDetailOpen(true) }
+    else if (initialRunId) { setActiveTab('batches'); setOwner('run:' + initialRunId); setSelectedKey(initialCode ? 'screening:' + initialRunId + ':' + initialCode : ''); setDetailOpen(true) }
+    else if (initialTab) { setActiveTab(initialTab); setOwner(initialTab === 'batches' ? 'screening' : initialTab === 'candidates' ? 'research' : ''); setSelectedKey(''); setDetailOpen(false) }
   }, [initialCandidateId, initialRunId, initialCode, initialTab])
   useEffect(() => {
     const controller = new AbortController()
@@ -124,7 +132,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     const controller = new AbortController()
     setLoading(true); setMetricsLoading(true); setError(''); setMetricError(''); setMetricNote(''); setSummary(null); setItems([])
     const timer = setTimeout(() => {
-      const params = new URLSearchParams({ offset: String(offset), limit: '30', sort })
+      const params = new URLSearchParams({ offset: String(offset), limit: '30', sort, direction: sortDirection })
       if (query.trim()) params.set('query', query.trim())
       if (status) params.set('status', status)
       if (owner) params.set('owner', owner)
@@ -145,7 +153,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
         .catch(reason => { if (!controller.signal.aborted) { setError((reason as Error).message); setLoading(false); setMetricsLoading(false) } })
     }, 150)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [query, status, owner, sort, offset, refresh])
+  }, [query, status, owner, sort, sortDirection, offset, refresh])
   useEffect(() => {
     if (!detailOpen || loading || error) return
     const bookmark = routeRef.current.candidate
@@ -209,14 +217,26 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
 
   function clearRoute() {
     if (routeRef.current.candidate || routeRef.current.run || routeRef.current.tab) {
-      routeRef.current = { candidate: undefined, run: undefined, code: undefined, tab: undefined }
-      locationCallback.current?.(null, '', true)
+      routeRef.current = { candidate: undefined, run: undefined, code: undefined, tab: activeTab }
+      locationCallback.current?.(activeTab, '', true)
     }
   }
   function closeDetail() { clearRoute(); setDetailOpen(false); setSelectedKey('') }
+  function changeTrackingTab(tab: InvestmentTab) {
+    setActiveTab(tab); setOwner(tab === 'candidates' ? 'research' : tab === 'batches' ? 'screening' : '')
+    setOffset(0); setSelectedKey(''); setDetail(null); setDetailOpen(false)
+    routeRef.current = { candidate: undefined, run: undefined, code: undefined, tab }
+    locationCallback.current?.(tab, '', true)
+  }
   function changeFilter(update: () => void) {
     if (batchLock.current) return
     closeDetail(); update(); setOffset(0); setNotice(''); setCheckedKeys([]); setSelectedView('')
+  }
+  function changeSort(next: ObservationSort) {
+    changeFilter(() => {
+      if (sort === next) setSortDirection(current => current === 'asc' ? 'desc' : 'asc')
+      else { setSort(next); setSortDirection(defaultSortDirection(next)) }
+    })
   }
   function clearFilters() { changeFilter(() => { setQuery(''); setStatus(''); setOwner('') }) }
   function choose(item: Entry) {
@@ -236,6 +256,33 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     catch (reason) { setNotice(`状态未保存：${(reason as Error).message}`) }
     finally { editLock.current.delete(key); setSavingKeys(current => current.filter(value => value !== key)) }
   }
+  async function hideEntry(item: Entry) {
+    const key = keyOf(item)
+    if (editLock.current.has(key) || !window.confirm(`从观察池移除${item.name || item.stock_code}？源研究和选股记录会保留。`)) return
+    editLock.current.add(key); setSavingKeys(current => [...current, key]); setNotice('')
+    try {
+      await api('/observation/entries/' + encodeURIComponent(key), { method: 'DELETE' })
+      setCheckedKeys(current => current.filter(value => value !== key))
+      if (selectedKey === key) closeDetail()
+      setNotice(`${item.name || item.stock_code}已从观察池移除；源研究和选股记录已保留。`)
+      setRefresh(value => value + 1)
+    } catch (reason) { setNotice(`移除失败：${(reason as Error).message}`) }
+    finally { editLock.current.delete(key); setSavingKeys(current => current.filter(value => value !== key)) }
+  }
+  async function moveEntry(item: Entry, move: 'up' | 'down') {
+    const key = keyOf(item)
+    if (editLock.current.has(key) || batchLock.current) return
+    editLock.current.add(key); setSavingKeys(current => [...current, key]); setNotice('')
+    try {
+      await api('/observation/entries/reorder', { method: 'POST', body: JSON.stringify({
+        entry_key: key, direction: move, query: query.trim().slice(0, 100), status: status || null, owner, sort, sort_direction: sortDirection,
+      }) })
+      setSort('manual'); setSortDirection('asc'); setSelectedView('')
+      setNotice('列表顺序已保存。')
+      setRefresh(value => value + 1)
+    } catch (reason) { setNotice(`顺序未保存：${(reason as Error).message}`) }
+    finally { editLock.current.delete(key); setSavingKeys(current => current.filter(value => value !== key)) }
+  }
   async function changeSelectedStatus(next: string) {
     if (batchLock.current || savingKeys.length) return
     const selectedItems = items.filter(item => checkedKeys.includes(keyOf(item)))
@@ -252,43 +299,50 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   function applyView(id: string) {
     const saved = views.find(item => item.id === id)
     if (!saved) { setSelectedView(''); return }
-    changeFilter(() => { setQuery(saved.query); setStatus(saved.status); setOwner(saved.owner); setSort(saved.sort) }); setSelectedView(id)
+    changeFilter(() => { setQuery(saved.query); setStatus(saved.status); setOwner(saved.owner); setSort(saved.sort as ObservationSort); setSortDirection(saved.direction || defaultSortDirection(saved.sort as ObservationSort)) }); setSelectedView(id)
   }
   function saveView() {
     if (!viewName.trim()) return
     const id = crypto.randomUUID()
-    setViews(current => [...current, { id, name: viewName.trim(), query, status, owner, sort }].slice(-20)); setSelectedView(id); setViewEditing(false); setViewName(''); setNotice('筛选视图已保存到此浏览器。')
+    setViews(current => [...current, { id, name: viewName.trim(), query, status, owner, sort, direction: sortDirection }].slice(-20)); setSelectedView(id); setViewEditing(false); setViewName(''); setNotice('筛选视图已保存到此浏览器。')
   }
   const filtered = !!(query || status || owner)
   const selectedOwner = owners.find(item => item.value === owner)
-  return <div className={`page-content observation-page observation-redesigned observation-unified observation-density-${density}`}>
-    <header className="page-heading observation-page-heading">
-      <div><h1>观察池</h1><p className="page-description">研究、手动关注和选股入选记录集中跟踪</p></div>
-      <div className="observation-heading-actions">
-        {onStartResearch && <button className="secondary-button" onClick={onStartResearch}>开始研究<ArrowRight size={15} /></button>}
-        {onNavigateScreening && <button className="primary-button" onClick={onNavigateScreening}>去条件选股<ArrowRight size={15} /></button>}
-        <button className="secondary-button" onClick={() => { setNotice(''); setRefresh(value => value + 1) }}><RefreshCw size={15} />刷新</button>
-      </div>
-    </header>
-    <div className="observation-unified-toolbar">
-      <label className="observation-search"><Search size={17} /><input aria-label="搜索观察记录" disabled={batchBusy} placeholder="搜索股票、备注或所属" value={query} onChange={event => changeFilter(() => setQuery(event.target.value))} /></label>
-      <select aria-label="按所属筛选" disabled={batchBusy} value={owner} onChange={event => changeFilter(() => setOwner(event.target.value))}>
+  const renderSortHeader = (key: Exclude<ObservationSort, 'manual' | 'priority'>, label: string) =>
+    <SortableHeader sortKey={key} label={label} currentSort={sort} direction={sortDirection} onClick={() => changeSort(key)} />
+  if (activeTab === 'updates' || activeTab === 'expectations' || activeTab === 'portfolio') {
+    return <div className="page-content workspace-tool-page observation-page investment-tracking-page">
+      <WorkspacePageHeading className="page-heading observation-page-heading" actions={null}><h1>投资跟踪</h1><p className="page-description">关注变化、记录业绩预期与组合流水</p></WorkspacePageHeading>
+      <InvestmentTrackingTabs active={activeTab} onChange={changeTrackingTab} />
+      <InvestmentTracking tab={activeTab} />
+    </div>
+  }
+  return <div className="page-content workspace-tool-page observation-page observation-redesigned observation-unified observation-density-compact">
+    <WorkspacePageHeading className="page-heading observation-page-heading" actionsClassName="observation-heading-actions" actions={<>
+        {onStartResearch && <button className="secondary-button workspace-button" onClick={onStartResearch}>开始研究<ArrowRight size={15} /></button>}
+        {onNavigateScreening && <button className="primary-button workspace-button" onClick={onNavigateScreening}>去条件选股<ArrowRight size={15} /></button>}
+        <button className="secondary-button workspace-button" onClick={() => { setNotice(''); setRefresh(value => value + 1) }}><RefreshCw size={15} />刷新</button>
+    </>}><h1>观察池</h1><p className="page-description">研究、手动关注和选股入选记录集中跟踪</p></WorkspacePageHeading>
+    <InvestmentTrackingTabs active={activeTab} onChange={changeTrackingTab} />
+    <div className="observation-unified-toolbar workspace-filters workspace-filters-grid">
+      <label className="observation-search workspace-field-shell"><Search size={17} /><input aria-label="搜索观察记录" disabled={batchBusy} placeholder="搜索股票、备注或所属" value={query} onChange={event => changeFilter(() => setQuery(event.target.value))} className="workspace-field" /></label>
+      <select aria-label="按所属筛选" disabled={batchBusy} value={owner} onChange={event => changeFilter(() => setOwner(event.target.value))} className="workspace-field workspace-select">
         <option value="">全部所属</option>
         <optgroup label="来源类型"><option value="research">全部研究记录</option><option value="manual">手动关注</option><option value="screening">全部筛选批次</option></optgroup>
         {!!owners.filter(item => item.group === 'research' && item.value !== 'manual').length && <optgroup label="研究所属">{owners.filter(item => item.group === 'research' && item.value !== 'manual').map(item => <option key={item.value} value={item.value}>{item.label}（{item.count}）</option>)}</optgroup>}
         {!!owners.filter(item => item.group === 'screening').length && <optgroup label="筛选批次">{owners.filter(item => item.group === 'screening').map(item => <option key={item.value} value={item.value}>{item.label}（{item.count}）</option>)}</optgroup>}
         {owner.startsWith('run:') && !selectedOwner && <option value={owner}>当前筛选批次</option>}
       </select>
-      <select aria-label="观察状态筛选" disabled={batchBusy} value={status} onChange={event => changeFilter(() => setStatus(event.target.value))}><option value="">全部状态</option>{Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-      <select aria-label="观察记录排序" disabled={batchBusy} value={sort} onChange={event => changeFilter(() => setSort(event.target.value))}><option value="updated">最近更新</option><option value="priority">重点优先</option><option value="name">股票名称</option></select>
+      <select aria-label="观察状态筛选" disabled={batchBusy} value={status} onChange={event => changeFilter(() => setStatus(event.target.value))} className="workspace-field workspace-select"><option value="">全部状态</option>{Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+      <select aria-label="观察记录排序" disabled={batchBusy} value={sort} onChange={event => { const next = event.target.value as ObservationSort; changeFilter(() => { setSort(next); setSortDirection(defaultSortDirection(next)) }) }} className="workspace-field workspace-select"><option value="manual">手动顺序</option><option value="updated">最近更新</option><option value="priority">重点优先</option><option value="name">股票名称</option><option value="owner">所属</option><option value="joined">加入时间</option><option value="return">至今涨跌幅</option><option value="drawdown">最大回撤</option><option value="note">关注备注</option></select>
     </div>
-    <div className="observation-view-toolbar"><div role="group" aria-label="观察列表密度"><button type="button" aria-pressed={density === 'compact'} onClick={() => setDensity('compact')}>紧凑列表</button><button type="button" aria-pressed={density === 'comfortable'} onClick={() => setDensity('comfortable')}>宽松列表</button></div><select aria-label="已保存观察视图" disabled={batchBusy} value={selectedView} onChange={event => applyView(event.target.value)}><option value="">当前筛选</option>{views.map(view => <option key={view.id} value={view.id}>{view.name}</option>)}</select><button type="button" className="text-button" onClick={() => { setViewEditing(value => !value); setViewName(selectedOwner?.label || watchLabels[status] || '我的观察视图') }}>保存当前筛选</button>{selectedView && <button type="button" className="text-button" onClick={() => { setViews(current => current.filter(item => item.id !== selectedView)); setSelectedView('') }}>移除视图</button>}</div>
-    {viewEditing && <form className="observation-view-form" aria-label="保存观察筛选视图" onSubmit={event => { event.preventDefault(); saveView() }}><label htmlFor="observation-view-name">视图名称</label><input ref={viewNameRef} id="observation-view-name" value={viewName} maxLength={60} onChange={event => setViewName(event.target.value)} /><button type="submit" className="secondary-button compact" disabled={!viewName.trim()}>保存视图</button><button type="button" className="text-button" onClick={() => setViewEditing(false)}>取消</button></form>}
-    {!!checkedKeys.length && <div className="observation-batch-toolbar" role="group" aria-label="批量处理本页观察记录"><strong>本页已选 {checkedKeys.length} 条</strong>{Object.entries(watchLabels).map(([value, label]) => <button key={value} type="button" className="text-button" disabled={batchBusy || !!savingKeys.length || loading} onClick={() => void changeSelectedStatus(value)}>设为{label}</button>)}<button type="button" className="text-button" disabled={batchBusy} onClick={() => setCheckedKeys([])}>清除勾选</button>{batchBusy && <span role="status">正在保存…</span>}</div>}
-    <div className="observation-unified-meta"><span>{loading ? '正在读取观察记录…' : '共 ' + total + ' 条观察记录'}{data?.last_date && ' · 行情截至 ' + data.last_date}</span>{filtered && <button className="text-button" onClick={clearFilters}>清除筛选</button>}</div>
-    {error && <div className="library-error" role="alert">{error}<button className="text-button" onClick={() => setRefresh(value => value + 1)}>重新加载</button></div>}
-    {notice && <p className="observation-save-message observation-list-message" role="status"><span>{notice}</span><button type="button" className="icon-button" aria-label="关闭观察提示" onClick={() => setNotice('')}><X size={14} /></button></p>}
-    <section className="observation-overview" aria-label="当前筛选范围汇总">
+    <div className="observation-view-toolbar workspace-view-toolbar"><select aria-label="已保存观察视图" disabled={batchBusy} value={selectedView} onChange={event => applyView(event.target.value)} className="workspace-field workspace-select"><option value="">当前筛选</option>{views.map(view => <option key={view.id} value={view.id}>{view.name}</option>)}</select><button type="button" className="text-button workspace-button" onClick={() => { setViewEditing(value => !value); setViewName(selectedOwner?.label || watchLabels[status] || '我的观察视图') }}>保存当前筛选</button>{selectedView && <button type="button" className="text-button workspace-button" onClick={() => { setViews(current => current.filter(item => item.id !== selectedView)); setSelectedView('') }}>移除视图</button>}</div>
+    {viewEditing && <form className="observation-view-form workspace-form" aria-label="保存观察筛选视图" onSubmit={event => { event.preventDefault(); saveView() }}><label htmlFor="observation-view-name">视图名称</label><input ref={viewNameRef} id="observation-view-name" value={viewName} maxLength={60} onChange={event => setViewName(event.target.value)} className="workspace-field" /><button type="submit" className="secondary-button compact workspace-button" disabled={!viewName.trim()}>保存视图</button><button type="button" className="text-button workspace-button" onClick={() => setViewEditing(false)}>取消</button></form>}
+    {!!checkedKeys.length && <div className="observation-batch-toolbar" role="group" aria-label="批量处理本页观察记录"><strong>本页已选 {checkedKeys.length} 条</strong>{Object.entries(watchLabels).map(([value, label]) => <button key={value} type="button" className="text-button workspace-button" disabled={batchBusy || !!savingKeys.length || loading} onClick={() => void changeSelectedStatus(value)}>设为{label}</button>)}<button type="button" className="text-button workspace-button" disabled={batchBusy} onClick={() => setCheckedKeys([])}>清除勾选</button>{batchBusy && <span role="status">正在保存…</span>}</div>}
+    <div className="observation-unified-meta"><span>{loading ? '正在读取观察记录…' : '共 ' + total + ' 条观察记录'}{data?.last_date && ' · 行情截至 ' + data.last_date}</span>{filtered && <button className="text-button workspace-button" onClick={clearFilters}>清除筛选</button>}</div>
+    {error && <div className="library-error workspace-error" role="alert">{error}<button className="text-button workspace-button" onClick={() => setRefresh(value => value + 1)}>重新加载</button></div>}
+    {notice && <p className="observation-save-message observation-list-message workspace-feedback workspace-feedback-success" role="status"><span>{notice}</span><button type="button" className="icon-button workspace-button" aria-label="关闭观察提示" onClick={() => setNotice('')}><X size={14} /></button></p>}
+    <section className="observation-overview workspace-metric-grid" aria-label="当前筛选范围汇总">
       <SummaryCard label="观察记录" value={loading ? '—' : total.toLocaleString('zh-CN') + ' 条'} />
       <SummaryCard label="研究 / 手动" value={summary ? summary.research_count.toLocaleString('zh-CN') + ' 条' : '—'} />
       <SummaryCard label="选股" value={summary ? summary.screening_count.toLocaleString('zh-CN') + ' 条' : '—'} />
@@ -298,31 +352,37 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     <details className="observation-metric-disclosure"><summary>{metricsLoading && !loading ? '正在计算行情统计…' : metricError ? '行情统计暂不可用，查看原因' : '数据口径与说明'}{summary && <span className="observation-source-counts"> · 研究/手动 {summary.research_count} · 选股 {summary.screening_count}</span>}</summary><p className="observation-metric-note">{metricsLoading && !loading ? '正在计算涨跌幅与回撤…' : metricError ? '行情统计暂不可用：' + metricError : metricNote || '涨跌幅从各记录的起算日计算；选股沿用信号日。'}</p></details>
     <div className="observation-unified-workspace">
       <section className="observation-card observation-results" aria-label="观察记录列表" aria-busy={loading}>
-        {loading && !items.length ? <div className="observation-loading" role="status"><Loader2 size={18} />正在读取观察记录…</div> : <>
-          <div ref={tableScrollRef} className="observation-table-scroll">
-            <table>
-              <thead><tr><th className="observation-check-column"><input type="checkbox" aria-label="勾选本页全部观察记录" checked={items.length > 0 && items.every(item => checkedKeys.includes(keyOf(item)))} disabled={batchBusy || !!savingKeys.length} onChange={event => setCheckedKeys(event.target.checked ? items.map(keyOf) : [])} /></th><th>股票 / 状态</th><th>所属</th><th>加入时间</th><th>至今涨跌幅</th><th>最大回撤</th><th>关注备注</th></tr></thead>
-              <tbody>{items.map(item => <tr key={keyOf(item)} className={detailOpen && selectedKey === keyOf(item) ? 'selected' : ''} onClick={event => { if (!(event.target as Element).closest('button,select,input,label,textarea,a')) choose(item) }}>
-                <td data-label="勾选" className="observation-check-column" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={`勾选观察记录 ${item.stock_code} ${item.owner_label}`} checked={checkedKeys.includes(keyOf(item))} disabled={batchBusy || savingKeys.includes(keyOf(item))} onChange={() => toggleChecked(item)} /></td>
-                <td data-label="股票"><button className="stock-link" aria-label={'查看' + (item.name || item.stock_code) + '观察详情'} onClick={event => { event.stopPropagation(); choose(item) }}>{item.name || item.stock_code}{item.name && <small>{item.stock_code}</small>}</button><select className="observation-inline-status" aria-label={`修改${item.name || item.stock_code}观察状态`} value={item.status} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => event.stopPropagation()} onChange={event => void changeEntryStatus(item, event.target.value)}>{Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
-                <td data-label="所属"><span className={'observation-kind observation-kind-' + item.owner_type}>{item.owner_type === 'screening' ? '选股' : item.owner_type === 'manual' ? '手动' : '研究'}</span><span className="observation-owner-label" title={item.owner_label}>{item.owner_label}</span></td>
-                <td data-label="加入时间" title={timestamp(item.joined_at)}><time dateTime={item.joined_at}>{shortTimestamp(item.joined_at)}</time></td>
-                <td data-label="至今涨跌幅" className={returnClass(item.return_latest)} title={metricTitle(item)}><strong>{metricText(item.return_latest, metricsLoading)}</strong><small>{item.metric_reason || (item.base_date ? '起算 ' + item.base_date : '')}</small></td>
-                <td data-label="最大回撤" className={returnClass(item.max_drawdown)} title={metricTitle(item)}><strong>{metricText(item.max_drawdown, metricsLoading)}</strong></td>
-                <td data-label="关注备注" className="observation-reason"><button type="button" className="observation-inline-note" aria-label={`编辑${item.name || item.stock_code}关注备注`} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => { event.stopPropagation(); setEditNote(item) }}>{item.note || item.verification || '添加备注'}</button></td>
+        {loading && !items.length ? <LoadingState label="正在读取观察记录…" skeleton /> : <>
+          <div ref={tableScrollRef} className="observation-table-scroll workspace-table-scroll workspace-table-cards">
+            <table className="workspace-data-table" aria-label="观察记录">
+              <thead><tr><th className="observation-check-column"><input type="checkbox" aria-label="勾选本页全部观察记录" checked={items.length > 0 && items.every(item => checkedKeys.includes(keyOf(item)))} disabled={batchBusy || !!savingKeys.length} onChange={event => setCheckedKeys(event.target.checked ? items.map(keyOf) : [])} className="workspace-check" /></th>{renderSortHeader('name', '股票 / 状态')}{renderSortHeader('owner', '所属')}{renderSortHeader('joined', '加入时间')}{renderSortHeader('return', '至今涨跌幅')}{renderSortHeader('drawdown', '最大回撤')}{renderSortHeader('note', '关注备注')}<th>操作</th></tr></thead>
+              <tbody>{items.map((item, index) => <tr key={keyOf(item)} className={detailOpen && selectedKey === keyOf(item) ? 'selected' : ''} onClick={event => { if (!(event.target as Element).closest('button,select,input,label,textarea,a')) choose(item) }}>
+                <td data-label="勾选" className="observation-check-column" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={`勾选观察记录 ${item.stock_code} ${item.owner_label}`} checked={checkedKeys.includes(keyOf(item))} disabled={batchBusy || savingKeys.includes(keyOf(item))} onChange={() => toggleChecked(item)} className="workspace-check" /></td>
+                <td data-label="股票"><button className="stock-link workspace-button" aria-label={'查看' + (item.name || item.stock_code) + '观察详情'} onClick={event => { event.stopPropagation(); choose(item) }}>{item.name || item.stock_code}{item.name && <small>{item.stock_code}</small>}</button><select className="observation-inline-status workspace-field workspace-select" aria-label={`修改${item.name || item.stock_code}观察状态`} value={item.status} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => event.stopPropagation()} onChange={event => void changeEntryStatus(item, event.target.value)}>{Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
+                <td data-label="所属"><span className={'observation-kind observation-kind-' + item.owner_type}>{item.owner_type === 'screening' ? '选股' : item.owner_type === 'manual' ? '手动' : '研究'}</span><span className="observation-owner-label" data-tooltip={item.owner_label}>{item.owner_label}</span></td>
+                <td data-label="加入时间" data-tooltip={timestamp(item.joined_at)}><time dateTime={item.joined_at}>{shortTimestamp(item.joined_at)}</time></td>
+                <td data-label="至今涨跌幅" className={returnClass(item.return_latest)} data-tooltip={metricTitle(item)}><strong>{metricText(item.return_latest, metricsLoading)}</strong><small>{item.metric_reason || (item.base_date ? '起算 ' + item.base_date : '')}</small></td>
+                <td data-label="最大回撤" className={returnClass(item.max_drawdown)} data-tooltip={metricTitle(item)}><strong>{metricText(item.max_drawdown, metricsLoading)}</strong></td>
+                <td data-label="关注备注" className="observation-reason"><button type="button" className="observation-inline-note workspace-button" aria-label={`编辑${item.name || item.stock_code}关注备注`} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => { event.stopPropagation(); setEditNote(item) }}>{item.note || item.verification || '添加备注'}</button></td>
+                <td data-label="操作" className="observation-row-actions-cell"><div className="observation-row-actions">
+                  <button type="button" className={'icon-button workspace-button observation-row-action' + (item.status === 'priority' ? ' is-active' : '')} aria-label={(item.status === 'priority' ? '取消重点关注' : '重点关注') + (item.name || item.stock_code)} title={item.status === 'priority' ? '取消重点关注' : '重点关注'} aria-pressed={item.status === 'priority'} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => { event.stopPropagation(); void changeEntryStatus(item, item.status === 'priority' ? 'watching' : 'priority') }}><Star size={14} aria-hidden="true" /></button>
+                  <button type="button" className="icon-button workspace-button observation-row-action" aria-label={'删除' + (item.name || item.stock_code) + '观察记录'} title="删除观察记录" disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => { event.stopPropagation(); void hideEntry(item) }}><Trash2 size={14} aria-hidden="true" /></button>
+                  <button type="button" className="icon-button workspace-button observation-row-action" aria-label={'上移' + (item.name || item.stock_code)} title="上移" disabled={batchBusy || loading || savingKeys.includes(keyOf(item)) || offset + index === 0} onClick={event => { event.stopPropagation(); void moveEntry(item, 'up') }}><ArrowUp size={14} aria-hidden="true" /></button>
+                  <button type="button" className="icon-button workspace-button observation-row-action" aria-label={'下移' + (item.name || item.stock_code)} title="下移" disabled={batchBusy || loading || savingKeys.includes(keyOf(item)) || offset + index >= total - 1} onClick={event => { event.stopPropagation(); void moveEntry(item, 'down') }}><ArrowDown size={14} aria-hidden="true" /></button>
+                </div></td>
               </tr>)}</tbody>
             </table>
           </div>
-          {!items.length && <div className="observation-empty observation-start"><Telescope size={25} /><strong>{filtered ? '没有匹配的观察记录' : '还没有观察记录'}</strong>{filtered && <button className="secondary-button" onClick={clearFilters}>显示全部观察</button>}</div>}
-          <Pagination offset={offset} total={total} onChange={changePage} />
+          {!items.length && <EmptyState icon={Telescope} title={filtered ? '没有匹配的观察记录' : '还没有观察记录'} description={filtered ? '调整股票、所属或状态筛选，查看其他观察记录。' : '在研究或行情中关注一家公司，即可在这里持续跟踪。'} actions={filtered && <button className="secondary-button workspace-button" onClick={clearFilters}>显示全部观察</button>} />}
+          <Pagination pageSize={30} inset label="观察列表分页" disabled={loading || batchBusy} offset={offset} total={total} onChange={changePage} />
         </>}
       </section>
     </div>
     {editNote && <ObservationQuickNote entry={editNote} onClose={() => setEditNote(null)} onSaved={() => { setEditNote(null); setNotice('关注备注已保存。'); tableScrollRef.current?.scrollTo?.({ top: 0 }); setRefresh(value => value + 1) }} />}
     {detailOpen && <div className="observation-drawer-layer">
       <div className="observation-drawer-backdrop" onClick={closeDetail} aria-hidden="true" />
-      <section ref={detailRef} className="observation-unified-detail" role="dialog" aria-modal="true" aria-label="观察详情" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); closeDetail() } else trapDialogTab(event) }}>
-        <header className="observation-drawer-header"><h2>观察详情</h2><button ref={closeRef} className="icon-button" aria-label="关闭观察详情" onClick={closeDetail}><X size={19} /></button></header>
+      <section ref={detailRef} className="observation-unified-detail workspace-tool-dialog workspace-drawer" role="dialog" aria-modal="true" aria-label="观察详情" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); closeDetail() } else trapDialogTab(event) }}>
+        <header className="observation-drawer-header"><h2>观察详情</h2><button ref={closeRef} className="icon-button workspace-button" aria-label="关闭观察详情" onClick={closeDetail}><X size={19} /></button></header>
         <div className="observation-drawer-body">
           {selected && <div className="observation-entry-context">
             <span className={'observation-kind observation-kind-' + selected.owner_type}>{selected.owner_type === 'screening' ? '选股' : selected.owner_type === 'manual' ? '手动' : '研究'}</span>
@@ -331,16 +391,16 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
             <div><span>至今涨跌幅 <strong className={returnClass(selected.return_latest)}>{metricText(selected.return_latest, metricsLoading)}</strong></span><span>最大回撤 <strong className={returnClass(selected.max_drawdown)}>{metricText(selected.max_drawdown, metricsLoading)}</strong></span></div>
             <small>{selected.metric_reason || ('起算日 ' + (selected.base_date || selected.basis_date) + ' · 行情截至 ' + (selected.price_date || '—'))}</small>
           </div>}
-          {detailLoading ? <div className="observation-loading" role="status"><Loader2 size={18} />正在读取观察详情…</div>
-            : detailError ? <div className="library-error" role="alert">{detailError}<button className="text-button" onClick={() => setRefresh(value => value + 1)}>重新读取</button></div>
+          {detailLoading ? <LoadingState label="正在读取观察详情…" skeleton />
+            : detailError ? <div className="library-error workspace-error" role="alert">{detailError}<button className="text-button workspace-button" onClick={() => setRefresh(value => value + 1)}>重新读取</button></div>
               : detail?.kind === 'candidate' ? <CandidateDetail key={detail.item.id + ':' + detail.item.revision} item={detail.item} onOpenResearch={onOpenResearch} onReload={() => setRefresh(value => value + 1)} onSaved={value => { setDetail({ kind: 'candidate', item: value }); setNotice('观察记录已保存'); setRefresh(current => current + 1) }} />
                 : detail?.kind === 'screening' ? <>
-                  <div className="observation-run-context"><div><span className="observation-owner-kind">所属筛选批次</span><h2>{detail.run.name}</h2><p>{detail.run.signal_date} · v{detail.run.version} · {runLabels[detail.run.status] || detail.run.status}</p></div><a className="secondary-button" href={'/api/v1/observation/runs/' + detail.run.id + '/snapshot'}><Download size={14} />导出结果字典</a></div>
+                  <div className="observation-run-context"><div><span className="observation-owner-kind">所属筛选批次</span><h2>{detail.run.name}</h2><p>{detail.run.signal_date} · v{detail.run.version} · {runLabels[detail.run.status] || detail.run.status}</p></div><a className="secondary-button workspace-button" href={'/api/v1/observation/runs/' + detail.run.id + '/snapshot'}><Download size={14} />导出结果字典</a></div>
                   <details className="observation-rules"><summary>查看本批次筛选条件</summary><TaskLogic task={detail.run.task} /></details>
-                  <div className="observation-detail-switch" role="group" aria-label="个股详情视图"><button type="button" aria-pressed={detailView === 'chart'} onClick={() => setDetailView('chart')}>走势与依据</button><button type="button" aria-pressed={detailView === 'note'} onClick={() => setDetailView('note')}>观察备注</button></div>
+                  <div className="observation-detail-switch" role="group" aria-label="个股详情视图"><button type="button" aria-pressed={detailView === 'chart'} onClick={() => setDetailView('chart')} className="workspace-button">走势与依据</button><button type="button" aria-pressed={detailView === 'note'} onClick={() => setDetailView('note')} className="workspace-button">观察备注</button></div>
                   <div className="observation-detail-pane" hidden={detailView !== 'chart'}><ObservationChart key={detail.run.id + ':' + detail.item.stock_code} runId={detail.run.id} code={detail.item.stock_code} view="observation" task={detail.run.task} refresh={refresh} /></div>
                   <div className="observation-detail-pane" hidden={detailView !== 'note'}><ObservationNote key={detail.run.id + ':' + detail.item.stock_code} runId={detail.run.id} item={detail.item} entry={selected} onSaved={() => { setNotice('观察记录已保存'); setRefresh(current => current + 1) }} /></div>
-                </> : <div className="observation-empty"><ClipboardList size={24} /><strong>选择一条观察记录查看详情</strong></div>}
+                </> : <EmptyState icon={ClipboardList} title="选择一条观察记录查看详情" />}
         </div>
       </section>
     </div>}
@@ -348,12 +408,21 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
 }
 
 function SummaryCard({ label, value, tone = '', hint }: { label: string; value: string; tone?: string; hint?: string }) {
-  return <div className="observation-overview-card"><span>{label}</span><strong className={tone}>{value}</strong>{hint && <small>{hint}</small>}</div>
+  return <div className="observation-overview-card workspace-metric-card"><span>{label}</span><strong className={tone}>{value}</strong>{hint && <small>{hint}</small>}</div>
 }
 
-function Pagination({ offset, total, onChange }: { offset: number; total: number; onChange: (value: number) => void }) {
-  return <div className="observation-pagination"><span>{total ? String(offset + 1) + '–' + String(Math.min(offset + 30, total)) + ' / ' + total + ' 条' : '0 条'}</span><button disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - 30))}>上一页</button><button disabled={offset + 30 >= total} onClick={() => onChange(offset + 30)}>下一页</button></div>
+function SortableHeader({ sortKey, label, currentSort, direction, onClick }: {
+  sortKey: Exclude<ObservationSort, 'manual' | 'priority'>; label: string; currentSort: ObservationSort
+  direction: 'asc' | 'desc'; onClick: () => void
+}) {
+  const active = currentSort === sortKey
+  return <th aria-sort={active ? direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
+    <button type="button" className="observation-sort-button workspace-button" onClick={onClick}>
+      {label}{active ? direction === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" /> : <ArrowUpDown size={13} aria-hidden="true" />}
+    </button>
+  </th>
 }
+
 
 function ObservationNote({ runId, item, entry, onSaved }: { runId: string; item: ObservationItem; entry?: Entry; onSaved: () => void }) {
   type Draft = { note: string; status: string }
@@ -373,12 +442,12 @@ function ObservationNote({ runId, item, entry, onSaved }: { runId: string; item:
     finally { setBusy(false) }
   }
   return <section className="observation-card observation-note">
-    <div className="observation-section-heading"><div><h2>{item.name || item.stock_code} · 观察记录</h2><span className={'observation-status ' + item.status}>{watchLabels[item.status]}</span></div></div>
+    <div className="observation-section-heading"><div><h2>{item.name || item.stock_code} · 观察记录</h2><span className={["workspace-status", 'observation-status ' + item.status].filter(Boolean).join(' ')}>{watchLabels[item.status]}</span></div></div>
     <div className="observation-detail-metrics observation-stock-metrics"><span>入选参考价<strong>{number(item.reference_close)}</strong><small>{item.reference_date || '未记录参考价'}</small></span><span>最新价<strong>{number(item.latest_close)}</strong><small>{item.latest_date || '无行情'}</small></span><span>至今涨跌幅<strong className={returnClass(currentReturn)}>{percent(currentReturn)}</strong></span><span>最大回撤<strong className={returnClass(entry?.max_drawdown)}>{percent(entry?.max_drawdown)}</strong></span><span>期间最高涨幅<strong className={returnClass(item.peak_return)}>{percent(item.peak_return)}</strong></span><span>观察天数<strong>{item.days} 日</strong></span></div>
     {item.invalid_bars > 0 && <p className="observation-disclosure">期间有 {item.invalid_bars} 根异常行情，区间最高／最低涨幅暂不可用。</p>}
-    <label>观察状态<select aria-label="个股观察状态" value={draft.status} disabled={busy} onChange={event => setDrafts(current => ({ ...current, [key]: { ...draft, status: event.target.value } }))}>{Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-    <label>观察备注<textarea aria-label="观察备注" value={draft.note} disabled={busy} maxLength={2000} rows={4} onChange={event => setDrafts(current => ({ ...current, [key]: { ...draft, note: event.target.value } }))} /><span className="observation-field-hint">{draft.note.length} / 2000</span></label>
-    <div className="observation-save-footer"><small>{item.updated_at ? '更新于 ' + timestamp(item.updated_at) : '尚未编辑'}</small><div>{changed && <button className="text-button" disabled={busy} onClick={() => { clear(); setMessage('') }}>恢复已保存记录</button>}<button className="primary-button" disabled={busy || !changed} onClick={() => void save()}>{busy ? '保存中…' : '保存观察记录'}</button></div></div>
-    {message && <p className="observation-save-message" role="alert">{message}</p>}
+    <label className="workspace-field-label">观察状态<select aria-label="个股观察状态" value={draft.status} disabled={busy} onChange={event => setDrafts(current => ({ ...current, [key]: { ...draft, status: event.target.value } }))} className="workspace-field workspace-select">{Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+    <label className="workspace-field-label">观察备注<textarea aria-label="观察备注" value={draft.note} disabled={busy} maxLength={2000} rows={4} onChange={event => setDrafts(current => ({ ...current, [key]: { ...draft, note: event.target.value } }))} className="workspace-field" /><span className="observation-field-hint">{draft.note.length} / 2000</span></label>
+    <div className="observation-save-footer"><small>{item.updated_at ? '更新于 ' + timestamp(item.updated_at) : '尚未编辑'}</small><div>{changed && <button className="text-button workspace-button" disabled={busy} onClick={() => { clear(); setMessage('') }}>恢复已保存记录</button>}<button className="primary-button workspace-button" disabled={busy || !changed} onClick={() => void save()}>{busy ? '保存中…' : '保存观察记录'}</button></div></div>
+    {message && <p className="observation-save-message workspace-error" role="alert">{message}</p>}
   </section>
 }

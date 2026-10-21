@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextvars import copy_context
 
 from contextlib import contextmanager, nullcontext
 from datetime import UTC, datetime, timedelta
@@ -129,7 +130,7 @@ def keep_turn_alive(conversation_id: str, turn_id: str):
             except sqlite3.Error:
                 return  # Expiration prevents a disconnected processor publishing later.
 
-    thread = Thread(target=heartbeat, name="conversation-heartbeat", daemon=True)
+    thread = Thread(target=copy_context().run, args=(heartbeat,), name="conversation-heartbeat", daemon=True)
     thread.start()
     try:
         yield
@@ -256,7 +257,7 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
 
 
 def list_conversations(entry_scope: str | None = None, limit: int = 50, active_only: bool = False,
-                       workflow_type: str | None = None, state: str | None = None) -> list[dict[str, Any]]:
+                       workflow_type: str | None = None, state: str | None = None, *, exclude_intelligence: bool = False) -> list[dict[str, Any]]:
     recover_expired_turns()
     limit = max(1, min(int(limit), 100))
     with connect() as connection:
@@ -264,7 +265,8 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50, active_o
             """SELECT c.id,c.entry_scope,c.research_mode,c.project_id,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
                       c.workflow_type,c.research_depth,c.workflow_revision,c.research_scope_json,c.research_scope_revision,c.assistant_snapshot_json,c.assistant_revision,
                       c.model_id,c.reasoning_effort,c.model_revision,
-                      c.pinned,COALESCE(c.title,(SELECT substr(m.content,1,120) FROM conversation_messages m
+                      c.pinned,COALESCE(c.title,(SELECT CASE WHEN m.client_message_id LIKE 'assistant-launch:%' AND instr(m.content,char(10))>0
+                       THEN substr(m.content,1,instr(m.content,char(10))-1) ELSE substr(m.content,1,120) END FROM conversation_messages m
                        WHERE m.conversation_id=c.id AND m.role='user'
                        ORDER BY m.rowid LIMIT 1)) AS title,
                       (SELECT t.state FROM conversation_turns t WHERE t.conversation_id=c.id ORDER BY t.rowid DESC LIMIT 1) AS last_turn_state,
@@ -273,10 +275,11 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50, active_o
                WHERE (? IS NULL OR c.entry_scope=?)
                  AND (? IS NULL OR c.workflow_type=?)
                  AND c.deleted_at IS NULL AND (? IS NULL OR c.state=?)
+                 AND (?=0 OR NOT EXISTS (SELECT 1 FROM intelligence_runs ir WHERE ir.conversation_id=c.id))
                  AND (?=0 OR EXISTS (SELECT 1 FROM conversation_turns t WHERE t.conversation_id=c.id AND t.state IN ('awaiting_agent','running'))
                       OR EXISTS (SELECT 1 FROM screening_task_runs r WHERE r.conversation_id=c.id AND r.status IN ('queued','running')))
                ORDER BY c.pinned DESC,c.updated_at DESC,c.id DESC LIMIT ?""",
-            (entry_scope, entry_scope, workflow_type, workflow_type, state, state, active_only, limit),
+            (entry_scope, entry_scope, workflow_type, workflow_type, state, state, exclude_intelligence, active_only, limit),
         ).fetchall()
     items = []
     for row in rows:
@@ -471,7 +474,18 @@ def create_screening_draft(conversation_id: str, request_id: str, source_message
             "source": {**snapshot, "request_id": request_id, "instructions": instructions, "draft_prompt": prompt}, "idempotent_replay": False}
 
 
-def _message_payload(row) -> dict[str, Any]:
+def quick_task_display_prompts(connection, conversation_id: str) -> dict[str, str]:
+    """Keep generated task instructions out of presentation, including retries."""
+    rows = connection.execute(
+        """SELECT content FROM conversation_messages
+           WHERE conversation_id=? AND role='user'
+             AND (client_message_id LIKE 'assistant-launch:%' OR client_message_id LIKE 'intelligence:%')""",
+        (conversation_id,),
+    )
+    return {row["content"]: row["content"].split("\n", 1)[0] for row in rows}
+
+
+def _message_payload(row, display_content: str | None = None) -> dict[str, Any]:
     return {
         "id": row["id"],
         "regeneration_of": row["regeneration_of"],
@@ -479,6 +493,7 @@ def _message_payload(row) -> dict[str, Any]:
         "turn_id": (row["client_message_id"] or "").removeprefix("assistant:") if (row["client_message_id"] or "").startswith("assistant:") else None,
         "role": row["role"],
         "content": row["content"],
+        **({"display_content": display_content} if display_content is not None else {}),
         "source_refs": json_load(row["source_refs_json"]),
         "attachments": json_load(row["attachments_json"]) if "attachments_json" in row.keys() else [],
         "created_at": row["created_at"],
@@ -592,6 +607,7 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
                          """SELECT r.turn_id,j.id,j.state,j.progress,j.message FROM research_turn_jobs r
                          JOIN jobs j ON j.id=r.job_id WHERE r.conversation_id=?""", (conversation_id,))}
         draft_source = connection.execute("SELECT * FROM screening_draft_sources WHERE draft_conversation_id=?", (conversation_id,)).fetchone()
+        display_prompts = quick_task_display_prompts(connection, conversation_id)
 
     return {
         "id": conversation["id"],
@@ -605,11 +621,12 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
         "active_run_id": conversation["active_run_id"],
         "pending_execution": conversation["pending_execute_message_id"] is not None,
         "state": conversation["state"],
-        "title": conversation["title"],
+        "title": conversation["title"] or next(iter(display_prompts.values()), None),
         "pinned": bool(conversation["pinned"]),
         "created_at": conversation["created_at"],
         "updated_at": conversation["updated_at"],
-        "messages": [_message_payload(row) for row in messages],
+        "messages": [_message_payload(row, display_prompts.get(row["content"]) if row["role"] == "user" else None)
+                     for row in messages],
         "turns": [
             {
                 "id": row["id"],
@@ -947,10 +964,13 @@ def finish_turn(
 
         assistant_message_key = f"assistant:{turn_id}"
         previous_message = connection.execute(
-            """SELECT id,content FROM conversation_messages
+            """SELECT id,content,source_refs_json FROM conversation_messages
                WHERE conversation_id=? AND role='assistant' AND client_message_id=?""",
             (conversation_id, assistant_message_key),
         ).fetchone()
+        if previous_message and previous_message["content"] != response_text:
+            from .research_sources import rewrite_local_citations
+            response_text = rewrite_local_citations(response_text, json_load(previous_message["source_refs_json"]))
         if turn["state"] in {"awaiting_user", "succeeded", "failed", "cancelled"}:
             if (
                 turn["state"] == state
@@ -981,8 +1001,9 @@ def finish_turn(
             if previous_message["content"] != response_text:
                 raise ConversationConflict("助手回合已存在不同的不可变消息")
         else:
-            from .research_sources import collect
+            from .research_sources import collect, rewrite_local_citations
             evidence = collect(connection, conversation_id, turn_id, response_text)
+            response_text = rewrite_local_citations(response_text, evidence["items"])
             regenerated = connection.execute("""SELECT m.id,m.regeneration_of FROM research_answer_actions a
                 JOIN conversation_messages m ON m.id=a.source_message_id
                 WHERE a.target_conversation_id=? AND a.target_turn_id=? AND a.source_conversation_id=?""",
