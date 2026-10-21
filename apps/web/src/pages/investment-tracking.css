@@ -226,6 +226,43 @@
   font-size: 11px;
 }
 
+.investment-delete-control {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.investment-delete-confirmation {
+  display: grid;
+  width: min(100%, 280px);
+  justify-items: end;
+  gap: 5px;
+  text-align: right;
+}
+
+.investment-delete-confirmation > span {
+  color: var(--ui-danger);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.investment-delete-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 8px;
+}
+
+.investment-delete-confirmation-actions > .text-button {
+  min-height: 30px;
+  padding-inline: 6px;
+}
+
+.investment-delete-confirmation-actions > .investment-delete-action {
+  color: var(--ui-danger);
+}
+
 .investment-footnote {
   margin: 0;
   line-height: 1.55;

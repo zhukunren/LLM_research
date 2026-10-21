@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { api } from '../api'
 import { ArrowDownRight, ArrowUpRight, Bell, BriefcaseBusiness, Check, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import StockSearch from '../components/StockSearch'
 import './investment-tracking.css'
 
 export type InvestmentTab = 'all' | 'candidates' | 'batches' | 'updates' | 'expectations' | 'portfolio'
@@ -24,6 +25,28 @@ export default function InvestmentTracking({ tab }: { tab: Extract<InvestmentTab
   return <section className="investment-tracking-panel">
     {tab === 'updates' ? <WatchlistUpdates /> : tab === 'expectations' ? <EarningsExpectations /> : <Portfolio />}
   </section>
+}
+
+function ConfirmDelete({ label, warning, onConfirm }: { label: string; warning: string; onConfirm: () => Promise<boolean> }) {
+  const confirmationId = useId()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  async function confirm() {
+    if (busy) return
+    setBusy(true)
+    try { if (await onConfirm()) setOpen(false) }
+    finally { setBusy(false) }
+  }
+  return <div className="investment-delete-control">
+    <button type="button" className="icon-button workspace-button" aria-label={label} title={label} aria-expanded={open} aria-controls={open ? confirmationId : undefined} onClick={() => setOpen(value => !value)}><Trash2 size={15} /></button>
+    {open && <div id={confirmationId} className="investment-delete-confirmation" role="group" aria-label="确认删除" aria-live="polite">
+      <span>{warning}</span>
+      <div className="investment-delete-confirmation-actions">
+        <button type="button" className="text-button workspace-button investment-delete-action" disabled={busy} onClick={() => void confirm()}>{busy ? '删除中…' : '确认删除'}</button>
+        <button type="button" className="text-button workspace-button" disabled={busy} onClick={() => setOpen(false)}>取消</button>
+      </div>
+    </div>}
+  </div>
 }
 
 type MonitorPreference = { price_move_threshold: number; updated_at: string | null }
@@ -100,6 +123,7 @@ function EarningsExpectations() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [refresh, setRefresh] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
@@ -117,23 +141,24 @@ function EarningsExpectations() {
   async function save(event: FormEvent) {
     event.preventDefault()
     if (saving) return
-    setSaving(true); setError('')
+    setSaving(true); setError(''); setNotice('')
     try {
       await api('/investment-tracking/expectations', { method: 'POST', body: JSON.stringify({ stock_code: stockCode.trim().toUpperCase(), report_period: period, basis, metric_code: metric, expected_value: expected, note }) })
-      setExpected(''); setNote(''); setRefresh(value => value + 1)
+      setExpected(''); setNote(''); setNotice('业绩预期已保存。'); setRefresh(value => value + 1)
     } catch (reason) { setError((reason as Error).message) }
     finally { setSaving(false) }
   }
   async function remove(id: string) {
-    try { await api('/investment-tracking/expectations/' + encodeURIComponent(id), { method: 'DELETE' }); setItems(current => current.filter(item => item.id !== id)) }
-    catch (reason) { setError((reason as Error).message) }
+    setError(''); setNotice('')
+    try { await api('/investment-tracking/expectations/' + encodeURIComponent(id), { method: 'DELETE' }); setItems(current => current.filter(item => item.id !== id)); setNotice('业绩预期已删除。'); return true }
+    catch (reason) { setError((reason as Error).message); return false }
   }
   const quarter = basis !== 'annual'
   const validPeriod = ['-03-31', '-06-30', '-09-30', '-12-31'].some(suffix => period.endsWith(suffix))
   return <>
     <header className="investment-panel-heading"><div><h2>业绩预期</h2><p>记录自己的指标预期；财务数据到达后显示实际值和差额。</p></div></header>
     <form className="investment-entry-form workspace-form" onSubmit={event => void save(event)}>
-      <label className="workspace-field-label">股票代码<input className="workspace-field" value={stockCode} onChange={event => setStockCode(event.target.value)} placeholder="例如 600519.SH" pattern="\d{6}\.(SH|SZ|BJ)" required /></label>
+      <div className="workspace-field-label"><span>股票</span><StockSearch label="业绩预期股票" value={stockCode} onSelectionPending={() => setStockCode('')} onChange={setStockCode} /></div>
       <label className="workspace-field-label">报告期<input className="workspace-field" type="date" value={period} onChange={event => setPeriod(event.target.value)} required /></label>
       <label className="workspace-field-label">比较口径<select className="workspace-field workspace-select" value={basis} onChange={event => setBasis(event.target.value)}><option value="annual">年度</option><option value="quarter">单季</option><option value="cumulative">年内累计</option><option value="ttm">滚动十二个月</option></select></label>
       <label className="workspace-field-label">指标<select className="workspace-field workspace-select" value={metric} onChange={event => setMetric(event.target.value)}>{metrics.map(item => <option key={item.code} value={item.code}>{item.label}（{item.unit}）</option>)}</select></label>
@@ -141,9 +166,9 @@ function EarningsExpectations() {
       <label className="workspace-field-label investment-entry-note">备注<input className="workspace-field" maxLength={1000} value={note} onChange={event => setNote(event.target.value)} placeholder="可选" /></label>
       <button type="submit" className="primary-button workspace-button" disabled={saving || !stockCode || !metric || !validPeriod || (!quarter && !period.endsWith('-12-31'))}><Plus size={15} />{saving ? '保存中…' : '保存预期'}</button>
     </form>
-    {error && <p className="workspace-error" role="alert">{error}</p>}
+    {error && <p className="workspace-error" role="alert">{error}</p>}{notice && <p className="workspace-feedback workspace-feedback-success" role="status">{notice}</p>}
     <div className="investment-subheading"><h3>已记录预期</h3><span>{items.length} 项</span><button type="button" className="icon-button workspace-button" aria-label="刷新业绩预期" onClick={() => setRefresh(value => value + 1)}><RefreshCw size={15} /></button></div>
-    {loading ? <p role="status">正在读取预期…</p> : !items.length ? <div className="investment-empty"><BriefcaseBusiness size={19} /><strong>还没有业绩预期</strong><span>添加关注公司的指标与报告期。</span></div> : <div className="investment-table-scroll workspace-table-scroll"><table className="workspace-data-table" aria-label="业绩预期"><thead><tr><th>公司 / 报告期</th><th>指标</th><th>预期值</th><th>实际值</th><th>差额</th><th>备注</th><th></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td data-label="公司 / 报告期">{item.stock_code}<small>{item.report_period} · {basisLabel(item.basis)}</small></td><td data-label="指标">{item.metric_label}<small>{item.unit}</small></td><td data-label="预期值">{formatNumber(item.expected_value)}</td><td data-label="实际值">{item.actual_status === 'ok' ? formatNumber(item.actual_value) : item.actual_reason || '待披露'}</td><td data-label="差额" className={tone(item.surprise)}>{item.surprise == null ? '—' : `${formatNumber(item.surprise)}${item.surprise_percent == null ? '' : ` · ${formatNumber(item.surprise_percent)}%`}`}</td><td data-label="备注">{item.note || '—'}</td><td><button type="button" className="icon-button workspace-button" aria-label={`删除${item.stock_code} ${item.metric_label}预期`} title="删除预期" onClick={() => void remove(item.id)}><Trash2 size={15} /></button></td></tr>)}</tbody></table></div>}
+    {loading ? <p role="status">正在读取预期…</p> : !items.length ? <div className="investment-empty"><BriefcaseBusiness size={19} /><strong>还没有业绩预期</strong><span>添加关注公司的指标与报告期。</span></div> : <div className="investment-table-scroll workspace-table-scroll"><table className="workspace-data-table" aria-label="业绩预期"><thead><tr><th>公司 / 报告期</th><th>指标</th><th>预期值</th><th>实际值</th><th>差额</th><th>备注</th><th></th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td data-label="公司 / 报告期">{item.stock_code}<small>{item.report_period} · {basisLabel(item.basis)}</small></td><td data-label="指标">{item.metric_label}<small>{item.unit}</small></td><td data-label="预期值">{formatNumber(item.expected_value)}</td><td data-label="实际值">{item.actual_status === 'ok' ? formatNumber(item.actual_value) : item.actual_reason || '待披露'}</td><td data-label="差额" className={tone(item.surprise)}>{item.surprise == null ? '—' : `${formatNumber(item.surprise)}${item.surprise_percent == null ? '' : ` · ${formatNumber(item.surprise_percent)}%`}`}</td><td data-label="备注">{item.note || '—'}</td><td><ConfirmDelete label={`删除${item.stock_code} ${item.metric_label}预期`} warning="确认删除这项业绩预期？" onConfirm={() => remove(item.id)} /></td></tr>)}</tbody></table></div>}
     <p className="investment-footnote">预期值按指标目录的原单位输入；差额为实际值减预期值，不代表利好或利空判断。</p>
   </>
 }
@@ -164,6 +189,7 @@ function Portfolio() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [refresh, setRefresh] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
@@ -176,17 +202,17 @@ function Portfolio() {
   async function save(event: FormEvent) {
     event.preventDefault()
     if (saving) return
-    setSaving(true); setError('')
+    setSaving(true); setError(''); setNotice('')
     try {
       await api('/investment-tracking/portfolio/transactions', { method: 'POST', body: JSON.stringify({ trade_date: tradeDate, stock_code: stockCode.trim().toUpperCase(), side, quantity, price, fees, note }) })
-      setQuantity(''); setPrice(''); setFees('0'); setNote(''); setRefresh(value => value + 1)
+      setQuantity(''); setPrice(''); setFees('0'); setNote(''); setNotice('流水已记录，组合正在重新计算。'); setRefresh(value => value + 1)
     } catch (reason) { setError((reason as Error).message) }
     finally { setSaving(false) }
   }
   async function remove(id: string) {
-    setError('')
-    try { await api('/investment-tracking/portfolio/transactions/' + encodeURIComponent(id), { method: 'DELETE' }); setRefresh(value => value + 1) }
-    catch (reason) { setError((reason as Error).message) }
+    setError(''); setNotice('')
+    try { await api('/investment-tracking/portfolio/transactions/' + encodeURIComponent(id), { method: 'DELETE' }); setNotice('流水已删除，组合正在重新计算。'); setRefresh(value => value + 1); return true }
+    catch (reason) { setError((reason as Error).message); return false }
   }
   const summary = result?.summary
   return <>
@@ -202,18 +228,18 @@ function Portfolio() {
     <form className="investment-entry-form workspace-form" onSubmit={event => void save(event)}>
       <label className="workspace-field-label">方向<select className="workspace-field workspace-select" value={side} onChange={event => setSide(event.target.value as 'buy' | 'sell')}><option value="buy">买入</option><option value="sell">卖出</option></select></label>
       <label className="workspace-field-label">交易日期<input className="workspace-field" type="date" max={localDate()} value={tradeDate} onChange={event => setTradeDate(event.target.value)} required /></label>
-      <label className="workspace-field-label">股票代码<input className="workspace-field" value={stockCode} onChange={event => setStockCode(event.target.value)} placeholder="例如 600519.SH" pattern="\d{6}\.(SH|SZ|BJ)" required /></label>
+      <div className="workspace-field-label"><span>股票</span><StockSearch label="投资组合股票" value={stockCode} onSelectionPending={() => setStockCode('')} onChange={setStockCode} /></div>
       <label className="workspace-field-label">数量<input className="workspace-field" type="number" min="0.0001" step="any" value={quantity} onChange={event => setQuantity(event.target.value)} required /></label>
       <label className="workspace-field-label">成交价<input className="workspace-field" type="number" min="0.0001" step="any" value={price} onChange={event => setPrice(event.target.value)} required /></label>
       <label className="workspace-field-label">费用<input className="workspace-field" type="number" min="0" step="any" value={fees} onChange={event => setFees(event.target.value)} required /></label>
       <label className="workspace-field-label investment-entry-note">备注<input className="workspace-field" maxLength={1000} value={note} onChange={event => setNote(event.target.value)} placeholder="可选" /></label>
-      <button type="submit" className="primary-button workspace-button" disabled={saving}>{saving ? <RefreshCw size={15} className="spin" /> : <Plus size={15} />}{saving ? '保存中…' : '记入流水'}</button>
+      <button type="submit" className="primary-button workspace-button" disabled={saving || !stockCode}>{saving ? <RefreshCw size={15} className="spin" /> : <Plus size={15} />}{saving ? '保存中…' : '记入流水'}</button>
     </form>
-    {error && <p className="workspace-error" role="alert">{error}</p>}
+    {error && <p className="workspace-error" role="alert">{error}</p>}{notice && <p className="workspace-feedback workspace-feedback-success" role="status">{notice}</p>}
     <div className="investment-subheading"><h3>当前持仓</h3><span>{summary?.positions ?? 0} 只</span><button type="button" className="icon-button workspace-button" aria-label="刷新组合估值" onClick={() => setRefresh(value => value + 1)}><RefreshCw size={15} /></button></div>
     {loading ? <p role="status">正在计算组合…</p> : !result?.positions.length ? <div className="investment-empty"><BriefcaseBusiness size={19} /><strong>还没有持仓</strong><span>记录买入流水后会显示当前持仓。</span></div> : <div className="investment-table-scroll workspace-table-scroll"><table className="workspace-data-table" aria-label="当前持仓"><thead><tr><th>股票</th><th>数量</th><th>移动平均成本</th><th>最新收盘</th><th>市值</th><th>未实现盈亏</th><th>已实现盈亏</th></tr></thead><tbody>{result.positions.map(item => <tr key={item.stock_code}><td data-label="股票">{item.name || item.stock_code}<small>{item.stock_code}</small></td><td data-label="数量">{formatNumber(item.quantity)}</td><td data-label="移动平均成本">{formatNumber(item.average_cost)}</td><td data-label="最新收盘">{item.latest_close == null ? '—' : `${formatNumber(item.latest_close)} · ${item.latest_date}`}</td><td data-label="市值">{formatNumber(item.market_value)}</td><td data-label="未实现盈亏" className={tone(item.unrealized_profit)}>{formatNumber(item.unrealized_profit)}</td><td data-label="已实现盈亏" className={tone(item.realized_profit)}>{formatNumber(item.realized_profit)}</td></tr>)}</tbody></table></div>}
     <div className="investment-subheading"><h3>最近流水</h3><span>{result?.transactions.length ?? 0} 笔</span></div>
-    {!loading && !!result?.transactions.length && <div className="investment-table-scroll workspace-table-scroll"><table className="workspace-data-table" aria-label="组合流水"><thead><tr><th>日期</th><th>方向 / 股票</th><th>数量</th><th>成交价</th><th>费用</th><th>备注</th><th></th></tr></thead><tbody>{result.transactions.map(item => <tr key={item.id}><td data-label="日期">{item.trade_date}</td><td data-label="方向 / 股票">{item.side === 'buy' ? '买入' : '卖出'}<small>{item.stock_code}</small></td><td data-label="数量">{formatNumber(item.quantity)}</td><td data-label="成交价">{formatNumber(item.price)}</td><td data-label="费用">{formatNumber(item.fees)}</td><td data-label="备注">{item.note || '—'}</td><td><button type="button" className="icon-button workspace-button" aria-label={`删除${item.trade_date} ${item.stock_code}流水`} title="删除流水" onClick={() => void remove(item.id)}><Trash2 size={15} /></button></td></tr>)}</tbody></table></div>}
+    {!loading && !!result?.transactions.length && <div className="investment-table-scroll workspace-table-scroll"><table className="workspace-data-table" aria-label="组合流水"><thead><tr><th>日期</th><th>方向 / 股票</th><th>数量</th><th>成交价</th><th>费用</th><th>备注</th><th></th></tr></thead><tbody>{result.transactions.map(item => <tr key={item.id}><td data-label="日期">{item.trade_date}</td><td data-label="方向 / 股票">{item.side === 'buy' ? '买入' : '卖出'}<small>{item.stock_code}</small></td><td data-label="数量">{formatNumber(item.quantity)}</td><td data-label="成交价">{formatNumber(item.price)}</td><td data-label="费用">{formatNumber(item.fees)}</td><td data-label="备注">{item.note || '—'}</td><td><ConfirmDelete label={`删除${item.trade_date} ${item.stock_code}流水`} warning="删除后会重算后续持仓。" onConfirm={() => remove(item.id)} /></td></tr>)}</tbody></table></div>}
     <p className="investment-footnote">此组合由手动流水计算，不连接券商账户，也不会提交委托。同日按先买入后卖出计算；删除流水会重算之后的持仓，造成负持仓时会拒绝操作。</p>
   </>
 }
