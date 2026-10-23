@@ -142,7 +142,7 @@ def apply_template(conversation_id: str, template_id: str, payload: ApplyTemplat
                     raise ValueError("找不到指定的自选股票池。")
                 if not connection.execute("SELECT 1 FROM watchlist_items WHERE watchlist_id=? LIMIT 1", (payload.universe.watchlist_id,)).fetchone():
                     raise ValueError("指定的自选股票池为空。")
-        content = f"使用基础方案“{template['name']}”：{description}。仅生成方案，确认后执行。"
+        content = f"使用基础方案“{template['name']}”：{description}。生成方案后自动开始筛选。"
         components = COMBINATIONS.get(template_id)
         parts = []
         if components:
@@ -167,7 +167,7 @@ def apply_template(conversation_id: str, template_id: str, payload: ApplyTemplat
             "conditions": conditions,
             "references": references,
             "logic_tree": {"op": "all", "children": nodes} if components else nodes[0],
-            "scope": {"as_of": payload.as_of, "universe": payload.universe, "price_basis": "unknown"}, "unresolved": [],
+            "scope": {"as_of": payload.as_of, "universe": payload.universe, "price_basis": "unadjusted"}, "unresolved": [],
         })
         validate_executable_task(task)
         # Atomic publication uses the same revision/turn guards as saved-plan reuse.
@@ -184,8 +184,11 @@ def apply_template(conversation_id: str, template_id: str, payload: ApplyTemplat
                 raise conversation_store.ConversationConflict("这条消息已经在处理或已结束，请重新选择模板。")
             result = conversation_store.save_task_revision(conversation_id, payload.base_revision, source_message_id, task, _connection=connection)
             conversation_store.finish_turn(conversation_id, turn["id"], task.revision, "succeeded",
-                f"已生成基础方案“{template['name']}”：{description}。请核对参数、股票范围和截止日，再确认开始筛选。尚未执行筛选。",
-                {"intent": "template", "template_id": template_id, "template_version": payload.version, "task_revision": task.revision, "execution_authorized": False, "ready_to_execute": False}, _connection=connection)
+                f"已生成基础方案“{template['name']}”：{description}。正在自动筛选。",
+                {"intent": "template", "template_id": template_id, "template_version": payload.version,
+                 "task_revision": task.revision, "execution_authorized": True, "ready_to_execute": True,
+                 "execution_authorization_message_id": source_message_id},
+                pending_execute_message_id=source_message_id, _connection=connection)
         return {**result, "turn_id": turn["id"], "source_message_id": source_message_id}
     except conversation_store.ConversationNotFound as exc:
         raise HTTPException(404, {"code": "conversation_not_found", "message": "找不到对话或消息。"}) from exc

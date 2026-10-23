@@ -8,6 +8,7 @@ const minimalist = readStyle('minimalist-workspace.css')
 const libraries = readStyle('library-minimal.css')
 const chat = readStyle('chat-layout.css')
 const screening = readStyle('components/conversation/screening-simple.css')
+const screeningJourney = readStyle('components/conversation/screening-journey.css')
 
 const token = (name) => {
   const value = tokens.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1]
@@ -56,7 +57,7 @@ describe('Soochow interaction palette', () => {
     expect(minimalist).toMatch(/button\.active\s*\{[^}]*border-bottom-color: var\(--ui-primary\); color: var\(--ui-primary\)/)
     expect(minimalist).toMatch(/primary-button:active:not\(:disabled\)\s*\{[^}]*background: var\(--ui-primary-active\)/)
     expect(libraries).not.toMatch(/color:#242424/)
-    expect(screening).toMatch(/button\.active\s*\{ color:var\(--ui-primary\)/)
+    expect(screeningJourney).toMatch(/button\.active\s*\{[^}]*color: var\(--ui-primary\)/)
     expect(screening).toMatch(/conversation-workspace-empty \.conversation-composer:focus-within\s*\{ border-color:var\(--ui-primary\)/)
     expect(libraries).toMatch(/button\.selected\s*\{[^}]*color:var\(--ui-primary\)/)
     expect(libraries).toMatch(/button\.selected strong\s*\{ color:var\(--ui-primary\)/)

@@ -475,14 +475,20 @@ def create_screening_draft(conversation_id: str, request_id: str, source_message
 
 
 def quick_task_display_prompts(connection, conversation_id: str) -> dict[str, str]:
-    """Keep generated task instructions out of presentation, including retries."""
+    """Keep generated task instructions and workbench metadata out of the transcript."""
+    screening_marker = "\n\n[选股工作台指令]\n"
     rows = connection.execute(
         """SELECT content FROM conversation_messages
            WHERE conversation_id=? AND role='user'
-             AND (client_message_id LIKE 'assistant-launch:%' OR client_message_id LIKE 'intelligence:%')""",
-        (conversation_id,),
+             AND (client_message_id LIKE 'assistant-launch:%' OR client_message_id LIKE 'intelligence:%'
+                  OR instr(content, ?) > 0)""",
+        (conversation_id, screening_marker),
     )
-    return {row["content"]: row["content"].split("\n", 1)[0] for row in rows}
+    return {
+        row["content"]: row["content"].split(screening_marker, 1)[0]
+        if screening_marker in row["content"] else row["content"].split("\n", 1)[0]
+        for row in rows
+    }
 
 
 def _message_payload(row, display_content: str | None = None) -> dict[str, Any]:

@@ -23,7 +23,7 @@ describe('stable workspace URLs', () => {
     { page: 'watchlist', candidateId: 'candidate-1', observationTab: 'candidates' },
     { page: 'watchlist', runId: 'batch-1', observationTab: 'batches' },
     { page: 'watchlist', runId: 'batch-1', observationCode: '600000.SH', observationTab: 'batches' },
-    { page: 'watchlist', observationTab: 'candidates' }, { page: 'screening', newDraft: true, scope: 'technical', indicators: 'common' }, { page: 'reports' },
+    { page: 'watchlist', observationTab: 'candidates' }, { page: 'screening', newDraft: true, scope: 'technical', indicators: 'common' }, { page: 'library', libraryTab: 'reports' },
   ])('round-trips an explicit location %#', route => expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route))
 
   it('keeps new drafts separate from saved objects and legacy page IDs', () => {
@@ -55,11 +55,23 @@ describe('stable workspace URLs', () => {
     expect(window.location.hash).toBe('#/research/new')
   })
 
+  it('canonicalizes legacy reading links while keeping the selected material type', () => {
+    window.history.replaceState(null, '', '#/library/reports')
+    const { result } = renderHook(() => useWorkspaceRoute())
+    expect(result.current.route).toEqual({ page: 'library', libraryTab: 'reports' })
+    expect(window.location.hash).toBe('#/library?type=reports')
+    act(() => result.current.navigate({ page: 'news' }))
+    expect(result.current.route).toEqual({ page: 'library', libraryTab: 'news' })
+    expect(window.location.hash).toBe('#/library?type=news')
+  })
+
   it.each(['#workspace-main', '#/unknown', '#/research/a/b', '#/research/%2f', '#/research/%', '#/projects/..', '#/screening?view=unknown', '#/research?scope=invalid', '#/observation/batches/a/b', '#/observation/candidates/a/600000.SH'])('rejects malformed or unrelated locations %s', hash => {
     expect(parseWorkspaceRoute(hash)).toBeNull()
   })
 
   it('restores legacy positions without migrating or overwriting business records', () => {
+    sessionStorage.setItem('app.page', '"reports"')
+    expect(legacyWorkspaceRoute()).toEqual({ page: 'library', libraryTab: 'reports' })
     sessionStorage.setItem('app.page', '"watchlist"')
     sessionStorage.setItem('observation.run', '"old-run"')
     expect(legacyWorkspaceRoute()).toEqual({ page: 'watchlist', runId: 'old-run', observationTab: 'batches' })

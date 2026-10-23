@@ -25,7 +25,7 @@ it('previews an AND combination as text and sends all edited parameters', async 
   fireEvent.change(screen.getByLabelText('趋势走强：涨幅阈值'), { target: { value: '6' } })
   expect(screen.getByText('近5日涨幅大于6%')).toBeInTheDocument()
   expect(selected).not.toHaveBeenCalled()
-  await userEvent.click(screen.getByRole('button', { name: '查看方案：趋势走强' }))
+  await userEvent.click(screen.getByRole('button', { name: '生成并筛选：趋势走强' }))
   expect(selected).toHaveBeenCalledWith(combined, { ma_window: 20, return_window: 5, threshold: 6 })
 })
 async function openStarter() {
@@ -45,7 +45,7 @@ it('uses text-only starter cards with exact labels and a reversible preview befo
   const crossCard = screen.getByRole('button', { name: '选择基础方案：5日均线上穿20日均线' })
   for (const card of [priceCard, returnCard, crossCard]) {
     expect(card).toHaveAttribute('aria-expanded', 'false')
-    expect(card).toHaveAccessibleDescription('每组条件需同时满足。选择后可预览与调整参数，确认后才执行。')
+    expect(card).toHaveAccessibleDescription('每组条件需同时满足。选择后可调整参数，提交即自动筛选。')
     expect(card.querySelector('.screening-template-sketch')).toBeNull()
     expect(card.querySelector('.screening-template-chevron')).toHaveAttribute('aria-hidden', 'true')
   }
@@ -60,9 +60,9 @@ it('uses text-only starter cards with exact labels and a reversible preview befo
   expect(crossCard).toHaveAttribute('aria-expanded', 'true')
   expect(screen.getByRole('heading', { name: '5日均线上穿20日均线' })).toBeInTheDocument()
   fireEvent.change(screen.getByLabelText('均线上穿：短周期'), { target: { value: '20' } })
-  expect(screen.getByRole('button', { name: '查看方案：均线上穿' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '生成并筛选：均线上穿' })).toBeDisabled()
   fireEvent.change(screen.getByLabelText('均线上穿：短周期'), { target: { value: '5' } })
-  await userEvent.click(screen.getByRole('button', { name: '查看方案：均线上穿' }))
+  await userEvent.click(screen.getByRole('button', { name: '生成并筛选：均线上穿' }))
   expect(selected).toHaveBeenCalledWith(cross, { fast: 5, slow: 20 })
   await userEvent.click(crossCard)
   expect(screen.queryByRole('article', { name: '基础方案预览' })).not.toBeInTheDocument()
@@ -77,7 +77,7 @@ it('keeps starter cards and the selected preview disabled while a request is pen
   view.rerender(<ScreeningTemplates disabled onSelect={selected} />)
   expect(screen.getByRole('button', { name: '选择基础方案：收盘价高于20日均线' })).toBeDisabled()
   expect(screen.getByLabelText('收盘价在均线上方：均线周期 N')).toBeDisabled()
-  expect(screen.getByRole('button', { name: '查看方案：收盘价在均线上方' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '生成并筛选：收盘价在均线上方' })).toBeDisabled()
   expect(selected).not.toHaveBeenCalled()
 })
 
@@ -94,9 +94,9 @@ it('shows exact formula, validates edits and sends numbers without model parsing
   await userEvent.click(screen.getByText('调整参数'))
   expect(input).toBeVisible()
   fireEvent.change(input, { target: { value: '0' } })
-  expect(screen.getByRole('button', { name: '查看方案：收盘价在均线上方' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '生成并筛选：收盘价在均线上方' })).toBeDisabled()
   fireEvent.change(input, { target: { value: '10' } })
-  await userEvent.click(screen.getByRole('button', { name: '查看方案：收盘价在均线上方' }))
+  await userEvent.click(screen.getByRole('button', { name: '生成并筛选：收盘价在均线上方' }))
   expect(selected).toHaveBeenCalledWith(template, { window: 10 })
 })
 
@@ -106,10 +106,10 @@ it('recovers catalog errors without hiding free-text fallback', async () => {
   render(<ScreeningTemplates disabled={false} onSelect={vi.fn()} />)
   await userEvent.click(await screen.findByRole('button', { name: '重试读取基础方案' }))
   await openStarter()
-  expect(await screen.findByRole('button', { name: '查看方案：收盘价在均线上方' })).toBeEnabled()
+  expect(await screen.findByRole('button', { name: '生成并筛选：收盘价在均线上方' })).toBeEnabled()
 })
 
-it('publishes an atomic template plan, retries stable identity, and never calls model processing or execute', async () => {
+it('publishes an atomic template plan, retries stable identity, and resumes automatic execution', async () => {
   const timestamp = '2026-09-30T08:00:00Z'
   let current: Conversation = { id: 'quickstart', task_id: 'quickstart', entry_scope: 'screening', workflow_type: 'screening', research_depth: 'standard', task_revision: 0, active_run_id: null, pending_execution: false, state: 'active', messages: [], turns: [], created_at: timestamp, updated_at: timestamp }
   const task: ScreeningTaskRevision = { task_id: 'quickstart', revision: 1, original_user_messages: ['基础方案'], conditions: [{ condition_id: 'starter', library: 'technical', description: '收盘价 > SMA(10)', source_quote: '基础方案', expression: {} }], references: [{ reference_id: 'ref', condition_id: 'starter', parameter_overrides: {} }], logic_tree: { op: 'condition', reference_id: 'ref' }, scope: { universe: { kind: 'all_a_shares', stock_codes: [] }, as_of: '2026-09-30', report_lookback_calendar_days: null, news_lookback_calendar_days: null, price_basis: 'unknown', ranking: null }, unresolved: [] }
@@ -125,7 +125,7 @@ it('publishes an atomic template plan, retries stable identity, and never calls 
     if (path.endsWith('/screening-templates/above_sma')) {
       attempts.push(body)
       if (attempts.length === 1) return json({ message: '连接中断' }, 503)
-      current = { ...current, task_revision: 1, messages: [{ id: 'user', role: 'user', content: '基础方案', source_refs: [], created_at: timestamp }, { id: 'answer', role: 'assistant', content: '已生成基础方案，确认后执行', source_refs: [], created_at: timestamp }], turns: [{ id: 'turn', user_message_id: 'user', base_revision: 0, state: 'succeeded', response_text: '已生成基础方案，确认后执行', result: { intent: 'template', task_revision: 1, execution_authorized: false, ready_to_execute: false }, created_at: timestamp, updated_at: timestamp }] }
+      current = { ...current, task_revision: 1, pending_execution: true, messages: [{ id: 'user', role: 'user', content: '基础方案', source_refs: [], created_at: timestamp }, { id: 'answer', role: 'assistant', content: '已生成基础方案，正在自动筛选。', source_refs: [], created_at: timestamp }], turns: [{ id: 'turn', user_message_id: 'user', base_revision: 0, state: 'succeeded', response_text: '已生成基础方案，正在自动筛选。', result: { intent: 'template', task_revision: 1, execution_authorized: true, ready_to_execute: true }, created_at: timestamp, updated_at: timestamp }] }
       return json({ revision: 1, task })
     }
     if (path === '/conversations/quickstart') return json(current)
@@ -134,18 +134,18 @@ it('publishes an atomic template plan, retries stable identity, and never calls 
   }))
   render(<ConversationWorkspace initialWorkflowType="screening" initialNewDraft data={{ available: true, last_date: '2026-09-30' }} />)
   await openStarter()
-  const button = await screen.findByRole('button', { name: '查看方案：收盘价在均线上方' })
+  const button = await screen.findByRole('button', { name: '生成并筛选：收盘价在均线上方' })
   await waitFor(() => expect(button).toBeEnabled())
   fireEvent.change(screen.getByLabelText('收盘价在均线上方：均线周期 N'), { target: { value: '10' } })
   await userEvent.click(button)
   await screen.findByText(/基础方案尚未完成：连接中断/)
   await userEvent.click(button)
-  expect(await screen.findByRole('button', { name: '确认并开始筛选' })).toBeEnabled()
+  await waitFor(() => expect(calls.some(call => call.path.endsWith('/execute'))).toBe(true))
   expect(attempts).toHaveLength(2)
   expect(attempts[1]).toEqual(attempts[0])
   expect(attempts[0]).toMatchObject({ parameters: { window: 10 }, base_revision: 0, as_of: '2026-09-30' })
   expect(creates).toBe(1)
-  expect(calls.some(call => /\/(process|execute|messages)$/.test(call.path))).toBe(false)
+  expect(calls.filter(call => call.path.endsWith('/execute'))).toHaveLength(1)
 })
 
 it('does not reclaim the screen when a template finishes after navigation to research', async () => {
@@ -162,7 +162,7 @@ it('does not reclaim the screen when a template finishes after navigation to res
   }))
   const view = render(<ConversationWorkspace initialWorkflowType="screening" initialNewDraft data={{ available: true, last_date: '2026-09-30' }} onLocationChange={location} />)
   await openStarter()
-  const button = await screen.findByRole('button', { name: '查看方案：收盘价在均线上方' })
+  const button = await screen.findByRole('button', { name: '生成并筛选：收盘价在均线上方' })
   await waitFor(() => expect(button).toBeEnabled())
   await userEvent.click(button)
   await waitFor(() => expect(started).toBe(true))
@@ -189,7 +189,7 @@ it('ignores an old template response when a new empty screening draft is request
   const props = { initialWorkflowType: 'screening' as const, initialNewDraft: true, data: { available: true, last_date: '2026-09-30' }, onLocationChange: location, onNewResearchConsumed: consumed }
   const view = render(<ConversationWorkspace {...props} newResearchKey={0} />)
   await openStarter()
-  const button = await screen.findByRole('button', { name: '查看方案：收盘价在均线上方' })
+  const button = await screen.findByRole('button', { name: '生成并筛选：收盘价在均线上方' })
   await waitFor(() => expect(button).toBeEnabled())
   await userEvent.click(button)
   await waitFor(() => expect(started).toBe(true))

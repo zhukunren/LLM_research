@@ -58,10 +58,11 @@ const returnClass = (value: number | null | undefined) => value == null || value
 const metricText = (value: number | null | undefined, loading: boolean) => value === undefined && loading ? '计算中…' : percent(value)
 const metricTitle = (item: Entry) => item.metric_reason || ('起算 ' + (item.base_date || item.basis_date) + ' · 行情截至 ' + (item.price_date || '—'))
 const defaultSortDirection = (value: ObservationSort): 'asc' | 'desc' => ['updated', 'priority', 'return'].includes(value) ? 'desc' : 'asc'
+const visibleTrackingTab = (tab?: InvestmentTab): InvestmentTab => tab === 'candidates' || tab === 'batches' ? 'all' : tab ?? 'all'
 
 export default function ObservationPage({ data, onNavigateScreening, onOpenResearch, onStartResearch, initialRunId, initialCode, initialCandidateId, initialTab, onLocationChange }: Props) {
   type SavedView = { id: string; name: string; query: string; status: string; owner: string; sort: string; direction?: 'asc' | 'desc' }
-  const [activeTab, setActiveTab] = useState<InvestmentTab>(initialTab ?? 'all')
+  const [activeTab, setActiveTab] = useState<InvestmentTab>(visibleTrackingTab(initialTab))
   const [checkedKeys, setCheckedKeys] = useState<string[]>([])
   const [savingKeys, setSavingKeys] = useState<string[]>([])
   const [batchBusy, setBatchBusy] = useState(false)
@@ -117,9 +118,9 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   useEffect(() => {
     if (routeRef.current.candidate === initialCandidateId && routeRef.current.run === initialRunId && routeRef.current.code === initialCode && routeRef.current.tab === initialTab) return
     routeRef.current = { candidate: initialCandidateId, run: initialRunId, code: initialCode, tab: initialTab }
-    if (initialCandidateId) { setActiveTab('candidates'); setOwner(''); setSelectedKey('candidate:' + initialCandidateId); setDetailOpen(true) }
-    else if (initialRunId) { setActiveTab('batches'); setOwner('run:' + initialRunId); setSelectedKey(initialCode ? 'screening:' + initialRunId + ':' + initialCode : ''); setDetailOpen(true) }
-    else if (initialTab) { setActiveTab(initialTab); setOwner(initialTab === 'batches' ? 'screening' : initialTab === 'candidates' ? 'research' : ''); setSelectedKey(''); setDetailOpen(false) }
+    if (initialCandidateId) { setActiveTab('all'); setOwner(''); setSelectedKey('candidate:' + initialCandidateId); setDetailOpen(true) }
+    else if (initialRunId) { setActiveTab('all'); setOwner('run:' + initialRunId); setSelectedKey(initialCode ? 'screening:' + initialRunId + ':' + initialCode : ''); setDetailOpen(true) }
+    else if (initialTab) { setActiveTab(visibleTrackingTab(initialTab)); setOwner(initialTab === 'batches' ? 'screening' : initialTab === 'candidates' ? 'research' : ''); setSelectedKey(''); setDetailOpen(false) }
   }, [initialCandidateId, initialRunId, initialCode, initialTab])
   useEffect(() => {
     const controller = new AbortController()

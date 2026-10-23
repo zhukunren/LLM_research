@@ -63,8 +63,8 @@ def build_context(connection, kind, scope, cutoff):
         gaps.append("研究截止时A股尚未收盘；当日日线未作为已完成收盘数据读取")
     if actual_date and actual_date != requested.isoformat():
         gaps.append("所选日期与本地行情实际日期不同，不得把旧收盘价表述为所选日的价格")
-    gaps.append("本地行情的复权口径、成交量与成交额单位须核实；不直接据此生成复权收益或成交额排名")
     context = {"kind": kind, "stock": dict(stock) if stock else None, "advisor": advisor.model_dump(mode="json"),
+        "market_price_basis": market.PRICE_BASIS,
         "requested_trade_date": requested.isoformat(), "research_cutoff": cutoff.isoformat(),
         "market_data_cutoff": data_cutoff, "actual_market_date": actual_date, "session_status": session_status,
         "observations": observations, "gaps": gaps, "market_source_ids": [],
@@ -81,7 +81,8 @@ def persist_context(connection, run_id, context):
         source_id = str(uuid4())
         title = "已冻结的行情证据" + (" · " + context["stock"]["name"] if context["stock"] else " · 指数收盘")
         lines = [title, "研究截止：" + context["research_cutoff"], "请求日期：" + context["requested_trade_date"],
-                 "行情实际日期：" + context["actual_market_date"], ""]
+                 "行情实际日期：" + context["actual_market_date"],
+                 "行情价格口径：" + context["market_price_basis"], ""]
         for observation in context["observations"]:
             lines += [observation["name"] + " " + observation["stock_code"],
                 "交易日期：" + observation["trade_date"], "收盘价：" + str(observation["close"]),

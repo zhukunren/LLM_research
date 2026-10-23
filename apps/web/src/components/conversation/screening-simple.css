@@ -18,10 +18,6 @@
 .conversation-product.research-studio.screening-studio .conversation-composer textarea, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer textarea { min-height:80px; background:transparent; }
 .conversation-product.research-studio.screening-studio .screening-entry-heading h2 { font-size:22px; font-weight:500; }
 .conversation-product.research-studio.screening-studio .conversation-heading-title h2 { font-size:14px; color:var(--ui-text-muted); }
-.conversation-product.research-studio.screening-studio .screening-path { border:0; padding-bottom:0; gap:12px; }
-.conversation-product.research-studio.screening-studio .screening-path > button > span { width:auto; height:auto; border:0; background:transparent; color:inherit; }
-.conversation-product.research-studio.screening-studio .screening-path > button.active { color:var(--ui-primary); }
-.conversation-product.research-studio.screening-studio .screening-path-date { display:none; }
 .conversation-product.research-studio.screening-studio .conversation-suggestions { display:flex; flex-wrap:wrap; gap:8px; }
 .conversation-product.research-studio.screening-studio .conversation-suggestions > button { min-height:36px; flex-direction:row; align-items:center; padding:8px 12px; border-radius:18px; gap:8px; background:transparent; }
 .conversation-product.research-studio.screening-studio .suggestion-icon, .conversation-product.research-studio.screening-studio .suggestion-arrow { display:none; }
@@ -49,9 +45,27 @@
 .conversation-product.research-studio.screening-studio .screening-settings-panel .studio-mode-select > span { display:inline; }
 .screening-plan-secondary { margin-top:14px; color:var(--ui-text-muted); font-size:12px; }
 .screening-plan-secondary > summary { cursor:pointer; margin-bottom:8px; }
+.conversation-product.research-studio.screening-studio .task-composition-editor { max-width:720px; }
+.conversation-product.research-studio.screening-studio .task-composition-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin:0 0 8px; color:var(--ui-text-muted); font-size:12px; }
+.conversation-product.research-studio.screening-studio .task-composition-mode { display:inline-flex; gap:2px; padding:3px; border:1px solid var(--ui-border); border-radius:7px; background:var(--ui-surface); }
+.conversation-product.research-studio.screening-studio .task-composition-mode label { position:relative; display:flex; align-items:center; justify-content:center; min-height:34px; padding:6px 11px; border-radius:5px; color:var(--ui-text-muted); font-size:12px; cursor:pointer; }
+.conversation-product.research-studio.screening-studio .task-composition-mode input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:inherit; }
+.conversation-product.research-studio.screening-studio .task-composition-mode label:has(input:checked) { background:var(--ui-primary-soft); color:var(--ui-primary); font-weight:600; }
+.conversation-product.research-studio.screening-studio .task-composition-mode label:has(input:focus-visible) { outline:2px solid var(--ui-primary); outline-offset:2px; }
+.conversation-product.research-studio.screening-studio .task-composition-list .task-logic-condition { position:relative; padding:10px 46px 10px 0; border-bottom:1px solid var(--ui-border-subtle); }
+.conversation-product.research-studio.screening-studio .task-composition-remove { position:absolute; top:8px; right:2px; width:34px; height:34px; }
+.conversation-product.research-studio.screening-studio .task-composition-advanced { margin:0; }
+.conversation-product.research-studio.screening-studio .task-composition-advanced > summary { cursor:pointer; color:var(--ui-text-muted); font-size:12px; }
+.conversation-product.research-studio.screening-studio .task-composition-advanced .task-logic-group { margin-top:10px; }
+@media(max-width:600px) {
+  .conversation-product.research-studio.screening-studio .task-composition-controls { align-items:flex-start; flex-direction:column; }
+  .conversation-product.research-studio.screening-studio .task-composition-mode { width:100%; }
+  .conversation-product.research-studio.screening-studio .task-composition-mode label { flex:1; }
+}
 @media(max-width:600px) {
   .screening-settings { position:static; }
   .screening-settings-panel { top:14px; bottom:auto; left:12px; right:12px; width:auto; max-width:none; }
 }
 .conversation-product.research-studio.screening-studio .conversation-composer { width:100%; min-width:0; max-width:none; box-sizing:border-box; }
-.conversation-product.research-studio.screening-studio .screening-path { flex-wrap:wrap; }
+.conversation-product.research-studio.screening-studio.screening-has-results { max-width:1280px; }
+.conversation-product.research-studio.screening-studio .conversation-task-panel[hidden] { display:none !important; }

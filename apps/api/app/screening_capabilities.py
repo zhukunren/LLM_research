@@ -69,7 +69,7 @@ def build_manifest(
                 "markets": ["SH", "SZ", "BJ"],
                 "time_granularity": "1 trading day",
                 "max_bars_per_security": 500,
-                "price_basis": "unknown",
+                "price_basis": "unadjusted",
                 "volume_unit": "unknown",
                 "amount_unit": "unknown",
             },

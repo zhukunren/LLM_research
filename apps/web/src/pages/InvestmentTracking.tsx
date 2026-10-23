@@ -11,8 +11,6 @@ const tabs: { id: InvestmentTab; label: string }[] = [
   { id: 'updates', label: '变化提醒' },
   { id: 'expectations', label: '业绩预期' },
   { id: 'portfolio', label: '投资组合' },
-  { id: 'candidates', label: '研究记录' },
-  { id: 'batches', label: '选股批次' },
 ]
 
 export function InvestmentTrackingTabs({ active, onChange }: { active: InvestmentTab; onChange: (value: InvestmentTab) => void }) {

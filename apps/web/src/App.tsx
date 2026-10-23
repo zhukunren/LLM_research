@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { AlertCircle, Database, Menu, PanelLeftClose, PanelLeftOpen, RefreshCw } from 'lucide-react'
+import { AlertCircle, Database, Menu, PanelLeftClose, PanelLeftOpen, RefreshCw, X } from 'lucide-react'
 import { api, conversationWorkflow, type Conversation, type ConversationScope, type DataStatus, type WorkflowType } from './api'
 import ResearchSidebar from './components/ResearchSidebar'
 import type { ConversationHistoryChange } from './components/ConversationHistoryItem'
@@ -25,6 +25,7 @@ export default function App() {
   const [pageActionsTarget, setPageActionsTarget] = useState<HTMLDivElement | null>(null)
   const [quickNavigationOpen, setQuickNavigationOpen] = useState(false)
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
+  const [compactNavigation, setCompactNavigation] = useState(() => window.matchMedia?.('(max-width: 900px)').matches ?? false)
   const [sidebarRevision, setSidebarRevision] = useState(0)
   const [conversationUpdate, setConversationUpdate] = useState<({ id: string } & ConversationHistoryChange)>()
   const [homeDraft, setHomeDraft] = useSessionState('home.researchDraft', '', isText)
@@ -34,6 +35,9 @@ export default function App() {
   const assistantLaunch = useAssistantLaunch()
   const [workspacePreference, setWorkspacePreference] = useSessionState<WorkflowType>('app.workspace', 'research', (value): value is WorkflowType => value === 'research' || value === 'screening')
   const workspaceArea: WorkflowType = ['conditions', 'patterns', 'qmt'].includes(page) ? 'screening' : ['home', 'screening', 'research', 'intelligence'].includes(page) ? 'research' : route.workspace ?? workspacePreference
+  const navigationLabel = compactNavigation
+    ? mobileNavigationOpen ? '关闭工作导航' : '打开工作导航'
+    : sidebarCollapsed ? '展开工作导航' : '收起工作导航'
   const [researchLocation, setResearchLocation] = useSessionState('app.researchLocation', '#/research/new', isText)
   const [screeningLocation, setScreeningLocation] = useSessionState('app.screeningLocation', '#/screening/new', isText)
   useEffect(() => { setWorkspacePreference(workspaceArea) }, [workspaceArea])
@@ -95,21 +99,31 @@ export default function App() {
   useEffect(() => {
     const media = window.matchMedia?.('(max-width: 900px)')
     if (!media) return
-    const closeOnDesktop = () => { if (!media.matches) setMobileNavigationOpen(false) }
-    media.addEventListener('change', closeOnDesktop)
-    return () => media.removeEventListener('change', closeOnDesktop)
+    const syncNavigationViewport = () => {
+      setCompactNavigation(media.matches)
+      if (!media.matches) setMobileNavigationOpen(false)
+    }
+    syncNavigationViewport()
+    media.addEventListener('change', syncNavigationViewport)
+    return () => media.removeEventListener('change', syncNavigationViewport)
   }, [])
   useEffect(() => {
-    const open = (event: KeyboardEvent) => {
+    const handleKeyboardShortcuts = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        const activeModal = document.querySelector('[role="dialog"][aria-modal="true"]:not([hidden])')
+        if (activeModal?.classList.contains('chat-sidebar')) setMobileNavigationOpen(false)
+        else if (!activeModal && mobileNavigationOpen) setMobileNavigationOpen(false)
+        return
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         if (document.querySelector('[role="dialog"][aria-modal="true"]:not([hidden])') && !document.querySelector('.quick-navigation')) return
         setMobileNavigationOpen(false); setSystemOpen(false); setQuickNavigationOpen(value => !value)
       }
     }
-    window.addEventListener('keydown', open)
-    return () => window.removeEventListener('keydown', open)
-  }, [])
+    window.addEventListener('keydown', handleKeyboardShortcuts)
+    return () => window.removeEventListener('keydown', handleKeyboardShortcuts)
+  }, [mobileNavigationOpen])
 
   return <div className={`app-shell redesigned-workspace chat-layout viewport-workspace ${page === 'screening' ? 'chat-page' : 'tool-page'} ${mobileNavigationOpen ? 'mobile-navigation-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     <a className="skip-to-content" href="#workspace-main" onClick={event => { event.preventDefault(); document.getElementById('workspace-main')?.focus() }}>跳到页面内容</a>
@@ -122,7 +136,7 @@ export default function App() {
     <main id="workspace-main" tabIndex={-1} className="main-shell" aria-busy={isNavigating}>
       {isNavigating && <div className="page-navigation-progress" role="status" aria-label="正在切换页面" />}
       <header className="research-header workspace-tab-header" aria-label="工作区导航与全局操作">
-        <div className="workspace-header-leading"><button className="icon-button chat-menu-toggle workspace-button" aria-controls="workspace-navigation" onClick={() => { if (window.matchMedia?.('(max-width: 900px)').matches) setMobileNavigationOpen(value => !value); else setSidebarCollapsed(value => !value) }} aria-label="切换工作导航" data-tooltip="切换工作导航"><Menu className="mobile-menu-icon" size={20} />{sidebarCollapsed ? <PanelLeftOpen className="desktop-menu-icon" size={19} /> : <PanelLeftClose className="desktop-menu-icon" size={19} />}</button></div>
+        <div className="workspace-header-leading"><button className="icon-button chat-menu-toggle workspace-button" aria-controls="workspace-navigation" aria-expanded={compactNavigation ? mobileNavigationOpen : !sidebarCollapsed} onClick={() => { if (compactNavigation) setMobileNavigationOpen(value => !value); else setSidebarCollapsed(value => !value) }} aria-label={navigationLabel} data-tooltip={navigationLabel}>{compactNavigation && mobileNavigationOpen ? <X className="mobile-menu-icon" size={19} /> : <Menu className="mobile-menu-icon" size={20} />}{sidebarCollapsed ? <PanelLeftOpen className="desktop-menu-icon" size={19} /> : <PanelLeftClose className="desktop-menu-icon" size={19} />}</button></div>
       <WorkspaceTabs tabs={workspaces.tabs} activeId={workspaces.activeId} onActivate={id => { ++conversationNavigation.current; setMobileNavigationOpen(false); workspaces.activate(id) }} onClose={workspaces.close} canReopen={workspaces.canReopen} onReopen={() => { ++conversationNavigation.current; setMobileNavigationOpen(false); workspaces.reopenClosed() }} onMove={workspaces.move} onCloseOthers={id => { ++conversationNavigation.current; workspaces.closeOthers(id) }} onCloseSide={(id, side) => { ++conversationNavigation.current; workspaces.closeSide(id, side) }} onCloseAll={() => { ++conversationNavigation.current; workspaces.closeAll() }} onNew={() => newResearch()} />
         <div className="research-header-actions">{page === 'screening' && <div id="research-tools-slot" className="research-tools-slot" />}<ActiveTasks onIntelligence={(briefId, briefKind) => openRoute({ page: 'intelligence', briefId, briefKind })} onConversation={resumeResearch} onProject={openProject} onNavigate={navigateFromMenu} onSettings={() => setSystemOpen(true)} />{page !== 'screening' && page !== 'intelligence' && data?.last_date && <button className="header-data-status workspace-button" onClick={() => setSystemOpen(true)} aria-label={`行情截至 ${data.last_date}，查看数据状态`} data-tooltip="查看数据状态"><Database size={14} /><time>{data.last_date}</time></button>}</div>
         <div ref={setPageActionsTarget} className="workspace-page-actions-slot" role="toolbar" aria-label="当前页面操作" />

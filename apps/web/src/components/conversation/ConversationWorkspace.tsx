@@ -2,7 +2,7 @@ import LoadingState from '../LoadingState'
 import { StockText } from '../StockMentions'
 import { localStorage, sessionStorage } from '../../authStorage'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { AlertCircle, ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, ChevronLeft, ChevronRight, Copy, FileSearch, GitCompareArrows, History, LoaderCircle, Pencil, Play, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpRight, Bookmark, ChartNoAxesCombined, Check, ChevronLeft, ChevronRight, Copy, FileSearch, GitCompareArrows, History, LoaderCircle, Pencil, Play, Plus, RefreshCw, Search, X } from 'lucide-react'
 import {
   api,
   ApiRequestError,
@@ -25,12 +25,13 @@ import {
 import { useSessionState } from '../../useSessionState'
 import { useWorkspaceSession } from '../../WorkspaceSession'
 import { trapDialogTab } from '../../keyboard'
-import { TaskLogic, taskUniverseLabel } from './TaskBrief'
+import { TaskCompositionEditor, taskUniverseLabel, type CompositionEdit } from './TaskBrief'
 import SavedTaskLibrary from './SavedTaskLibrary'
 import ScreeningTemplates, { type ScreeningTemplate } from './ScreeningTemplates'
 import ScreeningReadiness from './ScreeningReadiness'
 import ScreeningSettings from './ScreeningSettings'
 import './screening-simple.css'
+import './screening-journey.css'
 import ResearchPanel from './ResearchPanel'
 import ResearchAnswer from './ResearchAnswer'
 import ResearchResultActions, { type ResearchResultRequest } from './ResearchResultActions'
@@ -72,6 +73,7 @@ type TaskRun = {
   id: string
   conversation_id: string
   task_revision: number
+  created_at: string
   execution_request_id: string
   job_id: string
   as_of: string
@@ -88,7 +90,7 @@ type TaskRun = {
       not_evaluated_count: number
     }
   }
-  job: { state: string; progress: number; message: string }
+  job?: { state: string; progress: number; message: string } | null
 }
 
 type CodexEvent = {
@@ -98,6 +100,21 @@ type CodexEvent = {
 }
 
 type PromptSuggestion = { label: string; prompt: string; description?: string }
+type ScreeningInputIntent = 'edit' | 'question' | 'message'
+type ScreeningStage = 'brief' | 'plan' | 'result'
+
+const screeningWorkspacePromptMarker = '\n\n[选股工作台指令]\n'
+const screeningQuestionPattern = /[?？]|为什么|为何|怎么(?:回事|样)?|如何|是否|能否|可否|是不是|会不会|什么原因|解释一下|说明一下|分析一下/
+const screeningNoExecutionPattern = /(?:不要|不必|不用|不需要|先不|暂不|别)(?:.{0,12})(?:执行|运行|筛选|重筛|重跑)|仅(?:生成|查看|核对)(?:筛选)?方案/
+const screeningEditPattern = /改成|改为|修改|调整|新增|增加|添加|加上|加入|删除|移除|去掉|剔除|保留|排除|只看|仅看|筛选|筛出|找出|限定|放宽|收紧|设为|设定为|替换|均线|股价|收盘价|涨幅|跌幅|成交量|成交额|市值|PE|PB|ROE|净利润|营收|负债率|股息率|行业|换手率|回撤|波动率/i
+
+function screeningInputIntent(value: string): ScreeningInputIntent {
+  const text = value.trim()
+  if (!text) return 'message'
+  if (screeningQuestionPattern.test(text)) return 'question'
+  if (screeningNoExecutionPattern.test(text)) return 'message'
+  return screeningEditPattern.test(text) ? 'edit' : 'message'
+}
 
 const scopeLabels: Record<ConversationScope, string> = {
   screening: '所有资料',
@@ -272,6 +289,7 @@ export default function ConversationWorkspace({
   const conversationReady = !selectedId || conversation?.id === selectedId
   const workflowType = conversation ? conversationWorkflow(conversation, initialWorkflowType) : initialWorkflowType
   const isResearch = workflowType === 'research'
+  const [screeningStage, setScreeningStage] = useState<ScreeningStage>('brief')
   const [task, setTask] = useState<ScreeningTaskRevision | null>(null)
   const [runs, setRuns] = useState<ScreeningTaskRunSummary[]>([])
   const [viewingRunId, setViewingRunId] = useState('')
@@ -348,11 +366,12 @@ export default function ConversationWorkspace({
   const [scopeOverrides, setScopeOverrides] = useState({ pool: false, date: false })
   const [scopeEdited, setScopeEdited] = useState(false)
   const [scopeSaveState, setScopeSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [compositionSaving, setCompositionSaving] = useState(false)
   const [answerActionSaving, setAnswerActionSaving] = useState(false)
   const answerActionAttempt = useRef<{ key: string; id: string } | null>(null)
   const [chart, setChart] = useState<{ code: string; date: string } | null>(null)
   const scopeAttempt = useRef<{ key: string; id: string } | null>(null)
-  const buttonAttempt = useRef<{ key: string; id: string } | null>(null)
+  const compositionAttempt = useRef<{ key: string; id: string } | null>(null)
   const scopeReadyKey = useRef('')
   const scopeSavingRef = useRef(false)
   const modeChosenRef = useRef(false)
@@ -361,8 +380,6 @@ export default function ConversationWorkspace({
   const freshConversationRef = useRef(false)
   const messageListRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLFormElement>(null)
-  const taskPanelRef = useRef<HTMLElement>(null)
-  const runSectionRef = useRef<HTMLElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     if (!isResearch) return
@@ -496,6 +513,40 @@ export default function ConversationWorkspace({
     finally { scopeSavingRef.current = false }
   }
 
+  async function editComposition(change: CompositionEdit) {
+    if (isResearch || !conversation || !task || busy || saving || turnInProgress || scopeDirty || scopeSaveState === 'saving') return
+    const operation = change.remove_reference_id ? `remove:${change.remove_reference_id}` : `logic:${change.logic_mode}`
+    const expectedReferenceIds = task.references.map(item => item.reference_id)
+    const key = JSON.stringify([conversation.id, task.revision, operation, task.logic_tree, expectedReferenceIds])
+    if (compositionAttempt.current?.key !== key) compositionAttempt.current = { key, id: crypto.randomUUID() }
+    setCompositionSaving(true); setBusy(true); setError('')
+    try {
+      await api(`/conversations/${conversation.id}/composition`, {
+        method: 'POST',
+        body: JSON.stringify({
+          base_revision: task.revision,
+          client_message_id: compositionAttempt.current.id,
+          expected_logic_tree: task.logic_tree,
+          expected_reference_ids: expectedReferenceIds,
+          ...change,
+        }),
+      })
+      await reloadConversation(conversation.id)
+      if (selectedIdRef.current === conversation.id) compositionAttempt.current = null
+    } catch (reason) {
+      if (selectedIdRef.current === conversation.id) {
+        setError((reason as Error).message)
+        if (/方案已更新|组合已被其他操作更新|相同请求ID/.test((reason as Error).message)) {
+          compositionAttempt.current = null
+          try { await reloadConversation(conversation.id) } catch { /* Keep the original edit error visible. */ }
+        }
+      }
+    } finally {
+      if (selectedIdRef.current === conversation.id) setCompositionSaving(false)
+      setBusy(false)
+    }
+  }
+
   async function copyAllMatching() {
     if (!run || !conversation) return
     try {
@@ -515,6 +566,7 @@ export default function ConversationWorkspace({
     setScopeSaveState('idle')
     scopeAttempt.current = null
     setSelectedId(id)
+    if (!id && !isResearch) setScreeningStage('brief')
     if (!id) reportLocation('', scope, initialWorkflowType)
   }
 
@@ -527,6 +579,12 @@ export default function ConversationWorkspace({
   function focusComposer() {
     composerRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' })
     globalThis.setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
+  function navigateScreeningStage(next: ScreeningStage) {
+    if (isResearch) return
+    setScreeningStage(next)
+    if (next === 'brief') globalThis.setTimeout(() => focusComposer(), 0)
   }
 
   function prepareDraft(value: string) {
@@ -594,10 +652,9 @@ export default function ConversationWorkspace({
     const key = `${conversationId}:${turnId}:${action}`
     let request = executionAttempts.current.get(key)
     if (!request) {
-      const requestId = buttonAttempt.current?.id
       request = api<{ run_id: string }>(`/conversations/${conversationId}/turns/${turnId}/execute`, {
         method: 'POST',
-        body: JSON.stringify({ action, ...(action === 'button' && task ? { revision: task.revision, request_id: requestId } : {}) }),
+        body: JSON.stringify({ action }),
       })
       executionAttempts.current.set(key, request)
     }
@@ -610,12 +667,16 @@ export default function ConversationWorkspace({
     setError('')
     setCodexProgress('')
     try {
-      await reloadConversation(conversationId)
+      const before = await reloadConversation(conversationId)
       const turn = await api<ConversationTurn>(`/conversations/${conversationId}/turns/${turnId}/process`, { method: 'POST' })
-      if (!isResearch && executeWhenReady && turn.result.ready_to_execute && turn.result.execution_authorized !== false) {
-        await enqueueAuthorizedTurn(conversationId, turnId)
+      const after = await reloadConversation(conversationId)
+      if (!isResearch) {
+        if (!(after.active_run_id && after.active_run_id !== before.active_run_id) && executeWhenReady && turn.result.ready_to_execute && turn.result.execution_authorized === true) {
+          await enqueueAuthorizedTurn(conversationId, turnId)
+          await reloadConversation(conversationId)
+        }
       }
-      await reloadConversation(conversationId)
+      if (isResearch) await reloadConversation(conversationId)
       setRefreshIndex((value) => value + 1)
     } catch (reason) {
       setError((reason as Error).message)
@@ -648,6 +709,7 @@ export default function ConversationWorkspace({
     setRun(null)
     setRuns([])
     setViewingRunId('')
+    if (initialWorkflowType === 'screening') setScreeningStage('brief')
     setError('')
   }, [initialScope])
 
@@ -674,6 +736,7 @@ export default function ConversationWorkspace({
     setRuns([])
     setRun(null)
     setViewingRunId('')
+    if (initialWorkflowType === 'screening') setScreeningStage('brief')
     selectedIdRef.current = ''
     api<{ items: SessionSummary[] }>(`/conversations?scope=${scope}&limit=50`)
       .then(async ({ items }) => {
@@ -911,6 +974,7 @@ export default function ConversationWorkspace({
     setRuns([])
     setRun(null)
     setViewingRunId('')
+    setScreeningStage('brief')
     setLoadingConversation(false)
     setLibraryTab('recent')
     setSource(source, `${initialWorkflowType}:${scope}:new`)
@@ -956,11 +1020,11 @@ export default function ConversationWorkspace({
       selectConversation(current.id)
       setDrafts(currentDrafts => ({ ...currentDrafts, [`${initialWorkflowType}:${scope}:${current.id}`]: '' }))
       setConversation(null); setTask(published.task); setRun(null); setRuns([]); setViewingRunId('')
+      setScreeningStage('plan')
       setSource(null, `${initialWorkflowType}:${scope}:${current.id}`)
       try { await reloadConversation(current.id, isCurrent) }
-      catch { if (isCurrent()) setError('基础方案已保存，尚未执行；暂时无法读取对话，请刷新后核对方案。') }
+      catch { if (isCurrent()) setError('基础方案已生成，自动筛选已发起；暂时无法读取最新状态，请刷新查看结果。') }
       api<{ items: SessionSummary[] }>(`/conversations?scope=${scope}&limit=50`).then(({ items }) => { if (isCurrent() && selectedIdRef.current === current.id) setSessions(items) }).catch(() => {})
-      globalThis.setTimeout(() => { if (isCurrent() && selectedIdRef.current === current.id) taskPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }) }, 100)
     } catch (reason) { if (isCurrent() && templateOwnerRef.current === ownerKey) setError(`基础方案尚未完成：${(reason as Error).message}。可修改参数或范围后重试；若连接中断，保持参数不变再次点击可恢复。`) }
     finally { templateBusyRef.current = false; if (templateMountedRef.current) setBusy(false) }
   }
@@ -997,7 +1061,6 @@ export default function ConversationWorkspace({
       setLibraryTab('recent')
       await reloadConversation(current.id)
       reuseAttemptRef.current = null
-      focusComposer()
     } catch (reason) { setError(`复用未完成：${(reason as Error).message} 可再次点击复用以继续。`) }
     finally { setBusy(false) }
   }
@@ -1013,12 +1076,19 @@ export default function ConversationWorkspace({
     if (content.length > 8000) { setError('问题加上当前公司信息超过 8000 字，请先精简问题。'); return }
     if (!originalAttachments && attachments.hasUnready) { setError('请等待附件上传完成，或移除未上传的文件。'); return }
     if (modelUnavailable) { setError('当前模型或推理档位不可用，请选择可用模型后发送。'); return }
-    if (!isResearch && !task) {
+    const inputIntent = screeningInputIntent(content)
+    if (!retryOriginal && !isResearch && !task) {
       const poolLabel = scopePool === 'all' ? '全部A股' : `自选分组“${watchlists.find(item => item.id === scopePool)?.name || ''}”`
       const additions = [scopeOverrides.pool ? `股票范围以界面设置为准：${poolLabel}。` : `未在要求中明确指定股票范围时，默认使用${poolLabel}。`]
       if (scopeDate) additions.push(scopeOverrides.date ? `行情截止日期以界面设置为准：${scopeDate}。` : `未在要求中明确指定截止日期时，默认使用${scopeDate}的行情。`)
-      additions.push('请先整理筛选方案，本次不要执行筛选。')
-      content += '\n' + additions.join('')
+      additions.push(screeningNoExecutionPattern.test(content)
+        ? '仅整理筛选方案，暂不执行；有关键条件不明确时先向用户提问。'
+        : '请整理筛选方案；条件完整后请开始筛选并直接返回结果，不等待用户再次确认；有关键条件不明确时先向用户提问。')
+      content += `${screeningWorkspacePromptMarker}${additions.join('\n')}`
+    } else if (!retryOriginal && !isResearch && task && inputIntent === 'edit') {
+      content += `${screeningWorkspacePromptMarker}${screeningNoExecutionPattern.test(content)
+        ? '用户提交了方案修改。更新方案但暂不执行；有关键条件不明确时先向用户提问。'
+        : '用户提交了方案修改。更新条件后请开始筛选并直接返回新结果；有关键条件不明确时先向用户提问。'}`
     }
     if (!content || !conversationReady || busy || saving || assistantSaving || modeSaving || modelSavingRef.current || scopeSavingRef.current || (!isResearch && scopeEdited && scopeDirty) || turnInProgress || !conversationReady || loadingConversation || loadingSessions) return
     setBusy(true)
@@ -1111,7 +1181,8 @@ export default function ConversationWorkspace({
         id: messageResult.message_id,
         role: 'user',
         content: messagePayload.content,
-        display_content: current.messages.find(message => message.role === 'user' && message.content === messagePayload.content)?.display_content,
+        display_content: current.messages.find(message => message.role === 'user' && message.content === messagePayload.content)?.display_content
+          ?? (messagePayload.content.includes(screeningWorkspacePromptMarker) ? messagePayload.content.split(screeningWorkspacePromptMarker, 1)[0] : undefined),
         source_refs: messageResult.source_refs ?? [],
         attachments: messageResult.attachments ?? attached,
         created_at: new Date().toISOString(),
@@ -1127,7 +1198,7 @@ export default function ConversationWorkspace({
       if (['succeeded', 'failed', 'cancelled'].includes(messageResult.state)) {
         await reloadConversation(current.id)
         setRefreshIndex(index => index + 1)
-      } else await processTurn(current.id, messageResult.turn_id, !!task)
+      } else await processTurn(current.id, messageResult.turn_id, true)
     } catch (reason) {
       setError((reason as Error).message)
       // A definite stale-settings rejection did not accept the request. Release
@@ -1159,6 +1230,7 @@ export default function ConversationWorkspace({
 
   async function retryExecution(turnId: string) {
     if (!conversation || busy) return
+    navigateScreeningStage('result')
     setBusy(true)
     setError('')
     try {
@@ -1182,7 +1254,7 @@ export default function ConversationWorkspace({
   }
 
   const activeRun = conversation?.active_run_id === viewingRunId
-  const coverage = run?.result.coverage
+  const coverage = run?.result?.coverage
   const pendingTurn = !isResearch && conversation?.pending_execution
     ? conversation.turns.find((turn) => turn.state === 'succeeded' && turn.result.ready_to_execute && turn.result.execution_authorized)
     : undefined
@@ -1190,14 +1262,40 @@ export default function ConversationWorkspace({
   const scopeDirty = !isResearch && !!task && (!task.scope.universe || scopeDate !== task.scope.as_of || scopePool !== (task.scope.universe?.kind === 'watchlist' ? task.scope.universe.watchlist_id : task.scope.universe?.kind === 'explicit' ? 'explicit' : 'all'))
   const canExecute = canSave && !!task?.scope.as_of && !scopeDirty
   const runInProgress = runs.some(item => ['queued', 'running'].includes(item.status))
-  const taskHasRun = !!run && run.task_revision === task?.revision
+  const currentRunAvailable = !!pendingTurn || (!!task && runs.some(item => item.task_revision === task.revision))
   const filteredSessions = sessions.filter(item => (item.title ?? '').toLowerCase().includes(sessionQuery.trim().toLowerCase()))
   const missingTaskInfo = task ? [!task.conditions.length || !task.logic_tree ? '筛选条件' : '', !task.scope.universe ? '股票范围' : '', !task.scope.as_of ? '截止日' : ''].filter(Boolean).join('、') : ''
-  const showTaskPanel = isResearch ? resultsOpen : !!task || !!runs.length || !!pendingTurn || hasResearchResults
+  const showTaskPanel = isResearch ? resultsOpen : !!task || !!runs.length || !!pendingTurn
   const suggestedName = task?.conditions.map(item => item.description).join('；').slice(0, 120) || '研究方案'
   const screeningStarted = !!conversation?.messages.length || !!task
-  const screeningStep = pendingTurn || runs.some(item => item.task_revision === task?.revision) ? 3 : task ? 2 : 1
+  const screeningDraftIntent = !isResearch && task ? screeningInputIntent(draft) : 'message'
   const currentSessionTitle = sessions.find(item => item.id === selectedId)?.title
+
+  useEffect(() => {
+    if (isResearch) return
+    if (!task && !runs.length && !pendingTurn) {
+      setScreeningStage('brief')
+      return
+    }
+    if (currentRunAvailable) {
+      setScreeningStage('result')
+      return
+    }
+    if (task) setScreeningStage(current => current === 'brief' ? 'plan' : current)
+  }, [currentRunAvailable, isResearch, pendingTurn?.id, runs.length, selectedId, task?.revision])
+
+  const latestScreeningUserMessage = conversation?.messages.filter(message => message.role === 'user').at(-1)?.content ?? ''
+  const screeningExecutionPaused = !isResearch && !!task && screeningNoExecutionPattern.test(latestScreeningUserMessage)
+  const screeningStageCopy: Record<ScreeningStage, { step: string; title: string; meta: string }> = {
+    brief: { step: '步骤 1 / 3', title: '输入筛选条件', meta: screeningStarted ? '继续补充或修改要求' : '描述条件，系统自动生成结果' },
+    plan: { step: '步骤 2 / 3', title: '查看筛选方案', meta: task ? `${task.references.length} 条条件 · ${taskUniverseLabel(task)}` : '系统正在整理条件' },
+    result: { step: '步骤 3 / 3', title: runInProgress ? '正在筛选' : '筛选结果', meta: runInProgress ? '结果将在运行完成后更新' : run ? `数据截止 ${run.as_of}` : '等待自动启动' },
+  }
+  const screeningStageStatus = screeningStage === 'brief'
+    ? (task ? '方案已生成' : '待输入')
+    : screeningStage === 'plan'
+      ? runInProgress ? '自动筛选中' : currentRunAvailable ? '结果已生成' : screeningExecutionPaused ? '按要求暂不筛选' : canExecute ? '正在准备筛选' : '待完善'
+      : runInProgress ? '运行中' : run ? (stateLabels[run.status] ?? run.status) : '待启动'
 
   useEffect(() => {
     if (isResearch || !conversation || !task || !scopeEdited || !scopeDate || !scopeDirty || turnInProgress || loadingConversation || busy || saving || scopeSaveState === 'error' || scopeSaveState === 'saving') return
@@ -1205,24 +1303,6 @@ export default function ConversationWorkspace({
     const timer = globalThis.setTimeout(() => { void applyScope() }, 400)
     return () => globalThis.clearTimeout(timer)
   }, [conversation?.id, task?.revision, scopeDate, scopePool, scopeEdited, scopeDirty, turnInProgress, loadingConversation, busy, saving, scopeSaveState])
-
-  const executableTurn = canExecute && conversation
-    ? conversation.turns[0]?.state === 'succeeded' ? conversation.turns[0] : undefined
-    : undefined
-  async function startScreening() {
-    if (busy || saving || !conversation || !executableTurn) return
-    setBusy(true); setError('')
-    try {
-      const attemptKey = `${conversation.id}:${task?.revision || 0}:${executableTurn.id}`
-      if (buttonAttempt.current?.key !== attemptKey) buttonAttempt.current = { key: attemptKey, id: crypto.randomUUID() }
-      executionAttempts.current.delete(`${conversation.id}:${executableTurn.id}:button`)
-      await enqueueAuthorizedTurn(conversation.id, executableTurn.id, 'button')
-      buttonAttempt.current = null
-      await reloadConversation(conversation.id)
-      setRefreshIndex(value => value + 1)
-    } catch (reason) { setError((reason as Error).message) }
-    finally { setBusy(false) }
-  }
 
   async function saveResearchAnswer(messageId: string) {
     if (!conversation || savingNote) return false
@@ -1434,10 +1514,10 @@ export default function ConversationWorkspace({
   }
 
   return (
-    <StockText><div className={`conversation-product research-studio${isResearch ? '' : ' screening-studio'}`}>
+    <StockText><div className={`conversation-product research-studio${isResearch ? '' : ` screening-studio${runs.length || pendingTurn ? ' screening-has-results' : ''}`}`} data-screening-stage={!isResearch ? screeningStage : undefined}>
       <div className="page-heading conversation-header-heading">
         <div className="conversation-heading-title">
-          {isResearch ? <h1>研究对话</h1> : <h2>{screeningStarted ? '继续完善方案' : '新建选股方案'}</h2>}
+          {isResearch ? <h1>研究对话</h1> : <h2>选股工作台</h2>}
           {currentSessionTitle && <span className="conversation-session-caption" data-tooltip={currentSessionTitle}>{currentSessionTitle}</span>}
         </div>
         {isResearch && conversation && <ResearchConversationTools conversationId={conversation.id} projectId={conversation.project_id}
@@ -1446,15 +1526,49 @@ export default function ConversationWorkspace({
           onError={setError} onOpenProject={onOpenProject} portalTargetId={shellNavigation ? 'research-tools-slot' : undefined} />}
         {!shellNavigation && <div className="conversation-heading-actions"><button ref={disclosureRef} className="session-disclosure secondary-button workspace-button" aria-label={isResearch ? '最近研究对话' : '历史与方案'} aria-expanded={sessionsOpen} aria-controls="screening-sessions" onClick={() => setSessionsOpen(value => !value)}><History size={16} /><span>{isResearch ? '最近对话' : '历史与方案'}</span></button><button className="secondary-button conversation-new workspace-button" aria-label={isResearch ? '新研究' : '新选股对话'} data-tooltip={isResearch ? '新研究' : '新选股对话'} disabled={busy || saving || loadingSessions} onClick={() => { setSessionsOpen(false); createConversation() }}><Plus size={16} /><span>{isResearch ? '新研究' : '新建选股'}</span></button></div>}
       </div>
-      {!isResearch && <nav className="screening-path" aria-label="本次选股进度">
-        <button type="button" className={["workspace-button", screeningStep === 1 ? 'active' : 'complete'].filter(Boolean).join(' ')} aria-current={screeningStep === 1 ? 'step' : undefined} onClick={focusComposer}><span>{screeningStep > 1 ? <Check size={14} /> : '1'}</span><strong>描述条件</strong></button>
-        <ArrowRight size={15} aria-hidden="true" />
-        <button type="button" className={["workspace-button", screeningStep === 2 ? 'active' : screeningStep > 2 ? 'complete' : ''].filter(Boolean).join(' ')} aria-current={screeningStep === 2 ? 'step' : undefined} disabled={!task} onClick={() => taskPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}><span>{screeningStep > 2 ? <Check size={14} /> : '2'}</span><strong>确认方案</strong></button>
-        <ArrowRight size={15} aria-hidden="true" />
-        <button type="button" className={["workspace-button", screeningStep === 3 ? 'active' : ''].filter(Boolean).join(' ')} aria-current={screeningStep === 3 ? 'step' : undefined} disabled={!runs.length && !pendingTurn} onClick={() => runSectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })}><span>3</span><strong>查看结果</strong></button>
-        <span className="screening-path-date">{data?.last_date ? `行情截至 ${data.last_date}` : '行情日期待指定'}</span>
-      </nav>}
-      <div className={`conversation-workspace ${showTaskPanel && !isResearch ? '' : 'conversation-workspace-start'} ${!conversation?.messages.length && !task ? 'conversation-workspace-empty' : ''}`}>
+      {!isResearch && <>
+        <nav className="screening-journey" aria-label="本次选股进度">
+          {(['brief', 'plan', 'result'] as ScreeningStage[]).map((stage, index) => {
+            const labels: Record<ScreeningStage, string> = { brief: '输入条件', plan: '筛选方案', result: '筛选结果' }
+            const available = stage === 'brief' || (stage === 'plan' ? !!task : !!runs.length || !!pendingTurn)
+            const complete = stage === 'brief' ? !!task : stage === 'plan' ? currentRunAvailable : false
+            const active = screeningStage === stage
+            return <div className="screening-journey-item" key={stage}>
+              <button
+                type="button"
+                aria-label={labels[stage]}
+                aria-pressed={active}
+                aria-current={active ? 'step' : undefined}
+                aria-controls="screening-journey-content"
+                className={['workspace-button', active ? 'active' : '', complete ? 'complete' : ''].filter(Boolean).join(' ')}
+                disabled={!available}
+                onClick={() => navigateScreeningStage(stage)}
+              >
+                <span className="screening-journey-index" aria-hidden="true">{complete && !active ? <Check size={14} /> : index + 1}</span>
+              <span className="screening-journey-copy"><strong>{labels[stage]}</strong><small>{stage === 'brief' ? '描述你的条件' : stage === 'plan' ? (task ? '自动生成并执行' : '处理中') : (runs.length ? `${runs.length} 次运行` : '自动执行')}</small></span>
+              </button>
+              {index < 2 && <ChevronRight className="screening-journey-arrow" size={15} aria-hidden="true" />}
+            </div>
+          })}
+        </nav>
+        <section className="screening-stage-context" aria-label="当前选股步骤" aria-live="polite">
+          <div>
+            <span className="screening-stage-eyebrow">{screeningStageCopy[screeningStage].step}</span>
+            <h1>{screeningStageCopy[screeningStage].title}</h1>
+            <p>{screeningStageCopy[screeningStage].meta}</p>
+          </div>
+          <div className="screening-stage-context-actions">
+            <span className={`screening-stage-status ${screeningStage === 'result' && runInProgress ? 'is-running' : ''}`}>{screeningStageStatus}</span>
+            {screeningStage === 'result' && task && <button type="button" className="text-button workspace-button" onClick={() => navigateScreeningStage('plan')}>查看方案</button>}
+          </div>
+        </section>
+        <div className="screening-data-bar">
+          <ScreeningReadiness showScope={screeningStage !== 'brief'} onOpenData={onOpenDataServices} data={data} scope={scope} task={task} asOf={scopeDate} />
+        </div>
+      </>}
+      {!isResearch && error && (isExecutionFailure(error) ? <ResearchFailure content={error} /> : <div className="conversation-error workspace-error" role="alert"><AlertCircle size={17} /><span>{error}</span><button className="icon-button workspace-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={15} /></button></div>)}
+      {!isResearch && notice && <div className="conversation-notice workspace-feedback workspace-feedback-success" role="status"><Check size={16} /><span>{notice}</span>{savedNoteProject && onOpenProject && <button className="text-button workspace-button" onClick={() => onOpenProject(savedNoteProject)}>查看笔记</button>}<button className="icon-button workspace-button" aria-label="关闭保存提示" onClick={() => { setNotice(''); setSavedNoteProject('') }}><X size={15} /></button></div>}
+      <div id={!isResearch ? 'screening-journey-content' : undefined} className={`conversation-workspace ${showTaskPanel && !isResearch ? '' : 'conversation-workspace-start'} ${!conversation?.messages.length && !task ? 'conversation-workspace-empty' : ''}`}>
       {sessionsOpen && <div className="studio-library-backdrop" onClick={() => setSessionsOpen(false)} aria-hidden="true" />}
       <aside ref={sessionsRef} id="screening-sessions" role="dialog" aria-modal="true" hidden={!sessionsOpen} onKeyDown={onSessionsKeyDown} className={`conversation-sessions workspace-tool-dialog workspace-drawer ${sessionsOpen ? 'sessions-open' : ''}`} aria-label={isResearch ? '最近研究对话' : '历史与方案'}>
         <div className="conversation-panel-heading">
@@ -1484,7 +1598,7 @@ export default function ConversationWorkspace({
                 onClick={() => { setSessionsOpen(false); if (item.id === selectedId && conversation) return; openSession(item); if (onOpenConversation && conversationWorkflow(item, initialWorkflowType) !== initialWorkflowType) return; setConversation(null); setTask(null); setRuns([]); setRun(null); setError(''); setRefreshIndex(value => value + 1) }}
               >
                 <strong>{item.title?.trim() || '新对话'}</strong>
-                <span>{conversationWorkflow(item, initialWorkflowType) === 'research' ? '研究对话' : '选股对话'}{item.last_turn_state === 'failed' ? ' · 已中断' : item.last_turn_state === 'running' ? ' · 处理中' : item.task_revision ? ` · 方案第${item.task_revision}版` : ''} · {shortTime(item.updated_at)}</span>
+                <span>{conversationWorkflow(item, initialWorkflowType) === 'research' ? '研究对话' : '选股对话'}{item.last_turn_state === 'failed' ? ' · 已中断' : item.last_turn_state === 'running' ? ' · 处理中' : ''} · {shortTime(item.updated_at)}</span>
               </button>
             ))}
           </div>
@@ -1492,11 +1606,10 @@ export default function ConversationWorkspace({
         </>}
       </aside>
 
-      <section className="conversation-main" aria-label={isResearch ? '研究对话' : '选股对话'}>{isResearch && !conversation?.messages.length && !loadingConversation && <div className="chat-empty-heading"><span className="research-welcome-mark" aria-hidden="true"><img src="/brand/soochow-symbol-blue.png" alt="" /></span><h1>{assistantId === 'qmt-script' ? '编写 QMT 脚本' : '想研究什么？'}</h1></div>}
+      <section id="screening-view-conversation" role={isResearch ? undefined : 'region'} tabIndex={isResearch ? undefined : 0} className="conversation-main" aria-label={isResearch ? '研究对话' : '选股对话'}>{isResearch && !conversation?.messages.length && !loadingConversation && <div className="chat-empty-heading"><span className="research-welcome-mark" aria-hidden="true"><img src="/brand/soochow-symbol-blue.png" alt="" /></span><h1>{assistantId === 'qmt-script' ? '编写 QMT 脚本' : '想研究什么？'}</h1></div>}
         {!isResearch && !screeningStarted && <div className="screening-entry-heading"><h2>想筛选什么样的股票？</h2><button type="button" className="text-button workspace-button" onClick={() => { setLibraryTab('saved'); setSessionsOpen(true) }}><Bookmark size={14} />复用已保存方案</button></div>}
-        {!isResearch && <ScreeningReadiness showScope={false} onOpenData={onOpenDataServices} data={data} scope={scope} task={task} asOf={scopeDate} />}
-        {error && (isExecutionFailure(error) ? <ResearchFailure content={error} /> : <div className="conversation-error workspace-error" role="alert"><AlertCircle size={17} /><span>{error}</span><button className="icon-button workspace-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={15} /></button></div>)}
-        {notice && <div className="conversation-notice workspace-feedback workspace-feedback-success" role="status"><Check size={16} /><span>{notice}</span>{savedNoteProject && onOpenProject && <button className="text-button workspace-button" onClick={() => onOpenProject(savedNoteProject)}>查看笔记</button>}<button className="icon-button workspace-button" aria-label="关闭保存提示" onClick={() => { setNotice(''); setSavedNoteProject('') }}><X size={15} /></button></div>}
+        {isResearch && error && (isExecutionFailure(error) ? <ResearchFailure content={error} /> : <div className="conversation-error workspace-error" role="alert"><AlertCircle size={17} /><span>{error}</span><button className="icon-button workspace-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={15} /></button></div>)}
+        {isResearch && notice && <div className="conversation-notice workspace-feedback workspace-feedback-success" role="status"><Check size={16} /><span>{notice}</span>{savedNoteProject && onOpenProject && <button className="text-button workspace-button" onClick={() => onOpenProject(savedNoteProject)}>查看笔记</button>}<button className="icon-button workspace-button" aria-label="关闭保存提示" onClick={() => { setNotice(''); setSavedNoteProject('') }}><X size={15} /></button></div>}
         {loadingConversation && <LoadingState label="正在恢复对话…" skeleton />}
         <div className="conversation-message-stage">
           <div className="conversation-message-list" ref={messageListRef} role="log" aria-live="polite" aria-relevant="additions" onScroll={onMessageListScroll}>
@@ -1573,9 +1686,9 @@ export default function ConversationWorkspace({
             <span>{draft.length >= 7000 ? `${draft.length}/8000` : ''}</span>
             {isResearch && <div className="conversation-composer-model"><ResearchModelPicker value={modelSelection} disabled={archived || busy || saving || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions}
               onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} /></div>}
-            <button className={["workspace-button", !isResearch && task ? "secondary-button" : "primary-button"].filter(Boolean).join(' ')} type="submit" disabled={archived || busy || saving || assistantSaving || modeSaving || modelSaving || (!companyShortcuts.isCommand && (modelUnavailable || attachments.hasUnready)) || (!isResearch && scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || !conversationReady || loadingConversation || loadingSessions || (!draft.trim() && !attachments.ready.length)}>
+            <button className={["workspace-button", !isResearch && task && screeningDraftIntent !== 'edit' ? "secondary-button" : "primary-button"].filter(Boolean).join(' ')} type="submit" disabled={archived || busy || saving || assistantSaving || modeSaving || modelSaving || (!companyShortcuts.isCommand && (modelUnavailable || attachments.hasUnready)) || (!isResearch && scopeEdited && scopeDirty) || scopeSaveState === 'saving' || turnInProgress || !conversationReady || loadingConversation || loadingSessions || (!draft.trim() && !attachments.ready.length)}>
               {busy ? <LoaderCircle size={15} className="spin" /> : <ArrowUp size={16} />}
-              {busy ? '处理中…' : companyShortcuts.isCommand ? '执行命令' : isResearch ? '发送' : screeningStarted ? '发送修改' : '生成筛选方案'}
+              {busy ? '处理中…' : companyShortcuts.isCommand ? '执行命令' : isResearch ? '发送' : !task ? '生成并筛选' : screeningDraftIntent === 'question' ? '发送追问' : '修改并重筛'}
             </button>
           </div>
           <p className="composer-keyboard-hint"><span>{companyShortcuts.isCommand ? 'Enter 确认 · ↑ ↓ 选择 · Esc 关闭提示' : isResearch ? 'Enter 发送 · Shift + Enter 换行 · 输入 / 使用快捷命令' : 'Enter 发送 · Shift + Enter 换行'}</span></p>
@@ -1586,17 +1699,16 @@ export default function ConversationWorkspace({
       </section>
 
       {isResearch && resultsOpen && <div className="research-results-backdrop" onClick={() => setResultsOpen(false)} aria-hidden="true" />}
-      <aside ref={taskPanelRef} id={isResearch ? 'research-results-drawer' : undefined} className={'conversation-task-panel ' + (isResearch ? 'research-results-drawer workspace-tool-dialog workspace-drawer' : '')} role={isResearch ? 'dialog' : undefined} aria-modal={isResearch ? true : undefined} aria-label={isResearch ? '研究成果' : '当前筛选任务和结果'} hidden={!showTaskPanel} onKeyDown={event => { if (!isResearch) return; if (event.key === 'Escape') { event.stopPropagation(); setResultsOpen(false) }; trapDialogTab(event) }}>
+      <aside id={isResearch ? 'research-results-drawer' : 'screening-view-panel'} role={isResearch ? 'dialog' : 'region'} tabIndex={isResearch ? undefined : 0} aria-modal={isResearch ? true : undefined} className={'conversation-task-panel ' + (isResearch ? 'research-results-drawer workspace-tool-dialog workspace-drawer' : '')} aria-label={isResearch ? '研究成果' : '筛选方案与结果'} hidden={!showTaskPanel} onKeyDown={event => { if (!isResearch) return; if (event.key === 'Escape') { event.stopPropagation(); setResultsOpen(false) }; trapDialogTab(event) }}>
         {isResearch && <button ref={resultsCloseRef} type="button" className="icon-button research-results-close workspace-button" aria-label="关闭研究成果" onClick={() => setResultsOpen(false)}><X size={19} /></button>}
         <div className="studio-results-heading">{isResearch && <h2>研究成果</h2>}</div>
-        {conversation?.id === selectedId && <ResearchPanel key={conversation.id} conversationId={conversation.id} turnActive={turnInProgress} refreshKey={refreshIndex + conversation.messages.length} onContentChange={setHasResearchResults} showGenerate={isResearch && conversation.messages.some(message => message.role === 'assistant' && !isExecutionFailure(message.content)) && !conversation.turns.every(turn => turn.state === 'failed' || turn.state === 'cancelled')} />}
+        {isResearch && conversation?.id === selectedId && <ResearchPanel key={conversation.id} conversationId={conversation.id} turnActive={turnInProgress} refreshKey={refreshIndex + conversation.messages.length} onContentChange={setHasResearchResults} showGenerate={conversation.messages.some(message => message.role === 'assistant' && !isExecutionFailure(message.content)) && !conversation.turns.every(turn => turn.state === 'failed' || turn.state === 'cancelled')} />}
         {!isResearch && task && <section className="conversation-task-section">
           <div className="conversation-panel-heading">
             <h2>筛选方案</h2>
-            <span>{conversation ? `v${conversation.task_revision}` : '未建立'}</span>
           </div>
           <>
-            <div className="conversation-task-conditions"><TaskLogic task={task} /></div>
+            <div className="conversation-task-conditions"><TaskCompositionEditor task={task} disabled={busy || saving || turnInProgress || runInProgress || loadingConversation || scopeDirty || scopeSaveState === 'saving'} saving={compositionSaving} onEdit={change => void editComposition(change)} /></div>
             <div className="conversation-task-scope">
               <span>范围</span><strong>{taskUniverseLabel(task)}</strong>
               <span>截止日</span><strong>{task.scope.as_of ?? '未确定'}</strong>
@@ -1618,13 +1730,13 @@ export default function ConversationWorkspace({
               {(scopeDirty && scopeEdited || scopeSaveState !== 'idle') && <span className="scope-save-status conversation-muted workspace-feedback-inline" role="status">{scopeSaveState === 'saving' ? '正在自动保存…' : scopeSaveState === 'saved' ? '范围和日期已自动保存' : scopeSaveState === 'error' ? '自动保存失败' : '等待自动保存'}{scopeSaveState === 'error' && <button className="icon-button workspace-button" data-tooltip="重试保存范围和日期" aria-label="重试保存范围和日期" onClick={() => void applyScope()}><RefreshCw size={14} /></button>}</span>}
             </div>
             </details>
-            {task.conditions.some(item => ['technical', 'pattern'].includes(item.library)) && <p className="conversation-muted">本地日线 · {({ unadjusted: '不复权', forward_adjusted: '前复权', back_adjusted: '后复权' } as Record<string, string>)[task.scope.price_basis || 'unknown'] || '复权口径未核实'}</p>}
+            {task.conditions.some(item => ['technical', 'pattern'].includes(item.library)) && <p className="conversation-muted">本地日线 · {({ unadjusted: '不复权', forward_adjusted: '前复权', back_adjusted: '后复权' } as Record<string, string>)[task.scope.price_basis && task.scope.price_basis !== 'unknown' ? task.scope.price_basis : data?.price_basis || 'unadjusted'] || '不复权'}</p>}
             <div className="conversation-task-actions">
-              {canExecute ? <button className="primary-button workspace-button" disabled={busy || saving || turnInProgress || loadingConversation || runInProgress || !!pendingTurn || !!draft.trim() || !executableTurn} onClick={() => void startScreening()}><Play size={15} />{runInProgress ? '正在筛选…' : taskHasRun ? '按当前条件再筛一次' : '确认并开始筛选'}</button> : <button className="secondary-button workspace-button" disabled={busy || saving || turnInProgress} onClick={focusComposer}>补充筛选要求</button>}
-              <button className="text-button workspace-button" disabled={busy || saving || turnInProgress} onClick={focusComposer}>修改条件</button>
+              {canExecute ? runInProgress || pendingTurn ? <span className="screening-auto-execution-note" role="status"><LoaderCircle size={14} className="spin" />{runInProgress ? '正在自动筛选…' : '方案已生成，正在开始筛选…'}</span> : runs.length ? <button className="secondary-button workspace-button" disabled={busy || saving || turnInProgress} onClick={() => navigateScreeningStage('result')}>查看筛选结果</button> : screeningExecutionPaused ? <span className="screening-auto-execution-note is-paused" role="status">方案已生成，按要求暂不筛选</span> : <span className="screening-auto-execution-note" role="status"><LoaderCircle size={14} className="spin" />正在准备筛选…</span> : <button className="secondary-button workspace-button" disabled={busy || saving || turnInProgress} onClick={() => navigateScreeningStage('brief')}>补充筛选要求</button>}
+              <button className="text-button workspace-button" disabled={busy || saving || turnInProgress} onClick={() => navigateScreeningStage('brief')}>修改条件</button>
             </div>
             {!canExecute && !task.unresolved.length && <p className="conversation-muted">请先{scopeDirty && scopeEdited ? '等待范围与日期自动保存' : missingTaskInfo || '完整条件'}。</p>}
-            {canExecute && !!draft.trim() && <p className="conversation-muted">输入框中还有未发送的内容，请先发送或清空，再确认筛选。</p>}
+            {canExecute && !!draft.trim() && <p className="conversation-muted">输入框中还有未发送的内容；发送后会自动更新条件并重筛。</p>}
             <details className="screening-plan-secondary"><summary>保存方案与项目归属</summary>
               <button className="text-button workspace-button" disabled={!canSave || busy || saving || turnInProgress || scopeDirty || scopeSaveState === 'saving'} data-tooltip={!canSave ? '请先补充完整条件和股票范围' : undefined} onClick={() => void saveTask(suggestedName)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Bookmark size={14} />}{saving ? '保存中…' : '保存方案'}</button>
               <button className="icon-button workspace-button" disabled={!canSave || busy || saving || turnInProgress} data-tooltip="设置方案名称" aria-label="设置方案名称" aria-expanded={saveOpen} onClick={() => { setSaveName(suggestedName); setSaveOpen(value => !value) }}><Pencil size={15} /></button>
@@ -1638,11 +1750,11 @@ export default function ConversationWorkspace({
           </>
         </section>}
 
-        {!isResearch && (!!runs.length || !!pendingTurn) && <section ref={runSectionRef} className="conversation-run-section">
+        {!isResearch && (!!runs.length || !!pendingTurn) && <section className="conversation-run-section">
           <div className="conversation-panel-heading">
             <h2>筛选结果</h2>
             {runs.length > 0 && <select aria-label="查看筛选运行" value={viewingRunId} onChange={(event) => setViewingRunId(event.target.value)} className="workspace-field workspace-select">
-              {runs.map((item) => <option key={item.id} value={item.id}>v{item.task_revision} · {item.as_of} · {stateLabels[item.status] ?? item.status}</option>)}
+              {runs.map((item) => <option key={item.id} value={item.id}>{item.as_of} · {new Date(item.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} · {stateLabels[item.status] ?? item.status}</option>)}
             </select>}
           </div>
           {pendingTurn && <div className="conversation-retry-notice" role="status">
@@ -1662,7 +1774,10 @@ export default function ConversationWorkspace({
               revision={run.task_revision}
               status={run.status}
               isCurrent={Boolean(activeRun)}
-              progress={{ message: run.job.message, percent: run.job.progress }}
+              progress={{
+                message: run.job?.message ?? stateLabels[run.status] ?? run.status,
+                percent: run.job?.progress ?? (run.status === 'succeeded' || run.status === 'partial' ? 1 : 0),
+              }}
               coverage={coverage ?? undefined}
               decisions={unifiedDecisions}
               loading={loadingDecisions}
@@ -1677,6 +1792,7 @@ export default function ConversationWorkspace({
               onPageChange={(newOffset) => setDecisionOffset(newOffset)}
               onCancel={() => void cancelRun()}
               onAskStock={(stockCode, state) => {
+                navigateScreeningStage('brief')
                 prepareDraft(state === 'unknown' ? `这次为什么无法判断${stockCode}是否符合条件？` : `为什么这次${state === 'true' ? '选中了' : '没有选中'}${stockCode}？`)
                 setSource({ reference: { kind: 'screening_run', source_id: run.id }, label: `筛选结果 · ${run.as_of} · v${run.task_revision}` })
                 setError('')
@@ -1684,7 +1800,7 @@ export default function ConversationWorkspace({
               onCopyAll={() => void copyAllMatching()}
               onExportUrl={`/api/v1/conversations/${conversation!.id}/screening-runs/${run.id}/export?state=${decisionState}&query=${encodeURIComponent(decisionQuery)}`}
               onViewChart={(code) => setChart({ code, date: run.as_of })}
-              onAdjustRequirements={focusComposer}
+              onAdjustRequirements={() => navigateScreeningStage('brief')}
               onReload={() => setDecisionReload(v => v + 1)}
             />
           )}

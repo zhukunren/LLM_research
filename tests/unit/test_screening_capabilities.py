@@ -25,7 +25,7 @@ def test_manifest_matches_existing_capabilities_and_never_claims_unavailable_dat
     assert all(not item["agent_tool_registered"] for item in result["capabilities"])
     assert items["market.daily_bars"]["availability"] == "available"
     assert items["market.daily_bars"]["coverage"]["max_bars_per_security"] == 500
-    assert items["market.daily_bars"]["coverage"]["price_basis"] == "unknown"
+    assert items["market.daily_bars"]["coverage"]["price_basis"] == "unadjusted"
     assert "market.builtin_indicators" not in items
     assert items["report.page_search"]["availability"] == "available"
     assert items["report.evidence_evaluation"]["availability"] == "available"

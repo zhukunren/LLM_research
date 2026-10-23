@@ -444,7 +444,7 @@ def _execute_screening(lease: JobLease) -> None:
         "strategy_snapshot": strategy,
         "condition_snapshots": list(filter_map.values()),
         "trace_version": "condition-decisions-v1",
-        "warnings": ["探索模式：复权口径和量额单位尚未确认", "证券基础资料和完整交易日历尚未接入"],
+        "warnings": ["探索模式：成交量与成交额单位尚未确认", "证券基础资料和完整交易日历尚未接入"],
     }
     state = "cancelled" if cancelled else ("partial" if counts["unknown"] or counts["evaluated"] == 0 else "succeeded")
     lease.finish(state, f"完成：评估 {counts['evaluated']:,} 只，命中 {counts['true']:,} 只，未知 {counts['unknown']:,} 只", result, decisions=decisions)

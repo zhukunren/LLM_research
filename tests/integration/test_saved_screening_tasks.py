@@ -117,8 +117,9 @@ def test_reuse_creates_new_conversation_revision_without_mutating_saved_asset(cl
     # Reuse finishes the message turn, so the user can immediately continue.
     resumed = client.get(f"/api/v1/conversations/{conversation_id}").json()
     assert resumed["turns"][0]["state"] == "succeeded"
-    assert resumed["turns"][0]["result"]["execution_authorized"] is False
-    assert resumed["pending_execution"] is False
+    assert resumed["turns"][0]["result"]["execution_authorized"] is True
+    assert resumed["turns"][0]["result"]["ready_to_execute"] is True
+    assert resumed["pending_execution"] is True
     assert client.get(f"/api/v1/conversations/{conversation_id}/screening-runs").json()["items"] == []
     replay = client.post(f"/api/v1/conversations/{conversation_id}/saved-screening-tasks/{saved['id']}/reuse", json={
         "base_revision": 1, "source_message_id": new_message["message_id"], "version": 1,

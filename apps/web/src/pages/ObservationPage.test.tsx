@@ -162,8 +162,9 @@ describe('统一观察池', () => {
     await waitFor(() => expect(within(list).getAllByText('+10.00%')).toHaveLength(2))
     expect(within(list).getAllByText('-25.00%')).toHaveLength(2)
     expect(screen.getByRole('region', { name: '当前筛选范围汇总' })).toHaveTextContent('8.00%')
-    expect(screen.queryByRole('tab', { name: '研究候选' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: '筛选批次' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: '研究记录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: '选股批次' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '全部观察' })).toHaveAttribute('aria-selected', 'true')
     await user.click(within(list).getByRole('button', { name: /查看贵州茅台观察详情/ }))
     expect(await screen.findByRole('dialog', { name: '观察详情' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '关闭观察详情' })).toHaveFocus()
@@ -182,6 +183,19 @@ describe('统一观察池', () => {
     expect(fetcher.mock.calls.some(([input]) => String(input).includes('owner=run%3Arun-2'))).toBe(true)
     await user.click(screen.getByRole('button', { name: '清除筛选' }))
     await waitFor(() => expect(within(list).getAllByRole('row')).toHaveLength(4))
+  })
+
+  it.each([
+    ['candidates', 'research'],
+    ['batches', 'screening'],
+  ] as const)('旧观察来源链接 %s 保留对应筛选但不再占一级标签', async (tab, owner) => {
+    const fetcher = mockApi()
+    render(<ObservationPage data={null} initialTab={tab} />)
+    await waitFor(() => expect(fetcher.mock.calls.some(([input]) => String(input).includes('owner=' + owner))).toBe(true))
+    expect(screen.getByLabelText('按所属筛选')).toHaveValue(owner)
+    expect(screen.getByRole('tab', { name: '全部观察' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('tab', { name: '研究记录' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: '选股批次' })).not.toBeInTheDocument()
   })
 
   it('点击筛选记录可看原批次走势并保存观察状态', async () => {

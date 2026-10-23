@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from . import conversation_store, saved_screening_tasks
 from .db import connect, json_load
-from .screening_contracts import ContractModel
+from .screening_contracts import ContractModel, validate_executable_task
 from pydantic import Field
 from datetime import date
 
@@ -58,8 +58,8 @@ def reuse_saved_task(conversation_id: str, asset_id: str, payload: ReuseSavedTas
             if latest and payload.as_of.isoformat() > latest:
                 raise HTTPException(422, f"行情只更新到 {latest}。")
             task = task.model_copy(update={"scope": task.scope.model_copy(update={"as_of": payload.as_of})})
-        # Publish the revision and finish its user turn together. A reused task is
-        # editable immediately and never carries execution authorization.
+        # Publish the revision and finish its user turn together. A complete
+        # reused task starts a run automatically; incomplete tasks stay editable.
         with connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             turn = connection.execute(
@@ -75,11 +75,26 @@ def reuse_saved_task(conversation_id: str, asset_id: str, payload: ReuseSavedTas
             result = conversation_store.save_task_revision(
                 conversation_id, payload.base_revision, payload.source_message_id, task, _connection=connection,
             )
+            try:
+                validate_executable_task(task)
+            except ValueError as exc:
+                execution = {"ready_to_execute": False, "execution_authorized": False, "clarification": str(exc)}
+                pending_message_id = None
+            else:
+                execution = {
+                    "ready_to_execute": True,
+                    "execution_authorized": True,
+                    "execution_authorization_message_id": payload.source_message_id,
+                }
+                pending_message_id = payload.source_message_id
             conversation_store.finish_turn(
                 conversation_id, turn["id"], task.revision, "succeeded",
-                f"已复用“{saved['name']}”的第 {saved['version']} 版。请核对股票范围与截止日，可继续描述修改要求，或确认后开始筛选。",
+                f"已复用“{saved['name']}”的第 {saved['version']} 版。正在自动筛选。"
+                if pending_message_id else
+                f"已复用“{saved['name']}”的第 {saved['version']} 版，但当前条件还不完整。",
                 {"intent": "reuse", "task_revision": task.revision, "saved_task_id": saved["id"],
-                 "saved_task_version": saved["version"], "execution_authorized": False, "ready_to_execute": False},
+                 "saved_task_version": saved["version"], **execution},
+                pending_execute_message_id=pending_message_id,
                 _connection=connection,
             )
         return result

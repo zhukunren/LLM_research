@@ -371,7 +371,7 @@ function TrialResult({ trial }: { trial: IndicatorTrial }) {
 }
 
 function SourceContext({ context }: { context: Record<string, unknown> }) {
-  const basis = ({ unadjusted: '不复权', forward_adjusted: '前复权', back_adjusted: '后复权' } as Record<string, string>)[String(context.price_basis)] || '未核实'
+  const basis = ({ unadjusted: '不复权', forward_adjusted: '前复权', back_adjusted: '后复权' } as Record<string, string>)[String(context.price_basis || 'unadjusted')] || '不复权'
   return <p className="my-indicators-muted">行情口径：{basis}{context.volume_unit ? ` · 成交量单位 ${String(context.volume_unit)}` : ''}{context.amount_unit ? ` · 成交额单位 ${String(context.amount_unit)}` : ''}{context.effective_market_date ? ` · 市场交易日 ${String(context.effective_market_date)}` : ''}</p>
 }
 

@@ -53,7 +53,7 @@ it.each(['research', 'screening'] as const)('restores a first failed %s message 
     return jsonResponse({ items: [], next_after: -1 })
   }))
   const label = workflow === 'research' ? '研究要求' : '选股要求'
-  const submit = workflow === 'research' ? '发送' : '生成筛选方案'
+  const submit = workflow === 'research' ? '发送' : '生成并筛选'
   const view = render(<ConversationWorkspace initialWorkflowType={workflow} initialSource={source} />)
   await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
   await user.type(screen.getByLabelText(label), '需要保留的首次问题')
@@ -163,12 +163,12 @@ it.each(['research', 'screening'] as const)('replays an accepted %s message afte
   const label = workflow === 'research' ? '研究要求' : '选股要求'
   await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
   await user.type(screen.getByLabelText(label), '原始首次问题')
-  await user.click(screen.getByRole('button', { name: workflow === 'research' ? '发送' : '生成筛选方案' }))
+  await user.click(screen.getByRole('button', { name: workflow === 'research' ? '发送' : '生成并筛选' }))
   await screen.findByText('原消息响应丢失')
   await screen.findByText('后台已完成原回合')
   await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
   expect(screen.getByLabelText(label)).toHaveValue('原始首次问题')
-  await user.click(screen.getByRole('button', { name: workflow === 'research' ? '发送' : '发送修改' }))
+  await user.click(screen.getByRole('button', { name: workflow === 'research' ? '发送' : '修改并重筛' }))
   await waitFor(() => expect(screen.getByLabelText(label)).toHaveValue(''))
   expect(writes).toHaveLength(2)
   expect(writes[1]).toEqual(writes[0])
@@ -385,7 +385,7 @@ describe('ConversationWorkspace', () => {
     expect(stored.task_revision).toBe(0)
   })
 
-  it('queues an authorized run and displays its saved per-stock result', async () => {
+  it('automatically queues an authorized run and displays its saved per-stock result', async () => {
     const user = userEvent.setup()
     const id = 'conversation-2'
     const initialMessage = { id: 'message-initial', role: 'user' as const, content: '收盘价高于20日均线，筛一下', source_refs: [], created_at: '2026-09-28T08:00:00+00:00' }
@@ -425,7 +425,14 @@ describe('ConversationWorkspace', () => {
         stored = { ...stored, messages: [...stored.messages, message] }
         return jsonResponse({ message_id: message.id, turn_id: 'turn-2', base_revision: 1, state: 'awaiting_agent' }, 202)
       }
-      if (url.pathname.endsWith('/turns/turn-2/process')) return jsonResponse({ id: 'turn-2', result: { ready_to_execute: true } })
+      if (url.pathname.endsWith('/turns/turn-2/process')) {
+        stored = {
+          ...stored,
+          turns: [{ id: 'turn-2', user_message_id: 'message-2', base_revision: 1, state: 'succeeded', response_text: assistantMessage.content,
+            result: { ready_to_execute: true, execution_authorized: true }, created_at: '2026-09-28T08:03:00+00:00', updated_at: '2026-09-28T08:03:30+00:00' }, ...stored.turns],
+        }
+        return jsonResponse({ id: 'turn-2', result: { ready_to_execute: true, execution_authorized: true } })
+      }
       if (url.pathname.endsWith('/turns/turn-2/execute')) {
         stored = { ...stored, active_run_id: runId, pending_execution: false }
         return jsonResponse({ run_id: runId, job_id: 'job-1', status: 'queued' }, 202)
@@ -438,14 +445,15 @@ describe('ConversationWorkspace', () => {
     render(<ConversationWorkspace initialWorkflowType="screening" />)
     await screen.findByText('筛选条件已确认，执行授权已记录。')
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '按这个筛')
-    await user.click(screen.getByRole('button', { name: '发送修改' }))
+    await user.click(screen.getByRole('button', { name: '修改并重筛' }))
 
+    await waitFor(() => expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1))
     expect(await screen.findByText('600000.SH')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('为什么这次选中了600000.SH？')
     expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1)
-    expect(screen.getByText('当前运行 · v1')).toBeInTheDocument()
+    expect(screen.getByText('当前运行')).toBeInTheDocument()
     expect(screen.getByText('数据截止日：2026-09-14')).toBeInTheDocument()
   })
 

@@ -16,9 +16,15 @@ try {
     $env:PYTHONPATH = Get-LlmPythonDeps $ProjectRoot
     $env:PYTHONDONTWRITEBYTECODE = '1'
     $env:LLMR_WEB_PORT = [string]$ProcessInfo.web_port
-    $OldApi = Get-Process -Id $OwnedApi.ProcessId -ErrorAction Stop
-    Stop-Process -InputObject $OldApi
-    $OldApi.WaitForExit(5000) | Out-Null
+    $StopResult = Invoke-CimMethod -InputObject $OwnedApi -MethodName Terminate -Arguments @{ Reason = 0 }
+    if ($StopResult.ReturnValue -ne 0) { throw "Cannot stop the verified API process: $($StopResult.ReturnValue)" }
+    for ($Attempt = 0; $Attempt -lt 20; $Attempt++) {
+        if (-not (Get-CimInstance Win32_Process -Filter "ProcessId = $($OwnedApi.ProcessId)" -ErrorAction SilentlyContinue)) { break }
+        Start-Sleep -Milliseconds 250
+    }
+    if (Get-CimInstance Win32_Process -Filter "ProcessId = $($OwnedApi.ProcessId)" -ErrorAction SilentlyContinue) {
+        throw 'The verified API process did not stop within 5 seconds.'
+    }
     $LogPrefix = Join-Path $Runtime ('logs/api-refresh-' + [guid]::NewGuid().ToString('N'))
     $NewApi = Start-Process -FilePath $ApiPython -ArgumentList @('-m','uvicorn','apps.api.app.main:app','--host','127.0.0.1','--port',[string]$ProcessInfo.api_port) -WorkingDirectory $ProjectRoot -WindowStyle Hidden -RedirectStandardOutput ($LogPrefix + '.log') -RedirectStandardError ($LogPrefix + '-error.log') -PassThru
     $ProcessInfo.api = $NewApi.Id

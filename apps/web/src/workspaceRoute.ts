@@ -27,7 +27,17 @@ const views: ScreeningView[] = ['conversation', 'create', 'library', 'compose', 
 const observationTabs: ObservationTab[] = ['all', 'candidates', 'batches', 'updates', 'expectations', 'portfolio']
 const objectId = /^[A-Za-z0-9_-]{1,100}$/
 const stockCode = /^\d{6}\.(SH|SZ|BJ)$/
-const simplePaths: Partial<Record<PageId, string>> = { home: 'home', qmt: 'tools/qmt', news: 'library/news', patterns: 'library/patterns', reports: 'library/reports' }
+const simplePaths: Partial<Record<PageId, string>> = { qmt: 'tools/qmt', patterns: 'library/patterns' }
+
+/** Canonical runtime routes for legacy navigation IDs. */
+export function normalizeWorkspaceRoute(route: WorkspaceRoute): WorkspaceRoute {
+  if (route.page === 'home') return { page: 'screening', newDraft: true }
+  if (route.page === 'news' || route.page === 'reports') return {
+    page: 'library', libraryTab: route.page === 'reports' ? 'reports' : 'news',
+    ...(route.workspace === 'screening' ? { workspace: 'screening' as const } : {}),
+  }
+  return route
+}
 
 /** Public paths use product names; legacy page IDs stay behind this mapping. */
 export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
@@ -38,7 +48,7 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   const params = new URLSearchParams(query)
   const workspace = params.get('workspace')
   if (workspace && !['research', 'screening'].includes(workspace)) return null
-  const sharedWorkspace = workspace ? { workspace: workspace as WorkflowType } : {}
+  const sharedWorkspace = workspace === 'screening' ? { workspace: 'screening' as const } : {}
   const scope = params.get('scope')
   if (scope && !scopes.includes(scope as ConversationScope)) return null
   if (parts[0] === 'intelligence' && parts.length <= 3) {
@@ -54,7 +64,10 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   if (parts.length === 1 && parts[0] === 'assistants') return { page: 'screening', newDraft: true }
   if (parts.length === 2 && parts[0] === 'tools' && parts[1] === 'qmt') return { page: 'qmt', ...sharedWorkspace }
   if (parts.length === 2 && parts[0] === 'library' && parts[1] === 'technical') return { page: workspace === 'screening' ? 'conditions' : 'screening', newDraft: true, scope: 'technical', indicators: 'common', ...(workspace === 'screening' ? { view: 'conversation' } : {}) }
-  if (parts[0] === 'library' && parts.length === 2 && ['news', 'patterns', 'reports'].includes(parts[1])) return { page: parts[1] as PageId, ...sharedWorkspace }
+  if (parts[0] === 'library' && parts.length === 2 && ['news', 'patterns', 'reports'].includes(parts[1])) {
+    if (parts[1] === 'patterns') return { page: 'patterns', ...sharedWorkspace }
+    return { page: 'library', libraryTab: parts[1] === 'reports' ? 'reports' : 'news', ...sharedWorkspace }
+  }
   if (parts[0] === 'research' || parts[0] === 'screening') {
     if (parts.length > 2 || (parts[1] && !objectId.test(parts[1]))) return null
     const view = params.get('view')
@@ -76,8 +89,8 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   return null
 }
 
-export function workspaceRouteHash(route: WorkspaceRoute): string {
-  if (route.page === 'home') return '#/research/new'
+export function workspaceRouteHash(input: WorkspaceRoute): string {
+  const route = normalizeWorkspaceRoute(input)
   if (route.page === 'intelligence') return `#/intelligence/${route.briefKind || 'market'}${route.briefId ? '/' + encodeURIComponent(route.briefId) : ''}`
   if (route.page === 'library') return `#/library?type=${route.libraryTab || 'news'}${route.workspace === 'screening' ? '&workspace=screening' : ''}`
   const params = new URLSearchParams()
@@ -108,6 +121,7 @@ export function storedScreeningView(): ScreeningView {
 export function legacyWorkspaceRoute(): WorkspaceRoute {
   const page = stored<string>('app.page', 'home')
   if (page === 'technical') return parseWorkspaceRoute('#/library/technical')!
+  if (page === 'news' || page === 'reports') return normalizeWorkspaceRoute({ page })
   if (!isPageId(page) || page === 'home') return { page: 'screening', newDraft: true }
   const scope = storedConversationScope()
   if (page === 'conditions') {
@@ -127,7 +141,8 @@ export function legacyWorkspaceRoute(): WorkspaceRoute {
 }
 
 /** Keep old reading/draft storage keys intact while URL wins for an explicit object. */
-export function persistWorkspaceRoute(route: WorkspaceRoute) {
+export function persistWorkspaceRoute(input: WorkspaceRoute) {
+  const route = normalizeWorkspaceRoute(input)
   try {
     sessionStorage.setItem('app.page', JSON.stringify(route.page))
     if (route.scope) sessionStorage.setItem('app.conversationScope', JSON.stringify(route.scope))

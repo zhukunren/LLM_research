@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
+import { normalizeWorkspaceRoute, parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
 
 export function useWorkspaceRoute(onHistoryChange?: () => void) {
   const historyCallback = useRef(onHistoryChange)
@@ -11,7 +11,7 @@ export function useWorkspaceRoute(onHistoryChange?: () => void) {
   })
   const current = useRef(route)
   const navigate = useCallback((next: WorkspaceRoute, options: { replace?: boolean } = {}) => {
-    if (next.page === 'home') next = { page: 'screening', newDraft: true }
+    next = normalizeWorkspaceRoute(next)
     const hash = workspaceRouteHash(next)
     if (window.location.hash !== hash) window.history[options.replace ? 'replaceState' : 'pushState'](null, '', hash)
     persistWorkspaceRoute(next)

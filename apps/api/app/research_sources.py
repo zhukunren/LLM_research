@@ -80,7 +80,30 @@ def _result(item):
     return {}
 
 
-def _public_reference(value, relation="cited"):
+def _source_type(kind, url):
+    if url:
+        return "public_web"
+    return {
+        "report_page": "local_report",
+        "news_item": "local_news",
+        "financial": "financial_record",
+        "disclosure": "disclosure_record",
+        "security": "security_reference",
+    }.get(kind, "local_source")
+
+
+def _evidence_status(reference):
+    excerpt_kind = reference.get("excerpt_kind")
+    if excerpt_kind in {"original_text", "frozen_financial"}:
+        return excerpt_kind
+    if excerpt_kind == "search_snippet":
+        return "search_snippet"
+    if reference.get("excerpt"):
+        return "excerpt"
+    return "citation_only"
+
+
+def _public_reference(value, relation="cited", recorded_at=None):
     if not isinstance(value, dict):
         return None
     url = _web_url(value.get("url") or value.get("source_url"))
@@ -88,39 +111,63 @@ def _public_reference(value, relation="cited"):
     if kind in {"financial", "disclosure"} and value.get("source_id"):
         from . import financial_evidence
         try:
-            return {**financial_evidence.public_reference(value["source_id"]), "relation": relation}
+            ref = {**financial_evidence.public_reference(value["source_id"]), "relation": relation}
+            ref["source_type"] = "financial_record" if kind == "financial" else "disclosure_record"
+            ref["recorded_at"] = recorded_at or utc_now()
+            ref["evidence_status"] = _evidence_status(ref)
+            return ref
         except financial_evidence.EvidenceError:
             return None
     if not url and (kind not in {"report_page", "news_item", "security"} or not value.get("source_id")):
         return None
     ref = {key: value[key] for key in ("kind", "source_id", "page_number", "title", "stock_code", "stock_codes",
-            "published_at", "available_at", "security_binding_status") if key in value}
+            "published_at", "publication_date", "published_date", "publisher_declared_date", "available_at",
+            "retrieved_at", "publisher", "requested_url", "original_source_id", "sha256", "source_version",
+            "security_binding_status", "research_as_of", "historical_availability_verified", "start_index",
+            "end_index", "ref_id", "locator") if key in value}
+    if type(ref.get("start_index")) is int and type(ref.get("end_index")) is int:
+        ref["citation_span"] = {"start": ref["start_index"], "end": ref["end_index"]}
     ref.update(relation=relation)
     if url:
-        ref.update(kind="web", url=url, title=str(value.get("title") or urlsplit(url).hostname))
-    excerpt = value.get("excerpt") or value.get("text") or value.get("body") or value.get("snippet")
+        ref.update(kind="web", url=url, title=str(value.get("title") or urlsplit(url).hostname), domain=urlsplit(url).hostname)
+    if not ref.get("published_at"):
+        ref["published_at"] = value.get("publication_date") or value.get("published_date") or value.get("publisher_declared_date")
+    excerpt = value.get("excerpt") or value.get("text") or value.get("body") or value.get("text_preview") or value.get("snippet")
     if isinstance(excerpt, str):
         if not re.fullmatch(r"Total lines:\s*\d+", excerpt.strip()):
             ref["excerpt"] = excerpt[:20000]
             ref["excerpt_kind"] = value.get("excerpt_kind") or ("search_snippet" if excerpt == value.get("snippet") else "original_text")
+    ref["source_type"] = _source_type(kind, url)
+    ref["recorded_at"] = value.get("recorded_at") or recorded_at or utc_now()
+    ref["evidence_status"] = _evidence_status(ref)
     return ref
 
 
 def collect(connection, conversation_id: str, turn_id: str | None, content: str, references=None, *, file_conversation_id=None):
     origin = file_conversation_id or conversation_id
-    sources, files, seen = [], [], set()
+    sources, files, seen = [], [], {}
     def add(value, relation="cited"):
         ref = _public_reference(value, relation)
         if not ref:
             return
         key = ref.get("url") or f"{ref.get('kind')}:{ref.get('source_id')}:{ref.get('page_number', '')}"
         if key in seen:
-            existing = next(entry for entry in sources if (entry.get("url") or f"{entry.get('kind')}:{entry.get('source_id')}:{entry.get('page_number', '')}") == key)
-            if ref.get("excerpt") and (not existing.get("excerpt") or existing.get("excerpt_kind") == "search_snippet" and ref.get("excerpt_kind") == "original_text"):
-                existing["excerpt"] = ref["excerpt"]
-                existing["excerpt_kind"] = ref["excerpt_kind"]
+            existing = sources[seen[key]]
+            if relation == "cited":
+                existing["relation"] = "cited"
+            elif existing.get("relation") != "cited":
+                existing["relation"] = "consulted"
+            rank = {"citation_only": 0, "search_snippet": 1, "excerpt": 2, "original_text": 3, "frozen_financial": 3}
+            if rank.get(ref.get("evidence_status"), 0) > rank.get(existing.get("evidence_status"), 0):
+                for name in ("excerpt", "excerpt_kind", "evidence_status"):
+                    if name in ref:
+                        existing[name] = ref[name]
+            for name, item in ref.items():
+                if existing.get(name) in (None, "") and item not in (None, ""):
+                    existing[name] = item
             return
-        seen.add(key); sources.append(ref)
+        seen[key] = len(sources)
+        sources.append(ref)
     for ref in references or []:
         add(ref)
     texts = [content]
@@ -204,7 +251,7 @@ def collect(connection, conversation_id: str, turn_id: str | None, content: str,
                 for annotation in item.get("annotations") or []:
                     if isinstance(annotation, dict):
                         add(annotation.get("url_citation", annotation))
-    return {"items": sources[:100], "files": files}
+    return {"schema_version": 2, "items": sources[:100], "files": files}
 
 
 def answer_evidence(conversation_id: str, message_id: str):
@@ -218,10 +265,12 @@ def answer_evidence(conversation_id: str, message_id: str):
             raise ConversationStoreError("请选择研究答复查看来源")
         previous = connection.execute("SELECT evidence_json FROM research_message_evidence WHERE message_id=?", (message_id,)).fetchone()
         if previous:
-            return json_load(previous[0])
+            cached = json_load(previous[0])
+            if isinstance(cached, dict) and cached.get("schema_version") == 2:
+                return cached
         origin = message["file_conversation_id"] or conversation_id
         key = message["client_message_id"] or ""
         turn_id = key[10:] if key.startswith("assistant:") else None
         evidence = collect(connection, conversation_id, turn_id, message["content"], json_load(message["source_refs_json"]), file_conversation_id=origin)
-        connection.execute("INSERT INTO research_message_evidence(message_id,evidence_json,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING", (message_id, json_dump(evidence), utc_now()))
+        connection.execute("INSERT INTO research_message_evidence(message_id,evidence_json,created_at) VALUES(?,?,?) ON CONFLICT(message_id) DO UPDATE SET evidence_json=excluded.evidence_json,created_at=excluded.created_at", (message_id, json_dump(evidence), utc_now()))
         return evidence

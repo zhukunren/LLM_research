@@ -80,7 +80,7 @@ def test_scope_edit_is_atomic_idempotent_and_preserves_history(client, monkeypat
     assert task['scope']['as_of'] == '2026-09-28'
     assert task['conditions'][0]['description'] == '收盘价高于20日均线'
     assert client.get(f'/api/v1/conversations/{cid}/screening-runs/run').json()['as_of'] == '2026-09-14'
-    assert not client.get(f'/api/v1/conversations/{cid}').json()['pending_execution']
+    assert client.get(f'/api/v1/conversations/{cid}').json()['pending_execution'] is True
     assert client.post(url, json={**body, 'as_of': '2026-10-01'}).status_code == 422
     assert client.post(url, json={**body, 'as_of': '2026-09-27'}).status_code == 409
     def fail(*args, **kwargs):

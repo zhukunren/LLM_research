@@ -11,6 +11,8 @@ import pyarrow.parquet as pq
 
 from .settings import ALLOWED_MARKETS, STOCK_FILE
 
+PRICE_BASIS = "unadjusted"
+
 
 def _literal_path(path: Path) -> str:
     return "'" + str(path).replace("'", "''") + "'"
@@ -106,11 +108,11 @@ def profile() -> dict[str, Any]:
         "sha256": digest.hexdigest(),
         "columns": [{"name": field.name, "type": str(field.type)} for field in fields],
         "quality_status": "basic_checks_passed" if quality_ok else "issues_found",
-        "price_basis": "unknown",
+        "price_basis": PRICE_BASIS,
         "volume_unit": "unknown",
         "amount_unit": "unknown",
         "formal_execution_ready": False,
-        "formal_blockers": ["复权口径未确认", "成交量与成交额单位未确认", "证券主数据和历史交易日历未接入"],
+        "formal_blockers": ["成交量与成交额单位未确认", "证券主数据和历史交易日历未接入"],
     }
 
 

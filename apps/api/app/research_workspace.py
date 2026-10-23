@@ -184,7 +184,7 @@ def prepare(conversation_id: str, turn_id: str) -> dict[str, Any]:
         },
         "market": {"path": str(market.STOCK_FILE), "available": bool(fingerprint),
                    "fingerprint": list(fingerprint) if fingerprint else None,
-                   "format": "parquet", "price_basis": "unknown", "volume_unit": "unknown"},
+                   "format": "parquet", "price_basis": market.PRICE_BASIS, "volume_unit": "unknown"},
         "sources": {"sqlite": str(snapshot), "counts": counts,
                     "tables": {"reports": "报告元数据、已校验原始PDF路径（缺失或校验不符时为NULL）及日期/证券归属确认状态",
                                "report_pages": "document_id / page_number / text（完整原文）",

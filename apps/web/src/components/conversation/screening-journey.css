@@ -1,0 +1,431 @@
+/* A screening task is a short workflow. Keep only the active phase in view. */
+.conversation-product.research-studio.screening-studio {
+  width: min(1120px, calc(100% - 48px));
+  max-width: none;
+  gap: 0;
+}
+
+.conversation-product.research-studio.screening-studio.screening-has-results {
+  width: min(1280px, calc(100% - 48px));
+  max-width: none;
+}
+
+.screening-studio .screening-journey {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 8px;
+  padding: 5px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface-subtle);
+}
+
+.screening-journey-item {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.screening-journey-item > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ui-text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.screening-journey-item > button:hover:not(:disabled) {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+
+.screening-journey-item > button.active {
+  border-color: var(--ui-primary-border);
+  background: var(--ui-surface);
+  color: var(--ui-primary);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.screening-journey-item > button.complete:not(.active) {
+  color: var(--ui-text);
+}
+
+.screening-journey-item > button:disabled {
+  color: var(--ui-text-disabled);
+  cursor: not-allowed;
+}
+
+.screening-journey-index {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 25px;
+  height: 25px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 50%;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.screening-journey-item > button.active .screening-journey-index {
+  border-color: var(--ui-primary);
+  background: var(--ui-primary);
+  color: var(--ui-on-primary);
+}
+
+.screening-journey-item > button.complete .screening-journey-index {
+  border-color: var(--ui-primary-border);
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary);
+}
+
+.screening-journey-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.screening-journey-copy strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screening-journey-copy small {
+  overflow: hidden;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screening-journey-arrow {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--ui-border-strong);
+}
+
+.screening-stage-context {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 2px 17px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.screening-stage-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--ui-primary);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.screening-stage-context h1 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.screening-stage-context p {
+  margin: 6px 0 0;
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.screening-stage-context-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  padding-top: 5px;
+}
+
+.screening-stage-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  padding: 4px 9px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.screening-stage-status.is-running {
+  border-color: var(--ui-primary-border);
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary);
+}
+
+.screening-data-bar {
+  padding: 6px 2px 0;
+}
+
+.screening-data-bar .screening-readiness {
+  padding: 8px 0;
+}
+
+.screening-studio[data-screening-stage="brief"] .conversation-workspace {
+  grid-template-columns: minmax(0, 860px);
+  justify-content: center;
+}
+
+.screening-studio[data-screening-stage="brief"] .conversation-task-panel,
+.screening-studio[data-screening-stage="plan"] .conversation-main,
+.screening-studio[data-screening-stage="result"] .conversation-main,
+.screening-studio[data-screening-stage="plan"] .conversation-run-section,
+.screening-studio[data-screening-stage="result"] .conversation-task-section {
+  display: none !important;
+}
+
+.screening-studio[data-screening-stage="brief"] .conversation-main,
+.screening-studio[data-screening-stage="plan"] .conversation-task-panel,
+.screening-studio[data-screening-stage="result"] .conversation-task-panel {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin-inline: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.screening-studio[data-screening-stage="brief"] .conversation-main {
+  min-height: 0;
+  overflow: visible;
+}
+
+.screening-studio[data-screening-stage="brief"] .conversation-workspace-empty .conversation-main {
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.screening-studio[data-screening-stage="brief"] .conversation-message-list {
+  padding: 20px 24px 10px;
+}
+
+.screening-studio[data-screening-stage="brief"] .conversation-workspace-empty .conversation-message-list {
+  padding: 0 24px 12px;
+}
+
+.screening-studio[data-screening-stage="brief"] .screening-entry-heading {
+  justify-content: flex-end;
+  padding-inline: 24px;
+}
+
+.screening-studio[data-screening-stage="brief"] .screening-entry-heading h2 {
+  display: none;
+}
+
+.screening-studio[data-screening-stage="brief"] .conversation-composer {
+  border-top: 1px solid var(--ui-border);
+  border-radius: 0 0 12px 12px;
+  background: var(--ui-surface-subtle);
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-workspace,
+.screening-studio[data-screening-stage="result"] .conversation-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-task-panel:not([hidden]) {
+  display: flex !important;
+  padding: 24px 28px 28px;
+  overflow: visible;
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-task-section,
+.screening-studio[data-screening-stage="result"] .conversation-run-section {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-task-section {
+  gap: 18px;
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-panel-heading {
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-panel-heading h2,
+.screening-studio[data-screening-stage="result"] .conversation-panel-heading h2 {
+  font-size: 16px;
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-task-conditions {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-task-scope {
+  max-width: 760px;
+  padding-block: 14px;
+  font-size: 12px;
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-task-actions {
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 2px;
+  padding-top: 17px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.screening-studio[data-screening-stage="plan"] .conversation-task-actions > .primary-button,
+.screening-studio[data-screening-stage="plan"] .conversation-task-actions > .secondary-button {
+  flex: 0 0 auto;
+  min-width: 174px;
+  min-height: 42px;
+}
+
+.screening-auto-execution-note {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  color: var(--ui-primary);
+  font-size: 12px;
+}
+
+.screening-auto-execution-note.is-paused {
+  color: var(--ui-text-muted);
+}
+
+.screening-studio[data-screening-stage="result"] .conversation-task-panel:not([hidden]) {
+  display: flex !important;
+  padding: 24px 28px 30px;
+  overflow: visible;
+}
+
+.screening-studio[data-screening-stage="result"] .conversation-run-section {
+  gap: 14px;
+}
+
+.screening-studio[data-screening-stage="result"] .conversation-run-section .conversation-panel-heading {
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.screening-studio[data-screening-stage="result"] .screening-result-view {
+  gap: 14px;
+}
+
+.screening-studio[data-screening-stage="result"] .conversation-decision-list {
+  max-height: none;
+}
+
+.screening-studio[data-screening-stage="result"] .conversation-retry-notice {
+  padding: 12px 14px;
+  border: 1px solid var(--ui-warning-border);
+  border-radius: 8px;
+  background: var(--ui-warning-soft);
+}
+
+@media (max-width: 760px) {
+  .conversation-product.research-studio.screening-studio,
+  .conversation-product.research-studio.screening-studio.screening-has-results {
+    width: calc(100% - 28px);
+  }
+
+  .screening-studio .screening-journey {
+    padding: 3px;
+  }
+
+  .screening-journey-item > button {
+    justify-content: center;
+    min-height: 44px;
+    padding: 6px 5px;
+  }
+
+  .screening-journey-copy small,
+  .screening-journey-arrow {
+    display: none;
+  }
+
+  .screening-journey-copy strong {
+    font-size: 11px;
+  }
+
+  .screening-stage-context {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding-block: 17px 14px;
+  }
+
+  .screening-stage-context h1 {
+    font-size: 20px;
+  }
+
+  .screening-stage-context-actions {
+    justify-content: space-between;
+    padding-top: 0;
+  }
+
+  .screening-studio[data-screening-stage="brief"] .conversation-message-list,
+  .screening-studio[data-screening-stage="brief"] .conversation-workspace-empty .conversation-message-list {
+    padding-inline: 16px;
+  }
+
+  .screening-studio[data-screening-stage="brief"] .screening-entry-heading {
+    padding-inline: 16px;
+  }
+
+  .screening-studio[data-screening-stage="plan"] .conversation-task-panel,
+  .screening-studio[data-screening-stage="result"] .conversation-task-panel {
+    padding: 18px 16px 22px;
+  }
+
+  .screening-studio[data-screening-stage="plan"] .conversation-task-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .screening-studio[data-screening-stage="plan"] .conversation-task-actions > .primary-button,
+  .screening-studio[data-screening-stage="plan"] .conversation-task-actions > .secondary-button {
+    width: 100%;
+  }
+
+  .screening-auto-execution-note {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screening-journey-item > button {
+    transition: none;
+  }
+}

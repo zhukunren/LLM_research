@@ -45,19 +45,19 @@ def test_full_deterministic_lifecycle(client, monkeypatch, template_id):
         assert connection.execute('SELECT count(*) FROM jobs').fetchone()[0] == 0
     assert client.get(f'/api/v1/conversations/{cid}/screening-runs').json()['items'] == []
     current = client.get(f'/api/v1/conversations/{cid}').json()
-    assert current['turns'][0]['result']['execution_authorized'] is False
-    assert not current['pending_execution']
+    assert current['turns'][0]['result']['execution_authorized'] is True
+    assert current['turns'][0]['result']['ready_to_execute'] is True
+    assert current['pending_execution'] is True
     replay = client.post(url, json=payload)
     assert replay.status_code == 201 and replay.json()['idempotent_replay']
     assert len(client.get(f'/api/v1/conversations/{cid}').json()['messages']) == len(current['messages'])
     assert client.post(url, json={**payload, 'parameters': {**payload['parameters'], next(iter(payload['parameters'])): 4}}).status_code == 409
     execute_url = f"/api/v1/conversations/{cid}/turns/{msg['turn_id']}/execute"
-    assert client.post(execute_url, json={'action': 'message'}).status_code == 409
     assert client.post(execute_url, json={'action': 'button', 'revision': 2, 'request_id': 'wrong'}).status_code == 409
-    confirmation = {'action': 'button', 'revision': 1, 'request_id': 'confirmed'}
-    queued = client.post(execute_url, json=confirmation)
+    queued = client.post(execute_url, json={'action': 'message'})
     assert queued.status_code == 202, queued.text
-    assert client.post(execute_url, json=confirmation).json()['run_id'] == queued.json()['run_id']
+    assert client.post(execute_url, json={'action': 'message'}).json()['run_id'] == queued.json()['run_id']
+    assert client.get(f'/api/v1/conversations/{cid}').json()['pending_execution'] is False
     def bars(_date, limit, codes):
         def rows(prices):
             return [{'trade_date': (date(2026, 9, 14) - timedelta(days=len(prices)-1-i)).isoformat(), 'close': price, 'quality_valid': True} for i, price in enumerate(prices)]
@@ -130,7 +130,7 @@ def test_runtime_unavailable_blocks_execution_but_not_plan(client, monkeypatch):
     cid, _, url, payload = setup_plan(client)
     plan = client.post(url, json=payload)
     assert plan.status_code == 201
-    execute = client.post(f"/api/v1/conversations/{cid}/turns/{plan.json()['turn_id']}/execute", json={'action': 'button', 'revision': 1, 'request_id': 'runtime-check'})
+    execute = client.post(f"/api/v1/conversations/{cid}/turns/{plan.json()['turn_id']}/execute", json={'action': 'message'})
     assert execute.status_code == 503 and execute.json()['code'] == 'runtime_unavailable'
     assert client.get(f'/api/v1/conversations/{cid}/screening-runs').json()['items'] == []
 
@@ -149,7 +149,7 @@ def test_combination_requires_both_independent_conditions(client, monkeypatch):
     plan = client.post(url, json=payload)
     assert plan.status_code == 201, plan.text
     queued = client.post(f"/api/v1/conversations/{cid}/turns/{plan.json()['turn_id']}/execute",
-                         json={'action': 'button', 'revision': 1, 'request_id': 'and-confirmed'}).json()
+                         json={'action': 'message'}).json()
     prices = {'600000.SH': [20.] * 15 + [10.] * 5 + [11.],
               '600001.SH': [10.] * 20 + [10.1], '600002.SH': [10.] * 20 + [12.]}
     def bars(_date, limit, codes):

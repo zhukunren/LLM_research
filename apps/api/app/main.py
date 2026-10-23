@@ -251,6 +251,14 @@ def settings_status():
     }
 
 
+@app.post(f"{API_PREFIX}/settings/web-search-test")
+async def test_web_search_connection():
+    try:
+        return await run_in_threadpool(codex_runtime.probe_web_search)
+    except codex_runtime.CodexRuntimeError as exc:
+        raise HTTPException(503, {"code": "web_search_unavailable", "message": str(exc)}) from exc
+
+
 @app.post(f"{API_PREFIX}/settings/model-test")
 def test_model_connection():
     if not llm_settings()["configured"]:
@@ -354,7 +362,7 @@ def security_bars(stock_code: str, as_of: str | None = None, limit: int = 250):
     items = market.get_bars(stock_code, as_of, limit)
     if not items:
         _bad_request("找不到该证券在指定日期前的行情", 404, "bars_not_found")
-    return {"stock_code": stock_code, "items": items, "price_basis": "unknown", "volume_unit": "unknown", "amount_unit": "unknown"}
+    return {"stock_code": stock_code, "items": items, "price_basis": market.PRICE_BASIS, "volume_unit": "unknown", "amount_unit": "unknown"}
 
 
 @app.get(f"{API_PREFIX}/indicators")
@@ -365,12 +373,22 @@ def indicators():
 @app.post(f"{API_PREFIX}/indicators/preview")
 def indicator_preview(payload: IndicatorPreviewInput):
     bars = market.get_bars(payload.stock_code, payload.as_of, min(500, payload.window + 250))
+    price_basis = market.PRICE_BASIS if bars else "unknown"
     if not bars and payload.stock_code == "000001.SH":
         from .index_market import get_bars
         try:
             bars = get_bars(payload.as_of, min(500, payload.window + 250))
         except ValueError as exc:
             _bad_request(str(exc), 503, "index_unavailable")
+        source_basis = {
+            "Tushare index_daily": "unadjusted",
+            "腾讯行情 / 上证指数": "forward_adjusted",
+        }
+        observed_bases = {source_basis.get(bar.get("source"), "unknown") for bar in bars}
+        if len(observed_bases) == 1:
+            price_basis = next(iter(observed_bases))
+        elif observed_bases:
+            price_basis = "mixed"
     if not bars:
         _bad_request("没有可用行情", 404, "bars_not_found")
     if payload.field == "volume" and payload.indicator not in {"sma"}:
@@ -398,8 +416,17 @@ def indicator_preview(payload: IndicatorPreviewInput):
         "chart": chart,
         "warmup_bars": payload.window, "history_available": len(bars),
         "state": "known" if series and series[-1] is not None else "unknown",
-        "price_basis": "unknown",
-        "warning": "指标基于原文件收盘价计算，复权口径尚未确认。" if payload.field == "close" else "原始成交量单位尚未确认。",
+        "price_basis": price_basis,
+        "warning": (
+            {
+                "unadjusted": "指标按未复权收盘价计算。",
+                "forward_adjusted": "指标按腾讯前复权指数收盘价计算。",
+                "mixed": "指数行情包含不同价格口径，指标结果可能不连续。",
+                "unknown": "行情价格口径未知。",
+            }.get(price_basis, "行情价格口径未知。")
+            if payload.field == "close"
+            else "原始成交量单位尚未确认。"
+        ),
     }
 
 
@@ -609,7 +636,7 @@ def preview_filter(filter_id: str, payload: PreviewInput, version: int | None = 
             return {"state": "unknown", "reason": "没有可用行情"}
         from .rules import evaluate_filter
         detail = evaluate_filter(item["expression"], bars)
-        return {**detail, "mode": "exploratory", "as_of": bars[-1]["trade_date"], "warning": "复权与量额口径未确认"}
+        return {**detail, "mode": "exploratory", "as_of": bars[-1]["trade_date"], "warning": "按本地未复权日线试算；成交量与成交额单位仍未确认。"}
     expression = item["expression"]
     hits = documents.search_pages(" ".join(expression.get("terms", [])), payload.as_of, payload.stock_code)
     return {"state": "true" if hits else "unknown", "hits": hits[:10], "match_type": "exact_same_page_keyword", "warning": "关键词命中不等于完整语义筛选；报告证券关联需人工确认。"}
@@ -1013,7 +1040,7 @@ def preview_pattern(payload: PatternPreviewInput):
     result = score_window(pattern, bars, match_mode=payload.match_mode, recent_bars=payload.recent_bars)
     return {
         **result, "stock_code": payload.stock_code, "mode": "exploratory",
-        "warning": "真实行情复权口径未知；当前为归一化路径对照，不适用于正式信号。",
+        "warning": "当前为本地未复权行情的归一化路径对照，仅供探索。",
     }
 
 

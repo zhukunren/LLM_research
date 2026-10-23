@@ -296,7 +296,7 @@ def _read_market_window(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
         "last_bar_date": bars[-1]["trade_date"] if bars else None,
         "bars": bars,
         "source_id": _data_source_id(),
-        "price_basis": "unknown",
+        "price_basis": market.PRICE_BASIS,
         "volume_unit": "unknown",
         "amount_unit": "unknown",
     }
@@ -640,12 +640,15 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
         normalized_conditions.append(condition)
     candidate["conditions"] = normalized_conditions
     scope = candidate.get("scope") if isinstance(candidate.get("scope"), dict) else {}
+    price_basis = scope.get("price_basis")
+    if not isinstance(price_basis, str) or price_basis == "unknown":
+        price_basis = market.PRICE_BASIS
     candidate["scope"] = {
         "universe": scope.get("universe"),
         "as_of": scope.get("as_of"),
         "report_lookback_calendar_days": scope.get("report_lookback_calendar_days"),
         "news_lookback_calendar_days": scope.get("news_lookback_calendar_days"),
-        "price_basis": scope.get("price_basis"),
+        "price_basis": price_basis,
         "ranking": scope.get("ranking"),
     }
     condition_ids = [
@@ -850,7 +853,7 @@ def _authorize_screening_execution(args: ToolArgs, context: ToolContext) -> dict
     # The server checks the user's actual message; the model cannot mint an
     # execution grant from a tool argument alone.
     if not requests_execution(message["content"]):
-        raise ToolDispatchError("execution_not_explicit", "当前消息没有明确执行要求，或包含否定执行。请核对要求；用户也可点击确认并开始筛选。")
+        raise ToolDispatchError("execution_not_explicit", "当前消息没有明确执行要求，或包含否定执行。请核对要求；用户也可从当前方案直接启动筛选。")
     task = None
     try:
         task = conversation_store.get_task_revision(context.conversation_id, args.revision)

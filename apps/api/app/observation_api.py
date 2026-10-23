@@ -206,8 +206,10 @@ def list_entries(query: str = "", status: Literal['watching', 'priority', 'ended
         'positive_rate': 100 * sum(value > 0 for value in movements) / len(movements) if movements else None,
     }
     metric_note = '汇总按观察记录计算，同一股票在不同所属中分别计入；涨跌幅按有效收盘价计算，不含分红和交易费用，最大回撤采用收盘价峰谷。'
-    if profile.get('price_basis') not in {'forward_adjusted', 'back_adjusted'}:
-        metric_note += ' 复权口径未确认，除权除息可能影响数值。'
+    if profile.get('price_basis') == 'unadjusted':
+        metric_note += ' 本地行情为未复权价格，区间涨跌幅可能受除权除息影响。'
+    elif profile.get('price_basis') not in {'forward_adjusted', 'back_adjusted'}:
+        metric_note += ' 行情价格口径未知，除权除息可能影响数值。'
     return {'items': [_entry_payload(row, metrics, latest_date) for row in page], 'total': total,
             'summary': summary, 'metric_note': metric_note,
             'latest_date': latest_date}
@@ -471,7 +473,7 @@ def performance(run_id: str):
     profile = market.cached_profile()
     latest = profile.get("last_date")
     basis = profile.get("price_basis", "unknown")
-    comparable = basis in {"forward_adjusted", "back_adjusted"}
+    comparable = basis in {"unadjusted", "forward_adjusted", "back_adjusted"}
     try:
         cohort = observation_market.cohort_prices(codes, signal, latest)
     except ValueError as exc:
@@ -483,7 +485,7 @@ def performance(run_id: str):
         code = selected_row["stock_code"]
         prices = cohort["prices"].get(code, {})
         base = prices.get("base_close")
-        reason = "复权口径未确认" if not comparable else "信号日行情缺失或异常" if not base else ""
+        reason = "行情价格口径未知" if not comparable else "信号日行情缺失或异常" if not base else ""
         def change(value):
             return (value / base - 1) * 100 if not reason and value is not None else None
         returns = {str(n): change(prices.get(f"close_{n}")) for n in (5, 10, 20)}
@@ -499,7 +501,7 @@ def performance(run_id: str):
             "reason": reason or ("最新交易日缺行情，可能停牌或数据缺失" if not fresh else ""),
             "invalid_bars": prices.get("invalid_bars", 0)})
     return {"items": items, "latest_date": latest, "signal_date": signal, "price_basis": basis,
-        "warning": "价格复权口径尚未确认，暂不计算涨跌幅；入选参考价、最新价和观察备注仍可查看。" if not comparable else "涨跌幅以当前同一复权序列的信号日收盘价计算。原入选参考价单独保留。",
+        "warning": "行情价格口径未知，暂不计算涨跌幅；入选参考价、最新价和观察备注仍可查看。" if not comparable else "涨跌幅以当前同一价格序列计算。" + ("本地行情未复权，除权除息可能影响区间表现。" if basis == "unadjusted" else "") + "原入选参考价单独保留。",
         "summary": {"selected": len(items), "latest": _stats([item["return_latest"] for item in items]),
             **{str(n): _stats([item["returns"][str(n)] for item in items]) for n in (5, 10, 20)}}}
 

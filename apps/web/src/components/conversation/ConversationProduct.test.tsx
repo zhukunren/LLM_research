@@ -56,13 +56,19 @@ describe('screening product flow', () => {
     await new Promise(resolve => globalThis.setTimeout(resolve, 500))
     expect(fetcher.mock.calls.some(([url, init]) => String(url).endsWith('/scope') && init?.method === 'POST')).toBe(false)
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('请继续完善条件')
-    expect(screen.getByRole('button', { name: '发送修改' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '修改并重筛' })).toBeEnabled()
   })
 
-  it('executes from the button, preserves the retry request and creates a new request for another run', async () => {
+  it('starts an authorized run automatically and preserves the retry request after a transient error', async () => {
     const requests: Record<string, unknown>[] = []
     let queued = false
+    const authorized = {
+      ...makeConversation('one'),
+      pending_execution: true,
+      turns: [{ id: 'one-turn', user_message_id: 'one-message', base_revision: 0, state: 'succeeded' as const, response_text: '方案已整理', result: { task_revision: 1, ready_to_execute: true, execution_authorized: true }, created_at: saved.created_at, updated_at: saved.created_at }],
+    }
     const fetcher = mockApi((url, method, body) => {
+      if (url.pathname === '/api/v1/conversations/one' && method === 'GET') return json(authorized)
       if (url.pathname.endsWith('/execute') && method === 'POST') {
         requests.push(body)
         if (requests.length === 1) return json({ message: '启动暂时中断' }, 503)
@@ -75,16 +81,11 @@ describe('screening product flow', () => {
     })
     const user = userEvent.setup()
     render(<ConversationWorkspace initialWorkflowType="screening" />)
-    await user.click(await screen.findByRole('button', { name: '确认并开始筛选' }))
     await screen.findByText('启动暂时中断')
-    await user.click(screen.getByRole('button', { name: '确认并开始筛选' }))
+    await user.click(screen.getByRole('button', { name: '重试启动筛选' }))
     await waitFor(() => expect(requests).toHaveLength(2))
     expect(requests[0]).toEqual(requests[1])
-    expect(requests[0]).toMatchObject({ action: 'button', revision: 1, request_id: expect.any(String) })
-    await waitFor(() => expect(screen.getByRole('button', { name: '按当前条件再筛一次' })).toBeEnabled())
-    await user.click(screen.getByRole('button', { name: '按当前条件再筛一次' }))
-    await waitFor(() => expect(requests).toHaveLength(3))
-    expect(requests[2].request_id).not.toBe(requests[1].request_id)
+    expect(requests[0]).toEqual({ action: 'message' })
     expect(fetcher.mock.calls.some(([url]) => /\/(messages|process)$/.test(String(url)))).toBe(false)
   })
 
@@ -222,7 +223,7 @@ describe('screening product flow', () => {
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '把周期改成30日')
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('把周期改成30日')
-    expect(screen.getByRole('button', { name: '确认并开始筛选' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '修改并重筛' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: '历史与方案' }))
     await user.click(screen.getByRole('button', { name: /需求one/ }))
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('把周期改成30日')
@@ -268,7 +269,7 @@ describe('screening product flow', () => {
     expect(await screen.findByText('趋势跟踪')).toBeInTheDocument()
   })
 
-  it('reuses into a new editable conversation with the original cutoff and no execution', async () => {
+  it('reuses into a new conversation and starts screening automatically with the original cutoff', async () => {
     let reused = false
     const fresh = makeConversation('reused', 0, 'screening')
     const fetcher = mockApi((url, method) => {
@@ -276,7 +277,8 @@ describe('screening product flow', () => {
       if (url.pathname.endsWith('/reused/messages')) return json({ message_id: 'reuse-message' })
       if (url.pathname.endsWith('/saved-1/reuse')) { reused = true; return json({ revision: 1 }) }
       if (url.pathname === '/api/v1/conversations' && method === 'GET' && reused) return json({ items: [{ ...fresh, task_revision: 1, title: '复用趋势跟踪' }] })
-      if (url.pathname.endsWith('/conversations/reused')) return json({ ...makeConversation('reused'), messages: [{ id: 'assistant-reuse', role: 'assistant', content: '已复用趋势跟踪，请核对截止日。', source_refs: [], created_at: saved.created_at }] })
+      if (url.pathname.endsWith('/conversations/reused')) return json({ ...makeConversation('reused'), pending_execution: true, messages: [{ id: 'assistant-reuse', role: 'assistant', content: '已复用趋势跟踪，正在自动筛选。', source_refs: [], created_at: saved.created_at }], turns: [{ id: 'reuse-turn', user_message_id: 'reuse-message', base_revision: 0, state: 'succeeded', response_text: '已复用趋势跟踪，正在自动筛选。', result: { task_revision: 1, ready_to_execute: true, execution_authorized: true }, created_at: saved.created_at, updated_at: saved.created_at }] })
+      if (url.pathname.endsWith('/reused/turns/reuse-turn/execute')) return json({ run_id: 'reuse-run' })
     })
     const user = userEvent.setup()
     render(<ConversationWorkspace initialWorkflowType="screening" />)
@@ -284,12 +286,13 @@ describe('screening product flow', () => {
     await user.click(screen.getByRole('button', { name: '已保存方案' }))
     await user.click(await screen.findByText('趋势跟踪'))
     await user.click(screen.getByRole('button', { name: '按原日期复用' }))
-    await screen.findByText('已复用趋势跟踪，请核对截止日。')
+    await screen.findByText('已复用趋势跟踪，正在自动筛选。')
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     expect(screen.getByText('2026-09-14')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '确认并开始筛选' })).toBeEnabled()
+    await waitFor(() => expect(fetcher.mock.calls.some(([url, init]) => String(url).endsWith('/reused/turns/reuse-turn/execute') && init?.method === 'POST')).toBe(true))
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST').map(([url]) => String(url))).toEqual([
       '/api/v1/conversations', '/api/v1/conversations/reused/messages', '/api/v1/conversations/reused/saved-screening-tasks/saved-1/reuse',
+      '/api/v1/conversations/reused/turns/reuse-turn/execute',
     ])
   })
 

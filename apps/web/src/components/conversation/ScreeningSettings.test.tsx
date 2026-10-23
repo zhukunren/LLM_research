@@ -76,11 +76,11 @@ it('keeps an unavailable stored model visible outside collapsed settings until t
   render(<ConversationWorkspace {...props} />)
   await screen.findByText('当前模型或推理档位不可用，请切换后发送。')
   await user.type(screen.getByLabelText('选股要求'), '保留条件')
-  expect(screen.getByRole('button', { name: '生成筛选方案' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: '生成并筛选' })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: '切换模型' }))
   expect(await screen.findByRole('menuitemradio', { name: /GPT-6 Sol/ })).toBeDisabled()
   await user.click(screen.getByRole('menuitemradio', { name: /GPT-6 Luna/ }))
-  await waitFor(() => expect(screen.getByRole('button', { name: '生成筛选方案' })).toBeEnabled())
+  await waitFor(() => expect(screen.getByRole('button', { name: '生成并筛选' })).toBeEnabled())
   expect(screen.getByLabelText('选股要求')).toHaveValue('保留条件')
 })
 

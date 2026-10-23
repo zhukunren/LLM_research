@@ -272,7 +272,7 @@ export default function ScreeningResultView({
   return (
     <StockText><div className={`screening-result-view screening-list-${listMode}`}>
       <div className="conversation-run-title">
-        <span>{title || `${isCurrent ? '当前运行' : '历史运行'} · v${revision ?? 1}`}</span>
+        <span>{title || `${isCurrent ? '当前运行' : '历史运行'}`}</span>
         <span className={["workspace-status", `conversation-turn-state ${stateClass(status)}`].filter(Boolean).join(' ')}>{stateLabels[status] ?? status}</span>
       </div>
 

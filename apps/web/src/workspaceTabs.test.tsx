@@ -12,7 +12,7 @@ it('migrates active and closed indicator-library tabs while preserving other tab
   const { result } = renderHook(useWorkspaceTabs)
   expect(result.current.activeId).toBe(legacy.id)
   expect(result.current.activeTab.route).toMatchObject({ page: 'screening', indicators: 'common' })
-  expect(result.current.tabs.some(tab => tab.route.page === 'reports')).toBe(true)
+  expect(result.current.tabs.some(tab => tab.route.page === 'library' && tab.route.libraryTab === 'reports')).toBe(true)
   expect(window.location.hash).toBe('#/research/new?scope=technical&indicators=common')
   act(() => result.current.reopenClosed())
   expect(result.current.activeTab.id).toBe('closed-indicators')
@@ -38,6 +38,19 @@ it('reuses tools and conversations while keeping explicit new drafts separate', 
   expect(result.current.tabs).toHaveLength(4)
 })
 
+it('canonicalizes old reading URLs and merges legacy page IDs into material-specific library tabs', () => {
+  sessionStorage.removeItem('app.workspaceTabs.v1')
+  window.history.replaceState(null, '', '#/library/reports')
+  const { result } = renderHook(useWorkspaceTabs)
+  expect(result.current.activeTab.route).toEqual({ page: 'library', libraryTab: 'reports' })
+  expect(window.location.hash).toBe('#/library?type=reports')
+  act(() => result.current.open({ page: 'reports' }))
+  expect(result.current.tabs).toHaveLength(1)
+  act(() => result.current.open({ page: 'library', libraryTab: 'news' }))
+  expect(result.current.tabs).toHaveLength(2)
+  expect(result.current.activeTab.title).toBe('资讯')
+})
+
 it('lets a background research publish its identity without replacing the active URL', () => {
   const { result } = renderHook(useWorkspaceTabs)
   const research = result.current.activeId
@@ -45,7 +58,7 @@ it('lets a background research publish its identity without replacing the active
   const reports = result.current.activeId
   act(() => { result.current.update(research, { page: 'screening', conversationId: 'created-in-background' }) })
   expect(result.current.activeId).toBe(reports)
-  expect(window.location.hash).toBe('#/library/reports')
+  expect(window.location.hash).toBe('#/library?type=reports')
   act(() => { result.current.activate(research) })
   expect(window.location.hash).toBe('#/research/created-in-background')
 })
@@ -103,7 +116,7 @@ it.each([true, false])('closes other tabs and retains the chosen tab and its sto
   expect(result.current.tabs).toEqual([keep])
   expect(result.current.activeId).toBe(keep.id)
   expect(result.current.tabs.some(tab => tab.id === draft.id)).toBe(false)
-  expect(window.location.hash).toBe(active ? '#/tools/qmt' : '#/library/reports')
+  expect(window.location.hash).toBe(active ? '#/tools/qmt' : '#/library?type=reports')
   const stored = JSON.parse(sessionStorage.getItem('app.workspaceTabs.v1')!)
   expect(stored.tabs.map((tab: { id: string }) => tab.id)).toEqual([keep.id])
   expect(stored.activeId).toBe(keep.id)
@@ -253,7 +266,7 @@ it('reopens the most recently closed tabs in order with their original identity 
   expect(result.current.activeId).toBe(reports.id)
   expect(result.current.tabs).toEqual([first, reports, qmt])
   expect(result.current.canReopen).toBe(false)
-  expect(window.location.hash).toBe('#/library/reports')
+  expect(window.location.hash).toBe('#/library?type=reports')
 })
 
 it.each(['others', 'left', 'right', 'all'] as const)('recovers tabs from a bulk %s close without losing their relative order', action => {
@@ -301,7 +314,7 @@ it('does not duplicate a saved page that has already been reopened through navig
   const existing = result.current.activeId
   act(() => { result.current.reopenClosed() })
   expect(result.current.activeId).toBe(existing)
-  expect(result.current.tabs.filter(tab => tab.route.page === 'reports')).toHaveLength(1)
+  expect(result.current.tabs.filter(tab => tab.route.page === 'library' && tab.route.libraryTab === 'reports')).toHaveLength(1)
   expect(result.current.canReopen).toBe(false)
 })
 

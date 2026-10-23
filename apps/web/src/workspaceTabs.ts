@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { ConversationSourceReference } from './api'
 import { sessionStorage } from './authStorage'
 import { isPageId, workspaceMenus } from './navigation'
-import { parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
+import { normalizeWorkspaceRoute, parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
 
 export type WorkspaceSeed = { prompt?: string; assistantId?: string; source?: { reference: ConversationSourceReference; label: string }; fresh?: boolean }
 export type WorkspaceTab = { id: string; route: WorkspaceRoute; title: string; seed?: WorkspaceSeed; legacy?: boolean }
@@ -15,19 +15,27 @@ const freshRoute: WorkspaceRoute = { page: 'screening', newDraft: true }
 const newId = () => crypto.randomUUID()
 
 export function workspaceTabTitle(route: WorkspaceRoute) {
+  route = normalizeWorkspaceRoute(route)
   if (route.page === 'intelligence') return briefKinds.find(item => item.id === (route.briefKind || 'market'))?.name || '情报台'
   if (route.page === 'screening') return route.conversationId ? '研究对话' : '新研究'
   if (route.page === 'conditions') return ({ saved: '我的方案', history: '选股记录', library: '我的条件', compose: '高级组合', create: '描述条件', conversation: route.conversationId ? '选股对话' : '新选股' })[route.view || 'conversation']
+  if (route.page === 'library') return route.libraryTab === 'reports' ? '研报与公告' : '资讯'
   return workspaceMenus.find(item => item.id === route.page)?.label || '研究'
 }
 
 function makeTab(route: WorkspaceRoute, seed?: WorkspaceSeed): WorkspaceTab {
+  route = normalizeWorkspaceRoute(route)
   return { id: newId(), route, title: workspaceTabTitle(route), ...(seed ? { seed } : {}) }
 }
 
-function migrateIndicatorTab(tab: WorkspaceTab): WorkspaceTab {
-  if ((tab?.route?.page as string) !== 'technical') return tab
-  const route = parseWorkspaceRoute('#/library/technical' + (tab.route.workspace === 'screening' ? '?workspace=screening' : ''))!
+function migrateSavedTab(tab: WorkspaceTab): WorkspaceTab {
+  if (!tab?.route) return tab
+  if ((tab?.route?.page as string) === 'technical') {
+    const route = parseWorkspaceRoute('#/library/technical' + (tab.route.workspace === 'screening' ? '?workspace=screening' : ''))!
+    return { ...tab, route, title: workspaceTabTitle(route) }
+  }
+  const route = normalizeWorkspaceRoute(tab.route)
+  if (route === tab.route) return tab
   return { ...tab, route, title: workspaceTabTitle(route) }
 }
 
@@ -46,9 +54,9 @@ function initialState(): TabState {
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null') as TabState | null
     if (saved && Array.isArray(saved.tabs)) {
-      const tabs = saved.tabs.map(migrateIndicatorTab).filter(validTab)
+      const tabs = saved.tabs.map(migrateSavedTab).filter(validTab)
         .filter((tab, index, all) => all.findIndex(item => item.id === tab.id) === index)
-      const closedTabs = (Array.isArray(saved.closedTabs) ? saved.closedTabs : []).map(item => item && ({ ...item, tab: migrateIndicatorTab(item.tab) })).filter(item => item && validTab(item.tab)
+      const closedTabs = (Array.isArray(saved.closedTabs) ? saved.closedTabs : []).map(item => item && ({ ...item, tab: migrateSavedTab(item.tab) })).filter(item => item && validTab(item.tab)
         && Number.isInteger(item.index) && item.index >= 0 && Array.isArray(item.order) && item.order.every(id => typeof id === 'string')
         && !tabs.some(tab => tab.id === item.tab.id))
         .filter((item, index, all) => !all.slice(index + 1).some(record => record.tab.id === item.tab.id))
@@ -91,7 +99,7 @@ export function useWorkspaceTabs() {
   }
 
   function open(route: WorkspaceRoute, options: { seed?: WorkspaceSeed; forceNew?: boolean; reusePage?: boolean } = {}) {
-    if (route.page === 'home') route = freshRoute
+    route = normalizeWorkspaceRoute(route)
     const previous = current.current
     const existing = !options.forceNew && [...previous.tabs].reverse().find(tab => options.reusePage
       ? tab.route.page === route.page && (tab.route.workspace ?? 'research') === (route.workspace ?? 'research') && (route.page !== 'conditions' || (tab.route.view || 'conversation') === (route.view || 'conversation'))
@@ -103,9 +111,11 @@ export function useWorkspaceTabs() {
   }
 
   function update(id: string, route: WorkspaceRoute, replace = true) {
+    route = normalizeWorkspaceRoute(route)
     const previous = current.current, tab = previous.tabs.find(item => item.id === id)
     if (!tab || workspaceRouteHash(tab.route) === workspaceRouteHash(route)) return
-    const title = tab.route.page === route.page ? tab.title : workspaceTabTitle(route)
+    const title = tab.route.page === route.page && (route.page !== 'library' || tab.route.libraryTab === route.libraryTab)
+      ? tab.title : workspaceTabTitle(route)
     publish({ ...previous, tabs: previous.tabs.map(item => item.id === id ? { ...item, route, title } : item) }, replace, previous.activeId === id)
   }
 

@@ -71,7 +71,7 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
       </div>
       <nav className="chat-navigation" aria-label="主菜单">
         <button className="chat-nav-button chat-new workspace-button" aria-label={isResearch ? '开始新研究' : '开始选股'} data-tooltip={isResearch ? '开始新研究' : '开始选股'} aria-current={!isResearch && page === 'conditions' && (!screeningView || screeningView === 'conversation') ? 'page' : undefined} onClick={isResearch ? onNewResearch : onNewScreening}><Plus size={19} /><span>{isResearch ? '新研究' : '新选股'}</span></button>
-        <button className="chat-nav-button workspace-button" aria-label="搜索与快速导航" data-tooltip="搜索与快速导航" onClick={onSearch}><Search size={18} /><span>搜索记录</span><kbd>Ctrl K</kbd></button>
+        <button className="chat-nav-button workspace-button" aria-label="搜索页面、项目或对话" data-tooltip="搜索与跳转" onClick={onSearch}><Search size={18} /><span>搜索与跳转</span><kbd>Ctrl K</kbd></button>
         {isResearch && <>
         <button className="chat-nav-button workspace-button" aria-label="研究项目" data-tooltip="研究项目" aria-current={page === 'research' ? 'page' : undefined} onClick={() => onNavigate('research')}><FolderOpen size={18} /><span>研究项目</span></button>
         </>}

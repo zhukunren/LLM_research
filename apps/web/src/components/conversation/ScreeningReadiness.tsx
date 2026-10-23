@@ -89,7 +89,7 @@ export default function ScreeningReadiness({ data, scope = 'screening', task, on
       {!loading && <p>{failed ? '暂时无法核对数据状态，可重试检查；已写的条件会保留。' : readiness.issues.length ? readiness.issues.join(' ') : `${readiness.sourceNames}已接入；每项条件的历史长度、证券覆盖和计算口径仍需核对。`}</p>}
       <p>{data?.last_date ? `本地行情截至 ${data.last_date}${data.first_date ? `，起始于 ${data.first_date}` : ''}。默认日期不代表今天的行情。` : '尚未确认本地行情日期。'}</p>
       {!!unsupported.length && <p>暂不支持：{unsupported.map(item => ({ 'fundamentals.market_cap': '历史财务与估值', 'securities.historical_classification': '历史行业、ST及证券状态', 'market.minute_bars': '分钟行情' })[item.id]).join('、')}。涉及这些数据的条件需要补充数据或由你明确调整。</p>}
-      <p>这里只检查数据来源是否可用，不保证每项条件都能完成。复权、量额单位和逐证券数据覆盖以方案与执行结果为准；数据不足会标为未知，不会自动删除条件。</p>
+      <p>这里只检查数据来源是否可用，不保证每项条件都能完成。本地价格为未复权日线；量额单位和逐证券数据覆盖以方案与执行结果为准。数据不足会标为未知，不会自动删除条件。</p>
     {(canRefresh || onOpenData) && <div className="screening-readiness-actions">{canRefresh && <button type="button" className="text-button workspace-button" onClick={() => setAttempt(value => value + 1)}>重新检查</button>}{onOpenData && <button type="button" className="text-button workspace-button" onClick={onOpenData}>检查数据与服务</button>}</div>}
     </div>
   </section>

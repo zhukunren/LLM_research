@@ -31,7 +31,7 @@ BUILTINS = (
     AssistantDefinition("general", "通用投研", "综合研究公司、行业和投资问题"),
     AssistantDefinition("financial", "财报分析", "核对业绩变化、现金流与财务质量", "financial-analysis"),
     AssistantDefinition("reports", "研报解读", "提炼研报判断，区分事实、预测和假设", "report-reading"),
-    AssistantDefinition("supply-chain", "产业链研究", "梳理供需、关键环节和公司受益证据", "supply-chain-research"),
+    AssistantDefinition("supply-chain", "产业链研究", "识别供给约束层级，核验公司敞口、反方证据和失效条件", "supply-chain-research", revision=2),
     AssistantDefinition("risk", "风险复核", "寻找反证，检验关键假设和失效条件", "risk-review"),
     AssistantDefinition(
         "qmt-script", "QMT 脚本生成", "用自然语言编写、检查和下载 QMT 客户端内置 Python 策略", "qmt-script",
