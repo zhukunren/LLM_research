@@ -34,7 +34,7 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   const closeMenu = (focus = true) => { setMenu(false); if (focus) trigger.current?.focus() }
   useEffect(() => { if (!workspaceSession.active) { setMenu(false); setDialog(null) } }, [workspaceSession.active])
   const openDialog = (kind: 'sources' | 'share') => {
-    dialogLauncher.current = kind === 'sources' ? trigger.current : document.activeElement as HTMLElement
+    dialogLauncher.current = menu ? trigger.current : document.activeElement as HTMLElement
     closeMenu(false); setError(''); setCopied(false); setDialog(kind)
   }
   useLayoutEffect(() => {
@@ -122,13 +122,14 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   }
   return <>
     <div className="research-answer-toolbar" role="group" aria-label="回答操作">
+      <button type="button" aria-label="加入关注" disabled={locked} onClick={onObserve} className="research-answer-action research-answer-observe workspace-button"><Star size={16} aria-hidden="true" /><span>加入关注</span></button>
+      <button type="button" aria-label="查看依据" onClick={() => openDialog('sources')} className="research-answer-action workspace-button"><BookOpen size={16} aria-hidden="true" /><span>查看依据</span></button>
       <button type="button" aria-label="复制答复" data-tooltip="复制答复" onClick={onCopy} className="workspace-button"><Copy size={17} /></button>
       <button type="button" aria-label="分享答复" data-tooltip="分享答复" onClick={() => openDialog('share')} className="workspace-button"><Share2 size={17} /></button>
       <button type="button" aria-label="重新生成答案" data-tooltip="重新生成答案" disabled={locked || !onRegenerate} onClick={onRegenerate} className="workspace-button"><RefreshCw size={17} /></button>
       <button type="button" aria-label="保存为研究笔记" data-tooltip={saved ? '已保存为研究笔记' : savingNote ? '正在保存…' : '保存为研究笔记'} disabled={locked || saved} onClick={onSave} className="workspace-button">
         {savingNote ? <LoaderCircle size={17} className="spin" /> : saved ? <Check size={17} /> : <Bookmark size={17} />}<span className="sr-only">{saved ? '已保存为研究笔记' : ''}</span>
       </button>
-      <button type="button" aria-label="加入观察" data-tooltip="加入观察" disabled={locked} onClick={onObserve} className="workspace-button"><Star size={17} /></button>
       <button ref={trigger} type="button" aria-label="更多回答操作" data-tooltip="更多回答操作" aria-haspopup="menu" aria-expanded={menu} aria-controls={menu ? menuId : undefined}
         onClick={() => setMenu(value => !value)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setMenu(true) } }} className="workspace-button"><MoreHorizontal size={19} /></button>
     </div>

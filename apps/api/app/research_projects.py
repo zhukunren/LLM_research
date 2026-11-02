@@ -94,8 +94,29 @@ def list_projects() -> list[dict]:
         )]
 
 
+def _conversation_companies(connection, project_id: str) -> dict[str, list[str]]:
+    """Use explicit research scopes and saved note associations, including past turns."""
+    associations: dict[str, set[str]] = {}
+    for row in connection.execute(
+        """SELECT c.id,c.research_scope_json FROM conversations c
+           WHERE c.project_id=? OR c.id IN (SELECT source_conversation_id FROM research_notes WHERE project_id=?)
+           UNION ALL SELECT c.id,t.research_scope_json FROM conversation_turns t JOIN conversations c ON c.id=t.conversation_id
+           WHERE c.project_id=? OR c.id IN (SELECT source_conversation_id FROM research_notes WHERE project_id=?)""",
+        (project_id, project_id, project_id, project_id),
+    ):
+        associations.setdefault(row["id"], set()).update(json_load(row["research_scope_json"]).get("stock_codes", []))
+    for row in connection.execute(
+        """SELECT n.source_conversation_id,n.stock_code,c.stock_code claim_code FROM research_notes n
+           LEFT JOIN research_claims c ON c.note_id=n.id WHERE n.project_id=? AND n.source_conversation_id IS NOT NULL""",
+        (project_id,),
+    ):
+        associations.setdefault(row["source_conversation_id"], set()).update(code for code in (row["stock_code"], row["claim_code"]) if code)
+    return {key: sorted(codes) for key, codes in associations.items()}
+
+
 def _conversations(connection, project_id: str) -> list[dict]:
-    return [dict(row) for row in connection.execute(
+    associations = _conversation_companies(connection, project_id)
+    return [{**dict(row), "stock_codes": associations.get(row["id"], [])} for row in connection.execute(
         """SELECT c.id,c.entry_scope,c.research_mode,c.state,c.task_revision,c.updated_at,
            COALESCE(c.title,(SELECT substr(content,1,120) FROM conversation_messages WHERE conversation_id=c.id AND role='user'
             ORDER BY rowid LIMIT 1)) AS title,
@@ -345,8 +366,18 @@ def project_files(project_id: str) -> list[dict]:
                SELECT source_conversation_id FROM research_notes WHERE project_id=? AND source_conversation_id IS NOT NULL""",
             (project_id, project_id),
         )]
+        associations = _conversation_companies(connection, project_id)
+        note_companies: dict[str, set[str]] = {}
+        for row in connection.execute(
+            """SELECT n.id,n.stock_code,c.stock_code claim_code FROM research_notes n
+               LEFT JOIN research_claims c ON c.note_id=n.id WHERE n.project_id=?""", (project_id,),
+        ):
+            note_companies.setdefault(row["id"], set()).update(code for code in (row["stock_code"], row["claim_code"]) if code)
     items = [{**item, "conversation_id": cid} for cid in ids for item in list_deliverables(cid)]
     items.extend(list_exports("project", project_id))
+    for item in items:
+        item["stock_codes"] = (sorted(note_companies.get(item.get("source_id"), set())) if item.get("source_kind") == "note"
+                               else associations.get(item.get("conversation_id"), []))
     return sorted(items, key=lambda item: (-item["modified_at"], item.get("conversation_id") or "", item["name"], item.get("url") or "", item.get("id") or ""))
 
 

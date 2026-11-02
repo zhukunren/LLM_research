@@ -33,6 +33,7 @@ function ConditionRow({ task, referenceId, disabled, onRemove }: {
   const condition = task.conditions.find(item => item.condition_id === reference?.condition_id)
   if (!condition) return <StockText><p className="conversation-muted">条件待补充</p></StockText>
   const overrides = reference?.parameter_overrides ?? {}
+  const sourceQuote = reference?.source_quote || condition.source_quote
   const protectedReference = condition.library === 'ranking'
     || task.scope.ranking?.metric_reference_id === referenceId
     || logicContainsReference(task.scope.ranking?.population_logic_tree, referenceId)
@@ -40,8 +41,8 @@ function ConditionRow({ task, referenceId, disabled, onRemove }: {
   const removeReason = protectedReference ? '排名计算依赖此条件' : task.references.length <= 1 ? '至少保留一条筛选条件' : '移除条件'
   return <StockText><article className="task-logic-condition">
     <span className="task-library-label">{libraryLabels[condition.library] ?? '条件'}</span>
-    <span className="task-execution-rule"><small>{Object.keys(overrides).length ? '计算方法' : '实际筛选规则'}</small><strong>{condition.description}</strong>{!!Object.keys(condition.program?.parameters ?? {}).length && <small>计算参数：{Object.entries({ ...condition.program?.parameters, ...overrides }).map(([key, value]) => `${condition.program?.parameter_specs?.[key]?.label || key} ${String(value)}`).join('；')}</small>}</span>
-    {(reference?.source_quote || condition.source_quote) !== condition.description && <p className="task-source-quote">你的要求：{reference?.source_quote || condition.source_quote}</p>}
+    {!!sourceQuote && sourceQuote !== condition.description && <p className="task-source-quote"><span>你的原话</span>“{sourceQuote}”</p>}
+    <span className="task-execution-rule"><small>{Object.keys(overrides).length ? '计算方法' : '系统规则'}</small><strong>{condition.description}</strong>{!!Object.keys(condition.program?.parameters ?? {}).length && <small>计算参数：{Object.entries({ ...condition.program?.parameters, ...overrides }).map(([key, value]) => `${condition.program?.parameter_specs?.[key]?.label || key} ${String(value)}`).join('；')}</small>}</span>
     {!!Object.keys(overrides).length && <small>本次采用的参数：{Object.entries(overrides).map(([key, value]) => `${condition.program?.parameter_specs?.[key]?.label ?? parameterLabels[key] ?? key} ${String(value)}`).join('；')}</small>}
     {onRemove && <button type="button" className="icon-button task-composition-remove workspace-button" disabled={removeDisabled} data-tooltip={removeReason} aria-label={`${removeDisabled ? `无法移除，${removeReason}` : '移除条件'}：${condition.description}`} onClick={() => onRemove(referenceId)}><Trash2 size={15} aria-hidden="true" /></button>}
   </article></StockText>

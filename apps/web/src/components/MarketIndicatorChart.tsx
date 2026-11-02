@@ -7,8 +7,8 @@ export type IndicatorChart = { placement: 'overlay' | 'pane'; lines: ChartLine[]
 
 const fmt = (v: number | null) => v == null || !Number.isFinite(v) ? '—' : Number(v.toFixed(4)).toLocaleString('zh-CN', { maximumFractionDigits: 4 })
 
-type MarketChartPresentation = { height?: number; showLegend?: boolean; referenceDate?: string }
-export function ResponsiveMarketIndicatorChart({ chart, height, showLegend, referenceDate }: { chart: IndicatorChart } & MarketChartPresentation) {
+type MarketChartPresentation = { height?: number; minHeight?: number; showLegend?: boolean; referenceDate?: string }
+export function ResponsiveMarketIndicatorChart({ chart, height, minHeight, showLegend, referenceDate }: { chart: IndicatorChart } & MarketChartPresentation) {
   const frame = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   useEffect(() => {
@@ -17,10 +17,10 @@ export function ResponsiveMarketIndicatorChart({ chart, height, showLegend, refe
     observer.observe(frame.current)
     return () => observer.disconnect()
   }, [])
-  return <div ref={frame} className="responsive-market-chart workspace-chart-frame"><MarketIndicatorChart chart={chart} containerWidth={width || undefined} height={height} showLegend={showLegend} referenceDate={referenceDate} /></div>
+  return <div ref={frame} className="responsive-market-chart workspace-chart-frame"><MarketIndicatorChart chart={chart} containerWidth={width || undefined} height={height} minHeight={minHeight} showLegend={showLegend} referenceDate={referenceDate} /></div>
 }
 
-export function MarketIndicatorChart({ chart, containerWidth, height, showLegend = true, referenceDate }: { chart: IndicatorChart; containerWidth?: number } & MarketChartPresentation) {
+export function MarketIndicatorChart({ chart, containerWidth, height, minHeight = 160, showLegend = true, referenceDate }: { chart: IndicatorChart; containerWidth?: number } & MarketChartPresentation) {
   const [hover, setHover] = useState<{ index: number; y: number; keyboard: boolean } | null>(null)
   useEffect(() => setHover(null), [chart])
   const bars = chart.bars.map(bar => bar.quality_valid === false ? { ...bar, open: NaN, high: NaN, low: NaN, close: NaN } : bar)
@@ -28,7 +28,7 @@ export function MarketIndicatorChart({ chart, containerWidth, height, showLegend
   const width = containerWidth && Number.isFinite(containerWidth) ? Math.max(200, containerWidth) : 720
   const pad = { left: width < 480 ? 56 : 64, right: 14, top: 20, bottom: 26 }
   const axisDate = (date?: string) => containerWidth && width < 400 ? date?.slice(5) : date
-  const priceHeight = chart.placement === 'pane' ? (width < 480 ? 180 : 210) : height ? Math.max(160, height) - 18 : width < 480 ? 240 : 280
+  const priceHeight = chart.placement === 'pane' ? (width < 480 ? 180 : 210) : height ? Math.max(minHeight, height) - 18 : width < 480 ? 240 : 280
   const paneHeight = chart.placement === 'pane' ? (width < 480 ? 120 : 140) : 0
   const totalHeight = priceHeight + paneHeight + 18
   const x = (index: number) => pad.left + index * (width - pad.left - pad.right) / Math.max(1, bars.length - 1)

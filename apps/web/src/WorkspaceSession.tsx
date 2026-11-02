@@ -6,6 +6,11 @@ type Session = { id: string; active: boolean; legacy?: boolean; portalTarget?: H
 const WorkspaceSession = createContext<Session>({ id: '', active: true })
 export const useWorkspaceSession = () => useContext(WorkspaceSession)
 
+/** A local surface owns its drafts and popovers without changing its parent tab. */
+export function EmbeddedWorkspaceSession({ id, active, portalTarget, children }: { id: string; active: boolean; portalTarget: HTMLElement; children: ReactNode }) {
+  return <WorkspaceSession.Provider value={{ id, active, portalTarget }}>{children}</WorkspaceSession.Provider>
+}
+
 /** Detach inactive DOM, preserving editors, scroll positions and running work.
  * Only the active document contributes IDs, labels and focusable controls. */
 export function WorkspaceSessionPane({ tab, active, onTitle, actionsTarget, children }: { tab: WorkspaceTab; active: boolean; onTitle: (title: string) => void; actionsTarget?: HTMLElement | null; children: ReactNode }) {

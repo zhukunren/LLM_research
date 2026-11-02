@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ObservationPage from './ObservationPage'
@@ -80,6 +80,37 @@ function mockApi(intercept?: (url: URL, init?: RequestInit) => Response | Promis
 }
 
 describe('统一观察池', () => {
+  it('只在更多菜单中移动或删除记录，取消删除不会写入', async () => {
+    const reorder: Record<string, unknown>[] = [], deleted: string[] = []
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    mockApi((url, init) => {
+      if (url.pathname.endsWith('/entries/reorder') && init?.method === 'POST') { reorder.push(JSON.parse(String(init.body))); return json({}) }
+      if (url.pathname.includes('/observation/entries/') && init?.method === 'DELETE') { deleted.push(url.pathname); return json({}) }
+    })
+    const user = userEvent.setup()
+    render(<ObservationPage data={null} />)
+    const trigger = await screen.findByRole('button', { name: '更多贵州茅台观察操作' })
+    expect(screen.queryByRole('menuitem', { name: '删除贵州茅台观察记录' })).not.toBeInTheDocument()
+    await user.click(trigger)
+    fireEvent.scroll(window)
+    expect(screen.getByRole('menu', { name: '更多贵州茅台观察操作' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: '上移贵州茅台' })).toBeDisabled()
+    await user.click(screen.getByRole('menuitem', { name: '下移贵州茅台' }))
+    await screen.findByText('列表顺序已保存。')
+    expect(reorder[0]).toMatchObject({ entry_key: 'candidate:candidate', direction: 'down' })
+    await user.click(await screen.findByRole('button', { name: '更多贵州茅台观察操作' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '更多贵州茅台观察操作' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: '更多贵州茅台观察操作' }))
+    await user.click(screen.getByRole('menuitem', { name: '删除贵州茅台观察记录' }))
+    expect(deleted).toHaveLength(0)
+    confirm.mockReturnValue(true)
+    await user.click(screen.getByRole('button', { name: '更多贵州茅台观察操作' }))
+    await user.click(screen.getByRole('menuitem', { name: '删除贵州茅台观察记录' }))
+    await waitFor(() => expect(deleted).toEqual(['/api/v1/observation/entries/candidate%3Acandidate']))
+  })
+
   it('在列表修改状态时只保存状态，并可快速编辑备注', async () => {
     const writes: Record<string, unknown>[] = []
     mockApi((url, init) => {
@@ -121,6 +152,7 @@ describe('统一观察池', () => {
     const user = userEvent.setup()
     const view = render(<ObservationPage data={null} />)
     await user.type(screen.getByLabelText('搜索观察记录'), '贵州茅台')
+    await user.click(screen.getByText('排序与视图', { exact: true }))
     await user.click(screen.getByRole('button', { name: '保存当前筛选' }))
     await user.clear(screen.getByLabelText('视图名称')); await user.type(screen.getByLabelText('视图名称'), '现金流跟踪')
     await user.click(screen.getByRole('button', { name: '保存视图' }))
@@ -181,6 +213,7 @@ describe('统一观察池', () => {
     await waitFor(() => expect(within(list).getAllByRole('row')).toHaveLength(2))
     expect(within(list).getByText('招商银行')).toBeInTheDocument()
     expect(fetcher.mock.calls.some(([input]) => String(input).includes('owner=run%3Arun-2'))).toBe(true)
+    await user.click(screen.getByText('排序与视图', { exact: true }))
     await user.click(screen.getByRole('button', { name: '清除筛选' }))
     await waitFor(() => expect(within(list).getAllByRole('row')).toHaveLength(4))
   })

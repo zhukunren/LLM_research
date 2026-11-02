@@ -7,8 +7,8 @@ import { api, type AssistantSelection, type ResearchAssistant } from '../../api'
 import { ATTACHMENT_ACCEPT } from './useConversationAttachments'
 import './composer-attachments.css'
 
-export default function ResearchComposerMenu({ value, snapshot, disabled, showAssistants = true, onChange, onUpload }: {
-  value: string; snapshot?: AssistantSelection; disabled: boolean; showAssistants?: boolean
+export default function ResearchComposerMenu({ value, snapshot, disabled, showAssistants = true, showUpload = true, onChange, onUpload }: {
+  value: string; snapshot?: AssistantSelection; disabled: boolean; showAssistants?: boolean; showUpload?: boolean
   onChange: (id: string) => void; onUpload: (files: FileList | File[]) => void
 }) {
   const workspaceSession = useWorkspaceSession()
@@ -93,13 +93,13 @@ export default function ResearchComposerMenu({ value, snapshot, disabled, showAs
       }}><span><strong>{item.name}</strong><small>{item.description}</small></span>{value === item.id ? <Check size={15} aria-label="已选择" /> : null}</button>
   }
   return <div className="research-composer-addons">
-    <button ref={trigger} type="button" className="composer-plus icon-button workspace-button" aria-label="添加文件" data-tooltip="添加文件"
+    {showUpload && <button ref={trigger} type="button" className="composer-plus icon-button workspace-button" aria-label="添加文件" data-tooltip="添加文件"
       disabled={disabled} aria-haspopup="menu" aria-expanded={open && !submenu} aria-controls={open && !submenu ? menuId : undefined}
       onClick={() => { setSubmenu(false); setOpen(current => submenu ? true : !current) }} onKeyDown={event => {
         if (event.key === 'ArrowDown') { event.preventDefault(); setSubmenu(false); setOpen(true) }
-      }}><Plus size={22} aria-hidden="true" /></button>
-    <input ref={uploadPicker} type="file" hidden multiple accept={ATTACHMENT_ACCEPT} aria-label="上传研究文件" disabled={disabled}
-      onChange={event => { if (event.target.files?.length) onUpload(Array.from(event.target.files)); event.currentTarget.value = '' }} />
+      }}><Plus size={22} aria-hidden="true" /></button>}
+    {showUpload && <input ref={uploadPicker} type="file" hidden multiple accept={ATTACHMENT_ACCEPT} aria-label="上传研究文件" disabled={disabled}
+      onChange={event => { if (event.target.files?.length) onUpload(Array.from(event.target.files)); event.currentTarget.value = '' }} />}
     {showAssistants && value !== 'qmt-script' && <span className="composer-assistant-pill composer-method-control" aria-label={value === 'general' ? undefined : isTask ? '当前快捷任务' : '当前研究方法'}>
       <button ref={methodTrigger} type="button" className="composer-method-trigger workspace-button" aria-label="研究方法" data-tooltip={selected?.description || '选择研究方法'} disabled={disabled} aria-haspopup="menu" aria-expanded={open && submenu} aria-controls={open && submenu ? menuId : undefined}
         onClick={() => { setSubmenu(true); setOpen(current => submenu ? !current : true) }} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setSubmenu(true); setOpen(true) } }}><BookOpen size={14} aria-hidden="true" /><span>{value === 'general' ? '研究方法' : selected?.name || '已选方法'}</span><ChevronDown size={12} aria-hidden="true" /></button>

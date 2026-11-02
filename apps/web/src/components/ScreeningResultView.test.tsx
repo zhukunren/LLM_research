@@ -94,20 +94,20 @@ it('keeps failure information separate from matching and wires an available retr
   expect(retry).toHaveBeenCalledOnce()
 })
 
-it('shows supplied evidence in the summary and keeps full judgments without an unexplained score', () => {
-  const { container } = render(<ScreeningResultView status="succeeded" decisions={[
+it('shows compact evidence previews and opens full judgments in the sidebar', () => {
+  render(<ScreeningResultView status="succeeded" decisions={[
     { stock_code: '600000.SH', state: 'true', score: 99, conditions: [
       { name: '营收增长', state: 'true', explanation: '营收同比增长 25%', actual: 25, threshold: 20, citation: '年度报告第 12 页' },
       { name: 'ROE', state: 'true', explanation: 'ROE 为 18%' },
       { name: '估值', state: 'false', explanation: '市盈率为 12 倍' },
     ] },
   ]} />)
-  fireEvent.click(screen.getByRole('button', { name: '详细卡片' }))
-  const summary = container.querySelector('summary')!
-  expect(within(summary).getByText('营收增长（符合）：营收同比增长 25%')).toBeVisible()
-  expect(within(summary).getByText('ROE（符合）：ROE 为 18%')).toBeVisible()
+  const table = screen.getByRole('table', { name: '筛选结果股票列表' })
+  expect(within(table).getByText(/实际值：25/)).toBeVisible()
+  expect(within(table).getByText(/ROE 为 18%/)).toBeVisible()
+  expect(screen.queryByRole('button', { name: '详细卡片' })).not.toBeInTheDocument()
   expect(screen.queryByText(/分值/)).not.toBeInTheDocument()
-  fireEvent.click(summary)
+  fireEvent.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
   expect(screen.getByText('市盈率为 12 倍')).toBeInTheDocument()
   expect(screen.getByText('年度报告第 12 页')).toBeInTheDocument()
   expect(screen.getByText('实际值：25')).toBeInTheDocument()
@@ -152,13 +152,14 @@ it('blocks stale page copy while results are loading or failed to load', () => {
 
 
 it('shows actual false-condition evidence for a true result without assuming AND logic', () => {
-  const { container } = render(<ScreeningResultView status="succeeded" decisions={[
+  render(<ScreeningResultView status="succeeded" decisions={[
     { stock_code: '600000.SH', state: 'true', conditions: [
       { name: '亏损', state: 'false', explanation: '净利润为正' },
     ] },
   ]} />)
-  fireEvent.click(screen.getByRole('button', { name: '详细卡片' }))
-  expect(within(container.querySelector('summary')!).getByText('亏损（不符合）：净利润为正')).toBeVisible()
+  expect(within(screen.getByRole('table', { name: '筛选结果股票列表' })).getByText(/不符合 · 净利润为正/)).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
+  expect(within(screen.getByRole('dialog', { name: '个股条件与依据' })).getByText('亏损 · 不符合')).toBeVisible()
 })
 
 it('does not equate data insufficiency with no matches even when the run reports success', () => {
@@ -217,4 +218,34 @@ it('does not present stale zero-match coverage as a conclusion during result loa
   view.rerender(<ScreeningResultView {...props} error="网络连接失败" />)
   expect(screen.getByText('筛选结果加载失败')).toBeVisible()
   expect(screen.queryByText('本次没有找到符合条件的股票')).not.toBeInTheDocument()
+})
+
+it('offers parameter adjustments on a complete zero-match result', () => {
+  const apply = vi.fn()
+  render(<ScreeningResultView status="succeeded" coverage={{ target_total: 10, true_count: 0, false_count: 10, unknown_count: 0 }} decisions={[]}
+    adjustments={[{ id: 'threshold', label: '把涨幅阈值从 3% 放宽到 2%', prompt: '把涨幅阈值从 3% 放宽到 2%，然后重新筛选。' }]}
+    onApplyAdjustment={apply} />)
+  expect(screen.getByText('本次没有找到符合条件的股票')).toBeVisible()
+  expect(screen.getByText('可以试着调整：')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '把涨幅阈值从 3% 放宽到 2%' }))
+  expect(apply).toHaveBeenCalledWith('把涨幅阈值从 3% 放宽到 2%，然后重新筛选。')
+})
+
+it('prompts saving a successful result that has matches', () => {
+  const save = vi.fn()
+  render(<ScreeningResultView status="succeeded" coverage={mixed} decisions={[]} onSavePlan={save} />)
+  expect(screen.getByText(/已筛出 2 只/)).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '保存为方案' }))
+  expect(save).toHaveBeenCalledOnce()
+})
+
+it('offers data and scope actions while coverage is incomplete', () => {
+  const open = vi.fn(), adjust = vi.fn()
+  render(<ScreeningResultView status="partial" coverage={{ ...mixed, true_count: 0, false_count: 0, unknown_count: 10 }} decisions={[]}
+    onOpenData={open} onAdjustRequirements={adjust} />)
+  expect(screen.getByText('暂未确认符合项，仍有未完成的判断')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '更新数据' }))
+  expect(open).toHaveBeenCalledOnce()
+  fireEvent.click(screen.getByRole('button', { name: '缩小范围' }))
+  expect(adjust).toHaveBeenCalledOnce()
 })

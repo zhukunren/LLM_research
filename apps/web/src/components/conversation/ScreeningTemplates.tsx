@@ -46,6 +46,7 @@ export default function ScreeningTemplates({ disabled, onSelect }: {
       const defaults = Object.fromEntries(Object.entries(item.parameters).map(([key, spec]) => [key, spec.default]))
       return <button key={item.id} type="button" className="secondary-button screening-template-starter workspace-button" aria-label={`选择基础方案：${templateLabel(item, defaults)}`} aria-describedby={instructionId} aria-expanded={selectedId === item.id} aria-controls={selectedId === item.id ? previewId : undefined} disabled={disabled} onClick={() => setSelectedId(current => current === item.id ? '' : item.id)}>
         <span className="screening-template-starter-label">{templateLabel(item, defaults)}<svg className="screening-template-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
+        <span className="screening-template-badge" data-tooltip="不依赖模型，按固定日线规则计算">固定规则</span>
         {item.rules && <span className="screening-template-rules">{item.rules.map((rule, index) => <span key={rule}>{index > 0 && <em>且 </em>}{templateText(rule, defaults)}</span>)}</span>}
       </button>
     })}</div>

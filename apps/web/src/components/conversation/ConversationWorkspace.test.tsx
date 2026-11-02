@@ -1,3 +1,4 @@
+import { openResearchSettings } from '../../test/openResearchSettings'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -448,6 +449,7 @@ describe('ConversationWorkspace', () => {
     await user.click(screen.getByRole('button', { name: '修改并重筛' }))
 
     await waitFor(() => expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1))
+    await user.click(await screen.findByRole('button', { name: '查看名单' }))
     expect(await screen.findByText('600000.SH')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
@@ -512,6 +514,7 @@ it.each(['research', 'screening'] as const)('keeps the existing %s draft when an
   const label = workflow === 'research' ? '研究要求' : '选股要求'
   await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
   fireEvent.change(screen.getByLabelText(label), { target: { value: '保留原来的公司研究问题' } })
+  if (screen.queryByRole('button', { name: '研究设置' })) await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '我的指标' }))
   await user.type(screen.getByLabelText('指标描述'), '生成过去17日成交加权偏离')
   await user.click(screen.getByRole('button', { name: '写入生成请求' }))
@@ -529,6 +532,7 @@ it('reports an oversized indicator handoff inside the drawer without replacing t
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
   const draft = '保留'.repeat(3950)
   fireEvent.change(screen.getByLabelText('研究要求'), { target: { value: draft } })
+  if (screen.queryByRole('button', { name: '研究设置' })) await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '我的指标' }))
   await user.type(screen.getByLabelText('指标描述'), '生成新的量价指标')
   await user.click(screen.getByRole('button', { name: '写入生成请求' }))

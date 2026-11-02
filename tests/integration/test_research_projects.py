@@ -83,6 +83,47 @@ def test_company_association_is_idempotent_without_rewriting_screening_scope(cli
     assert client.delete(url + "/companies/600519.SH").json()["companies"] == []
 
 
+def test_project_company_ranges_include_frozen_scopes_and_notes_without_guessing_titles(client, monkeypatch):
+    from apps.api.app import research_pdf, research_pdf_service
+    from apps.api.app.screening_contracts import ResearchScope
+    saved = project(client)
+    url = f"/api/v1/research-projects/{saved['id']}"
+    client.post(url + "/companies", json={"stock_code": "600519.SH"})
+    scoped = conversation(client, saved["id"])["id"]
+    unscoped = conversation(client, saved["id"])["id"]
+    conversation_store.update_research_scope(scoped, 0, ResearchScope(stock_codes=["600519.SH"]))
+    assistant_answer(scoped)
+    conversation_store.update_research_scope(scoped, 1, ResearchScope(stock_codes=["000858.SZ"]))
+    with db.connect() as connection:
+        connection.execute("UPDATE conversations SET title='600519.SH 贵州茅台研究' WHERE id=?", (unscoped,))
+    source = conversation(client, saved["id"])["id"]
+    answer = assistant_answer(source)
+    note = client.post(url + "/notes/from-message", json={"message_id": answer["id"]}).json()
+    content = {key: note[key] for key in ("title", "body", "validation_plan", "invalidation_condition", "status")}
+    client.patch(url + f"/notes/{note['id']}", json={**content, "stock_code": "600519.SH", "base_revision": 1})
+    # A project-level note PDF must not inherit all companies from its source conversation.
+    project_note = client.post(url + "/notes", json={"title": "项目范围笔记", "body": "整体研究", "request_id": "project-note"}).json()
+    monkeypatch.setattr(research_pdf, "list_deliverables", lambda cid: [{"name": "result.pdf", "url": f"/{cid}.pdf", "bytes": 1, "modified_at": 1}])
+    monkeypatch.setattr(research_pdf_service, "list_exports", lambda *args: [
+        {"id": "company-note", "name": "note.pdf", "url": "/note.pdf", "modified_at": 2, "source_kind": "note", "source_id": note["id"], "conversation_id": source},
+        {"id": "project-note", "name": "project.pdf", "url": "/project.pdf", "modified_at": 2, "source_kind": "note", "source_id": project_note["id"], "conversation_id": scoped},
+    ])
+    detail = client.get(url).json()
+    scopes = {item["id"]: item["stock_codes"] for item in detail["conversations"]}
+    assert scopes[scoped] == ["000858.SZ", "600519.SH"]
+    assert scopes[source] == ["600519.SH"]
+    assert scopes[unscoped] == []
+    files = client.get(url + "/files").json()["items"]
+    assert next(item for item in files if item.get("id") == "company-note")["stock_codes"] == ["600519.SH"]
+    assert next(item for item in files if item.get("id") == "project-note")["stock_codes"] == []
+    assert next(item for item in files if item["url"] == f"/{scoped}.pdf")["stock_codes"] == ["000858.SZ", "600519.SH"]
+    # Reassignment and removal retain the saved note's company and artifact association.
+    client.patch(f"/api/v1/conversations/{source}/project", json={"project_id": None})
+    client.delete(url + "/companies/600519.SH")
+    retained = client.get(url + "/files").json()["items"]
+    assert next(item for item in retained if item["url"] == f"/{source}.pdf")["stock_codes"] == ["600519.SH"]
+
+
 def test_attach_existing_conversation_preserves_history_and_blocks_active_turn(client):
     saved = project(client)
     created = conversation(client)

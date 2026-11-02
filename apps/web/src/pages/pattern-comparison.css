@@ -1,0 +1,166 @@
+.viewport-workspace .page-frame > .pattern-comparison-studio.pattern-studio { padding: 14px 20px 12px; gap: 10px; background: var(--ui-surface); }
+.viewport-workspace .page-frame .pattern-comparison-studio #pattern-content { display: flex; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; padding: 0; }
+.viewport-workspace .page-frame .pattern-comparison-studio[data-panel=create] > #pattern-content { overflow: hidden; padding: 0; }
+.viewport-workspace .page-frame .pattern-comparison-studio[data-panel=saved] > #pattern-content { overflow-y: auto; }
+.pattern-comparison-studio .pattern-studio-navigation { min-height: 38px; }
+.pattern-workbench { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 12px; }
+.pattern-source-controls { flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--ui-border-subtle); }
+.pattern-source-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; }
+.pattern-source-methods, .pattern-target-actions { display: flex; align-items: center; gap: 6px; }
+.pattern-source-methods > button { display: flex; align-items: center; gap: 5px; min-height: 30px; padding: 5px 8px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--ui-text-muted); font-size: 13px; white-space: nowrap; }
+.pattern-source-methods > button.selected { border-bottom-color: var(--ui-primary); color: var(--ui-primary); font-weight: 600; }
+.pattern-comparison-studio .pattern-market-fields { display: grid; grid-template-columns: minmax(180px,1.5fr) repeat(2,minmax(145px,1fr)) auto; align-items: end; gap: 10px; padding-top: 9px; }
+.pattern-comparison-studio .pattern-market-fields .field { display: grid; gap: 4px; min-width: 0; margin: 0; font-size: 12px; color: var(--ui-text-muted); }
+.pattern-comparison-studio .pattern-market-fields .workspace-field { min-height: 33px; height: 33px; padding-block: 5px; font-size: 13px; }
+.pattern-comparison-studio .pattern-market-fields > button { min-height: 33px; font-size: 13px; }
+.pattern-workbench-settings, .pattern-crop-details, .pattern-description-examples { position: relative; color: var(--ui-text-muted); font-size: 12px; }
+.pattern-workbench-settings > summary { display: flex; align-items: center; gap: 5px; padding: 7px; cursor: pointer; list-style: none; white-space: nowrap; }
+.pattern-settings-popover, .pattern-crop-popover, .pattern-description-examples > div { position: absolute; z-index: 8; right: 0; top: calc(100% + 6px); width: min(320px,calc(100vw - 44px)); padding: 16px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 8px; box-shadow: 0 8px 24px #162e4818; }
+.pattern-settings-popover { display: grid; gap: 12px; }
+.pattern-workbench-settings { flex-shrink: 0; }
+.pattern-workbench-settings[open] > summary { border-radius: 4px; background: var(--ui-surface-subtle); color: var(--ui-primary); }
+.pattern-workbench-settings > summary:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
+.pattern-workbench-settings .pattern-settings-popover { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; max-height: calc(100dvh - 100px); overflow-y: auto; }
+.pattern-settings-popover label { margin: 0; }
+.pattern-settings-popover p, .pattern-crop-popover p { margin: 0; font-size: 12px; line-height: 1.7; }
+.pattern-source-hint { margin: 8px 0 0; font-size: 12px; color: var(--ui-text-muted); }
+.pattern-source-feedback { margin: 6px 0 0; color: var(--ui-text-muted); font-size: 12px; line-height: 1.6; }
+.pattern-screenshot-input, .pattern-language-input { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 10px; min-width: 0; }
+.pattern-screenshot-input > span { min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ui-text-muted); }
+.pattern-crop-popover { display: grid; gap: 10px; }
+.pattern-crop-popover > img { display: block; width: 100%; max-height: 140px; object-fit: contain; }
+.pattern-crop-popover .crop-controls { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.pattern-crop-popover label { display: grid; gap: 4px; }
+.pattern-language-input > textarea { flex: 1; min-width: 220px; min-height: 50px; height: 50px; resize: vertical; font-size: 13px; padding: 7px 10px; }
+.pattern-language-input > p { width: 100%; margin: 0; font-size: 12px; }
+.pattern-description-examples > div { display: grid; gap: 8px; }
+.pattern-description-examples > div > button { text-align: left; white-space: normal; }
+.pattern-comparison { display: grid; grid-template-columns: minmax(0,1fr) clamp(210px,23%,270px); gap: 18px; flex: 1; min-height: 0; }
+.pattern-comparison-charts { display: grid; grid-template-rows: minmax(0,1fr) auto minmax(0,1fr); min-width: 0; min-height: 0; gap: 10px; }
+.pattern-comparison-match-actions { display: flex; justify-content: flex-end; }
+.pattern-comparison-match-actions > button { min-height: 32px; padding: 6px 11px; font-size: 13px; }
+.pattern-comparison-target, .pattern-comparison-candidate { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pattern-comparison-candidate { border-top: 1px solid var(--ui-border-subtle); padding-top: 10px; }
+.pattern-comparison-chart-heading { display: flex; flex-shrink: 0; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; margin: 0 0 4px; }
+.pattern-comparison-chart-heading > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.pattern-comparison-chart-heading h2, .pattern-comparison-results-heading h2 { margin: 0; color: var(--ui-text-muted); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.pattern-comparison-chart-heading > div > span { display: block; color: var(--ui-text-muted); font-size: 11px; overflow-wrap: anywhere; }
+.pattern-comparison-chart-heading .stock-identity { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.pattern-comparison-chart-heading .stock-identity strong { font-size: 13px; color: var(--ui-text); }
+.pattern-comparison-target .pattern-comparison-chart-heading { flex-wrap: wrap; }
+.pattern-target-actions { flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+.pattern-target-duration { display: flex; align-items: center; gap: 5px; margin: 0 4px 0 0; color: var(--ui-text-muted); font-size: 11px; white-space: nowrap; }
+.pattern-target-duration > input.workspace-field { width: 56px; height: 26px; min-height: 26px; padding: 3px 5px; font-size: 12px; }
+.pattern-target-actions .segmented > button { padding: 4px 7px; min-height: 26px; font-size: 11px; }
+.pattern-target-actions > button { display: inline-flex; padding: 5px; min-height: 26px; }
+.pattern-comparison-chart-content { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-width: thin; }
+.pattern-comparison .pattern-market-preview { margin: 0; height: 100%; }
+.pattern-comparison-plot { position: relative; height: 100%; min-width: 0; }
+.pattern-comparison .indicator-market-chart { padding: 0; margin: 0; }
+.pattern-comparison .indicator-market-chart > svg { display: block; width: 100%; }
+.pattern-comparison .indicator-hover-values.workspace-chart-readout { display: flex; flex-wrap: wrap; gap: 3px 10px; padding: 3px 0 0; margin: 0; border: 0; background: transparent; color: var(--ui-text-muted); font-size: 10px; line-height: 1.6; }
+.pattern-comparison .indicator-hover-values > strong { font-size: inherit; font-weight: 400; }
+.pattern-comparison .indicator-hover-values[role=group] { display: none; }
+.pattern-comparison .indicator-hover-values.workspace-chart-readout[role=status] { position: absolute; z-index: 2; top: auto; left: 0; right: 0; bottom: 0; padding: 4px 6px; background: var(--ui-surface); border: 1px solid var(--ui-border-subtle); border-radius: 4px; pointer-events: none; }
+.pattern-comparison-dates { flex-shrink: 0; margin: 2px 0 0; color: var(--ui-text-muted); font-size: 10px; }
+.pattern-comparison-score { display: grid; text-align: right; color: var(--ui-primary); }
+.pattern-comparison-score > strong { font-size: 20px; line-height: 1.2; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pattern-comparison-score > small { font-size: 10px; color: var(--ui-text-muted); }
+.pattern-comparison-placeholder, .pattern-comparison-list-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; height: 100%; min-height: 110px; color: var(--ui-text-muted); background: var(--ui-surface-subtle); border-radius: 6px; }
+.pattern-comparison-placeholder p, .pattern-comparison-list-empty p { margin: 0; padding: 0 12px; text-align: center; font-size: 12px; line-height: 1.7; }
+.pattern-target-drawing { display: flex; flex-direction: column; height: 100%; min-height: 120px; }
+.pattern-target-drawing > svg { display: block; flex: 1; width: 100%; min-height: 100px; touch-action: none; }
+.pattern-target-drawing .price-line { fill: none; stroke: var(--ui-chart-line); stroke-width: 2.5; stroke-linejoin: round; }
+.pattern-target-drawing .chart-grid { stroke: var(--ui-border-subtle); stroke-width: 1; stroke-dasharray: 4 4; }
+.pattern-target-drawing .chart-axis { display: flex; justify-content: space-between; margin-top: 2px; font-size: 10px; color: var(--ui-text-muted); }
+.pattern-target-edit-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ui-text-muted); font-size: 11px; }
+.pattern-target-edit-tools > button { padding: 2px 5px; font-size: 11px; }
+.pattern-candle-controls { flex-shrink: 0; max-height: 150px; overflow-y: auto; color: var(--ui-text-muted); font-size: 12px; }
+.pattern-candle-controls .candle-strip { display: flex; gap: 4px; padding: 6px 0; overflow-x: auto; }
+.pattern-candle-controls .candle-fields { padding: 6px 0; }
+.pattern-candle-controls .candle-chip { flex-shrink: 0; }
+.pattern-comparison-results { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--ui-border-subtle); padding-left: 16px; }
+.pattern-comparison-results-heading { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 8px; }
+.pattern-comparison-results-heading h2 { color: var(--ui-text); font-size: 13px; font-weight: 600; }
+.pattern-comparison-results-heading h2 > span { margin-left: 6px; color: var(--ui-text-muted); font-size: 11px; font-weight: 400; }
+.pattern-comparison-results-heading small { font-size: 10px; color: var(--ui-text-muted); }
+.pattern-comparison-results-heading > button { display: flex; padding: 5px; }
+.pattern-comparison-result-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 4px 0 0; scrollbar-width: thin; }
+.pattern-comparison-result { display: block; width: 100%; min-width: 0; padding: 10px 8px; margin-bottom: 3px; border: 1px solid transparent; border-bottom-color: var(--ui-border-subtle); border-radius: 0; background: transparent; text-align: left; }
+.pattern-comparison-result.selected { border-color: var(--ui-primary-border); border-radius: 6px; background: var(--ui-primary-soft); }
+.pattern-comparison-result-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.pattern-comparison-result-title .stock-identity { display: grid; min-width: 0; gap: 2px; }
+.pattern-comparison-result-title .stock-identity strong { font-size: 12px; color: var(--ui-text); }
+.pattern-comparison-result-title .stock-identity small { color: var(--ui-text-muted); font-size: 10px; }
+.pattern-comparison-result-score { margin-left: auto; color: var(--ui-primary); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pattern-comparison-result .pattern-mini-candles { display: block; width: 100%; height: 43px; margin: 6px 0; }
+.pattern-comparison-result .chart-grid { stroke: var(--ui-border-subtle); stroke-width: .6; }
+.pattern-comparison-result .positive line { stroke: var(--ui-market-up); }
+.pattern-comparison-result .positive rect { fill: var(--ui-market-up); }
+.pattern-comparison-result .negative line { stroke: var(--ui-market-down); }
+.pattern-comparison-result .negative rect { fill: var(--ui-market-down); }
+.pattern-comparison-result .pattern-similar-dates { color: var(--ui-text-muted); font-size: 10px; }
+.pattern-comparison-scope { flex-shrink: 0; padding-top: 8px; color: var(--ui-text-muted); font-size: 10px; line-height: 1.7; }
+.pattern-comparison-scope p { margin: 6px 0 0; }
+.pattern-comparison-scope summary { cursor: pointer; }
+.pattern-workbench-footer { display: flex; flex-shrink: 0; align-items: end; flex-wrap: wrap; gap: 8px 12px; padding-top: 9px; border-top: 1px solid var(--ui-border-subtle); }
+.pattern-template-name { display: grid; flex: 1 1 210px; gap: 3px; min-width: 0; max-width: 420px; }
+.pattern-template-name > span { font-size: 10px; color: var(--ui-text-muted); }
+.pattern-template-name > input { min-height: 30px; height: 30px; padding: 4px 8px; font-size: 12px; }
+.pattern-workbench-footer > button { min-height: 30px; padding: 5px 8px; font-size: 12px; }
+.pattern-workbench-status { flex: 1 1 150px; align-self: center; color: var(--ui-text-muted); font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.viewport-workspace .page-frame .pattern-comparison-studio .pattern-comparison-target-focused { position: fixed; inset: 12px; z-index: 160; padding: 20px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 10px; }
+.pattern-comparison-target-focused .pattern-target-drawing > svg { min-height: 250px; }
+.pattern-comparison-target-focused .pattern-candle-controls { max-height: 220px; }
+@media (min-width: 761px) {
+  .pattern-comparison-dates { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .pattern-template-name > span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .pattern-workbench-footer { padding-top: 7px; align-items: center; }
+  .pattern-source-controls { padding-bottom: 8px; }
+  .viewport-workspace .page-frame .pattern-comparison-studio .pattern-market-fields .field { gap: 3px; }
+  .viewport-workspace .page-frame .pattern-comparison-studio .pattern-market-fields .workspace-field { min-height: 32px; height: 32px; }
+}
+@media (max-width: 1050px) and (min-width: 761px) {
+  .pattern-comparison { grid-template-columns: minmax(0,1fr) 200px; gap: 12px; }
+  .pattern-comparison-results { padding-left: 10px; }
+  .pattern-comparison-studio .pattern-market-fields { grid-template-columns: minmax(150px,1.2fr) repeat(2,minmax(120px,1fr)) auto; gap: 7px; }
+  .pattern-target-actions .segmented > button { padding-inline: 5px; }
+}
+@media (max-width: 760px) {
+  .viewport-workspace .page-frame > .pattern-comparison-studio.pattern-studio { padding: 10px 12px; }
+  .viewport-workspace .page-frame .pattern-comparison-studio[data-panel=create] > #pattern-content { overflow-y: auto; }
+  .pattern-workbench { flex: none; min-height: 0; gap: 12px; }
+  .pattern-source-toolbar { align-items: flex-start; }
+  .pattern-source-methods { width: 100%; justify-content: space-between; gap: 2px; }
+  .pattern-source-methods > button { padding-inline: 6px; font-size: 12px; }
+  .pattern-comparison-studio .pattern-market-fields { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .pattern-comparison-studio .pattern-market-fields > .field:first-child, .pattern-comparison-studio .pattern-market-fields > button { grid-column: 1 / -1; }
+  .pattern-comparison-studio .pattern-market-fields .workspace-field { height: 38px; font-size: 16px; }
+  .pattern-comparison-studio .pattern-market-fields > button { height: 36px; }
+  .pattern-comparison { flex: none; grid-template-columns: minmax(0,1fr); gap: 16px; }
+  .pattern-comparison-charts { grid-template-rows: none; gap: 10px; }
+  .pattern-comparison-match-actions > button { width: 100%; min-height: 38px; }
+  .pattern-comparison-target, .pattern-comparison-candidate { min-height: 250px; }
+  .pattern-comparison-chart-content { min-height: 170px; overflow: visible; }
+  .pattern-comparison-plot { height: 190px; }
+  .pattern-comparison-chart-heading { align-items: flex-start; }
+  .pattern-target-actions { width: 100%; margin-left: 0; justify-content: flex-start; }
+  .pattern-target-duration > input.workspace-field { height: 32px; font-size: 16px; }
+  .pattern-comparison .indicator-hover-values.workspace-chart-readout { font-size: 11px; gap: 4px 9px; }
+  .pattern-comparison-dates { font-size: 11px; }
+  .pattern-comparison-results { padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--ui-border-subtle); }
+  .pattern-comparison-result-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; padding: 0; max-height: 430px; }
+  .pattern-comparison-result { padding: 9px 7px; border: 1px solid var(--ui-border-subtle); border-radius: 6px; }
+  .pattern-comparison-result-title { flex-wrap: wrap; gap: 5px; }
+  .pattern-comparison-result-score { font-size: 14px; }
+  .pattern-workbench-footer { align-items: center; }
+  .pattern-template-name { flex-basis: 100%; max-width: none; }
+  .pattern-template-name > input { height: 36px; font-size: 16px; }
+  .pattern-workbench-status { flex-basis: 100%; }
+  .pattern-language-input > textarea { flex-basis: 100%; min-width: 0; font-size: 16px; }
+  .pattern-crop-details { margin-left: auto; }
+  .pattern-description-examples > div { left: 0; right: auto; }
+  .viewport-workspace .page-frame .pattern-comparison-studio .pattern-comparison-target-focused { inset: 0; border: 0; border-radius: 0; padding: 14px; overflow-y: auto; }
+  .pattern-comparison-target-focused .pattern-comparison-chart-content { flex: 1; }
+  .pattern-comparison-target-focused .pattern-comparison-plot { height: min(60dvh,500px); }
+}

@@ -19,7 +19,7 @@ export default function ConditionItemEditor({ node, catalog, title, parameters, 
   return createPortal(<div className="workspace-modal-backdrop condition-item-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}>
     <section ref={dialog} className="condition-item-dialog workspace-tool-dialog workspace-dialog" role="dialog" aria-modal="true" aria-label={title} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }; trapDialogTab(event) }}>
       <header><h2>{title}</h2><button ref={closeButton} type="button" className="icon-button workspace-button" aria-label="关闭条件编辑" onClick={onClose}><X size={18} /></button></header>
-      <div className="condition-item-editor-body"><NodeEditor node={draft} catalog={catalog} onChange={setDraft} depth={depth} disabled={disabled} expandParameters={parameters} /></div>
+      <div className="condition-item-editor-body"><NodeEditor node={draft} catalog={catalog} onChange={setDraft} depth={depth} disabled={disabled} expandParameters={parameters} showReferenceSettings={false} /></div>
       <footer><button type="button" className="secondary-button workspace-button" onClick={onClose}>取消</button><button type="button" className="primary-button workspace-button" disabled={disabled} onClick={() => { if (dirty) onApply(draft); else onClose() }}>应用修改</button></footer>
     </section>
   </div>, document.body)

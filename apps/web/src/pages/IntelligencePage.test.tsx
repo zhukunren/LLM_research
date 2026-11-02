@@ -39,6 +39,71 @@ it('opens a business scope form without launching work or showing a prompt edito
   expect(vi.mocked(api).mock.calls.every(([, options]) => !options?.method)).toBe(true)
 })
 
+it('keeps settings in a drawer, retains unfinished inputs and leaves the current frozen result unchanged', async () => {
+  vi.mocked(api).mockImplementation(async path => path.includes('/runs/') ? completed as never : { ...catalog, items: [completed], total: 1, latest_result_id: completed.id } as never)
+  const user = userEvent.setup(), view = render(<IntelligencePage {...callbacks()} />)
+  await screen.findByText('公司订单已签署')
+  const current = screen.getByRole('region', { name: '当前情报成果' })
+  const original = current.textContent
+  const trigger = screen.getByRole('button', { name: '范围设置' })
+  await user.click(trigger)
+  const dialog = screen.getByRole('dialog', { name: '范围设置' })
+  expect(view.container.querySelector('.intelligence-scope-form')).toBeNull()
+  await user.selectOptions(within(dialog).getByLabelText('时间窗口'), '72')
+  await user.type(within(dialog).getByLabelText('关注行业'), '半导体')
+  await user.click(within(dialog).getByRole('button', { name: '返回成果' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(trigger).toHaveFocus()
+  expect(current.textContent).toBe(original)
+  await user.click(trigger)
+  expect(screen.getByLabelText('时间窗口')).toHaveValue('72')
+  expect(screen.getByLabelText('关注行业')).toHaveValue('半导体')
+  await user.keyboard('{Escape}')
+  await user.click(screen.getByRole('button', { name: '历史版本' }))
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  expect(screen.queryByRole('form')).not.toBeInTheDocument()
+  expect(view.container.querySelector('.intelligence-history')).toBeNull()
+  expect(screen.getByRole('button', { name: /订单变化简报/ })).toHaveAttribute('aria-current', 'true')
+  expect(vi.mocked(api).mock.calls.every(([, init]) => !init?.method)).toBe(true)
+})
+
+it('closes history before opening a legacy conversation and keeps paged version selection read-only', async () => {
+  const older = { ...completed, id: 'older', version: 1, title: '上期原始简报' }
+  vi.mocked(api).mockImplementation(async path => {
+    if (path.includes('offset=')) return { ...catalog, items: [older], total: 2 } as never
+    if (path.includes('/runs/')) return (path.endsWith('older') ? older : completed) as never
+    return { ...catalog, items: [completed], total: 2, next_offset: 1, latest_result_id: completed.id, legacy: [{ conversation_id: 'legacy', title: '升级前研究', started_at: '2026-10-01T00:00:00Z' }] } as never
+  })
+  const props = callbacks(), user = userEvent.setup()
+  render(<IntelligencePage {...props} />)
+  await screen.findByText('公司订单已签署')
+  await user.click(screen.getByRole('button', { name: '历史版本' }))
+  await user.click(screen.getByRole('button', { name: '更早的版本' }))
+  await user.click(await screen.findByRole('button', { name: /上期原始简报/ }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(props.onLocation).toHaveBeenLastCalledWith('market', 'older')
+  await user.click(screen.getByRole('button', { name: '历史版本' }))
+  await user.click(screen.getByText('升级前的研究记录'))
+  await user.click(screen.getByRole('button', { name: /升级前研究/ }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(props.onResearch).toHaveBeenCalledWith('legacy')
+  expect(vi.mocked(api).mock.calls.every(([, init]) => !init?.method)).toBe(true)
+})
+
+it('keeps validation feedback with its settings and closes the drawer before opening data services', async () => {
+  vi.mocked(api).mockResolvedValue(catalog as never)
+  const user = userEvent.setup(), props = callbacks()
+  render(<IntelligencePage {...props} />)
+  const dialog = await screen.findByRole('dialog', { name: '范围设置' })
+  await user.click(within(dialog).getByRole('checkbox', { name: '中国内地' }))
+  await user.click(within(dialog).getByRole('button', { name: '按此范围生成' }))
+  expect(within(dialog).getByRole('alert')).toHaveTextContent('至少选择一个市场')
+  await user.click(within(dialog).getByRole('button', { name: '数据与服务' }))
+  expect(props.onSettings).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(vi.mocked(api).mock.calls.every(([, init]) => !init?.method)).toBe(true)
+})
+
 it('submits structured scope once and reads real progress from the accepted run', async () => {
   const props = callbacks(), user = userEvent.setup()
   vi.mocked(api).mockImplementation(async (path, options) => {

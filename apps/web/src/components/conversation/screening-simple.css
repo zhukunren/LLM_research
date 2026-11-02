@@ -1,10 +1,12 @@
-/* Root specificity keeps this layout independent of eager/lazy stylesheet order.
-   One reading column for the request, reviewable plan, and its results. */
-.conversation-product.research-studio.screening-studio { width:100%; max-width:900px; margin-inline:auto; }
-.conversation-product.research-studio.screening-studio .conversation-workspace { display:grid; grid-template-columns:minmax(0,1fr); width:100%; min-width:0; gap:24px; }
-.conversation-product.research-studio.screening-studio .conversation-main { position:static; top:auto; width:100%; min-width:0; height:auto; min-height:0; overflow:visible; border:0; border-radius:0; box-shadow:none; background:transparent; }
-.conversation-product.research-studio.screening-studio .conversation-message-list { max-height:none; min-height:0; padding:16px 0; }
-.conversation-product.research-studio.screening-studio .conversation-task-panel { position:static; top:auto; grid-column:1; width:100%; min-width:0; max-height:none; overflow:visible; padding:24px 0 0; border:0; border-top:1px solid var(--ui-border); border-radius:0; background:transparent; box-shadow:none; }
+/* The conversation inherits the research chat layout. Only screening-specific
+   starters, settings and the plan/results drawer need their own styles. */
+.conversation-product.research-studio.screening-studio { --research-reading-width:var(--ui-reading-width); --research-entry-width:var(--ui-entry-width); width:100%; max-width:none; margin-inline:0; }
+.research-studio.screening-studio .screening-results-drawer { position:fixed; inset:0 0 0 auto; z-index:112; display:flex; flex-direction:column; gap:18px; width:min(760px, calc(100vw - 24px)); height:100dvh; max-height:none; padding:26px; overflow-y:auto; border:0; border-left:1px solid var(--ui-border); border-radius:0; background:var(--ui-surface); box-shadow:-8px 0 36px #0000000a; }
+.screening-results-drawer .studio-results-heading { padding-right:42px; }
+.screening-results-drawer .screening-drawer-readiness { padding-bottom:2px; border-bottom:1px solid var(--ui-border-subtle); }
+@media(max-width:760px) {
+  .research-studio.screening-studio .screening-results-drawer { width:100vw; padding:22px 18px; }
+}
 .conversation-product.research-studio.screening-studio .studio-results-heading:empty { display:none; }
 .conversation-product.research-studio.screening-studio .conversation-task-conditions { padding:0; background:transparent; border:0; }
 .conversation-product.research-studio.screening-studio .conversation-task-section { border:0; padding:0; }
@@ -12,39 +14,37 @@
 .conversation-product.research-studio.screening-studio .screening-plan-edit { margin:8px 0 12px; }
 .conversation-product.research-studio.screening-studio .screening-plan-edit > summary { cursor:pointer; color:var(--ui-text-muted); font-size:12px; }
 .conversation-product.research-studio.screening-studio .screening-plan-edit .scope-picker { margin-top:12px; }
-.conversation-product.research-studio.screening-studio .conversation-composer, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer { border:1px solid var(--ui-border); border-radius:20px; background:var(--ui-surface-subtle); box-shadow:none; padding:16px 20px; }
-.conversation-product.research-studio.screening-studio .conversation-composer:focus-within,
-.conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer:focus-within { border-color:var(--ui-primary); box-shadow:var(--ui-focus-shadow); }
-.conversation-product.research-studio.screening-studio .conversation-composer textarea, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer textarea { min-height:80px; background:transparent; }
-.conversation-product.research-studio.screening-studio .screening-entry-heading h2 { font-size:22px; font-weight:500; }
-.conversation-product.research-studio.screening-studio .conversation-heading-title h2 { font-size:14px; color:var(--ui-text-muted); }
-.conversation-product.research-studio.screening-studio .conversation-suggestions { display:flex; flex-wrap:wrap; gap:8px; }
-.conversation-product.research-studio.screening-studio .conversation-suggestions > button { min-height:36px; flex-direction:row; align-items:center; padding:8px 12px; border-radius:18px; gap:8px; background:transparent; }
-.conversation-product.research-studio.screening-studio .suggestion-icon, .conversation-product.research-studio.screening-studio .suggestion-arrow { display:none; }
-.conversation-product.research-studio.screening-studio .screening-example-tabs { border:0; background:transparent; padding:8px 0; }
-.conversation-product.research-studio.screening-studio .studio-project { padding:0; }
-@media(max-width:600px) {
-  .conversation-product.research-studio.screening-studio { width: calc(100% - 28px); }
-  .conversation-product.research-studio.screening-studio .screening-entry-heading { flex-wrap:wrap; }
-  .conversation-product.research-studio.screening-studio .screening-entry-heading > button { margin-left:0; padding-left:0; }
-  .conversation-product.research-studio.screening-studio .screening-entry-heading h2 { font-size:20px; }
-  .conversation-product.research-studio.screening-studio .conversation-composer, .conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-composer { padding:14px; }
-}
+.chat-page .research-studio.screening-studio .conversation-composer-footer > button[type=submit] { margin-left:auto; }
+.conversation-product.research-studio.screening-studio .screening-entry-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 12px; padding:0; }
+.conversation-product.research-studio.screening-studio .screening-entry-heading h2 { margin:0; font-size:14px; font-weight:500; line-height:1.6; }
+.conversation-product.research-studio.screening-studio .conversation-empty { width:100%; max-width:none; min-height:0; margin:0; align-items:stretch; justify-content:flex-start; gap:16px; padding:0; text-align:left; }
+.conversation-product.research-studio.screening-studio .screening-templates { padding:0; }
+.conversation-product.research-studio.screening-studio .screening-template-entries { margin:0; gap:12px; }
+.conversation-product.research-studio.screening-studio .screening-template-entries .screening-template-starter { border-color:var(--ui-border-subtle); border-radius:12px; padding:16px; }
+.conversation-product.research-studio.screening-studio .screening-capability-line { margin:0; }
 .conversation-product.research-studio.screening-studio .task-library-label { background:transparent; padding:0; color:var(--ui-text-muted); }
 .conversation-product.research-studio.screening-studio .task-execution-rule strong { font-weight:500; }
 
-.conversation-product.research-studio.screening-studio .conversation-message-stage { flex:none; min-height:0; max-height:none; overflow:visible; background:transparent; }
-.conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-main { gap:12px; }
-.conversation-product.research-studio.screening-studio .conversation-workspace-empty .screening-templates { order:-1; padding:0; }
-.conversation-product.research-studio.screening-studio .conversation-workspace-empty .screening-template-entries { margin:0; }
-.conversation-product.research-studio.screening-studio .conversation-workspace-empty .conversation-message-list { padding:0; }
 .screening-settings { position:relative; }
 .screening-settings-panel { position:absolute; bottom:calc(100% + 10px); left:0; z-index:21; width:260px; max-width:calc(100vw - 60px); box-sizing:border-box; padding:14px; border:1px solid var(--ui-border); border-radius:10px; background:var(--ui-surface,white); box-shadow:0 4px 16px #00286814; }
 .screening-settings-panel:not([hidden]) { display:flex; flex-direction:column; gap:12px; }
 .screening-settings-panel .studio-mode-select { justify-content:space-between; }
 .conversation-product.research-studio.screening-studio .screening-settings-panel .studio-mode-select > span { display:inline; }
+.conversation-product.research-studio.screening-studio .screening-plan-understanding { display:grid; gap:4px; padding:12px 14px; border:1px solid var(--ui-primary-border); border-radius:var(--ui-radius-sm); background:var(--ui-primary-soft); }
+.conversation-product.research-studio.screening-studio .screening-plan-understanding-label { color:var(--ui-primary); font-size:10px; font-weight:600; letter-spacing:.02em; }
+.conversation-product.research-studio.screening-studio .screening-plan-understanding p { margin:0; color:var(--ui-text); font-size:12px; line-height:1.75; }
+.conversation-product.research-studio.screening-studio .screening-plan-understanding small { color:var(--ui-text-muted); font-size:11px; line-height:1.6; }
+.conversation-product.research-studio.screening-studio .task-source-quote { display:flex; flex-wrap:wrap; gap:2px 6px; margin:6px 0; color:var(--ui-text-muted); font-size:11px; line-height:1.65; }
+.conversation-product.research-studio.screening-studio .task-source-quote span { color:var(--ui-primary); font-weight:600; }
 .screening-plan-secondary { margin-top:14px; color:var(--ui-text-muted); font-size:12px; }
 .screening-plan-secondary > summary { cursor:pointer; margin-bottom:8px; }
+.screening-preview-button { flex:0 0 auto; margin-left:4px; color:var(--ui-text-muted); font-size:12px; white-space:nowrap; }
+.screening-preview-button:hover:not(:disabled) { color:var(--ui-primary); }
+.conversation-product.research-studio.screening-studio .screening-capability-warning { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin:8px 0 0; padding:8px 10px; border:1px solid var(--ui-warning-border); border-radius:var(--ui-radius-xs); background:var(--ui-warning-soft); color:var(--ui-warning); font-size:11px; line-height:1.65; }
+.conversation-product.research-studio.screening-studio .screening-capability-warning .text-button { margin-left:auto; color:var(--ui-warning); }
+.conversation-product.research-studio.screening-studio .screening-capability-line { display:flex; align-items:center; flex-wrap:wrap; gap:2px 8px; margin:0; padding:0 2px; color:var(--ui-text-muted); font-size:11px; line-height:1.7; }
+.conversation-product.research-studio.screening-studio .screening-capability-line strong { color:var(--ui-text); font-weight:600; }
+.conversation-product.research-studio.screening-studio .screening-capability-line .text-button { margin-left:auto; white-space:nowrap; }
 .conversation-product.research-studio.screening-studio .task-composition-editor { max-width:720px; }
 .conversation-product.research-studio.screening-studio .task-composition-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin:0 0 8px; color:var(--ui-text-muted); font-size:12px; }
 .conversation-product.research-studio.screening-studio .task-composition-mode { display:inline-flex; gap:2px; padding:3px; border:1px solid var(--ui-border); border-radius:7px; background:var(--ui-surface); }
@@ -66,6 +66,24 @@
   .screening-settings { position:static; }
   .screening-settings-panel { top:14px; bottom:auto; left:12px; right:12px; width:auto; max-width:none; }
 }
-.conversation-product.research-studio.screening-studio .conversation-composer { width:100%; min-width:0; max-width:none; box-sizing:border-box; }
-.conversation-product.research-studio.screening-studio.screening-has-results { max-width:1280px; }
 .conversation-product.research-studio.screening-studio .conversation-task-panel[hidden] { display:none !important; }
+
+@media(max-width:700px) {
+  .conversation-product.research-studio.screening-studio .screening-template-entries { grid-template-columns:minmax(0,1fr); gap:8px; }
+  .conversation-product.research-studio.screening-studio .screening-template-entries .screening-template-starter { padding:12px 16px; gap:8px; }
+}
+
+/* Keep the first screen focused on writing; reveal examples and details on demand. */
+.screening-start-tools { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:4px 18px; padding-top:8px; }
+.screening-start-tools > .text-button { min-height:32px; padding:4px 0; color:var(--ui-text-muted); font-size:12px; }
+.screening-start-tools > .text-button[aria-expanded=true] { color:var(--ui-primary); }
+.screening-start-tools > .screening-readiness { flex-basis:100%; }
+.screening-start-tools > .screening-readiness-compact { flex-basis:auto; margin:0; padding:0; border:0; background:transparent; }
+.screening-start-tools .screening-readiness-compact .screening-readiness-summary { padding:0; }
+.screening-start-tools .screening-readiness-compact .screening-readiness-summary > button { min-height:32px; margin:0; padding:4px 0; font-size:12px; }
+.screening-start-tools > .screening-readiness-compact:has(button[aria-expanded=true]) { flex-basis:100%; order:1; }
+.screening-readiness-compact:has(button[aria-expanded=true]) .screening-readiness-summary { justify-content:center; }
+.screening-readiness-compact > div:not(.screening-readiness-summary) { margin-top:8px; padding:12px 14px; border:1px solid var(--ui-border-subtle); border-radius:10px; background:var(--ui-surface-subtle); text-align:left; }
+.screening-start-panel { display:grid; gap:16px; width:100%; padding:16px 0 8px; text-align:left; }
+.screening-start-panel[hidden] { display:none; }
+.screening-settings-panel .screening-preview-button { align-self:flex-start; margin:0; padding:6px 0; }

@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest'
 import SavedScreeningPlans from './SavedScreeningPlans'
 import type { SavedScreeningTask } from '../api'
 
-vi.mock('../components/conversation/SavedTaskLibrary', () => ({ default: ({ onReuse }: { onReuse: (task: SavedScreeningTask, latest?: boolean) => void }) => <button onClick={() => onReuse({ id: 'plan', name: '均线方案', version: 2 } as SavedScreeningTask, true)}>复用方案</button> }))
+vi.mock('../components/conversation/SavedTaskLibrary', () => ({ default: ({ onReuse }: { onReuse: (task: SavedScreeningTask, latest?: boolean) => void }) => <><button onClick={() => onReuse({ id: 'plan', name: '均线方案', version: 2 } as SavedScreeningTask, true)}>复用方案</button><button onClick={() => onReuse({ id: 'plan', name: '均线方案', version: 2 } as SavedScreeningTask, false)}>复用原日期</button></> }))
 
 it('opens a reusable screening plan for review without starting model processing or execution', async () => {
   const calls: { path: string; body: Record<string, unknown> }[] = []
@@ -31,7 +31,7 @@ it('retries a failed reuse with its accepted conversation and message instead of
     return new Response(JSON.stringify(path === '/api/v1/conversations' ? { id: 'new-screening' } : path.endsWith('/messages') ? { message_id: 'reuse-message' } : { revision: 1 }))
   }))
   const open = vi.fn(), user = userEvent.setup()
-  render(<SavedScreeningPlans onOpenConversation={open} />)
+  render(<SavedScreeningPlans data={{ available: true, last_date: '2026-10-08' }} onOpenConversation={open} />)
   await user.click(screen.getByRole('button', { name: '复用方案' }))
   await screen.findByRole('alert')
   await user.click(screen.getByRole('button', { name: '复用方案' }))
@@ -39,4 +39,27 @@ it('retries a failed reuse with its accepted conversation and message instead of
   expect(paths.filter(path => path === '/api/v1/conversations')).toHaveLength(1)
   expect(paths.filter(path => path.endsWith('/messages'))).toHaveLength(1)
   expect(paths.filter(path => path.endsWith('/reuse'))).toHaveLength(2)
+})
+
+it('keeps original-date reuse explicit and omits a replacement cutoff from its request', async () => {
+  const requests: { path: string; body: Record<string, unknown> }[] = []
+  vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(url), body = JSON.parse(String(init?.body)); requests.push({ path, body })
+    return new Response(JSON.stringify(path === '/api/v1/conversations' ? { id: 'original-date' } : path.endsWith('/messages') ? { message_id: 'source-message' } : { revision: 1 }))
+  }))
+  const open = vi.fn(), user = userEvent.setup()
+  render(<SavedScreeningPlans data={{ available: true, last_date: '2026-10-27' }} onOpenConversation={open} />)
+  await user.click(screen.getByRole('button', { name: '复用原日期' }))
+  await waitFor(() => expect(open).toHaveBeenCalledOnce())
+  expect(requests.find(item => item.path.endsWith('/reuse'))!.body).toEqual({ base_revision: 0, source_message_id: 'source-message', version: 2 })
+  expect(requests.find(item => item.path.endsWith('/messages'))!.body.content).toContain('保留原截止日')
+})
+
+it('does not silently reuse the original date when latest-date information is unavailable', async () => {
+  const fetcher = vi.fn(), user = userEvent.setup()
+  vi.stubGlobal('fetch', fetcher)
+  render(<SavedScreeningPlans />)
+  await user.click(screen.getByRole('button', { name: '复用方案' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('最新行情日期尚未就绪')
+  expect(fetcher).not.toHaveBeenCalled()
 })

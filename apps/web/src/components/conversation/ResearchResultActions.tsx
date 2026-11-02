@@ -57,7 +57,13 @@ export default function ResearchResultActions({ conversation, message, disabled,
     setSubmissionError('')
     setAction(next)
     if (next === 'draft') setInstructions(researchAnswerScreeningDraft(message.content))
-    else { setStockCode(suggestedSecurity?.stock_code ?? ''); setNote(researchAnswerExcerpt(message.content)); setVerification(''); setInvalidation('') }
+    else {
+      const brief = researchAnswerTurn(conversation, message)?.result.research_summary
+      setStockCode(suggestedSecurity?.stock_code ?? '')
+      setNote(brief?.conclusion || researchAnswerExcerpt(message.content))
+      setVerification(brief?.next_steps.join('\n') || '')
+      setInvalidation('')
+    }
   }
 
   async function submit() {
@@ -86,7 +92,7 @@ export default function ResearchResultActions({ conversation, message, disabled,
       onSave={() => { void (async () => { if (await onSave()) setSaved(true) })() }} onCopy={onCopy}
       onObserve={() => startAction('observe')} onDraft={() => startAction('draft')} onRegenerate={onRegenerate} onBranch={onBranch} />
     {action && createPortal(<div className="research-result-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) closeAction() }}>
-      <section className="research-result-dialog workspace-tool-dialog workspace-dialog" role="dialog" aria-modal="true" aria-label={action === 'draft' ? '研究转选股草稿' : '加入研究候选观察'} onKeyDown={event => {
+      <section className="research-result-dialog workspace-tool-dialog workspace-dialog" role="dialog" aria-modal="true" aria-label={action === 'draft' ? '研究转选股草稿' : '加入关注'} onKeyDown={event => {
         if (event.key === 'Escape') {
           const target = event.target as HTMLElement
           if (target.getAttribute('role') === 'combobox' && target.getAttribute('aria-expanded') === 'true') return
@@ -94,8 +100,8 @@ export default function ResearchResultActions({ conversation, message, disabled,
         }
         trapDialogTab(event)
       }}>
-      <header className="research-result-dialog-header"><h2>{action === 'draft' ? '研究转选股草稿' : '加入研究候选观察'}</h2><button ref={closeButton} type="button" className="icon-button workspace-button" aria-label="关闭研究操作" disabled={savingAction} onClick={closeAction}><X size={20} /></button></header>
-      <form className="research-next-step-form workspace-form" aria-label={action === 'draft' ? '研究转选股草稿' : '加入研究候选观察'} onSubmit={event => { event.preventDefault(); void submit() }}>
+      <header className="research-result-dialog-header"><h2>{action === 'draft' ? '研究转选股草稿' : '加入关注'}</h2><button ref={closeButton} type="button" className="icon-button workspace-button" aria-label="关闭研究操作" disabled={savingAction} onClick={closeAction}><X size={20} /></button></header>
+      <form className="research-next-step-form workspace-form" aria-label={action === 'draft' ? '研究转选股草稿' : '加入关注'} onSubmit={event => { event.preventDefault(); void submit() }}>
       <div className="research-result-dialog-body">
       {action === 'draft' ? <label className="workspace-field-label">选股要求<textarea aria-label="可执行选股条件" value={instructions} maxLength={3000} rows={4} disabled={locked} onChange={event => setInstructions(event.target.value)} className="workspace-field" /></label> : <>
         <label className="workspace-field-label">选择要观察的公司<div className="research-candidate-stock-search" onFocusCapture={event => { if ((event.target as HTMLElement).getAttribute('role') === 'combobox') setStockCode('') }} onInputCapture={() => setStockCode('')}><StockSearch label="观察候选股票代码" value={stockCode} onChange={setStockCode} disabled={locked} /></div></label>
@@ -105,7 +111,7 @@ export default function ResearchResultActions({ conversation, message, disabled,
       </>}
       {submissionError && <p className="research-next-step-submit-error workspace-error" role="alert">{submissionError}</p>}
       </div>
-      <footer className="research-next-step-form-actions"><button type="submit" className="primary-button compact workspace-button" disabled={locked || (action === 'draft' ? !instructions.trim() : !selectedSecurity)}>{savingAction ? '正在保存…' : action === 'draft' ? '创建选股草稿' : '保存研究候选'}</button><button type="button" className="secondary-button compact workspace-button" disabled={savingAction} onClick={closeAction}>取消</button></footer>
+      <footer className="research-next-step-form-actions"><button type="submit" className="primary-button compact workspace-button" disabled={locked || (action === 'draft' ? !instructions.trim() : !selectedSecurity)}>{savingAction ? '正在保存…' : action === 'draft' ? '创建选股草稿' : '确认关注'}</button><button type="button" className="secondary-button compact workspace-button" disabled={savingAction} onClick={closeAction}>取消</button></footer>
       </form>
       </section>
     </div>, portalTarget)}

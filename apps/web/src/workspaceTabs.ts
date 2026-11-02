@@ -18,7 +18,7 @@ export function workspaceTabTitle(route: WorkspaceRoute) {
   route = normalizeWorkspaceRoute(route)
   if (route.page === 'intelligence') return briefKinds.find(item => item.id === (route.briefKind || 'market'))?.name || '情报台'
   if (route.page === 'screening') return route.conversationId ? '研究对话' : '新研究'
-  if (route.page === 'conditions') return ({ saved: '我的方案', history: '选股记录', library: '我的条件', compose: '高级组合', create: '描述条件', conversation: route.conversationId ? '选股对话' : '新选股' })[route.view || 'conversation']
+  if (route.page === 'conditions') return ({ saved: '我的方案', history: '选股记录', library: '条件库', compose: '组合编辑', create: '新增条件', conversation: route.conversationId ? '选股对话' : '新选股' })[route.view || 'conversation']
   if (route.page === 'library') return route.libraryTab === 'reports' ? '研报与公告' : '资讯'
   return workspaceMenus.find(item => item.id === route.page)?.label || '研究'
 }
@@ -30,6 +30,7 @@ function makeTab(route: WorkspaceRoute, seed?: WorkspaceSeed): WorkspaceTab {
 
 function migrateSavedTab(tab: WorkspaceTab): WorkspaceTab {
   if (!tab?.route) return tab
+  if (tab.route.page === 'conditions' && ((tab.route.view === 'library' && tab.title === '我的条件') || (tab.route.view === 'compose' && tab.title === '高级组合') || (tab.route.view === 'create' && tab.title === '描述条件'))) return { ...tab, title: workspaceTabTitle(tab.route) }
   if ((tab?.route?.page as string) === 'technical') {
     const route = parseWorkspaceRoute('#/library/technical' + (tab.route.workspace === 'screening' ? '?workspace=screening' : ''))!
     return { ...tab, route, title: workspaceTabTitle(route) }

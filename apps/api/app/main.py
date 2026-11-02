@@ -58,6 +58,7 @@ from .models import (
     IndicatorPreviewInput,
     PatternExtractionInput,
     PatternInput,
+    PatternMarketWindowInput,
     PatternPreviewInput,
     PreviewInput,
     ReportSearchInput,
@@ -943,9 +944,59 @@ def pattern_extract(payload: PatternExtractionInput):
         _bad_request(str(exc), 422, "pattern_extraction_failed")
 
 
+@app.post(f"{API_PREFIX}/patterns/market-window")
+def pattern_market_window(payload: PatternMarketWindowInput):
+    if payload.start_date > payload.end_date:
+        _bad_request("开始日期不能晚于结束日期")
+    if payload.end_date > date.today():
+        _bad_request("结束日期不能晚于今天")
+    fingerprint = market.source_fingerprint()
+    bars = market.get_bar_window(payload.stock_code, payload.start_date.isoformat(), payload.end_date.isoformat())
+    if len(bars) < 10:
+        _bad_request(f"所选区间只有 {len(bars)} 根日线，请选择含 10–250 根日线的区间")
+    if len(bars) > 250:
+        _bad_request("所选区间超过 250 根日线，请缩短时间范围")
+    if any(bar.get("quality_valid") is False for bar in bars):
+        _bad_request("所选区间包含无效行情，请调整日期范围")
+    if len({bar["trade_date"] for bar in bars}) != len(bars):
+        _bad_request("所选区间存在重复交易日，请先修复行情数据")
+    candles = [{key: bar[key] for key in ("open", "high", "low", "close")} for bar in bars]
+    try:
+        validate_candles(candles)
+    except ValueError as exc:
+        _bad_request(str(exc))
+    if market.source_fingerprint() != fingerprint:
+        _bad_request("行情更新中，请重新载入区间", 409, "pattern_market_changed")
+    snapshot_id, now = str(uuid4()), utc_now()
+    source = {"snapshot_id": snapshot_id, "stock_code": payload.stock_code,
+              "requested_start_date": payload.start_date.isoformat(), "requested_end_date": payload.end_date.isoformat(),
+              "start_date": bars[0]["trade_date"], "end_date": bars[-1]["trade_date"],
+              "price_basis": market.PRICE_BASIS, "bars": bars, "created_at": now}
+    with connect() as connection:
+        connection.execute("INSERT INTO pattern_market_windows VALUES(?,?,?)", (snapshot_id, json_dump(source), now))
+    return {**source, "points": [bar["close"] for bar in bars], "candlesticks": candles, "target_bars": len(bars)}
+
+
+def _pattern_market_source(payload: PatternInput) -> dict | None:
+    if payload.input_type != "market_window":
+        return None
+    with connect() as connection:
+        row = connection.execute("SELECT window_json FROM pattern_market_windows WHERE id=?", (payload.source_window_id,)).fetchone()
+    if not row:
+        _bad_request("请先载入股票的 K 线区间，再保存或匹配")
+    source = json_load(row[0])
+    bars = source["bars"]
+    candles = [{key: bar[key] for key in ("open", "high", "low", "close")} for bar in bars]
+    if (payload.target_bars != len(bars) or payload.points != [bar["close"] for bar in bars]
+            or (payload.representation == "ohlc_sequence" and payload.candlesticks != candles)):
+        _bad_request("走势与载入的行情快照不一致，请重新载入区间")
+    return source
+
+
 @app.post(f"{API_PREFIX}/patterns")
 def save_pattern(payload: PatternInput):
     provenance = None
+    market_source = _pattern_market_source(payload)
     if len(payload.points) != payload.target_bars:
         _bad_request("走势点数必须与目标交易日数一致")
     similarity = payload.params.get("min_similarity", 80)
@@ -988,11 +1039,12 @@ def save_pattern(payload: PatternInput):
         "candlesticks": payload.candlesticks, "params": payload.params,
         "algorithm_version": "candle-window-v2" if payload.representation == "ohlc_sequence" else "path-window-v2",
         "provenance": provenance,
+        "market_source": market_source,
     }
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         version = connection.execute("SELECT COALESCE(MAX(version),0)+1 FROM patterns WHERE id=?", (pattern_id,)).fetchone()[0]
-        if source_image is None and version > 1:
+        if source_image is None and version > 1 and payload.input_type == "screenshot":
             previous = connection.execute("SELECT pattern_json FROM patterns WHERE id=? AND version=?", (pattern_id, version - 1)).fetchone()
             source_image = json_load(previous[0]).get("source_image") if previous else None
         content["source_image"] = source_image
@@ -1058,8 +1110,9 @@ def pattern_best_match(pattern_id: str, version: int, limit: int = Query(default
 
 
 @app.post(f"{API_PREFIX}/patterns/match")
-def match_pattern_input(payload: PatternInput):
+def match_pattern_input(payload: PatternInput, limit: int = Query(default=1, ge=1, le=24)):
     from .pattern_examples import find_example
+    market_source = _pattern_market_source(payload)
     if len(payload.points) != payload.target_bars:
         _bad_request("走势点数必须与目标交易日数一致", 422)
     if payload.representation == "ohlc_sequence":
@@ -1071,9 +1124,10 @@ def match_pattern_input(payload: PatternInput):
             _bad_request(str(exc), 422)
     template = {"representation": payload.representation, "target_bars": payload.target_bars,
                 "points": payload.points, "candlesticks": payload.candlesticks,
-                "algorithm_version": "candle-window-v2" if payload.representation == "ohlc_sequence" else "path-window-v2"}
+                "algorithm_version": "candle-window-v2" if payload.representation == "ohlc_sequence" else "path-window-v2",
+                "market_source": market_source}
     try:
-        return find_example(template)
+        return find_example(template, limit=limit)
     except ValueError as exc:
         _bad_request(str(exc), 409, "pattern_market_changed")
 

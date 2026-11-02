@@ -1,3 +1,4 @@
+import { openResearchSettings } from '../../test/openResearchSettings'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
@@ -28,6 +29,7 @@ it('persists a draft assistant, submits it with its revision and restores the sa
   const user = userEvent.setup()
   let view = render(<ConversationWorkspace initialNewDraft />)
   await waitFor(() => expect(screen.getByRole('button', { name: '添加文件' })).toBeEnabled())
+  await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '研究方法' }))
   expect(await screen.findByRole('menuitem', { name: '使用通用投研' })).toHaveAttribute('aria-current', 'true')
   await user.click(await screen.findByRole('menuitem', { name: '使用财报分析' }))
@@ -36,6 +38,7 @@ it('persists a draft assistant, submits it with its revision and restores the sa
   view = render(<ConversationWorkspace initialNewDraft />)
   await waitFor(() => expect(screen.getByRole('button', { name: '添加文件' })).toBeEnabled())
   expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('财报分析')
+  await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '研究方法' }))
   expect(await screen.findByRole('menuitem', { name: '使用财报分析' })).toHaveAttribute('aria-current', 'true')
   expect(screen.getByRole('menuitem', { name: '使用通用投研' })).not.toHaveAttribute('aria-current')
@@ -49,6 +52,7 @@ it('persists a draft assistant, submits it with its revision and restores the sa
   render(<ConversationWorkspace initialConversationId="one" />)
   await waitFor(() => expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('财报分析'))
   await waitFor(() => expect(screen.getByRole('button', { name: '添加文件' })).toBeEnabled())
+  await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '研究方法' }))
   await user.click(await screen.findByRole('menuitem', { name: '使用风险复核' }))
   await waitFor(() => expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('风险复核'))

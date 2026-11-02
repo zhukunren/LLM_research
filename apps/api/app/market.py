@@ -256,6 +256,27 @@ def get_bars(stock_code: str, as_of: str | None = None, limit: int = 250) -> lis
     return bars
 
 
+def get_bar_window(stock_code: str, start_date: str, end_date: str) -> list[dict[str, Any]]:
+    """Read an inclusive source interval; a 251st row signals an oversized template."""
+    if not STOCK_FILE.is_file() or stock_code.rsplit(".", 1)[-1] not in ALLOWED_MARKETS:
+        return []
+    with _open() as connection:
+        rows = connection.execute(
+            f"""SELECT trade_date::DATE, open, high, low, close, volume, amount
+                FROM read_parquet({_literal_path(STOCK_FILE)})
+                WHERE stock_code=? AND trade_date>=CAST(? AS TIMESTAMP)
+                  AND trade_date<CAST(? AS TIMESTAMP)+INTERVAL 1 DAY
+                ORDER BY trade_date LIMIT 251""",
+            [stock_code, start_date, end_date],
+        ).fetchall()
+    bars = []
+    for day, op, hi, lo, cl, vol, amt in rows:
+        valid, reason = _bar_quality(op, hi, lo, cl, vol, amt)
+        bars.append({"trade_date": str(day), "open": op, "high": hi, "low": lo, "close": cl,
+                     "volume": vol, "amount": amt, "quality_valid": valid, "quality_reason": reason})
+    return bars
+
+
 def latest_market_date(as_of: str) -> str | None:
     if not STOCK_FILE.is_file():
         return None

@@ -1,3 +1,4 @@
+import { openResearchSettings } from '../../test/openResearchSettings'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
@@ -92,7 +93,8 @@ it('creates only conversation metadata on upload and sends attachment-only resea
   expect(state.paths.some(path => path.endsWith('/process'))).toBe(false)
   expect(screen.queryByRole('combobox', { name: '研究助手' })).not.toBeInTheDocument()
   const form = screen.getByRole('textbox', { name: '研究要求' }).closest('form')!
-  expect(within(form).getByRole('button', { name: /选择研究模型/ })).toBeInTheDocument()
+  expect(within(form).queryByRole('button', { name: /选择研究模型/ })).not.toBeInTheDocument()
+  expect(within(form).getByRole('button', { name: '研究设置' })).toHaveAttribute('aria-expanded', 'false')
   await user.click(screen.getByRole('button', { name: '发送' }))
   await screen.findByText('已读取上传文件。')
   expect(state.messages[0]).toMatchObject({ content: '请分析上传的文件', attachment_ids: ['attachment-1'] })
@@ -129,6 +131,7 @@ it('changes research methods without sending or losing draft text and uploaded f
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
   await user.type(screen.getByLabelText('研究要求'), '尚未发送的问题')
   await uploadFile(user)
+  await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '研究方法' }))
   expect(screen.queryByRole('menuitem', { name: '启动今日热点' })).not.toBeInTheDocument()
   await user.click(await screen.findByRole('menuitem', { name: '使用财报分析' }))

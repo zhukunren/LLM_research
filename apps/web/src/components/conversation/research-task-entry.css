@@ -1,0 +1,19 @@
+.research-task-entry { width: 100%; min-width: 0; }
+.research-settings-note { margin: 0; max-width: 300px; color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
+.research-task-intro { margin: 0 0 16px; color: var(--ui-text-muted); font-size: 14px; line-height: 1.7; text-align: center; }
+.research-task-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.research-task-option { display: flex; align-items: flex-start; gap: 10px; min-width: 0; min-height: 106px; padding: 16px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); background: var(--ui-surface); color: var(--ui-text); text-align: left; cursor: pointer; }
+.research-task-option > svg { flex: 0 0 auto; margin-top: 2px; color: var(--ui-primary); }
+.research-task-option > svg:last-child { width: 14px; margin-left: auto; color: var(--ui-text-muted); }
+.research-task-option strong { display: block; font-size: 15px; line-height: 1.6; font-weight: 600; }
+.research-task-option small { display: block; margin-top: 6px; color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
+.research-task-option:hover:not(:disabled), .research-task-option[aria-expanded="true"] { border-color: var(--ui-primary-border); background: var(--ui-primary-soft); }
+.research-task-option:focus-visible, .research-task-directions button:focus-visible { outline: 2px solid var(--ui-focus-outline); outline-offset: 3px; }
+.research-task-option:disabled { opacity: .5; cursor: default; }
+.research-task-company { margin-top: 16px; padding: 16px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); text-align: left; }
+.research-task-company .stock-search-control { width: 100%; margin-top: 8px; }
+.research-task-company > p { margin: 10px 0 0; color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
+.research-task-directions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.research-task-directions button { min-height: 36px; padding: 6px 12px; border: 1px solid var(--ui-border); border-radius: 7px; background: var(--ui-surface); color: var(--ui-text-muted); cursor: pointer; font-size: 13px; }
+.research-task-directions button[aria-pressed="true"] { background: var(--ui-primary-soft); border-color: var(--ui-primary-border); color: var(--ui-primary); }
+@media (max-width: 760px) { .research-task-options { grid-template-columns: 1fr; gap: 10px; } .research-task-option { align-items: center; min-height: 76px; padding: 14px; } .research-task-option small { margin-top: 2px; } .research-task-directions button { min-height: 44px; } }

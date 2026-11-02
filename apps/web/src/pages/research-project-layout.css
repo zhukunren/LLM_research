@@ -10,6 +10,22 @@
 .viewport-workspace .page-frame .research-project-page .research-project-context[open] { max-height: 32dvh; overflow-y: auto; }
 .viewport-workspace .page-frame .research-project-page .research-project-tabs { margin: 0 0 8px; gap: 20px; }
 .viewport-workspace .page-frame .research-project-page .research-project-tabs button { padding-block: 9px; }
+.viewport-workspace .page-frame .research-project-page .research-scope-toolbar { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; margin: 6px 0; }
+.viewport-workspace .page-frame .research-project-page .research-scope-select { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; font-size: 12px; }
+.viewport-workspace .page-frame .research-project-page .research-scope-select select { width: 260px; max-width: 100%; min-width: 0; min-height: 34px; font-size: 12px; }
+.viewport-workspace .page-frame .research-project-page .research-scope-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.viewport-workspace .page-frame .research-project-page .research-scope-actions > button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; font-size: 12px; white-space: nowrap; }
+.viewport-workspace .page-frame .research-project-page .research-scope-hint { flex-shrink: 0; margin: 2px 0 8px; color: var(--ui-text-muted); font-size: 11px; line-height: 1.6; }
+.research-analysis-menu { position: fixed; z-index: 175; display: grid; width: 240px; max-width: calc(100vw - 16px); padding: 5px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); box-shadow: 0 8px 26px #142c4924; }
+.research-analysis-menu > button { display: flex; align-items: center; gap: 10px; padding: 10px; border: 0; border-radius: 5px; background: transparent; color: var(--ui-text); text-align: left; cursor: pointer; }
+.research-analysis-menu > button:is(:hover,:focus-visible) { outline: 0; background: var(--ui-surface-subtle); }
+.research-analysis-menu > button > span { display: grid; gap: 4px; }
+.research-analysis-menu strong { font-size: 13px; font-weight: 500; }
+.research-analysis-menu small { color: var(--ui-text-muted); font-size: 11px; }
+.condition-workspace-drawer.research-analysis-drawer-wide { width: min(1120px, 100vw); }
+.research-analysis-drawer .company-research-panel { margin: 0; padding: 0; border: 0; background: transparent; }
+.research-analysis-drawer .research-section-heading { flex-wrap: wrap; gap: 10px; }
+.research-analysis-drawer :is(.research-quality-panel,.financial-comparison-panel,.research-matrix-panel) { min-width: 0; }
 .viewport-workspace .page-frame .research-project-page .research-note-layout-editing > .research-project-context,
 .viewport-workspace .page-frame .research-project-page .research-note-layout-editing > .research-project-tabs,
 .viewport-workspace .page-frame .research-project-page .research-note-layout-editing .research-content-heading:empty { display: none; }
@@ -34,6 +50,10 @@
   .viewport-workspace .page-frame .research-project-page .research-project-heading > .heading-actions { justify-content: flex-start; width: 100%; }
   .viewport-workspace .page-frame .research-project-page .research-project-topline { font-size: 11px; }
   .viewport-workspace .page-frame .research-project-page .research-project-title h2 { font-size: 20px; }
+  .viewport-workspace .page-frame .research-project-page .research-scope-toolbar { align-items: stretch; gap: 6px; }
+  .viewport-workspace .page-frame .research-project-page .research-scope-select { width: 100%; }
+  .viewport-workspace .page-frame .research-project-page .research-scope-select select { flex: 1; width: auto; }
+  .viewport-workspace .page-frame .research-project-page .research-scope-actions { width: 100%; justify-content: flex-end; }
   .viewport-workspace .page-frame .research-project-page .research-project-tabs { gap: 14px; }
   .viewport-workspace .page-frame .research-project-page .research-project-tabs button { gap: 4px; font-size: 12px; }
   .viewport-workspace .page-frame .research-project-page .research-note-filters { flex-wrap: wrap; gap: 7px; }

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ArrowRight, BookOpen, Check, ChevronDown, Clock3, Download, ExternalLink, FileSearch, History, RefreshCw, Search, Settings2, Square, X } from 'lucide-react'
 import { api, ApiRequestError } from '../api'
 import { sessionStorage } from '../authStorage'
 import { trapDialogTab } from '../keyboard'
 import { useWorkspaceSession } from '../WorkspaceSession'
 import LoadingState from '../components/LoadingState'
+import ConditionWorkspaceDrawer from '../components/ConditionWorkspaceDrawer'
 import { AdvisorSettings, AdvisorResult, EvidenceDimension } from '../components/AdvisorTask'
 import { ValidationResult } from '../components/ValidationResult'
 import { defaultAdvisorScope, isAdvisorKind, isStockKind, taskNoun, type AdvisorScope } from '../intelligence'
@@ -82,19 +83,30 @@ function ResultItem({ item, index, hasPrevious, onEvidence, onResearch }: { item
 
 export default function IntelligencePage({ kind = 'market', runId, onLocation, onResearch, onSettings }: Props) {
   const session = useWorkspaceSession()
+  const scopeFormId = useId()
+  const kindTabs = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const nav = kindTabs.current
+    if (!nav) return
+    const reveal = () => { const current = nav.querySelector<HTMLElement>('[aria-current="page"]'); if (current) nav.scrollLeft = current.offsetLeft - nav.offsetLeft - (nav.clientWidth - current.offsetWidth) / 2 }
+    reveal()
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(reveal) : null
+    observer?.observe(nav)
+    return () => observer?.disconnect()
+  }, [kind, session.active])
   const [catalog, setCatalog] = useState<BriefCatalog | null>(null)
   const [catalogError, setCatalogError] = useState(''), [reload, setReload] = useState(0)
   const [selected, setSelected] = useState<string | undefined>(runId)
   const [detail, setDetail] = useState<BriefDetail | null>(null)
   const [detailError, setDetailError] = useState('')
   const [scope, setScope] = useState<BriefScope>(defaultBriefScope)
-  const [scopeOpen, setScopeOpen] = useState(false), [scopeDirty, setScopeDirty] = useState(false)
+  const [sidePanel, setSidePanel] = useState<'scope' | 'history' | null>(null), [scopeDirty, setScopeDirty] = useState(false)
   const [industries, setIndustries] = useState(''), [cutoff, setCutoff] = useState('')
   const [busy, setBusy] = useState(false), [actionError, setActionError] = useState('')
   const [pending, setPending] = useState<BriefRequest | null>(() => pendingRequest(kind))
   const [citation, setCitation] = useState<BriefCitation | null>(null)
   const [query, setQuery] = useState(''), [onlyChanges, setOnlyChanges] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false), [moreBusy, setMoreBusy] = useState(false)
+  const [moreBusy, setMoreBusy] = useState(false)
   const sending = useRef(false), selectedRef = useRef(selected), scopeDirtyRef = useRef(false)
   const locationRef = useRef(onLocation); locationRef.current = onLocation
   const generation = useRef(0)
@@ -119,7 +131,7 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
         if (!selectedRef.current) {
           const id = data.latest_result_id || data.items[0]?.id
           if (id) { selectedRef.current = id; setSelected(id); locationRef.current(kind, id) }
-          else setScopeOpen(true)
+          else if (!pendingRequest(kind)) setSidePanel('scope')
         }
         const savedPending = pendingRequest(kind)
         const recovered = savedPending && data.items.find(item => item.request_id === savedPending.request_id)
@@ -156,7 +168,7 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
   function openEvidenceItem(key: string) { setQuery(''); setOnlyChanges(false); requestAnimationFrame(() => document.getElementById('brief-item-' + key)?.scrollIntoView({ block: 'center', behavior: 'smooth' })) }
   function changeScope(values: Partial<BriefScope>) { setScope(current => ({ ...current, ...values })); setScopeDirty(true) }
   function choose(run: BriefRun) {
-    setSelected(run.id); setHistoryOpen(false); setQuery(''); setOnlyChanges(false)
+    setSelected(run.id); setSidePanel(null); setQuery(''); setOnlyChanges(false)
     setScope(run.scope); setIndustries(run.scope.industries.join('、')); setScopeDirty(true)
     onLocation(run.kind, run.id)
   }
@@ -167,10 +179,10 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
   async function submit(retryRun?: BriefDetail) {
     if (sending.current) return
     const inputScope = retryRun?.scope || { ...scope, industries: industries.split(/[,，、\n]/).map(value => value.trim()).filter(Boolean) }
-    if (!pending && isStockKind(kind) && !inputScope.advisor?.stock_code) { setActionError('请先从股票目录选择要研究的股票。'); setScopeOpen(true); return }
+    if (!pending && isStockKind(kind) && !inputScope.advisor?.stock_code) { setActionError('请先从股票目录选择要研究的股票。'); setSidePanel('scope'); return }
     if (!pending && inputScope.advisor?.holding_cost != null && (!Number.isFinite(inputScope.advisor.holding_cost) || inputScope.advisor.holding_cost <= 0)) { setActionError('请填写有效的持仓成本，或留空。'); return }
     if (!pending && (!inputScope.markets.length || inputScope.industries.length > 8 || inputScope.industries.some(value => value.length > 40))) {
-      setActionError('至少选择一个市场，行业最多8项，每项不超过40字。'); setScopeOpen(true); return
+      setActionError('至少选择一个市场，行业最多8项，每项不超过40字。'); setSidePanel('scope'); return
     }
     // datetime-local is explicitly interpreted in Shanghai, independent of the device timezone.
     const parsedCutoff = cutoff ? new Date(cutoff + ':00+08:00') : null
@@ -184,7 +196,7 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
     try {
       const data = await api<BriefDetail>('/intelligence/runs', { method: 'POST', body: JSON.stringify(request) })
       if (generation.current !== attempt) return
-      persistPending(null); setDetail(data); setSelected(data.id); setScopeOpen(false); setHistoryOpen(false)
+      persistPending(null); setDetail(data); setSelected(data.id); setSidePanel(null)
       onLocation(kind, data.id); setReload(value => value + 1)
     } catch (reason) {
       if (generation.current !== attempt) return
@@ -206,7 +218,7 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
     setMoreBusy(true)
     try {
       const next = await api<BriefCatalog>(`/intelligence?kind=${kind}&offset=${catalog.next_offset}`)
-      setCatalog(current => current ? { ...next, items: [...current.items, ...next.items.filter(item => !current.items.some(old => old.id === item.id))] } : next)
+      setCatalog(current => current ? { ...next, items: [...current.items, ...next.items.filter(item => !current.items.some(old => old.id === item.id))], legacy: [...current.legacy, ...next.legacy.filter(item => !current.legacy.some(old => old.conversation_id === item.conversation_id))] } : next)
     } catch (reason) { setCatalogError((reason as Error).message) }
     finally { setMoreBusy(false) }
   }
@@ -215,35 +227,19 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
     (!query.trim() || `${item.title} ${item.facts} ${item.affected.join(' ')}`.toLowerCase().includes(query.trim().toLowerCase()))) || []
   const active = detail && briefActive(detail.state)
   const ongoing = catalog?.items.find(item => briefActive(item.state))
+  const nextScopeChanged = detail && scopeDirty && JSON.stringify({ ...scope, advisor: scope.advisor || null }) !== JSON.stringify({ ...detail.scope, advisor: detail.scope.advisor || null })
   return <div className="page-content intelligence-page workspace-tool-page">
     <header className="intelligence-heading"><div><span className="intelligence-eyebrow">情报台</span><h1>{name}</h1><p>{briefKinds.find(item => item.id === kind)!.description}</p></div>
-      <div className="intelligence-heading-actions"><button className="secondary-button workspace-button" onClick={() => setScopeOpen(value => !value)} aria-expanded={scopeOpen}><Settings2 size={15} />{advisor ? '任务设置' : '范围设置'}</button><button className="secondary-button workspace-button" onClick={() => setHistoryOpen(value => !value)} aria-expanded={historyOpen}><History size={15} />历史版本</button><button className="primary-button workspace-button" disabled={busy || !!pending || !catalog || !!active || !!ongoing} onClick={() => void submit()}><RefreshCw size={15} className={busy ? 'spin' : ''} />{busy ? '正在提交…' : active || ongoing ? '正在执行' : result ? '更新' + noun : '生成' + noun}</button></div>
+      <div className="intelligence-heading-actions"><button className="secondary-button workspace-button" onClick={() => { setCitation(null); setSidePanel('scope') }} aria-haspopup="dialog" aria-expanded={sidePanel === 'scope'}><Settings2 size={15} />{advisor ? '任务设置' : '范围设置'}</button><button className="secondary-button workspace-button" onClick={() => { setCitation(null); setSidePanel('history') }} aria-haspopup="dialog" aria-expanded={sidePanel === 'history'}><History size={15} />历史版本</button><button className="primary-button workspace-button" disabled={busy || !!pending || !catalog || !!active || !!ongoing} onClick={() => void submit()}><RefreshCw size={15} className={busy ? 'spin' : ''} />{busy ? '正在提交…' : active || ongoing ? '正在执行' : result ? '更新' + noun : '生成' + noun}</button></div>
     </header>
-    <nav className="intelligence-kind-tabs" aria-label="情报类型">{briefKinds.map(item => <button key={item.id} className="workspace-button" aria-current={kind === item.id ? 'page' : undefined} onClick={() => { if (kind !== item.id) onLocation(item.id) }}>{item.name}</button>)}</nav>
-    <div className="intelligence-scope-summary"><span><Settings2 size={14} />下次生成：{briefScopeLabel(scope)}</span><span>{cutoff ? `截止 ${cutoff.replace('T', ' ')}（北京时间）` : '截止提交时刻'} · 最多 {scope.max_items} 项</span></div>
+    <nav ref={kindTabs} className="intelligence-kind-tabs" aria-label="情报类型">{briefKinds.map(item => <button key={item.id} className="workspace-button" aria-current={kind === item.id ? 'page' : undefined} onClick={() => { if (kind !== item.id) onLocation(item.id) }}>{item.name}</button>)}</nav>
+    {(nextScopeChanged || cutoff || !detail || pending) && <div className="intelligence-scope-summary"><span><Settings2 size={14} />下次生成：{briefScopeLabel(scope)}</span><span>{cutoff ? `截止 ${cutoff.replace('T', ' ')}（北京时间）` : '截止提交时刻'} · 最多 {scope.max_items} 项</span></div>}
     {ongoing && ongoing.id !== selected && <div className="intelligence-notice"><span>另有一份{briefKinds.find(item => item.id === kind)!.name}正在执行。</span><button className="secondary-button workspace-button" onClick={() => choose(ongoing)}>查看执行进展</button></div>}
-    {scopeOpen && <form className="intelligence-scope-form" aria-label="情报范围设置" onSubmit={event => { event.preventDefault(); void submit() }}>
-      {advisor && <AdvisorSettings kind={kind} scope={scope} disabled={busy || !!pending} onChange={changeAdvisor} />}
-      {!advisor && <fieldset disabled={busy || !!pending}><legend>市场范围</legend><div className="intelligence-market-options">{Object.entries(briefMarkets).map(([value, label]) => <label key={value}><input type="checkbox" checked={scope.markets.includes(value as keyof typeof briefMarkets)} onChange={event => changeScope({ markets: event.target.checked ? [...scope.markets, value as keyof typeof briefMarkets] : scope.markets.filter(item => item !== value) })} />{label}</label>)}</div></fieldset>}
-      <div className="intelligence-form-grid">
-        <label className="workspace-field-label">{advisor ? '近期资讯窗口' : '时间窗口'}<select className="workspace-field" value={scope.lookback_hours} disabled={busy || !!pending} onChange={event => changeScope({ lookback_hours: Number(event.target.value) as BriefScope['lookback_hours'] })}><option value={24}>近24小时</option><option value={72}>近3天</option><option value={168}>近7天</option></select></label>
-        {!advisor && <label className="workspace-field-label">关注行业<input className="workspace-field" value={industries} maxLength={328} placeholder="不限；多个行业用顿号分隔" disabled={busy || !!pending} onChange={event => { setIndustries(event.target.value); changeScope({ industries: event.target.value.split(/[,，、\n]/).map(value => value.trim()).filter(Boolean) }) }} /></label>}
-        <label className="workspace-field-label">来源偏好<select className="workspace-field" value={scope.source_preference} disabled={busy || !!pending} onChange={event => changeScope({ source_preference: event.target.value as BriefScope['source_preference'] })}><option value="primary">优先原始披露与官方来源</option><option value="broad">结合可信报道交叉核对</option></select></label>
-        <label className="workspace-field-label">{advisor ? '证据主题上限' : '条目上限'}<select className="workspace-field" value={scope.max_items} disabled={busy || !!pending} onChange={event => changeScope({ max_items: Number(event.target.value) as BriefScope['max_items'] })}><option value={5}>5项</option><option value={10}>10项</option><option value={15}>15项</option></select></label>
-      </div>
-      <label className="workspace-field-label">{advisor ? '补充研究要求（可选）' : '关注要求（可选）'}<textarea className="workspace-field" rows={2} maxLength={600} value={scope.focus} disabled={busy || !!pending} placeholder="例如：重点看与观察公司相关的订单和政策变化" onChange={event => changeScope({ focus: event.target.value })} /></label>
-      <details><summary>指定历史截止时间</summary><label className="workspace-field-label">北京时间；留空使用提交时刻<input type="datetime-local" className="workspace-field" value={cutoff} disabled={busy || !!pending} onChange={event => setCutoff(event.target.value)} /></label></details>
-      <footer><span>范围在提交时固定。可靠资料不足时按实际数量交付。</span><button type="submit" className="primary-button workspace-button" disabled={busy || !!pending || !catalog || !!active || !!ongoing}>{advisor ? '按此设置生成' : '按此范围生成'}<ArrowRight size={15} /></button></footer>
-    </form>}
+    {sidePanel !== 'scope' && <>
     {pending && !busy && <div className="intelligence-notice" role="status"><span>上次提交尚未确认。继续提交会复用同一请求，不会重复创建任务。</span><button className="secondary-button workspace-button" onClick={() => void submit()}>继续提交</button></div>}
-    {actionError && <div role="alert" className="workspace-error intelligence-notice"><span>{actionError}</span><button className="text-button workspace-button" onClick={onSettings}>数据与服务</button></div>}
-    {catalogError && <div role="alert" className="workspace-error intelligence-notice"><span>历史记录读取失败：{catalogError}</span><button className="text-button workspace-button" onClick={() => setReload(value => value + 1)}>重新读取</button></div>}
-    {historyOpen && catalog && <section className="intelligence-history" aria-label="情报历史版本"><div className="intelligence-section-heading"><h2>历史版本 <small>{catalog.total} 次执行</small></h2><button className="text-button workspace-button" onClick={() => setHistoryOpen(false)}>收起</button></div><p className="intelligence-caption">版本号按相同范围累计；切换历史只读取已保存的成果和证据。</p>
-      {catalog.items.map(run => <button key={run.id} className={`intelligence-history-row workspace-button${selected === run.id ? ' active' : ''}`} onClick={() => choose(run)}><span><strong>{run.title}</strong><small>{briefScopeLabel(run.scope)}</small></span><span>V{run.version}<small>{briefTime(run.cutoff_at)}</small></span><span>{briefStates[run.state] || run.state}<small>{run.item_count == null ? '尚无成果' : `${run.item_count}项事件`}</small></span></button>)}
-      {catalog.next_offset != null && <button className="secondary-button workspace-button" disabled={moreBusy} onClick={() => void moreHistory()}>更早的版本</button>}
-      {catalog.legacy.length > 0 && <details className="intelligence-legacy"><summary>升级前的研究记录</summary><p className="intelligence-caption">原对话保留，未自动转换为已核验的结构化成果。</p>{catalog.legacy.map(run => <button key={run.conversation_id} className="text-button workspace-button" onClick={() => onResearch(run.conversation_id)}>{run.title || name}<small>{briefTime(run.started_at)}</small><ArrowRight size={14} /></button>)}</details>}
-      {!catalog.items.length && !catalog.legacy.length && <p className="intelligence-caption">生成第一份成果后，历史记录会保存在这里。</p>}
-    </section>}
+    {actionError && <div role="alert" className="workspace-error intelligence-notice"><span>{actionError}</span><button className="text-button workspace-button" onClick={() => { setSidePanel(null); onSettings() }}>数据与服务</button></div>}
+    </>}
+    {catalogError && sidePanel !== 'history' && <div role="alert" className="workspace-error intelligence-notice"><span>历史记录读取失败：{catalogError}</span><button className="text-button workspace-button" onClick={() => setReload(value => value + 1)}>重新读取</button></div>}
     {detailError && <div role="alert" className="workspace-error intelligence-notice"><span>结果读取失败：{detailError}</span><button className="text-button workspace-button" onClick={() => setReload(value => value + 1)}>重新读取</button></div>}
     {!catalog && !catalogError && <LoadingState label="正在打开情报台…" skeleton />}
     {selected && !detail && !detailError && <LoadingState label="正在读取成果与执行记录…" skeleton />}
@@ -274,6 +270,35 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
       </>}
     </section>}
     {catalog && !selected && <section className="intelligence-intro"><div><FileSearch size={27} /><h2>{advisor ? '从工作场景开始，形成有依据的投顾稿件' : '从确认范围开始，交付一份有证据的简报'}</h2><p>{advisor ? '固定股票或复盘日期，核对真实资料，形成研判、行动条件与可复制的沟通稿。每个版本保留原文与输入。' : '每项事件包含事实、影响分析、排序依据和原文摘录。每次运行固定截止时间，形成可回看的独立版本。'}</p></div><ol><li><span>01</span>选择市场与时间范围</li><li><span>02</span>查找来源并核对原文</li><li><span>03</span>查看成果、证据与版本变化</li></ol></section>}
+    {sidePanel && session.active && <ConditionWorkspaceDrawer title={sidePanel === 'history' ? '历史版本' : advisor ? '任务设置' : '范围设置'} description={sidePanel === 'history' ? `${name} · 查看已保存的成果与原文` : `${name} · 下次生成使用的范围，提交后固定保存`} closeLabel={sidePanel === 'history' ? '关闭历史版本' : '关闭范围设置'} className="intelligence-settings-drawer" onClose={() => setSidePanel(null)} footer={sidePanel === 'scope' ? <><p>范围在提交时固定，可靠资料不足时按实际数量交付。</p><div><button type="button" className="secondary-button workspace-button" onClick={() => setSidePanel(null)}>返回成果</button><button type="submit" form={scopeFormId} className="primary-button workspace-button" disabled={busy || !!pending || !catalog || !!active || !!ongoing}>{advisor ? '按此设置生成' : '按此范围生成'}<ArrowRight size={15} /></button></div></> : undefined}>
+      {sidePanel === 'scope' ? <>
+    <form id={scopeFormId} className="intelligence-scope-form" aria-label="情报范围设置" onSubmit={event => { event.preventDefault(); void submit() }}>
+      {advisor && <AdvisorSettings kind={kind} scope={scope} disabled={busy || !!pending} onChange={changeAdvisor} />}
+      {!advisor && <fieldset disabled={busy || !!pending}><legend>市场范围</legend><div className="intelligence-market-options">{Object.entries(briefMarkets).map(([value, label]) => <label key={value}><input type="checkbox" checked={scope.markets.includes(value as keyof typeof briefMarkets)} onChange={event => changeScope({ markets: event.target.checked ? [...scope.markets, value as keyof typeof briefMarkets] : scope.markets.filter(item => item !== value) })} />{label}</label>)}</div></fieldset>}
+      <div className="intelligence-form-grid">
+        <label className="workspace-field-label">{advisor ? '近期资讯窗口' : '时间窗口'}<select className="workspace-field" value={scope.lookback_hours} disabled={busy || !!pending} onChange={event => changeScope({ lookback_hours: Number(event.target.value) as BriefScope['lookback_hours'] })}><option value={24}>近24小时</option><option value={72}>近3天</option><option value={168}>近7天</option></select></label>
+        {!advisor && <label className="workspace-field-label">关注行业<input className="workspace-field" value={industries} maxLength={328} placeholder="不限；多个行业用顿号分隔" disabled={busy || !!pending} onChange={event => { setIndustries(event.target.value); changeScope({ industries: event.target.value.split(/[,，、\n]/).map(value => value.trim()).filter(Boolean) }) }} /></label>}
+        <label className="workspace-field-label">来源偏好<select className="workspace-field" value={scope.source_preference} disabled={busy || !!pending} onChange={event => changeScope({ source_preference: event.target.value as BriefScope['source_preference'] })}><option value="primary">优先原始披露与官方来源</option><option value="broad">结合可信报道交叉核对</option></select></label>
+        <label className="workspace-field-label">{advisor ? '证据主题上限' : '条目上限'}<select className="workspace-field" value={scope.max_items} disabled={busy || !!pending} onChange={event => changeScope({ max_items: Number(event.target.value) as BriefScope['max_items'] })}><option value={5}>5项</option><option value={10}>10项</option><option value={15}>15项</option></select></label>
+      </div>
+      <label className="workspace-field-label">{advisor ? '补充研究要求（可选）' : '关注要求（可选）'}<textarea className="workspace-field" rows={2} maxLength={600} value={scope.focus} disabled={busy || !!pending} placeholder="例如：重点看与观察公司相关的订单和政策变化" onChange={event => changeScope({ focus: event.target.value })} /></label>
+      <details><summary>指定历史截止时间</summary><label className="workspace-field-label">北京时间；留空使用提交时刻<input type="datetime-local" className="workspace-field" value={cutoff} disabled={busy || !!pending} onChange={event => setCutoff(event.target.value)} /></label></details>
+
+    </form>
+    {pending && !busy && <div className="intelligence-notice" role="status"><span>上次提交尚未确认。继续提交会复用同一请求，不会重复创建任务。</span><button className="secondary-button workspace-button" onClick={() => void submit()}>继续提交</button></div>}
+    {actionError && <div role="alert" className="workspace-error intelligence-notice"><span>{actionError}</span><button className="text-button workspace-button" onClick={() => { setSidePanel(null); onSettings() }}>数据与服务</button></div>}
+      </> : <>
+        {catalogError && <div role="alert" className="workspace-error intelligence-notice"><span>历史记录读取失败：{catalogError}</span><button className="text-button workspace-button" onClick={() => setReload(value => value + 1)}>重新读取</button></div>}
+        {catalog ? <>
+    <section className="intelligence-history" aria-label="情报历史版本"><p className="intelligence-history-count">{catalog.total} 次执行</p><p className="intelligence-caption">版本号按相同范围累计；切换历史只读取已保存的成果和证据。</p>
+      {catalog.items.map(run => <button key={run.id} aria-current={selected === run.id ? 'true' : undefined} className={`intelligence-history-row workspace-button${selected === run.id ? ' active' : ''}`} onClick={() => choose(run)}><span><strong>{run.title}</strong><small>{briefScopeLabel(run.scope)}</small></span><span>V{run.version}<small>{briefTime(run.cutoff_at)}</small></span><span>{briefStates[run.state] || run.state}<small>{run.item_count == null ? '尚无成果' : `${run.item_count}项事件`}</small></span></button>)}
+      {catalog.next_offset != null && <button className="secondary-button workspace-button" disabled={moreBusy} onClick={() => void moreHistory()}>更早的版本</button>}
+      {catalog.legacy.length > 0 && <details className="intelligence-legacy"><summary>升级前的研究记录</summary><p className="intelligence-caption">原对话保留，未自动转换为已核验的结构化成果。</p>{catalog.legacy.map(run => <button key={run.conversation_id} className="text-button workspace-button" onClick={() => { setSidePanel(null); onResearch(run.conversation_id) }}>{run.title || name}<small>{briefTime(run.started_at)}</small><ArrowRight size={14} /></button>)}</details>}
+      {!catalog.items.length && !catalog.legacy.length && <p className="intelligence-caption">生成第一份成果后，历史记录会保存在这里。</p>}
+    </section>
+        </> : !catalogError && <LoadingState compact label="正在读取历史版本…" />}
+      </>}
+    </ConditionWorkspaceDrawer>}
     {detail && citation && <SourceReader runId={detail.id} citation={citation} onClose={() => setCitation(null)} />}
   </div>
 }

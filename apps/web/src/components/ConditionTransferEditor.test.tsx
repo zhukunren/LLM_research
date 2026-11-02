@@ -10,9 +10,9 @@ const assets: Asset[] = [
   { key: 'filter:volume@1', label: '成交量', filter: { id: 'volume', version: 1, name: '成交量条件', library: 'technical', expression: {}, description: '量能放大', created_at: '' } },
   { key: 'filter:report@1', label: '研报', filter: { id: 'report', version: 1, name: '研报增长条件', library: 'report', expression: {}, description: '业绩增长', created_at: '' } },
 ]
-function Harness({ initial = { op: 'all', children: [] } }: { initial?: Node }) {
+function Harness({ initial = { op: 'all', children: [] }, catalog = assets }: { initial?: Node; catalog?: Asset[] }) {
   const [tree, setTree] = useState(initial)
-  return <><ConditionTransferEditor tree={tree} catalog={assets} onChange={setTree} onCreateCondition={vi.fn()} /><output data-testid="tree">{JSON.stringify(tree)}</output></>
+  return <><ConditionTransferEditor tree={tree} catalog={catalog} onChange={setTree} onCreateCondition={vi.fn()} /><output data-testid="tree">{JSON.stringify(tree)}</output></>
 }
 const currentTree = () => JSON.parse(screen.getByTestId('tree').textContent!) as Node
 
@@ -26,8 +26,8 @@ it('adds checked conditions in one batch and excludes chosen versions from the a
   expect(within(screen.getByRole('group', { name: '切换条件列表' })).getByRole('button', { name: '已选条件 · 2' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.queryByLabelText('选择待选条件 价格条件 第 2 版')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: '加入勾选条件' })).toBeDisabled()
-  await user.click(screen.getByLabelText('历史版本'))
-  expect(screen.getByLabelText('选择待选条件 价格条件 第 1 版')).toBeInTheDocument()
+  expect(screen.queryByLabelText('历史版本')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('选择待选条件 价格条件 第 1 版')).not.toBeInTheDocument()
   await user.click(within(screen.getByRole('group', { name: '切换条件列表' })).getByRole('button', { name: /待选/ }))
   expect(currentTree().children).toHaveLength(2)
 })
@@ -77,7 +77,7 @@ it('preserves unavailable fixed versions and disables all mutation controls duri
   const change = vi.fn()
   render(<ConditionTransferEditor tree={{ op: 'all', children: [missing] }} catalog={assets} disabled onChange={change} onCreateCondition={vi.fn()} />)
   expect(screen.getByText('未载入条件 · missing')).toBeInTheDocument()
-  expect(screen.getByText(/权重 1/)).toBeInTheDocument()
+  expect(screen.getByRole('combobox', { name: '组合关系' })).toBeDisabled()
   expect(screen.getAllByRole('button').every(button => button.hasAttribute('disabled'))).toBe(true)
   expect(change).not.toHaveBeenCalled()
 })
@@ -97,30 +97,37 @@ it('describes an empty category honestly when other categories have conditions',
   expect(screen.queryByText('当前分类已全部加入')).not.toBeInTheDocument()
 })
 
-it('edits parameters from the row without selecting it and applies one change', async () => {
-  const initial: Node = { op: 'all', children: [{ op: 'filter_ref', filter_id: 'price', version: 2, score_weight: 1 }, { op: 'not', children: [{ op: 'filter_ref', filter_id: 'report', version: 1, parameter_overrides: { n: 7 } }] }] }
-  const user = userEvent.setup(); render(<Harness initial={initial} />)
+it('edits business parameters inline while preserving weights, versions and other groups', async () => {
+  const initial: Node = { op: 'all', children: [{ op: 'filter_ref', filter_id: 'price', version: 2, score_weight: 4, parameter_overrides: { value: 20 } }, { op: 'not', children: [{ op: 'filter_ref', filter_id: 'report', version: 1, parameter_overrides: { n: 7 } }] }] }
+  const catalog: Asset[] = assets.map(asset => asset.filter?.id === 'price' && asset.filter.version === 2 ? { ...asset, filter: { ...asset.filter, expression: { op: 'metric_compare', metric: 'close', operator: 'gt', value: 10 }, parameters: { value: { label: '阈值', type: 'number', min: 0, max: 100 } } } } : asset)
+  const user = userEvent.setup(); render(<Harness initial={initial} catalog={catalog} />)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '编辑第 1 项参数' }))
-  expect(screen.getByRole('dialog', { name: '价格条件 · 条件参数' })).toBeInTheDocument()
-  expect(screen.getByLabelText('选择已选条目 1 价格条件')).not.toBeChecked()
-  fireEvent.change(screen.getByLabelText('评分权重'), { target: { value: '4' } })
-  expect(currentTree()).toEqual(initial)
-  await user.click(screen.getByRole('button', { name: '应用修改' }))
-  expect(currentTree().children?.[0].score_weight).toBe(4)
-  expect(currentTree().children?.[1]).toEqual(initial.children![1])
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.getByLabelText('选择已选条目 1 价格条件')).not.toBeChecked()
+  expect(screen.queryByLabelText('评分权重')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('引用版本')).not.toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('阈值'), { target: { value: '25' } })
+  expect(currentTree().children?.[0].score_weight).toBe(4)
+  expect(currentTree().children?.[0].version).toBe(2)
+  expect(currentTree().children?.[0].parameter_overrides).toEqual({ value: 25 })
+  expect(currentTree().children?.[1]).toEqual(initial.children![1])
+  await user.click(screen.getByLabelText('阈值'))
+  await user.keyboard('{Escape}')
+  expect(screen.queryByText('修改仅对当前组合生效。')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: '编辑第 1 项参数' })).toHaveFocus()
 })
 
 it('discards an individual logic change on Escape and preserves the original parameters', async () => {
   const initial: Node = { op: 'any', children: [{ op: 'filter_ref', filter_id: 'price', version: 1, score_weight: 3, parameter_overrides: { threshold: 5 } }] }
   const user = userEvent.setup(); render(<Harness initial={initial} />)
+  await user.click(screen.getByLabelText('第 1 项更多操作'))
   await user.click(screen.getByRole('button', { name: '编辑第 1 项逻辑' }))
   await user.click(screen.getByRole('button', { name: '排除' }))
   await user.keyboard('{Escape}')
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(currentTree()).toEqual(initial)
+  await user.click(screen.getByLabelText('第 1 项更多操作'))
   await user.click(screen.getByRole('button', { name: '编辑第 1 项逻辑' }))
   await user.click(screen.getByRole('button', { name: '排除' }))
   await user.click(screen.getByRole('button', { name: '应用修改' }))
@@ -132,8 +139,21 @@ it('edits the overall relation from the selected header while preserving all ent
   const user = userEvent.setup(); render(<Harness initial={initial} />)
   expect(screen.queryByLabelText('顶层逻辑')).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '组合逻辑' }))
+  expect(screen.queryByLabelText('评分权重')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('引用版本')).not.toBeInTheDocument()
   await user.selectOptions(screen.getByLabelText('顶层逻辑'), 'any')
   await user.click(screen.getByRole('button', { name: '应用修改' }))
   expect(currentTree()).toEqual({ ...initial, op: 'any' })
   expect(screen.queryByLabelText('顶层逻辑')).not.toBeInTheDocument()
+})
+
+it('changes the visible relation and wraps exclusion without losing nested parameters', async () => {
+  const initial: Node = { op: 'all', children: [{ op: 'filter_ref', filter_id: 'price', version: 2, score_weight: 3, parameter_overrides: { threshold: 5 } }, { op: 'any', children: [{ op: 'filter_ref', filter_id: 'report', version: 1 }] }] }
+  const user = userEvent.setup(); render(<Harness initial={initial} />)
+  await user.selectOptions(screen.getByRole('combobox', { name: '组合关系' }), 'any')
+  expect(currentTree()).toEqual({ ...initial, op: 'any' })
+  await user.selectOptions(screen.getByRole('combobox', { name: '组合关系' }), 'not')
+  expect(currentTree()).toEqual({ op: 'not', children: [{ ...initial, op: 'any' }] })
+  await user.selectOptions(screen.getByRole('combobox', { name: '组合关系' }), 'all')
+  expect(currentTree()).toEqual(initial)
 })

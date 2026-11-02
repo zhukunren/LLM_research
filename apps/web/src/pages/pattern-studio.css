@@ -1,4 +1,16 @@
 /* Shape templates, real market comparisons and editing share one quiet workspace. */
+.pattern-market-window { padding: 16px; margin-bottom: 14px; border: 1px solid #dfe6ef; border-radius: 8px; background: #f8fafd; }
+.pattern-market-fields { display: grid; grid-template-columns: minmax(180px,1.4fr) repeat(2,minmax(130px,1fr)) auto; gap: 12px; align-items: end; }
+.pattern-market-fields .field { min-width: 0; margin: 0; }
+.pattern-market-fields > button { min-height: 36px; white-space: nowrap; }
+.pattern-market-window .workbench-help, .pattern-source-caption { margin: 10px 0 0; font-size: 12px; color: #596d83; line-height: 1.7; }
+.pattern-source-caption .stock-identity, .pattern-studio .pattern-example-caption .stock-identity { display: inline-flex; align-items: baseline; gap: 6px; }
+.pattern-market-preview { min-width: 0; margin-bottom: 14px; }
+.pattern-input-matches { margin-top: 16px; }
+@media (max-width: 760px) {
+  .pattern-market-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pattern-market-fields > .field:first-child, .pattern-market-fields > button { grid-column: 1 / -1; }
+}
 .viewport-workspace .page-frame > .pattern-library.pattern-studio { padding: 20px 24px 16px; gap: 14px; background: #f4f6f9; }
 .viewport-workspace .page-frame .pattern-studio .page-heading { align-items: center; flex-wrap: nowrap; margin: 0; gap: 12px; flex-shrink: 0; }
 .viewport-workspace .page-frame .pattern-studio .library-title h1 { margin: 0; color: #172e4b; font-size: 24px; line-height: 1.5; letter-spacing: -.03em; }

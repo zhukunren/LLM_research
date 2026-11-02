@@ -1,0 +1,193 @@
+/* First-run capability map: goals first, rules second, boundaries in plain text. */
+.screening-examples {
+  display: grid;
+  gap: 12px;
+  padding: 18px 0 4px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.screening-examples-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.screening-examples-heading h2 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.screening-examples-heading p {
+  max-width: 680px;
+  margin: 4px 0 0;
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.screening-examples-count {
+  flex: 0 0 auto;
+  padding-bottom: 2px;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.screening-example-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.screening-example-tabs > button {
+  min-height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface);
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color var(--ui-transition), background var(--ui-transition), color var(--ui-transition);
+}
+
+.screening-example-tabs > button:hover:not(:disabled) {
+  border-color: var(--ui-primary-border);
+  color: var(--ui-primary);
+}
+
+.screening-example-tabs > button[aria-pressed="true"] {
+  border-color: var(--ui-primary-border);
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary);
+}
+
+.screening-example-tabs > button:focus-visible,
+.screening-example-card:focus-visible {
+  outline: 2px solid var(--ui-focus-outline);
+  outline-offset: 2px;
+}
+
+.screening-example-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.screening-example-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 132px;
+  padding: 14px 15px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+  transition: border-color var(--ui-transition), background var(--ui-transition);
+}
+
+.screening-example-card:hover:not(:disabled) {
+  border-color: var(--ui-primary-border);
+  background: var(--ui-primary-soft);
+}
+
+.screening-example-card:disabled {
+  color: var(--ui-text-disabled);
+  cursor: not-allowed;
+}
+
+.screening-example-kind {
+  padding: 1px 7px;
+  border: 1px solid var(--ui-primary-border);
+  border-radius: var(--ui-radius-pill);
+  color: var(--ui-primary);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.screening-example-card:disabled .screening-example-kind {
+  border-color: var(--ui-disabled-border);
+  color: var(--ui-text-disabled);
+}
+
+.screening-example-card strong {
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.screening-example-prompt {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.screening-example-card > svg {
+  margin-top: auto;
+  color: var(--ui-text-faint);
+}
+
+.screening-example-card:hover:not(:disabled) > svg {
+  color: var(--ui-primary);
+}
+
+.screening-example-offline {
+  margin: 0;
+  color: var(--ui-warning);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+@media (max-width: 760px) {
+  .screening-examples {
+    padding-top: 14px;
+  }
+
+  .screening-examples-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .screening-examples-count {
+    padding-bottom: 0;
+  }
+
+  .screening-example-grid {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .screening-example-card {
+    flex: 0 0 78%;
+    min-height: 124px;
+    scroll-snap-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screening-example-card,
+  .screening-example-tabs > button {
+    transition: none;
+  }
+}

@@ -5,6 +5,7 @@ export type ResearchProjectSummary = {
   company_count: number; conversation_count: number; note_count: number; updated_at: string
 }
 export type ProjectConversation = {
+  stock_codes?: string[]
   id: string; title: string | null; entry_scope: ConversationScope; state: 'active' | 'archived'
   research_mode: string; last_turn_state: string | null; updated_at: string
 }
@@ -21,7 +22,7 @@ export type ResearchProject = Omit<ResearchProjectSummary, 'company_count' | 'co
   conversations: ProjectConversation[]
   notes: ResearchNote[]
 }
-export type ResearchFile = { name: string; bytes: number; url: string | null; modified_at: number; conversation_id: string; id?: string; job_id?: string; status?: string; retry_url?: string; message?: string; previous?: boolean }
+export type ResearchFile = { name: string; bytes: number; url: string | null; modified_at: number; conversation_id: string; id?: string; job_id?: string; status?: string; retry_url?: string; message?: string; previous?: boolean; stock_codes?: string[]; source_kind?: string; source_id?: string }
 
 export const noteStatuses: Record<ResearchNote['status'], string> = {
   watching: '待验证', supported: '得到支持', challenged: '存在反证', invalidated: '判断失效',

@@ -1,3 +1,4 @@
+import { openResearchSettings } from './test/openResearchSettings'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
@@ -113,7 +114,7 @@ it('opens a saved screening conversation in condition screening instead of the r
   const user = userEvent.setup()
   render(<App />)
   await user.click(await screen.findByRole('button', { name: '打开项目对话' }))
-  expect(await screen.findByRole('heading', { name: '输入筛选条件' }, { timeout: 5000 })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: '选股对话' }, { timeout: 5000 })).toBeInTheDocument()
   expect(await screen.findByRole('button', { name: '开始选股' })).toHaveAttribute('aria-current', 'page')
   expect(screen.getByLabelText('选股要求')).toBeInTheDocument()
   expect(screen.queryByLabelText('研究要求')).not.toBeInTheDocument()
@@ -132,7 +133,7 @@ it('restores a legacy home question and consumes explicit new research only once
   vi.stubGlobal('fetch', fetcher)
   const user = userEvent.setup()
   render(<App />)
-  expect(await screen.findByRole('heading', { name: '想研究什么？' }, { timeout: 5000 })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: '今天想弄清楚什么？' }, { timeout: 5000 })).toBeInTheDocument()
   expect(screen.queryByRole('textbox', { name: '工作台研究问题' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '继续未发送的问题' }))
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('核对订单的实际兑现情况'))
@@ -231,6 +232,7 @@ it('selects a research method in the composer and preserves the draft through hi
   const menu = within(screen.getByRole('navigation', { name: '主菜单' }))
   expect(menu.queryByRole('button', { name: '研究助手' })).not.toBeInTheDocument()
   expect(menu.queryByRole('button', { name: '使用财报分析' })).not.toBeInTheDocument()
+  await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '研究方法' }))
   await user.click(await screen.findByRole('menuitem', { name: '使用财报分析' }))
   await waitFor(() => expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('财报分析'))
@@ -248,6 +250,7 @@ it('selects a research method in the composer and preserves the draft through hi
   render(<App />)
   await waitFor(() => expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('财报分析'))
   expect(screen.getByLabelText('研究要求')).toHaveValue('核对经营现金流与利润的差异')
+  await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '研究方法' }))
   expect(within(await screen.findByRole('menuitem', { name: '使用财报分析' })).getByLabelText('已选择')).toBeInTheDocument()
   await user.keyboard('{Escape}')
@@ -260,6 +263,7 @@ it('opens research methods directly from the composer while preserving an existi
   const view = render(<App />)
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
   await user.type(screen.getByLabelText('研究要求'), '核对现金流与利润的差异，保留这个问题')
+  await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '研究方法' }))
   await user.click(await screen.findByRole('menuitem', { name: '使用财报分析' }))
   expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('财报分析')
@@ -536,6 +540,8 @@ it('opens existing data services from screening readiness without navigating or 
     const result = path.endsWith('/data/status') ? { available: false }
       : path.endsWith('/screening-capabilities') ? { capabilities: [{ id: 'market.daily_bars', title: '日线行情', availability: 'unavailable' }] }
         : path.endsWith('/settings/status') ? { text_model: { configured: false, model: null }, tushare: { configured: false } }
+          : path.endsWith('/financial-data/status') ? { configured: false, can_probe: false, capabilities: [], companies: [], latest: null }
+            : path.endsWith('/financial-data/series-status') ? { can_sync: false, coverage: [], latest: null }
           : path.endsWith('/maintenance/status') ? { job: null } : { items: [] }
     return new Response(JSON.stringify(result))
   })
@@ -573,6 +579,7 @@ it('hands a pinned numeric indicator from research to an unsent screening draft 
   render(<App />)
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
   await user.type(screen.getByLabelText('研究要求'), '继续分析订单改善')
+  await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '我的指标' }))
   await user.click(await screen.findByRole('button', { name: /量价偏离 v4/ }))
   await screen.findByText('固定版本 v4 · 数值时序指标')

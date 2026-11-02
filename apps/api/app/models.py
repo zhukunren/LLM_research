@@ -69,11 +69,23 @@ class ScreenInput(StrictModel):
         return value
 
 
+class PatternMarketWindowInput(StrictModel):
+    stock_code: str = Field(pattern=r"^\d{6}\.(SH|SZ|BJ)$")
+    start_date: date
+    end_date: date
+
+    @field_validator("stock_code", mode="before")
+    @classmethod
+    def canonical_code(cls, value: str) -> str:
+        return value.strip().upper() if isinstance(value, str) else value
+
+
 class PatternInput(StrictModel):
     id: str | None = None
     name: str = Field(min_length=1, max_length=100)
     input_type: Literal["drawing", "screenshot", "market_window", "natural_language"]
     source_draft_id: str | None = None
+    source_window_id: str | None = Field(default=None, max_length=100)
     representation: Literal["price_path", "ohlc_sequence"]
     target_bars: int = Field(ge=10, le=250)
     points: list[float] = Field(min_length=10, max_length=250)

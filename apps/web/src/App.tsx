@@ -125,7 +125,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyboardShortcuts)
   }, [mobileNavigationOpen])
 
-  return <div className={`app-shell redesigned-workspace chat-layout viewport-workspace ${page === 'screening' ? 'chat-page' : 'tool-page'} ${mobileNavigationOpen ? 'mobile-navigation-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+  return <div className={`app-shell redesigned-workspace chat-layout viewport-workspace ${page === 'screening' || page === 'conditions' && (route.view ?? 'conversation') === 'conversation' ? 'chat-page' : 'tool-page'} ${mobileNavigationOpen ? 'mobile-navigation-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     <a className="skip-to-content" href="#workspace-main" onClick={event => { event.preventDefault(); document.getElementById('workspace-main')?.focus() }}>跳到页面内容</a>
     <ResearchSidebar onConversationChange={(id, changes) => {
       setSidebarRevision(value => value + 1)
@@ -147,7 +147,7 @@ export default function App() {
         <WorkspacePage tab={tab} data={data} workspace={tab.route.page === 'conditions' ? 'screening' : tab.route.workspace ?? 'research'} conversationUpdate={conversationUpdate} homeDraft={tab.legacy ? homeDraft : ''} onLegacyDraft={() => { openRoute({ page: 'screening', scope: 'screening', newDraft: true }, { prompt: homeDraft.trim(), fresh: true }); setHomeDraft('') }} onUpdate={(next, userNavigation = false) => { if (userNavigation && tab.id === workspaces.activeId) ++conversationNavigation.current; workspaces.update(tab.id, next, !userNavigation) }} onOpen={openRoute} onConversation={resumeResearch} onNewResearch={() => newResearch()} onSettings={() => setSystemOpen(true)} onHistoryChange={() => setSidebarRevision(value => value + 1)} />
       </WorkspaceSessionPane>)}
     </main>
-    {systemOpen && <SystemDrawer data={data} onClose={() => setSystemOpen(false)} onRefresh={refreshStatus} />}
+    {systemOpen && <SystemDrawer data={data} onClose={() => setSystemOpen(false)} onRefresh={refreshStatus} onOpenCompanyResearch={() => openProject('')} />}
     {quickNavigationOpen && <QuickNavigation onClose={() => setQuickNavigationOpen(false)} onNavigate={navigateFromMenu} onProject={openProject} onConversation={resumeResearch} onNewResearch={() => newResearch()} onSettings={() => setSystemOpen(true)} />}
   </div>
 }

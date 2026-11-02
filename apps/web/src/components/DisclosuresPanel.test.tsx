@@ -11,10 +11,10 @@ vi.mock('./StockSearch', () => ({
     <label>{label}<input value={value} onChange={e => onChange(e.target.value)} /></label>,
   StockName: ({ code }: { code: string }) => <span>{code}</span>,
 }))
-vi.mock('./PdfReader', () => ({ default: ({ url, page, pageControls }: { url: string; page: number; pageControls?: ReactNode }) => <div data-testid="pdf" data-url={url}>物理页 {page}{pageControls}</div> }))
+vi.mock('./PdfReader', () => ({ default: ({ url, page, pageControls, actions }: { url: string; page: number; pageControls?: ReactNode; actions?: ReactNode }) => <div data-testid="pdf" data-url={url}>物理页 {page}{pageControls}{actions}</div> }))
 
 function version(id = 'v1', number = 1) {
-  return { id, disclosure_id: 'root', version: number, pages: 3, parse_status: 'indexed', sha256: 'a'.repeat(64),
+  return { id, disclosure_id: 'root', document_id: 'document-' + id, version: number, pages: 3, parse_status: 'indexed', sha256: 'a'.repeat(64),
     pdf_url: `/api/v1/disclosures/versions/${id}/pdf`, source_kind: 'upload', source_url: null, created_at: '2026-10-20',
     metadata: { revision: 1, title: '合成原始年报', stock_code: '600519.SH', report_period: '2025-12-31', document_type: 'annual',
       document_form: 'full', publication_date: '2026-04-01', confirmed: true, suggestions: { document_type: 'annual' } } }
@@ -57,6 +57,11 @@ async function read() {
   return screen.findByRole('region', { name: '披露版本阅读' })
 }
 
+async function manage(name: string) {
+  await userEvent.click(screen.getByRole('button', { name: '资料管理' }))
+  await userEvent.click(screen.getByRole('menuitem', { name }))
+}
+
 it('opens the immutable PDF, searches physical pages and saves a guarded metadata revision', async () => {
   const reader = await read()
   expect(within(reader).getByTestId('pdf')).toHaveAttribute('data-url', '/api/v1/disclosures/versions/v1/pdf')
@@ -66,7 +71,7 @@ it('opens the immutable PDF, searches physical pages and saves a guarded metadat
   expect(within(reader).getByTestId('pdf')).toHaveTextContent('物理页 3')
   fireEvent.change(screen.getByLabelText('跳转原始披露物理页'), { target: { value: '2' } })
   expect(within(reader).getByTestId('pdf')).toHaveTextContent('物理页 2')
-  await userEvent.click(screen.getByRole('button', { name: '核对分类' }))
+  await manage('核对分类')
   fireEvent.change(screen.getByLabelText('标题'), { target: { value: '已核对的年度报告' } })
   await userEvent.click(screen.getByRole('button', { name: '保存分类核对' }))
   await waitFor(() => expect(vi.mocked(api).mock.calls.some(([path]) => path.endsWith('/metadata'))).toBe(true))
@@ -76,7 +81,8 @@ it('opens the immutable PDF, searches physical pages and saves a guarded metadat
 
 it('submits an official link without inventing a publication date and exposes cancellation', async () => {
   render(<DisclosuresPanel />)
-  await userEvent.click(await screen.findByRole('button', { name: '归档原始披露' }))
+  await screen.findByRole('button', { name: /合成原始年报/ })
+  await manage('归档原始披露')
   await userEvent.click(screen.getByRole('button', { name: '官方链接' }))
   fireEvent.change(screen.getByLabelText(/官方 PDF 原文链接/), { target: { value: 'https://static.cninfo.com.cn/a.pdf' } })
   await userEvent.click(screen.getByRole('button', { name: '提交归档' }))
@@ -89,7 +95,7 @@ it('submits an official link without inventing a publication date and exposes ca
 
 it('uploads a revision tied to the explicitly selected source version', async () => {
   await read()
-  await userEvent.click(screen.getByRole('button', { name: '添加修订全文' }))
+  await manage('添加修订全文')
   await userEvent.upload(screen.getByLabelText('原始披露 PDF 文件'), new File(['%PDF-test'], 'revision.pdf', { type: 'application/pdf' }))
   await userEvent.click(screen.getByLabelText(/我已核对公司/))
   await userEvent.click(screen.getByRole('button', { name: '提交归档' }))
@@ -117,16 +123,35 @@ it('read-only company views send their company and cutoff and hide mutation cont
   render(<DisclosuresPanel stockCode="600519.SH" asOf="2026-04-15" writable={false} compact />)
   await screen.findByRole('button', { name: /合成原始年报/ })
   expect(screen.queryByRole('button', { name: '归档原始披露' })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: '资料管理' }))
+  expect(screen.queryByRole('menuitem', { name: '归档原始披露' })).not.toBeInTheDocument()
   expect(vi.mocked(api).mock.calls.some(([path]) => path.includes('stock_code=600519.SH') && path.includes('as_of=2026-04-15'))).toBe(true)
+})
+
+it('attaches the selected immutable document and physical page to reading actions', async () => {
+  const describe = vi.fn(), define = vi.fn(), user = userEvent.setup()
+  versions = [current, version('v2', 2)]
+  render(<DisclosuresPanel onDescribe={describe} onDefineCondition={define} />)
+  await user.click(await screen.findByRole('button', { name: /合成原始年报/ }))
+  await screen.findByRole('region', { name: '披露版本阅读' })
+  fireEvent.change(screen.getByLabelText('跳转原始披露物理页'), { target: { value: '2' } })
+  await user.click(screen.getByRole('button', { name: '研究当前资料' }))
+  expect(describe).toHaveBeenLastCalledWith({ source_document_id: 'document-v1', source_page: 2, title: '合成原始年报' })
+  await user.click(screen.getByRole('button', { name: '用于选股' }))
+  expect(define).toHaveBeenLastCalledWith(describe.mock.calls[0][0])
+  fireEvent.change(screen.getByLabelText('原文版本'), { target: { value: 'v2' } })
+  await waitFor(() => expect(screen.getByTestId('pdf')).toHaveAttribute('data-url', '/api/v1/disclosures/versions/v2/pdf'))
+  await user.click(screen.getByRole('button', { name: '用于选股' }))
+  expect(define).toHaveBeenLastCalledWith({ source_document_id: 'document-v2', source_page: 1, title: '合成原始年报' })
 })
 
 it('a completed background import does not redirect an open classification editor', async () => {
   await read()
-  await userEvent.click(screen.getByRole('button', { name: '归档原始披露' }))
+  await manage('归档原始披露')
   await userEvent.click(screen.getByRole('button', { name: '官方链接' }))
   fireEvent.change(screen.getByLabelText(/官方 PDF 原文链接/), { target: { value: 'https://static.cninfo.com.cn/new.pdf' } })
   await userEvent.click(screen.getByRole('button', { name: '提交归档' }))
-  await userEvent.click(screen.getByRole('button', { name: '核对分类' }))
+  await manage('核对分类')
   fireEvent.change(screen.getByLabelText('标题'), { target: { value: '正在核对原版本' } })
   versions = [version('v2', 2), current]
   imports = [{ ...imports[0], state: 'succeeded', version_id: 'v2', message: '已完成' }]

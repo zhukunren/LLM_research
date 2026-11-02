@@ -1,0 +1,41 @@
+.viewport-workspace .page-frame > .condition-studio.screening-tool-page { padding: 14px 20px 12px; gap: 10px; background: var(--ui-surface); }
+.viewport-workspace .page-frame .condition-studio > .condition-studio-nav { display: flex; flex-shrink: 0; gap: 22px; margin: 0; padding: 0; border: 0; border-bottom: 1px solid var(--ui-border-subtle); border-radius: 0; background: transparent; }
+.viewport-workspace .page-frame .condition-studio > .condition-studio-nav > button { flex: 0 0 auto; gap: 7px; min-height: 38px; padding: 7px 2px 10px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; margin-bottom: -1px; background: transparent; box-shadow: none; font-size: 13px; }
+.viewport-workspace .page-frame .condition-studio > .condition-studio-nav > button.active { border-bottom-color: var(--ui-primary); color: var(--ui-primary); }
+.viewport-workspace .page-frame .condition-studio > .condition-studio-nav > button > svg { display: block; }
+.viewport-workspace .page-frame .condition-studio .library-workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; overflow: hidden; }
+.condition-studio .library-workspace > .section-title-row { flex-shrink: 0; margin: 4px 0 0; }
+.condition-studio .library-workspace h1 { font-size: 20px; line-height: 1.5; margin: 0; }
+.condition-studio .library-workspace > .section-title-row > button { min-height: 34px; font-size: 13px; }
+.viewport-workspace .page-frame .condition-studio .library-filters { flex-shrink: 0; gap: 8px; margin: 12px 0 0; padding: 0; background: transparent; border: 0; }
+.condition-studio .library-filters .workspace-field { min-height: 34px; font-size: 13px; }
+.condition-studio .library-filters select { width: auto; max-width: 180px; }
+.condition-studio .condition-library-overview { flex-shrink: 0; justify-content: space-between; padding: 10px 0; font-size: 12px; }
+.viewport-workspace .page-frame .condition-studio .condition-library-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; flex: 1; min-height: 0; overflow-y: auto; align-content: start; scrollbar-width: thin; }
+.viewport-workspace .page-frame .condition-studio .condition-library-grid > .saved-condition-card { display: grid; grid-template-columns: minmax(0, 1fr) 80px 100px auto; align-items: center; gap: 14px; min-height: 76px; padding: 12px 4px; margin: 0; border: 0; border-bottom: 1px solid var(--ui-border-subtle); border-radius: 0; background: transparent; box-shadow: none; }
+.condition-library-open.workspace-button { display: block; min-width: 0; padding: 2px 0; border: 0; border-radius: 0; background: transparent; text-align: left; cursor: pointer; color: var(--ui-text); }
+.condition-studio .condition-library-open:hover h3 { color: var(--ui-primary); }
+.condition-studio .condition-library-open h3 { font-size: 14px; font-weight: 500; margin: 0; line-height: 1.7; overflow-wrap: anywhere; }
+.condition-studio .condition-library-open p { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: var(--ui-text-muted); overflow-wrap: anywhere; }
+.condition-studio .condition-library-kind { font-size: 11px; color: var(--ui-text-muted); white-space: nowrap; }
+.condition-studio .condition-library-grid .availability { justify-self: start; font-size: 10px; padding: 3px 6px; }
+.viewport-workspace .page-frame .condition-studio .condition-library-grid .card-actions { margin: 0; }
+.condition-studio .condition-library-grid .card-actions > button { min-width: 100px; font-size: 12px; }
+.condition-studio .condition-load-more { flex-shrink: 0; margin-top: 10px; }
+@media (max-width: 1050px) {
+  .viewport-workspace .page-frame .condition-studio .condition-library-grid > .saved-condition-card { grid-template-columns: minmax(0, 1fr) 75px auto; gap: 10px; }
+  .condition-studio .condition-library-grid .availability { display: none; }
+}
+@media (max-width: 760px) {
+  .viewport-workspace .page-frame > .condition-studio.screening-tool-page { padding: 10px 12px; }
+  .condition-studio .library-workspace > .section-title-row { gap: 8px; }
+  .condition-studio .library-workspace > .section-title-row > button { font-size: 12px; }
+  .condition-studio .library-filters .search-input { flex-basis: 100%; }
+  .condition-studio .library-filters select { flex: 1; max-width: none; }
+  .condition-studio .library-filters > button { flex-basis: 100%; }
+  .condition-studio .library-filters .workspace-field { font-size: 16px; }
+  .viewport-workspace .page-frame .condition-studio .condition-library-grid > .saved-condition-card { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }
+  .condition-studio .condition-library-kind { grid-row: 2; }
+  .condition-studio .condition-library-grid .card-actions { grid-column: 2; grid-row: 1 / 3; }
+  .condition-studio .condition-library-grid .card-actions > button { min-width: 90px; min-height: 36px; }
+}

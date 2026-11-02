@@ -79,6 +79,18 @@ export type Filter = {
   provenance?: { original_prompt?: string; prompt?: string; source_quote?: string; source?: string; model?: string; compiler_version?: string; confirmed_at?: string; based_on_version?: number; assumptions?: string[]; original_expression?: Record<string, unknown>; confirmation_edits?: { name?: string; parameters?: Record<string, string | number> }; source_document?: { document_id: string; title: string; page: number } }
 }
 
+export type PatternMarketSource = {
+  snapshot_id: string
+  stock_code: string
+  requested_start_date: string
+  requested_end_date: string
+  start_date: string
+  end_date: string
+  price_basis: string
+  bars: { trade_date: string; open: number; high: number; low: number; close: number; volume?: number; quality_valid?: boolean }[]
+  created_at: string
+}
+
 export type Pattern = {
   id: string
   name: string
@@ -90,6 +102,7 @@ export type Pattern = {
   candlesticks: { open: number; high: number; low: number; close: number }[]
   params: Record<string, unknown>
   source_image?: { filename: string; mime_type: 'image/png' | 'image/jpeg' | 'image/webp'; sha256: string }
+  market_source?: PatternMarketSource | null
   created_at: string
   provenance?: { draft_id: string; prompt: string; source: string; model: string | null; compiler_version: string; assumptions: string[] }
 }
@@ -144,6 +157,16 @@ export type ConversationAttachment = {
   url: string
   request_id?: string
 }
+export type ResearchReadingBrief = {
+  version: 1
+  turn_id: string
+  conclusion: string
+  key_points: { kind: 'fact' | 'inference' | 'unknown'; text: string }[]
+  risks: string[]
+  next_steps: string[]
+  data_as_of: string | null
+  data_note: string | null
+}
 export type ConversationMessage = {
   id: string
   regeneration_of?: string | null
@@ -170,6 +193,7 @@ export type ConversationTurn = {
   response_text: string | null
   job?: { id: string; state: string; progress: number; message: string } | null
   result: {
+    research_summary?: ResearchReadingBrief | null
     intent?: string
     task_revision?: number
     revision_changes?: string[]

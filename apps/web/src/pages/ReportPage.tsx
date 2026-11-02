@@ -2,9 +2,11 @@ import LoadingState from '../components/LoadingState'
 import { StockText } from '../components/StockMentions'
 import EmptyState from '../components/EmptyState'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUpRight, MessageCircle, RefreshCw, Search, Upload, X } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, RefreshCw, Search, Upload, X } from 'lucide-react'
 import { api, type ConversationSourceReference } from '../api'
 import PdfReader from '../components/PdfReader'
+import LibraryManagementMenu from '../components/LibraryManagementMenu'
+import LibraryReadingActions from '../components/LibraryReadingActions'
 import { isText, useSessionState } from '../useSessionState'
 import type { LibrarySeed } from '../libraryContext'
 import '../report-search.css'
@@ -50,6 +52,7 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
   const [mobileView, setMobileView] = useState<'catalog' | 'reader'>('catalog')
   const reader = useRef<HTMLElement>(null)
   const catalog = useRef<HTMLElement>(null)
+  const uploadInput = useRef<HTMLInputElement>(null)
   const searchVersion = useRef(0)
   const searchRequest = useRef<AbortController | null>(null)
   const selected = docs.find(item => item.id === selectedId)
@@ -196,10 +199,12 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
     <nav className="library-mobile-switch" aria-label="研报列表与阅读切换"><button type="button" aria-pressed={mobileView === 'catalog'} onClick={() => setMobileView('catalog')} className="workspace-button">研报列表</button><button type="button" aria-pressed={mobileView === 'reader'} disabled={!selected} onClick={() => setMobileView('reader')} className="workspace-button">阅读研报</button></nav>
     <div className="report-reading-layout">
       <aside className="report-catalog library-catalog-pane" ref={catalog} aria-label="研报列表">
-        <div className="report-catalog-heading"><strong>本地研报</strong><span>{filteredDocs.length} / {docs.length} 份</span>{pending > 0 && <small>{pending} 份整理中</small>}</div>
-        <div className="report-library-toolbar">
-          <div className="report-import-actions"><button className="secondary-button workspace-button" disabled={!!busy} onClick={() => action('index', async () => { const result = await api<{ imported: number; failed: number }>('/documents/import-local', { method: 'POST' }); setNotice('新增 ' + result.imported + ' 份研报' + (result.failed ? '，' + result.failed + ' 份未能读取。' : '。')) })}><RefreshCw size={14} />{busy === 'index' ? '正在索引…' : '索引本地研报'}</button><label className={["workspace-field-label workspace-button", 'upload-label report-upload ' + (busy ? 'disabled' : '')].filter(Boolean).join(' ')}><Upload size={14} />{busy === 'upload' ? '正在上传…' : '上传 PDF'}<input type="file" accept="application/pdf" disabled={!!busy} aria-label="上传研报 PDF" onChange={event => { void upload(event.target.files?.[0]); event.target.value = '' }} /></label></div>
-        </div>
+        <div className="report-catalog-heading library-catalog-heading"><div className="library-catalog-title"><strong>本地研报</strong><span>{filteredDocs.length} / {docs.length} 份</span></div><LibraryManagementMenu context={'report:' + selectedId} busy={busy === 'upload' ? '正在上传…' : busy === 'index' ? '正在索引…' : busy ? '正在整理…' : ''}>{close => <>
+          <button type="button" role="menuitem" className="workspace-button" onClick={() => { close(); uploadInput.current?.click() }}><Upload size={14} />上传 PDF</button>
+          <button type="button" role="menuitem" className="workspace-button" onClick={() => { close(); void action('index', async () => { const result = await api<{ imported: number; failed: number }>('/documents/import-local', { method: 'POST' }); setNotice('新增 ' + result.imported + ' 份研报' + (result.failed ? '，' + result.failed + ' 份未能读取。' : '。')) }) }}><RefreshCw size={14} />索引本地研报</button>
+          <button type="button" role="menuitem" className="workspace-button" disabled={loading} onClick={() => { close(); setRefresh(value => value + 1) }}><RefreshCw size={14} />刷新资料列表</button>
+        </>}</LibraryManagementMenu>{pending > 0 && <small>{pending} 份整理中</small>}</div>
+        <input ref={uploadInput} type="file" accept="application/pdf" disabled={!!busy} aria-label="上传研报 PDF" className="library-hidden-upload" onChange={event => { void upload(event.target.files?.[0]); event.target.value = '' }} />
         <form onSubmit={event => { event.preventDefault(); retrySearch() }} className="library-search report-search workspace-form workspace-field-shell"><Search size={16} /><input aria-label="搜索研报" placeholder="标题、代码、分析师或正文" value={query} onChange={event => changeQuery(event.target.value)} className="workspace-field" />{query && <button type="button" className="icon-button workspace-button" aria-label="清除研报搜索" onClick={() => changeQuery('')}><X size={14} /></button>}<button className="text-button workspace-button" aria-label="搜索" type="submit" disabled={searching}>{searching ? '检索中…' : '搜索'}</button></form>
         <div className="segmented compact-segment" role="group" aria-label="研报搜索方式"><button type="button" className={["workspace-button", searchMode === 'smart' ? 'selected' : ''].filter(Boolean).join(' ')} aria-pressed={searchMode === 'smart'} onClick={() => changeSearchMode('smart')}>扩展搜索</button><button type="button" className={["workspace-button", searchMode === 'exact' ? 'selected' : ''].filter(Boolean).join(' ')} aria-pressed={searchMode === 'exact'} onClick={() => changeSearchMode('exact')}>精确匹配</button></div>
         {normalizedQuery && (searchInfo?.coverage_note || !!searchInfo?.expanded_terms?.length) && <p className="workbench-help">{searchInfo?.coverage_note}{!!searchInfo?.expanded_terms?.length && <span> 相关词：{searchInfo.expanded_terms.join('、')}</span>}</p>}
@@ -241,7 +246,7 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
           {!!selectedHits.length && <details className="report-search-hits" open={!!normalizedQuery}><summary>正文命中 {selectedHits.length} 页</summary>{selectedHits.map(hit => <button key={hit.page_number} onClick={() => setPage(hit.page_number)} className="workspace-button"><strong>第 {hit.page_number} 页</strong><span>{hit.snippet}</span>{!!hit.matched_terms?.length && <small>命中词：{hit.matched_terms.join('、')}</small>}</button>)}</details>}
           <PdfReader key={selected.id} url={'/api/v1/documents/' + selected.id + '/pdf'} page={page} onPageChange={setPage}
             pageControls={<label className="pdf-page-jump workspace-field-label"><input aria-label="研报页码" type="number" min={1} max={selected.pages} value={pageInput} onBlur={commitPage} onKeyDown={event => { if (event.key === 'Enter') commitPage() }} onChange={event => { setPageInput(event.target.value); const next = Number(event.target.value); if (Number.isInteger(next) && next >= 1 && next <= selected.pages) setPage(next) }} className="workspace-field" /><span>/ {selected.pages}</span></label>}
-            actions={<>{onDescribe && <button className="quiet-button workspace-button" aria-label="研究此页" data-tooltip="基于当前页研究" onClick={() => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title })}><MessageCircle size={15} /><span className="pdf-study-label">研究此页</span><span className="pdf-study-short">研究</span></button>}{onDefineCondition && <button className="quiet-button workspace-button" aria-label="据此定义条件" data-tooltip="用当前页定义选股条件" onClick={() => onDefineCondition({ source_document_id: selected.id, source_page: page, title: selected.title })}>据此定义条件</button>}</>} />
+            actions={onDescribe || onDefineCondition ? <LibraryReadingActions context={`当前第 ${page} 页`} onResearch={onDescribe ? () => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title }) : undefined} onScreening={onDefineCondition ? () => onDefineCondition({ source_document_id: selected.id, source_page: page, title: selected.title }) : undefined} /> : undefined} />
         </> : loading ? <LoadingState compact label="正在加载…" /> : <EmptyState title="未选择研报" description="从左侧列表选择一份研报，阅读 PDF 原文并核对研究依据。" />}
       </section>
     </div>

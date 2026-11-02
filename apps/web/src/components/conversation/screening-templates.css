@@ -9,6 +9,7 @@
 .screening-template-rules em { color: var(--ui-primary); font-style: normal; }
 .screening-template-preview-rules { margin: 8px 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
 .screening-template-starter-label { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px; line-height:1.6; }
+.screening-template-badge { align-self:flex-start; padding:1px 7px; border:1px solid var(--ui-success-border); border-radius:var(--ui-radius-pill); background:var(--ui-success-soft); color:var(--ui-success); font-size:10px; line-height:1.6; }
 .screening-template-chevron { flex-shrink:0; color:var(--ui-text-faint); transition:transform var(--ui-transition); }
 .screening-template-starter[aria-expanded="true"] .screening-template-chevron { transform:rotate(90deg); color:var(--ui-primary); }
 .screening-templates .screening-template-preview { padding:18px 20px; margin-top:12px; border:1px solid var(--ui-border); border-radius:16px; background:var(--ui-surface-subtle); }

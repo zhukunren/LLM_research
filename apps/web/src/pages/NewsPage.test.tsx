@@ -66,6 +66,47 @@ it('imports a URL with a stable retry request ID', async () => {
   const request = mocked.mock.calls.find(([path]) => path === '/news/import-url')!
   expect(JSON.parse(request[1]!.body as string)).toEqual({ url: 'https://example.com/news', request_id: expect.any(String) })
 })
+
+it('opens URL import from management and keeps an unfinished URL after closing', async () => {
+  const user = userEvent.setup()
+  render(<NewsPage />)
+  await screen.findByText(record.body)
+  await user.click(screen.getByRole('button', { name: '资料管理' }))
+  await user.click(screen.getByRole('menuitem', { name: '导入资讯' }))
+  const dialog = screen.getByRole('dialog', { name: '导入资讯' })
+  await user.type(within(dialog).getByLabelText('资讯网址'), 'https://example.com/news')
+  await user.click(within(dialog).getByRole('button', { name: '关闭导入' }))
+  expect(screen.getByText(record.body)).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '资料管理' }))
+  await user.click(screen.getByRole('menuitem', { name: '导入资讯' }))
+  expect(screen.getByLabelText('资讯网址')).toHaveValue('https://example.com/news')
+  expect(mocked.mock.calls.some(([path]) => path === '/news/import-url')).toBe(false)
+})
+
+it('disables reading actions while the newly selected article loads and uses its own source', async () => {
+  const discuss = vi.fn(), define = vi.fn(), user = userEvent.setup()
+  const second = { ...record, id: 'news-2', root_id: 'news-2', title: '后续公告', body: '第二条资讯正文。' }
+  let finish!: (value: unknown) => void
+  mocked.mockImplementation(async path => {
+    if (path === '/news/news-1') return record
+    if (path === '/news/news-2') return new Promise(resolve => { finish = resolve })
+    if (path.startsWith('/securities/')) return { items: [] }
+    return { items: [record, second], total: 2, next_offset: null }
+  })
+  render(<NewsPage onDiscuss={discuss} onDefineCondition={define} />)
+  await screen.findByText(record.body)
+  await user.click(screen.getByRole('button', { name: '研究当前资料' }))
+  expect(discuss).toHaveBeenLastCalledWith(record)
+  await user.click(screen.getByRole('button', { name: /后续公告/ }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '研究当前资料' })).toBeDisabled())
+  expect(screen.getByRole('button', { name: '用于选股' })).toBeDisabled()
+  await act(async () => finish(second))
+  await screen.findByText(second.body)
+  await user.click(screen.getByRole('button', { name: '用于选股' }))
+  expect(define).toHaveBeenLastCalledWith(second)
+  await user.click(screen.getByRole('button', { name: '研究当前资料' }))
+  expect(discuss).toHaveBeenLastCalledWith(second)
+})
 it('passes the date range to the backend before selecting an article', async () => {
   render(<NewsPage />)
   await screen.findByText(record.body)

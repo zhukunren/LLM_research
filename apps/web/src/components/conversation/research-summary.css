@@ -1,0 +1,18 @@
+.research-reading-brief { margin: 0 0 24px; padding: 20px; border: 1px solid var(--ui-primary-border); border-radius: var(--ui-radius-md); background: var(--ui-surface); color: var(--ui-text); overflow-wrap: anywhere; }
+.research-reading-brief > header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; color: var(--ui-primary); font-size: 14px; font-weight: 600; }
+.research-reading-brief > header small { color: var(--ui-text-muted); font-size: 12px; font-weight: 400; }
+.research-reading-brief .research-brief-conclusion { margin: 12px 0 18px; font-size: 17px; font-weight: 600; line-height: 1.7; }
+.research-reading-brief h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; line-height: 1.6; }
+.research-reading-brief ul { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.75; }
+.research-reading-brief li + li { margin-top: 6px; }
+.research-brief-points ul { padding: 0; list-style: none; }
+.research-brief-points li { display: flex; align-items: baseline; gap: 8px; }
+.research-brief-kind { flex: 0 0 auto; padding: 1px 6px; border-radius: 4px; color: var(--ui-text-muted); background: var(--ui-surface-subtle); font-size: 12px; }
+.research-brief-kind-unknown { color: var(--ui-warning); background: var(--ui-warning-soft); }
+.research-brief-followup { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 18px; margin-top: 18px; }
+.research-brief-followup:empty { display: none; }
+.research-reading-brief footer { display: flex; flex-direction: column; gap: 4px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--ui-border-subtle); color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
+/* Keep the brief compact even where full report headings have a larger reading scale. */
+.chat-page .research-studio .research-answer .research-reading-brief h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; line-height: 1.6; }
+.chat-page .research-studio .research-answer .research-reading-brief p.research-brief-conclusion { margin: 12px 0 18px; font-size: 17px; font-weight: 600; line-height: 1.7; }
+@media (max-width: 640px) { .research-reading-brief { padding: 16px; } .research-reading-brief .research-brief-conclusion, .chat-page .research-studio .research-answer .research-reading-brief p.research-brief-conclusion { font-size: 16px; } }

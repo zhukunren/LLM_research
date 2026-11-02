@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowDownToLine, ArrowRight, ArrowUp, ArrowUpToLine, Check, Folder, GitBranch, ListFilter, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowDownToLine, ArrowRight, ArrowUp, ArrowUpToLine, Check, Ellipsis, Folder, GitBranch, ListFilter, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import type { Asset, Node } from '../pages/StrategyPage'
 import { addTransferConditions, conditionAssetKey, moveTransferItems, referencedConditionKeys, removeTransferItems, transferItems, updateTransferItem, type TransferMove } from '../conditionTransfer'
 import { countConditions } from '../screeningWorkflow'
 import { applyConditionParameters, conditionText, distinctConditionDescription } from '../conditionText'
 import { StockText } from './StockMentions'
 import ConditionItemEditor from './ConditionItemEditor'
+import InlineConditionParameters from './InlineConditionParameters'
 import './condition-transfer.css'
 import './condition-compose-fit.css'
 
@@ -30,30 +31,38 @@ function itemDescription(node: Node, catalog: Asset[]): string {
   return (node.children ?? []).map(child => itemLabel(child, catalog)).join('、') || '空分组，点击右侧逻辑按钮补充条件'
 }
 
-export default function ConditionTransferEditor({ tree, catalog, logicSummary, disabled = false, onChange, onCreateCondition }: { tree: Node; catalog: Asset[]; logicSummary?: string; disabled?: boolean; onChange: (tree: Node) => void; onCreateCondition: () => void }) {
+function ConditionGroupPreview({ node, catalog, path, disabled, onInspectReference }: { node: Node; catalog: Asset[]; path: number[]; disabled: boolean; onInspectReference?: (path: number[]) => void }) {
+  return <div className="condition-group-preview">{(node.children ?? []).map((child, index) => <div className="condition-group-child" key={index}>
+    {child.op.endsWith('_ref') ? <>{onInspectReference ? <button type="button" className="condition-reference-open workspace-button" disabled={disabled} aria-label={`查看 ${itemLabel(child, catalog)} 详情`} onClick={() => onInspectReference([...path, index])}>{itemLabel(child, catalog)}</button> : <strong>{itemLabel(child, catalog)}</strong>}<small>{itemDescription(child, catalog)}</small></> : <><span className="condition-group-relation">{relationNames[child.op] ?? '条件组'}</span><ConditionGroupPreview node={child} catalog={catalog} path={[...path, index]} disabled={disabled} onInspectReference={onInspectReference} /></>}
+  </div>)}</div>
+}
+
+export default function ConditionTransferEditor({ tree, catalog, logicSummary, disabled = false, onChange, onCreateCondition, onInspectReference }: { tree: Node; catalog: Asset[]; logicSummary?: string; disabled?: boolean; onChange: (tree: Node) => void; onCreateCondition: () => void; onInspectReference?: (path: number[]) => void }) {
   const [category, setCategory] = useState('')
   const [query, setQuery] = useState('')
-  const [history, setHistory] = useState(false)
-  const [mobilePane, setMobilePane] = useState<'available' | 'selected'>('available')
+  const [mobilePane, setMobilePane] = useState<'available' | 'selected'>(() => countConditions(tree) ? 'selected' : 'available')
   const [pending, setPending] = useState<Set<string>>(new Set())
   const [chosen, setChosen] = useState<Set<Node>>(new Set())
   const [message, setMessage] = useState('')
   const [editing, setEditing] = useState<{ node: Node; index: number | null; parameters: boolean; baseTree: Node } | null>(null)
+  const [inline, setInline] = useState<{ node: Node; index: number } | null>(null)
   const lastTransfer = useRef<Node | null>(null)
   const used = useMemo(() => referencedConditionKeys(tree), [tree])
   const items = useMemo(() => transferItems(tree), [tree])
   const versionCatalog = useMemo(() => {
     const latest = new Map<string, number>()
     catalog.forEach(asset => { const item = identity(asset), key = kind(asset) + ':' + item.id; latest.set(key, Math.max(latest.get(key) ?? 0, item.version)) })
-    return history ? catalog : catalog.filter(asset => { const item = identity(asset); return latest.get(kind(asset) + ':' + item.id) === item.version })
-  }, [catalog, history])
+    return catalog.filter(asset => { const item = identity(asset); return latest.get(kind(asset) + ':' + item.id) === item.version })
+  }, [catalog])
   const categoryCatalog = versionCatalog.filter(asset => !category || kind(asset) === category)
   const available = categoryCatalog.filter(asset => !used.has(asset.key) && [identity(asset).name, description(asset), asset.filter?.provenance?.prompt].join(' ').toLowerCase().includes(query.trim().toLowerCase()))
   const selectedAvailable = available.filter(asset => pending.has(asset.key))
   const selectedItems = items.filter(item => chosen.has(item))
+  const itemPath = (index: number) => ['all', 'any'].includes(tree.op) ? [index] : []
   useEffect(() => { setChosen(previous => new Set([...previous].filter(item => items.includes(item)))); setPending(previous => new Set([...previous].filter(key => !used.has(key)))) }, [items, used])
   useEffect(() => { if (tree !== lastTransfer.current) setMessage(''); lastTransfer.current = null }, [tree])
   useEffect(() => { if (editing && tree !== editing.baseTree) setEditing(null) }, [tree, editing])
+  useEffect(() => { if (inline && items[inline.index] !== inline.node) setInline(null) }, [items, inline])
   function commit(next: Node, text: string) { if (next === tree) return; lastTransfer.current = next; onChange(next); setMessage(text) }
   function togglePending(key: string) { setPending(previous => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next }) }
   function toggleChosen(node: Node) { setChosen(previous => { const next = new Set(previous); if (next.has(node)) next.delete(node); else next.add(node); return next }) }
@@ -75,7 +84,22 @@ export default function ConditionTransferEditor({ tree, catalog, logicSummary, d
   }
   function edit(index: number | null, parameters: boolean) {
     if (disabled) return
+    if (index != null && parameters && items[index]?.op.endsWith('_ref')) {
+      setInline(current => current?.index === index ? null : { node: items[index], index })
+      return
+    }
     setEditing({ node: index == null ? tree : items[index], index, parameters, baseTree: tree })
+  }
+  function updateInline(index: number, next: Node) {
+    if (disabled) return
+    commit(updateTransferItem(tree, index, next), '已更新本组合的条件参数。')
+    setInline({ node: next, index })
+  }
+  function changeRelation(op: string) {
+    if (disabled || op === tree.op) return
+    const base = tree.op === 'not' && tree.children?.length === 1 ? tree.children[0] : tree
+    const next = op === 'not' ? { op, children: [tree] } : ['all', 'any'].includes(base.op) ? { ...base, op } : { op, children: [base] }
+    commit(next, `已改为${relationNames[op]}。`)
   }
   function applyEdit(next: Node) {
     if (!editing || disabled || tree !== editing.baseTree) return
@@ -87,27 +111,32 @@ export default function ConditionTransferEditor({ tree, catalog, logicSummary, d
     <div className="condition-transfer-mobile-switch" role="group" aria-label="切换条件列表"><button type="button" disabled={disabled} aria-pressed={mobilePane === 'available'} aria-controls="condition-transfer-available" onClick={() => setMobilePane('available')} className="workspace-button">待选条件 · {available.length}</button><button type="button" disabled={disabled} aria-pressed={mobilePane === 'selected'} aria-controls="condition-transfer-selected" onClick={() => setMobilePane('selected')} className="workspace-button">已选条件 · {countConditions(tree)}</button></div>
     <div className="condition-transfer-grid">
       <section id="condition-transfer-available" className="condition-transfer-panel condition-transfer-available" aria-label="待选条件">
-        <header><div><span className="composition-step">01</span><h4>条件库 <b>{available.length}</b></h4></div><button type="button" className="condition-create-button workspace-button" disabled={disabled} onClick={onCreateCondition}><Plus size={14} />新增条件</button></header>
+        <header><div><h4>条件库 <b>{available.length}</b></h4></div><button type="button" className="condition-create-button workspace-button" disabled={disabled} onClick={onCreateCondition}><Plus size={14} />新增条件</button></header>
         <label className="condition-transfer-search workspace-field-label"><Search size={15} /><input aria-label="搜索待选条件" placeholder="搜索名称或判断口径" value={query} disabled={disabled} onChange={event => { setQuery(event.target.value); setPending(new Set()) }} className="workspace-field" />{query && <button type="button" aria-label="清除条件搜索" disabled={disabled} onClick={() => { setQuery(''); setPending(new Set()) }} className="workspace-button"><X size={13} /></button>}</label>
         <nav className="condition-category-tabs" aria-label="条件分类">{categories.map(({ key, label }) => <button type="button" key={key} disabled={disabled} aria-label={label} aria-pressed={category === key} className={["workspace-button", category === key ? 'active' : ''].filter(Boolean).join(' ')} onClick={() => { setCategory(key); setPending(new Set()) }}>{key ? kindNames[key] : '全部'}</button>)}</nav>
-        <div className="condition-transfer-list-options"><label className="workspace-check-label"><input type="checkbox" aria-label="勾选全部待选条件" disabled={disabled || !available.length} checked={available.length > 0 && selectedAvailable.length === available.length} onChange={event => setPending(event.target.checked ? new Set(available.map(asset => asset.key)) : new Set())} className="workspace-check" />全选{selectedAvailable.length > 0 && <span> · 已选 {selectedAvailable.length}</span>}</label><label className="workspace-check-label"><input type="checkbox" checked={history} disabled={disabled} onChange={event => { setHistory(event.target.checked); setPending(new Set()) }} className="workspace-check" />历史版本</label></div>
+        <div className="condition-transfer-list-options"><label className="workspace-check-label"><input type="checkbox" aria-label="勾选全部待选条件" disabled={disabled || !available.length} checked={available.length > 0 && selectedAvailable.length === available.length} onChange={event => setPending(event.target.checked ? new Set(available.map(asset => asset.key)) : new Set())} className="workspace-check" />全选{selectedAvailable.length > 0 && <span> · 已选 {selectedAvailable.length}</span>}</label><span>加入时自动固定版本</span></div>
         <div className="condition-transfer-list">{available.map(asset => { const item = identity(asset); const summary = distinctConditionDescription(item.name, description(asset)); return <div key={asset.key} className={'condition-transfer-row ' + (pending.has(asset.key) ? 'checked' : '')}>
-          <label className="condition-transfer-row-main workspace-check-label"><input type="checkbox" aria-label={`选择待选条件 ${item.name} 第 ${item.version} 版`} disabled={disabled} checked={pending.has(asset.key)} onChange={() => togglePending(asset.key)} className="workspace-check" /><span className="condition-transfer-row-content"><strong>{item.name}</strong>{summary && <small>{summary}</small>}{history && <span className="condition-transfer-version">第 {item.version} 版</span>}</span></label>
+          <label className="condition-transfer-row-main workspace-check-label"><input type="checkbox" aria-label={`选择待选条件 ${item.name} 第 ${item.version} 版`} disabled={disabled} checked={pending.has(asset.key)} onChange={() => togglePending(asset.key)} className="workspace-check" /><span className="condition-transfer-row-content"><strong>{item.name}</strong>{summary && <small>{summary}</small>}</span></label>
           <button type="button" className="condition-quick-add workspace-button" aria-label={`加入 ${item.name} 第 ${item.version} 版`} data-tooltip="加入组合" disabled={disabled} onClick={() => add([asset])}><Plus size={15} /></button>
-        </div> })}{!available.length && <div className="condition-transfer-empty"><ListFilter size={28} /><strong>{query ? '没有匹配的条件' : categoryCatalog.length ? '当前分类已全部加入' : '当前分类暂无条件'}</strong><p>{query ? '试试其他名称或判断口径' : categoryCatalog.length ? '可切换分类或查看历史版本' : '可切换分类，或创建并保存一个条件'}</p></div>}</div>
+        </div> })}{!available.length && <div className="condition-transfer-empty"><ListFilter size={28} /><strong>{query ? '没有匹配的条件' : categoryCatalog.length ? '当前分类已全部加入' : '当前分类暂无条件'}</strong><p>{query ? '试试其他名称或判断口径' : categoryCatalog.length ? '可切换分类或在条件详情中查看版本' : '可切换分类，或创建并保存一个条件'}</p></div>}</div>
         <footer className="condition-available-footer"><button type="button" className="secondary-button workspace-button" aria-label="加入勾选条件" disabled={disabled || !selectedAvailable.length} onClick={() => add(selectedAvailable)}>加入勾选{selectedAvailable.length > 0 ? `（${selectedAvailable.length}）` : ''}<ArrowRight size={14} /></button><button type="button" className="text-button workspace-button" aria-label="加入全部待选条件" disabled={disabled || !available.length} onClick={() => add(available)}>全部加入</button></footer>
       </section>
       <section id="condition-transfer-selected" className="condition-transfer-panel condition-transfer-selected" aria-label="已选条件">
-        <header><div><span className="composition-step">02</span><h4>组合编排 <b>{countConditions(tree)}</b></h4></div><button type="button" disabled={disabled} onClick={() => edit(null, false)} className="workspace-button"><GitBranch size={14} />组合逻辑</button></header>
-        <div className="condition-relation-bar"><span className={["workspace-status", 'condition-relation-badge ' + tree.op].filter(Boolean).join(' ')}><GitBranch size={13} />{relationNames[tree.op] ?? '单项条件'}</span><span>{tree.op === 'all' ? '每个条件都需符合' : tree.op === 'any' ? '至少一个条件符合' : tree.op === 'not' ? '排除符合以下条件的股票' : '按当前条件判断'}</span></div>
-        <div className="condition-transfer-selected-tools"><label className="workspace-check-label"><input type="checkbox" aria-label="勾选全部已选条目" disabled={disabled || !items.length} checked={items.length > 0 && selectedItems.length === items.length} onChange={event => setChosen(event.target.checked ? new Set(items) : new Set())} className="workspace-check" />全选</label><div className="condition-selected-batch"><button type="button" className="condition-remove-selected workspace-button" aria-label="移除勾选条目" data-tooltip="移除勾选条目" disabled={disabled || !selectedItems.length} onClick={() => remove(selectedItems)}><Trash2 size={13} /><span>移除</span></button><div aria-label="已选条目排序">{moves.map(({ key, label, icon: Icon }) => <button type="button" key={key} aria-label={label} data-tooltip={label} disabled={disabled || !selectedItems.length || moveTransferItems(tree, chosen, key) === tree} onClick={() => move(key)} className="workspace-button"><Icon size={14} /></button>)}</div></div></div>
+        <header><div><h4>组合编排 <b>{countConditions(tree)}</b></h4></div><button type="button" disabled={disabled} aria-label="组合逻辑" onClick={() => edit(null, false)} className="workspace-button"><GitBranch size={14} />编辑分组</button></header>
+        <div className="condition-relation-bar"><label className="workspace-field-label"><span>组合关系</span><select aria-label="组合关系" disabled={disabled} value={['all', 'any', 'not'].includes(tree.op) ? tree.op : 'single'} onChange={event => changeRelation(event.target.value)} className="workspace-field workspace-select">{!['all', 'any', 'not'].includes(tree.op) && <option value="single">单项条件</option>}<option value="all">全部满足</option><option value="any">任一满足</option><option value="not">整体排除</option></select></label><span>{tree.op === 'all' ? '每个条件都需符合' : tree.op === 'any' ? '至少一个条件符合' : tree.op === 'not' ? '排除符合以下条件的股票' : '按当前条件判断'}</span></div>
+        <div className="condition-transfer-selected-tools"><label className="workspace-check-label"><input type="checkbox" aria-label="勾选全部已选条目" disabled={disabled || !items.length} checked={items.length > 0 && selectedItems.length === items.length} onChange={event => setChosen(event.target.checked ? new Set(items) : new Set())} className="workspace-check" />全选{selectedItems.length > 0 && <span> · 已选 {selectedItems.length}</span>}</label>{selectedItems.length > 0 && <div className="condition-selected-batch"><button type="button" className="condition-remove-selected workspace-button" aria-label="移除勾选条目" data-tooltip="移除勾选条目" disabled={disabled} onClick={() => remove(selectedItems)}><Trash2 size={13} /><span>移除</span></button><div aria-label="已选条目排序">{moves.map(({ key, label, icon: Icon }) => <button type="button" key={key} aria-label={label} data-tooltip={label} disabled={disabled || moveTransferItems(tree, chosen, key) === tree} onClick={() => move(key)} className="workspace-button"><Icon size={14} /></button>)}</div></div>}</div>
         <div className="condition-transfer-list">{items.map((node, index) => { const summary = distinctConditionDescription(itemLabel(node, catalog), itemDescription(node, catalog)); return <div key={index} className="condition-selected-entry">
           {index > 0 && <div className="condition-logic-connector" aria-hidden="true"><span>{tree.op === 'any' ? '或' : '且'}</span></div>}
           <div className={'condition-transfer-row ' + (chosen.has(node) ? 'checked' : '')}>
-            <label className="condition-transfer-row-main workspace-check-label"><input type="checkbox" aria-label={`选择已选条目 ${index + 1} ${itemLabel(node, catalog)}`} disabled={disabled} checked={chosen.has(node)} onChange={() => toggleChosen(node)} className="workspace-check" /><span className="condition-transfer-order">{String(index + 1).padStart(2, '0')}</span><span className="condition-transfer-row-content"><strong>{!node.op.endsWith('_ref') && <Folder size={13} />}{itemLabel(node, catalog)}</strong>{summary && <small>{summary}</small>}<em>{node.op.endsWith('_ref') ? `权重 ${node.score_weight ?? 1}${Object.keys(node.parameter_overrides ?? {}).length ? ' · 已调整参数' : ''}` : `${countConditions(node)} 项条件 · 整组保留`}</em></span></label>
+            <label className="condition-transfer-row-main workspace-check-label"><input type="checkbox" aria-label={`选择已选条目 ${index + 1} ${itemLabel(node, catalog)}`} disabled={disabled} checked={chosen.has(node)} onChange={() => toggleChosen(node)} className="workspace-check" /><span className="condition-transfer-order">{String(index + 1).padStart(2, '0')}</span><span className="condition-transfer-row-content"><strong>{!node.op.endsWith('_ref') && <Folder size={13} />}{itemLabel(node, catalog)}</strong>{summary && node.op.endsWith('_ref') && <small>{summary}</small>}{node.op.endsWith('_ref') ? Object.keys(node.parameter_overrides ?? {}).length > 0 && <em>已调整参数</em> : <em>{countConditions(node)} 项条件</em>}</span></label>
             <button type="button" className="condition-remove-one workspace-button" aria-label={`移除第 ${index + 1} 项`} data-tooltip="移除条件" disabled={disabled} onClick={() => remove([node])}><X size={14} /></button>
-            <div className="condition-transfer-row-actions"><button type="button" disabled={disabled} aria-label={`编辑第 ${index + 1} 项参数`} data-tooltip={itemLabel(node, catalog) + ' · 参数'} onClick={() => edit(index, true)} className="workspace-button"><SlidersHorizontal size={12} />参数</button><button type="button" disabled={disabled} aria-label={`编辑第 ${index + 1} 项逻辑`} data-tooltip={itemLabel(node, catalog) + ' · 逻辑'} onClick={() => edit(index, false)} className="workspace-button"><GitBranch size={12} />逻辑</button></div>
+            <div className="condition-transfer-row-actions">{node.op.endsWith('_ref') ? <>
+              <button type="button" disabled={disabled} aria-label={`编辑第 ${index + 1} 项参数`} aria-expanded={inline?.index === index} onClick={() => edit(index, true)} className="workspace-button"><SlidersHorizontal size={12} />参数</button>
+              <details className="condition-row-more"><summary aria-label={`第 ${index + 1} 项更多操作`}><Ellipsis size={15} /></summary><div>{onInspectReference && <button type="button" disabled={disabled} aria-label={`查看第 ${index + 1} 项详情`} onClick={event => { const details = event.currentTarget.closest('details'); details?.removeAttribute('open'); details?.querySelector<HTMLElement>('summary')?.focus(); onInspectReference(itemPath(index)) }} className="workspace-button">条件详情</button>}<button type="button" disabled={disabled} aria-label={`编辑第 ${index + 1} 项逻辑`} onClick={event => { const details = event.currentTarget.closest('details'); details?.removeAttribute('open'); details?.querySelector<HTMLElement>('summary')?.focus(); edit(index, false) }} className="workspace-button"><GitBranch size={12} />调整逻辑</button></div></details>
+            </> : <button type="button" disabled={disabled} aria-label={`编辑第 ${index + 1} 项逻辑`} onClick={() => edit(index, false)} className="workspace-button"><GitBranch size={12} />编辑分组</button>}</div>
           </div>
+          {!node.op.endsWith('_ref') && <ConditionGroupPreview node={node} catalog={catalog} path={itemPath(index)} disabled={disabled} onInspectReference={onInspectReference} />}
+          {inline?.index === index && <div className="condition-inline-editor" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); event.currentTarget.parentElement?.querySelector<HTMLButtonElement>('button[aria-expanded=true]')?.focus(); setInline(null) } }}><InlineConditionParameters node={node} catalog={catalog} disabled={disabled} onChange={next => updateInline(index, next)} onDetails={onInspectReference ? () => onInspectReference(itemPath(index)) : undefined} /></div>}
         </div> })}{!items.length && <div className="condition-transfer-empty condition-composition-empty"><div className="condition-empty-icon"><GitBranch size={32} /></div><strong>还没有组合条件</strong><p>从左侧条件库加入条件，或直接描述一个新条件。</p><button type="button" className="primary-button workspace-button" disabled={disabled} onClick={onCreateCondition}><Plus size={14} />去描述条件<ArrowRight size={14} /></button><span><Check size={12} />支持行情、研报、资讯与形态条件</span></div>}</div>
         <footer className="condition-logic-summary"><div><span>逻辑预览</span><button type="button" className="text-button workspace-button" aria-label="移除全部条目" disabled={disabled || !items.length} onClick={() => remove(items)}>清空条件</button></div><p data-tooltip={logicSummary}>{logicSummary || '加入条件后，在这里查看完整的组合判断关系'}</p></footer>
       </section>

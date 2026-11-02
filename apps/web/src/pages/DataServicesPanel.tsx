@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Database, Globe, Sparkles } from 'lucide-react'
+import { ArrowUpRight, Database, Globe, Sparkles } from 'lucide-react'
 import { api, type DataStatus } from '../api'
 import { useSecurities } from '../components/StockSearch'
 import { trapDialogTab } from '../keyboard'
 import DataUpdateProgress, { type UpdateJob } from './DataUpdateProgress'
 import FinancialProbePanel from './FinancialProbePanel'
-import CompanyFinancialsPanel from '../components/CompanyFinancialsPanel'
+import FinancialSyncStatusRow from './FinancialSyncStatusRow'
+import './data-services-list.css'
 
 type Settings = {
   text_model: { configured: boolean; model: string | null; api_mode?: string | null }
@@ -28,17 +29,17 @@ function webSearchLabel(runtime: Settings['codex_runtime']) {
   return '当前不可用'
 }
 
-export default function DataServicesPanel({ data, onClose, onRefresh }: { data: DataStatus | null; onClose: () => void; onRefresh: () => void }) {
+export default function DataServicesPanel({ data, onClose, onRefresh, onOpenCompanyResearch }: { data: DataStatus | null; onClose: () => void; onRefresh: () => void; onOpenCompanyResearch?: () => void }) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [settingsRetry, setSettingsRetry] = useState(0)
-  const [financialOpen, setFinancialOpen] = useState(false)
+  const [updateDetailsOpen, setUpdateDetailsOpen] = useState(false)
   const [job, setJob] = useState<UpdateJob | null>(null)
   const [error, setError] = useState('')
-  const [checking, setChecking] = useState(false)
+  const [checking, setChecking] = useState<'model' | 'web' | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [statusError, setStatusError] = useState('')
-  const [modelResult, setModelResult] = useState('尚未检查')
+  const [modelResult, setModelResult] = useState('')
   const [webSearchResult, setWebSearchResult] = useState('')
   const [poll, setPoll] = useState(0)
   const completedJob = useRef('')
@@ -47,6 +48,7 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
   const catalog = useSecurities()
   const updating = !!job && ['queued', 'running'].includes(job.state)
   const webSearchReady = Boolean(settings?.codex_runtime?.available && settings?.codex_runtime?.web_search?.enabled)
+  useEffect(() => { setUpdateDetailsOpen(!!job && ['queued', 'running', 'partial', 'failed'].includes(job.state)) }, [job?.id])
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
     const overflow = document.body.style.overflow
@@ -101,7 +103,7 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
     finally { setSubmitting(false) }
   }
   async function checkConnection() {
-    setChecking(true); setError('')
+    setChecking('model'); setError('')
     try {
       const current = await api<Settings>('/settings/status'); setSettings(current)
       if (!current.text_model.configured) { setModelResult('智能助手尚未配置，请联系维护者完成首次设置。'); return }
@@ -114,19 +116,19 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
             : `模型接口与 Codex 运行时可用；网页搜索状态：${webSearchLabel(current.codex_runtime)}。`
         : '模型接口暂时无法连接，请稍后重试，或保存诊断信息交给维护者。')
     } catch (reason) { setModelResult((reason as Error).message || '连接检查失败，请稍后重试。') }
-    finally { setChecking(false) }
+    finally { setChecking(null) }
   }
   async function checkWebSearch() {
-    setChecking(true); setError(''); setWebSearchResult('')
+    setChecking('web'); setError(''); setWebSearchResult('')
     try {
       const result = await api<{ connected: boolean; verified: boolean; search_results: number; opened_page: boolean; latency_ms: number; message: string }>('/settings/web-search-test', { method: 'POST' })
       setWebSearchResult(`${result.message} · ${result.search_results} 条搜索结果 · ${result.latency_ms} ms`)
     } catch (reason) { setWebSearchResult((reason as Error).message || '网页搜索检查失败，请稍后重试。') }
-    finally { setChecking(false) }
+    finally { setChecking(null) }
   }
   function downloadDiagnostics() {
     const report = { checked_at: new Date().toISOString(), market_date: data?.last_date ?? null, market_available: !!data?.available,
-      quality_status: data?.quality_status, model_configured: !!settings?.text_model.configured, research_runtime_available: settings?.codex_runtime?.available ?? null, research_runtime_reason: settings?.codex_runtime?.reason ?? null, connection: modelResult,
+      quality_status: data?.quality_status, model_configured: !!settings?.text_model.configured, research_runtime_available: settings?.codex_runtime?.available ?? null, research_runtime_reason: settings?.codex_runtime?.reason ?? null, connection: modelResult || '尚未检查',
       web_search: settings?.codex_runtime?.web_search ?? null, web_search_test: webSearchResult || null,
       update: job }
     const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'text/plain;charset=utf-8' }))
@@ -140,25 +142,34 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
       <div className="drawer-header"><h2>数据与服务</h2><button ref={closeButton} className="secondary-button compact workspace-button" onClick={onClose}>关闭</button></div>
       <div className="drawer-body">
       {error && <p role="alert" className="library-error workspace-error">{error}<button className="text-button workspace-button" onClick={() => { setError(''); setSettingsRetry(value => value + 1); setPoll(i => i + 1); onRefresh() }}>重新检查</button></p>}
-      <section className="drawer-section service-summary"><h3><Database size={18} aria-hidden="true" />我的数据</h3><strong>{data?.available ? data.last_date ? `行情更新至 ${data.last_date}` : '行情可用，日期待确认' : '暂时没有可用行情'}</strong>
-        <p>{data?.quality_status === 'issues_found' ? '部分行情有异常，涉及这些行情的条件会显示“数据不足”。' : data?.available ? '本地行情可供查询，价格为未复权日线。' : '尚无可用行情。'}{data?.formal_blockers?.length ? '成交量、成交额单位及证券基础资料和历史交易日历仍需核实。' : ''}</p>
-        {settings && <p>{settings.tushare.configured ? 'Tushare 官方 token 已配置，数据权限以官方账户为准。' : 'Tushare 官方 token 待配置，完成配置后可更新外部数据。'}</p>}
-        <button className="primary-button workspace-button" disabled={loadingStatus || !!statusError || updating || submitting} onClick={() => void updateData()}>{loadingStatus ? '正在读取更新状态…' : statusError ? '无法确认更新状态' : updating || submitting ? '正在更新…' : '更新股票名称、行情和资讯'}</button>
-        {statusError && <p role="alert" className="workspace-error">{statusError}<button className="text-button workspace-button" onClick={() => setPoll(i => i + 1)}>重试读取进度</button></p>}
-        {job && <DataUpdateProgress job={job} />}
-        {job && ['failed', 'partial'].includes(job.state) && <p>本次更新未全部完成，请查看各阶段详情；原有资料仍可使用。</p>}
-      </section>
-      <FinancialProbePanel />
-      <details className="drawer-section" open={financialOpen} onToggle={event => setFinancialOpen(event.currentTarget.open)}><summary>标准财务与指标计算</summary>{financialOpen && <CompanyFinancialsPanel allowSync />}</details>
-      <section className="drawer-section service-summary"><h3><Sparkles size={18} aria-hidden="true" />智能助手</h3><p>{!settings ? (error ? '暂时无法读取连接设置。' : '正在读取助手设置…') : settings.text_model.configured ? '已完成连接设置。' : '尚未配置智能助手。'}</p>
-        {settings && <><p>Codex 研究运行时：{settings.codex_runtime?.available ? '可用' : '不可用'}{settings.codex_runtime?.reason ? ` · ${settings.codex_runtime.reason}` : ''}</p><p>原生网页搜索：{webSearchLabel(settings.codex_runtime)}。配置状态不代表实时搜索已成功。</p></>}
-        <button className="secondary-button workspace-button" disabled={checking} onClick={() => void checkConnection()}>{checking ? '正在检查…' : '检查助手连接'}</button>{modelResult && <p role="status">{modelResult}</p>}
-        <button className="secondary-button workspace-button" data-tooltip="发起一次 Codex 网页搜索请求" disabled={checking || !webSearchReady} onClick={() => void checkWebSearch()}><Globe size={15} />{checking ? '正在搜索…' : '测试原生网页搜索'}</button>{webSearchResult && <p role="status">{webSearchResult}</p>}
-      </section>
-
+      <div className="service-status-list" aria-label="数据与服务状态">
+        <section className="service-status-row" aria-label="行情与资讯">
+          <div className="service-status-main"><Database size={17} aria-hidden="true" /><div><h3>行情与资讯</h3><p>{data?.available ? data.last_date ? `行情更新至 ${data.last_date}` : '行情可用，日期待确认' : '暂时没有可用行情'}</p></div><div className="service-status-actions"><button className="primary-button workspace-button" disabled={loadingStatus || !!statusError || updating || submitting} aria-label={loadingStatus ? '正在读取更新状态…' : statusError ? '无法确认更新状态' : updating || submitting ? '正在更新…' : '更新股票名称、行情和资讯'} onClick={() => void updateData()}>{loadingStatus ? '读取中…' : statusError ? '状态待确认' : updating || submitting ? '正在更新…' : '更新数据'}</button></div></div>
+          {statusError && <p role="alert" className="workspace-error service-status-message">{statusError}<button className="text-button workspace-button" onClick={() => setPoll(i => i + 1)}>重试读取进度</button></p>}
+          {data?.quality_status === 'issues_found' && <p className="service-status-message workspace-feedback-warning">部分行情有异常，相关条件会显示“数据不足”。</p>}
+          <details className="service-status-details" open={updateDetailsOpen} onToggle={event => setUpdateDetailsOpen(event.currentTarget.open)}><summary>更新进度与数据口径</summary>
+            <p>{data?.available ? '本地行情可供查询，价格为未复权日线。' : '尚无可用行情。'}{data?.formal_blockers?.length ? '成交量、成交额单位及证券基础资料和历史交易日历仍需核实。' : ''}</p>
+            {settings && <p>{settings.tushare.configured ? 'Tushare 官方 token 已配置，数据权限以官方账户为准。' : 'Tushare 官方 token 待配置，完成配置后可更新外部数据。'}</p>}
+            {job && <DataUpdateProgress job={job} />}
+            {job && ['failed', 'partial'].includes(job.state) && <p>本次更新未全部完成，请查看各阶段详情；原有资料仍可使用。</p>}
+          </details>
+        </section>
+        <FinancialProbePanel refreshKey={poll} />
+        <FinancialSyncStatusRow refreshKey={poll} />
+        <section className="service-status-row" aria-label="智能助手连接">
+          <div className="service-status-main"><Sparkles size={17} aria-hidden="true" /><div><h3>智能助手</h3><p>{!settings ? '连接设置读取中' : settings.text_model.configured ? `已配置 · ${settings.codex_runtime ? settings.codex_runtime.available ? '研究运行时可用' : '研究运行时待处理' : '研究运行时状态不可用'}` : '尚未配置智能助手'}</p></div><div className="service-status-actions"><button className="secondary-button workspace-button" disabled={!!checking} onClick={() => void checkConnection()}>{checking === 'model' ? '正在检查…' : '检查助手连接'}</button></div></div>
+          <p className="service-status-message" role="status">{modelResult || '连接尚未检查。'}</p>
+          {settings?.codex_runtime?.reason && <p className="service-status-message">{settings.codex_runtime.reason}</p>}
+        </section>
+        <section className="service-status-row" aria-label="原生网页搜索">
+          <div className="service-status-main"><Globe size={17} aria-hidden="true" /><div><h3>原生网页搜索</h3><p>{settings ? webSearchLabel(settings.codex_runtime) : '配置读取中'}</p></div><div className="service-status-actions"><button className="secondary-button workspace-button" aria-label={checking === 'web' ? '正在搜索…' : '测试原生网页搜索'} disabled={!!checking || !webSearchReady} onClick={() => void checkWebSearch()}>{checking === 'web' ? '正在搜索…' : '测试搜索'}</button></div></div>
+          <p className="service-status-message" role="status">{webSearchResult || '配置状态不代表实时搜索已成功。'}</p>
+        </section>
+      </div>
+      <div className="service-research-entry"><p>指标与计算依据：在研究项目中选择公司，打开“公司资料与跟踪”。</p>{onOpenCompanyResearch && <button className="text-button workspace-button" onClick={() => { onClose(); onOpenCompanyResearch() }}>前往公司研究<ArrowUpRight size={14} /></button>}</div>
       <details className="drawer-section support-details"><summary>诊断与维护信息</summary><button className="secondary-button compact workspace-button" onClick={downloadDiagnostics}>保存诊断信息</button><p>模型：{settings?.text_model.model || '未配置'} · {settings?.text_model.api_mode || '未配置'}</p><p>行情记录 {data?.rows?.toLocaleString() || '—'} 条，证券 {data?.securities?.toLocaleString() || '—'} 只。</p>{data?.formal_blockers?.map(item => <p key={item}>{item}</p>)}</details>
       </div>
-      <div className="drawer-footer"><button className="secondary-button workspace-button" onClick={() => { onRefresh(); setPoll(i => i + 1) }}>重新检查状态</button></div>
+      <div className="drawer-footer"><button className="secondary-button workspace-button" onClick={() => { onRefresh(); setPoll(i => i + 1); setSettingsRetry(value => value + 1) }}>重新检查状态</button></div>
     </aside>
   </div>
 }

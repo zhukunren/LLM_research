@@ -89,7 +89,7 @@ it('reports catalog failures while settings are collapsed without replacing the 
   const preference = { model_id: 'gpt-6-luna', reasoning_effort: 'low' }
   sessionStorage.setItem('research.modelPreference', JSON.stringify(preference))
   render(<ConversationWorkspace {...props} />)
-  expect(await screen.findByText(/模型目录暂不可用：目录连接失败/)).toBeVisible()
+  expect(await screen.findByText(/分析服务设置暂时无法读取：目录连接失败/)).toBeVisible()
   expect(screen.getByRole('button', { name: '选股设置' })).toHaveAttribute('aria-expanded', 'false')
   expect(JSON.parse(sessionStorage.getItem('research.modelPreference')!)).toEqual(preference)
 })

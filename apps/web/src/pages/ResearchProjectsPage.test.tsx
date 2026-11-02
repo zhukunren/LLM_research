@@ -34,6 +34,7 @@ function HistoryProjectPage() {
 }
 
 vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
+vi.mock('../components/PdfReader', () => ({ default: () => <div>PDF 阅读区</div> }))
 vi.mock('../components/StockSearch', async importOriginal => ({ ...await importOriginal<typeof import('../components/StockSearch')>(), default: ({ onChange }: { onChange: (value: string) => void }) => <button onClick={() => onChange('600519.SH')}>选择贵州茅台</button>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
 
 function existing(): ResearchProject {

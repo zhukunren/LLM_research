@@ -4,10 +4,13 @@ import { StockText } from '../components/StockMentions'
 import EmptyState from '../components/EmptyState'
 import { localStorage } from '../authStorage'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ArrowLeft, CalendarRange, Clock3, MessageCircle, RefreshCw, Search, X } from 'lucide-react'
+import { ArrowLeft, CalendarRange, Clock3, RefreshCw, Search, Upload, X } from 'lucide-react'
 import { api, type ConversationSourceReference } from '../api'
 import { isPageOffset, isText, useSessionState } from '../useSessionState'
 import NewsCompanyChart, { type NewsChartCompany } from '../components/NewsCompanyChart'
+import LibraryManagementMenu from '../components/LibraryManagementMenu'
+import LibraryReadingActions from '../components/LibraryReadingActions'
+import ConditionWorkspaceDrawer from '../components/ConditionWorkspaceDrawer'
 import '../news.css'
 
 type NewsRecord = {
@@ -21,7 +24,7 @@ const sourceNames: Record<string, string> = { eastmoney: '东方财富', wallstr
 const sourceLabel = (source: string) => sourceNames[source.replace(/^Tushare news\//, '')] ?? source.split(' · ')[0]
 const chinaTime = (value: string | null) => value ? new Date(new Date(value).getTime() + 8 * 3600000).toISOString().slice(0, 16).replace('T', ' ') : '日期未提供'
 
-export default function NewsPage({ onDiscuss, onSourceChange, importOpen = false, onImportClose }: { onDiscuss?: (item: NewsRecord) => void; onSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void; importOpen?: boolean; onImportClose?: () => void }) {
+export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange, importOpen = false, onImportClose }: { onDiscuss?: (item: NewsRecord) => void; onDefineCondition?: (item: NewsRecord) => void; onSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void; importOpen?: boolean; onImportClose?: () => void }) {
   const [list, setList] = useState<NewsList>(emptyList)
   const [query, setQuery] = useSessionState('news.query', '', isText)
   const [startDate, setStartDate] = useSessionState('news.start', '', isText)
@@ -38,6 +41,7 @@ export default function NewsPage({ onDiscuss, onSourceChange, importOpen = false
   const [fontSize, setFontSize] = useState(() => { try { const value = Number(localStorage.getItem('news.fontSize')); const previousDefault = value === 16 && localStorage.getItem('news.compactFontApplied') !== 'true'; return previousDefault ? 14 : value >= 12 && value <= 24 ? value : 14 } catch { return 14 } })
   const readingFontSize = fontSize
   const [url, setUrl] = useState('')
+  const [localImportOpen, setLocalImportOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [reading, setReading] = useState(false)
@@ -113,6 +117,7 @@ export default function NewsPage({ onDiscuss, onSourceChange, importOpen = false
     setMobileView('catalog')
   }
   function clearFilters() { setQuery(''); setStartDate(''); setEndDate(''); setOffset(0) }
+  function closeImport() { setLocalImportOpen(false); onImportClose?.() }
   async function importUrl() {
     setBusy(true); setImportError(''); setNotice('')
     try {
@@ -122,25 +127,24 @@ export default function NewsPage({ onDiscuss, onSourceChange, importOpen = false
       })
       setNotice('已保存 ' + result.created + ' 条，跳过重复内容 ' + result.duplicates + ' 条。')
       importedId.current = result.items?.[0]?.id ?? ''
-      clearFilters(); setRefresh(value => value + 1); onImportClose?.()
+      clearFilters(); setRefresh(value => value + 1); closeImport()
     } catch (reason) { setImportError((reason as Error).message) }
     finally { setBusy(false) }
   }
 
   return <StockText><div className="local-news library-reading-workspace" data-mobile-view={mobileView} data-catalog-scroll={catalogScroll.current}>
     {notice && <div className="library-feedback workspace-feedback workspace-feedback-success" role="status">{notice}<button className="icon-button workspace-button" aria-label="关闭导入提示" onClick={() => setNotice('')}><X size={14} /></button></div>}
-    {importOpen && <section className="local-news-panel news-import-panel" aria-label="导入资讯">
-      <div className="section-title-row"><h2>从网址导入</h2><button className="icon-button workspace-button" aria-label="关闭导入" onClick={onImportClose}><X size={16} /></button></div>
-      <form onSubmit={event => { event.preventDefault(); void importUrl() }} className="workspace-form">
+    {(importOpen || localImportOpen) && <ConditionWorkspaceDrawer title="导入资讯" closeLabel="关闭导入" description="从网址保存资讯，导入后可在本地资讯中阅读。" onClose={closeImport}>
+      <form onSubmit={event => { event.preventDefault(); void importUrl() }} className="workspace-form library-news-import-form">
         <label className="workspace-field-label">资讯网址<input type="url" required value={url} disabled={busy} placeholder="https://…" onChange={event => setUrl(event.target.value)} className="workspace-field" /></label>
         <button className="primary-button workspace-button" disabled={busy || !url.trim()}>{busy ? '正在读取并整理…' : '导入'}</button>
+        {importError && <p role="alert" className="library-error workspace-error">{importError}</p>}
       </form>
-      {importError && <p role="alert" className="library-error workspace-error">{importError}</p>}
-    </section>}
+    </ConditionWorkspaceDrawer>}
     <nav className="library-mobile-switch" aria-label="资讯列表与阅读切换"><button type="button" aria-pressed={mobileView === 'catalog'} onClick={returnToCatalog} className="workspace-button">资讯列表</button><button type="button" aria-pressed={mobileView === 'reader'} disabled={!selectedId} onClick={() => read(selectedId)} className="workspace-button">阅读资讯</button></nav>
     <div className="local-news-grid">
       <section className="local-news-panel news-catalog library-catalog-pane" ref={catalog} aria-label="资讯列表" aria-busy={loading}>
-        <div className="section-title-row"><h2>本地资讯</h2><span>{loading ? '加载中' : list.total + ' 条'}</span><button className="icon-button workspace-button" aria-label="刷新资讯" data-tooltip="刷新资讯" disabled={loading} onClick={() => setRefresh(value => value + 1)}><RefreshCw size={14} /></button></div>
+        <div className="library-catalog-heading"><div className="library-catalog-title"><h2>本地资讯</h2><span>{loading ? '加载中' : list.total + ' 条'}</span></div><LibraryManagementMenu context="news" busy={busy ? '正在导入…' : ''}>{close => <><button type="button" role="menuitem" className="workspace-button" onClick={() => { close(); setLocalImportOpen(true) }}><Upload size={14} />导入资讯</button><button type="button" role="menuitem" className="workspace-button" disabled={loading} onClick={() => { close(); setRefresh(value => value + 1) }}><RefreshCw size={14} />刷新资讯</button></>}</LibraryManagementMenu></div>
         <div className="library-search workspace-field-shell"><Search size={15} /><input aria-label="搜索资讯" placeholder="搜索标题或正文" value={query} onChange={event => { setQuery(event.target.value); setOffset(0) }} className="workspace-field" />{query && <button className="icon-button workspace-button" aria-label="清除资讯搜索" onClick={() => { setQuery(''); setOffset(0) }}><X size={13} /></button>}</div>
         <details className="news-date-filter"><summary><CalendarRange size={13} /><span>{startDate || endDate ? (startDate || '不限') + ' — ' + (endDate || '不限') : '日期筛选'}</span></summary>
         <div className="local-news-date-range">
@@ -156,9 +160,10 @@ export default function NewsPage({ onDiscuss, onSourceChange, importOpen = false
       </section>
       <section className="local-news-panel news-reading-panel library-reader-pane" ref={reader} aria-label="资讯阅读" aria-busy={reading}>
         <div className="news-reader-tools"><div><span className="library-reader-eyebrow">资讯正文</span><button className="text-button reader-back workspace-button" aria-label="返回资讯列表" onClick={returnToCatalog}><ArrowLeft size={14} />返回列表</button></div><div><button className="secondary-button compact workspace-button" aria-label="缩小资讯字体" disabled={fontSize <= 12} onClick={() => setFontSize(value => value - 1)}>A-</button><span className="font-size-value" aria-label="当前资讯字号">{readingFontSize}</span><button className="secondary-button compact workspace-button" aria-label="放大资讯字体" disabled={fontSize >= 24} onClick={() => setFontSize(value => value + 1)}>A+</button></div></div>
+        <LibraryReadingActions disabled={reading || !selected || selected.id !== selectedId} onResearch={onDiscuss ? () => { if (selected && selected.id === selectedId) onDiscuss(selected) } : undefined} onScreening={onDefineCondition ? () => { if (selected && selected.id === selectedId) onDefineCondition(selected) } : undefined} />
         {reading ? <LoadingState skeleton label="正在读取正文…" /> : readError ? <div className="library-error workspace-error" role="alert">{readError}<button className="text-button workspace-button" onClick={() => setReadRetry(value => value + 1)}>重试读取</button></div> : selected ? <><div className="news-reading-content" role="region" aria-label="资讯正文与行情" tabIndex={0} key={selected.id}><article className="local-news-reader" style={{ fontSize: readingFontSize }}>
           <h3>{selected.title}</h3><p className="news-metadata"><span className="news-source-badge workspace-status">{sourceLabel(selected.source)}</span><span className="news-publication-time"><Clock3 size={12} aria-hidden="true" /><time dateTime={selected.published_at ?? selected.available_at ?? undefined}>{chinaTime(selected.published_at ?? selected.available_at)}</time></span>{selected.stock_codes.map(code => <span className="news-security-tag workspace-status" key={code}>{code}</span>)}</p><div className="news-body">{selected.body}</div>
-        </article><NewsCompanyChart companies={selected.chart_companies ?? selected.stock_codes.map(stock_code => ({ stock_code, name: stock_code }))} publishedAt={selected.published_at ?? selected.available_at} /></div>{onDiscuss && <div className="news-research-action"><button className="primary-button workspace-button" onClick={() => onDiscuss(selected)}><MessageCircle size={15} />基于此资讯研究</button></div>}</> : <EmptyState title="未选择资讯" description="从资讯列表选择一条，阅读正文和关联公司的行情。" />}
+        </article><NewsCompanyChart companies={selected.chart_companies ?? selected.stock_codes.map(stock_code => ({ stock_code, name: stock_code }))} publishedAt={selected.published_at ?? selected.available_at} /></div></> : <EmptyState title="未选择资讯" description="从资讯列表选择一条，阅读正文和关联公司的行情。" />}
       </section>
     </div>
   </div></StockText>

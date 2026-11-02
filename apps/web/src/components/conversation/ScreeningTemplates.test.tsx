@@ -29,6 +29,10 @@ it('previews an AND combination as text and sends all edited parameters', async 
   expect(selected).toHaveBeenCalledWith(combined, { ma_window: 20, return_window: 5, threshold: 6 })
 })
 async function openStarter() {
+  if (screen.queryByLabelText('选股要求')) {
+    const examples = await screen.findByRole('button', { name: '选股示例' })
+    if (examples.getAttribute('aria-expanded') === 'false') await userEvent.click(examples)
+  }
   const button = await screen.findByRole('button', { name: '选择基础方案：收盘价高于20日均线' })
   await waitFor(() => expect(button).toBeEnabled())
   await userEvent.click(button)
@@ -199,6 +203,7 @@ it('ignores an old template response when a new empty screening draft is request
   view.rerender(<ConversationWorkspace {...props} newResearchKey={0} />)
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
   expect(location.mock.calls.some(call => call[0] === 'previous-draft')).toBe(false)
+  await userEvent.click(await screen.findByRole('button', { name: '选股示例' }))
   expect(screen.getByRole('button', { name: '选择基础方案：收盘价高于20日均线' })).toBeEnabled()
   expect(screen.queryByRole('button', { name: '确认并开始筛选' })).not.toBeInTheDocument()
 })

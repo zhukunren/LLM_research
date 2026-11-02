@@ -1,3 +1,4 @@
+import { openScreeningDetails } from '../../test/screeningDelivery'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -50,7 +51,7 @@ describe('screening product flow', () => {
     const fetcher = mockApi(url => url.pathname.endsWith('/revisions/1') ? json({ ...task, scope: { ...task.scope, universe: null, as_of: null } }) : undefined)
     const user = userEvent.setup()
     render(<ConversationWorkspace initialWorkflowType="screening" data={{ available: true, last_date: '2026-09-30' }} />)
-    await screen.findByRole('heading', { name: '筛选方案' })
+    await openScreeningDetails(user)
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '请继续完善条件')
     await new Promise(resolve => globalThis.setTimeout(resolve, 500))
@@ -82,7 +83,7 @@ describe('screening product flow', () => {
     const user = userEvent.setup()
     render(<ConversationWorkspace initialWorkflowType="screening" />)
     await screen.findByText('启动暂时中断')
-    await user.click(screen.getByRole('button', { name: '重试启动筛选' }))
+    await user.click(screen.getByRole('button', { name: '重试启动' }))
     await waitFor(() => expect(requests).toHaveLength(2))
     expect(requests[0]).toEqual(requests[1])
     expect(requests[0]).toEqual({ action: 'message' })
@@ -107,6 +108,8 @@ describe('screening product flow', () => {
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     expect(screen.queryByRole('button', { name: '应用范围与日期' })).not.toBeInTheDocument()
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '稍后比较估值')
+    await openScreeningDetails(user)
+    await user.click(screen.getByText('修改范围与日期'))
     fireEvent.change(screen.getByLabelText('调整行情日期'), { target: { value: '2026-09-13' } })
     await screen.findByText('范围保存中断')
     await user.click(screen.getByRole('button', { name: '重试保存范围和日期' }))
@@ -154,6 +157,7 @@ describe('screening product flow', () => {
     })
     const user = userEvent.setup()
     render(<ConversationWorkspace initialWorkflowType="screening" />)
+    await openScreeningDetails(user)
     await user.click(await screen.findByText('保存方案与项目归属'))
     await user.click(await screen.findByRole('button', { name: '保存方案' }))
     await screen.findByText('连接暂时中断')
@@ -197,21 +201,21 @@ describe('screening product flow', () => {
     expect(screen.queryByRole('link', { name: /研究笔记.md/ })).not.toBeInTheDocument()
   })
 
-  it('lets beginners preview and edit an example without creating a conversation or executing a run', async () => {
+  it('offers concrete tasks without creating a conversation or executing a run', async () => {
     const fetcher = mockApi((url, method) => {
       if (url.pathname === '/api/v1/conversations' && method === 'GET') return json({ items: [] })
     }, 'research')
-    const user = userEvent.setup()
-    render(<ConversationWorkspace initialWorkflowType="research" />)
-    await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
-    expect(screen.queryByRole('complementary', { name: '当前筛选任务和结果' })).not.toBeInTheDocument()
-    expect(screen.getByRole('group', { name: '常用研究问题' })).toBeVisible()
-    expect(screen.getByText('走势 · 线索 · 风险')).toBeVisible()
-    expect(screen.getByRole('button', { name: '市场机会' })).toBeVisible()
-    await user.click(screen.getByRole('button', { name: '市场机会' }))
-    expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('最近哪些股票值得进一步研究？请结合走势、成交和已有资料，列出理由与风险。')
-    expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveFocus()
-    expect(screen.getByRole('button', { name: '发送' })).toBeEnabled()
+    const user = userEvent.setup(), onScreening = vi.fn(), onReports = vi.fn()
+    render(<ConversationWorkspace initialWorkflowType="research" onStartScreening={onScreening} onOpenReports={onReports} />)
+    await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+    expect(screen.getByRole('group', { name: '开始投资研究' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /看懂一只股票/ }))
+    expect(screen.getByRole('region', { name: '选择研究公司' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /按条件找股票/ }))
+    await user.click(screen.getByRole('button', { name: /读懂一份研报/ }))
+    expect(onScreening).toHaveBeenCalledOnce()
+    expect(onReports).toHaveBeenCalledOnce()
+    expect(screen.getByLabelText('研究要求')).toHaveValue('')
     expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true)
   })
 
@@ -219,7 +223,7 @@ describe('screening product flow', () => {
     mockApi()
     const user = userEvent.setup()
     const view = render(<ConversationWorkspace initialWorkflowType="screening" />)
-    await screen.findByText('收盘价高于20日均线')
+    await screen.findAllByText('收盘价高于20日均线')
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     await user.type(screen.getByLabelText(/研究要求|选股要求/), '把周期改成30日')
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('把周期改成30日')
@@ -253,6 +257,8 @@ describe('screening product flow', () => {
     })
     const user = userEvent.setup()
     render(<ConversationWorkspace initialWorkflowType="screening" />)
+    await openScreeningDetails(user)
+    await user.click(screen.getByText('保存方案与项目归属'))
     await user.click(await screen.findByRole('button', { name: '设置方案名称' }))
     await user.clear(screen.getByLabelText('方案名称'))
     await user.type(screen.getByLabelText('方案名称'), '趋势跟踪')
@@ -288,7 +294,7 @@ describe('screening product flow', () => {
     await user.click(screen.getByRole('button', { name: '按原日期复用' }))
     await screen.findByText('已复用趋势跟踪，正在自动筛选。')
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
-    expect(screen.getByText('2026-09-14')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '本次选股进展' })).toHaveTextContent('2026-09-14')
     await waitFor(() => expect(fetcher.mock.calls.some(([url, init]) => String(url).endsWith('/reused/turns/reuse-turn/execute') && init?.method === 'POST')).toBe(true))
     expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST').map(([url]) => String(url))).toEqual([
       '/api/v1/conversations', '/api/v1/conversations/reused/messages', '/api/v1/conversations/reused/saved-screening-tasks/saved-1/reuse',
@@ -298,8 +304,12 @@ describe('screening product flow', () => {
 
   it('shows unresolved requirements and prevents saving or executing an incomplete task', async () => {
     mockApi(url => url.pathname.endsWith('/revisions/1') ? json({ ...task, unresolved: [{ kind: 'ambiguous', source_quote: '近期', question: '近期指多少个交易日？' }] }) : undefined)
+    const user = userEvent.setup()
     render(<ConversationWorkspace initialWorkflowType="screening" />)
     expect(await screen.findByText('近期指多少个交易日？')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '开始筛选' })).not.toBeInTheDocument()
+    await openScreeningDetails(user)
+    await user.click(screen.getByText('保存方案与项目归属'))
     expect(screen.getByRole('button', { name: '保存方案' })).toBeDisabled()
     expect(screen.queryByRole('button', { name: '确认并开始筛选' })).not.toBeInTheDocument()
   })
@@ -341,6 +351,7 @@ describe('screening product flow', () => {
     })
     const user = userEvent.setup()
     render(<ConversationWorkspace initialWorkflowType="screening" onSourceChange={onSourceChange} />)
+    await openScreeningDetails(user, 'result')
     await screen.findByText('600000.SH')
     await user.click(screen.getByRole('button', { name: '下一页' }))
     await screen.findByText('600020.SH')

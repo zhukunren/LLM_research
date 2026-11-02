@@ -60,3 +60,16 @@ it('keeps a one-sided histogram inside its chart with a visible zero baseline', 
   }
 })
 
+it('keeps candles and keyboard inspection usable in a compact comparison chart', () => {
+  render(<MarketIndicatorChart chart={preview('sma', 'overlay').chart} containerWidth={360} height={120} minHeight={110} showLegend={false} />)
+  const chart = screen.getByRole('img', { name: 'K线主图叠加指标走势' })
+  expect(chart).toHaveStyle({ height: '120px' })
+  for (const wick of chart.querySelectorAll('.candle-wick')) {
+    expect(Number(wick.getAttribute('y1'))).toBeGreaterThanOrEqual(20)
+    expect(Number(wick.getAttribute('y2'))).toBeLessThanOrEqual(76)
+  }
+  fireEvent.keyDown(chart, { key: 'Home' })
+  expect(screen.getByRole('status', { name: '行情数据' })).toHaveTextContent('2026-09-12')
+  expect(screen.getByRole('status', { name: '行情数据' })).toHaveTextContent('收 10.5')
+})
+

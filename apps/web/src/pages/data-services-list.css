@@ -1,0 +1,25 @@
+.data-services-dialog.workspace-drawer .drawer-body { padding: 4px 24px 20px; }
+.data-services-dialog .service-status-row { padding: 15px 0; border-bottom: 1px solid var(--ui-border-subtle); font-size: 12px; }
+.data-services-dialog .service-status-main { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: start; gap: 9px; }
+.data-services-dialog .service-status-main > svg { margin-top: 3px; color: var(--ui-text-muted); }
+.data-services-dialog .service-status-main h3 { margin: 0; color: var(--ui-text); font-size: 13px; font-weight: 600; line-height: 1.6; }
+.data-services-dialog .service-status-main p { margin: 3px 0 0; color: var(--ui-text-muted); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.data-services-dialog .service-status-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 8px; max-width: 200px; }
+.data-services-dialog .service-status-actions > button { min-height: 32px; padding: 5px 8px; font-size: 11px; white-space: normal; }
+.data-services-dialog .service-status-message { margin: 7px 0 0 27px; font-size: 11px; line-height: 1.7; color: var(--ui-text-muted); overflow-wrap: anywhere; }
+.data-services-dialog .service-status-details { margin: 6px 0 0 27px; font-size: 11px; color: var(--ui-text-muted); line-height: 1.8; }
+.data-services-dialog .service-status-details summary { cursor: pointer; }
+.data-services-dialog .service-status-details > p { margin: 8px 0; }
+.data-services-dialog .service-status-details > details { margin-top: 10px; }
+.data-services-dialog .service-status-details .data-update-progress { margin-top: 10px; }
+.data-services-dialog .service-research-entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 13px 0; color: var(--ui-text-muted); font-size: 11px; line-height: 1.8; }
+.data-services-dialog .service-research-entry p { margin: 0; }
+.data-services-dialog .service-research-entry button { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.data-services-dialog details.support-details { margin: 0; padding: 12px 14px; border: 1px solid var(--ui-border-subtle); border-radius: 7px; box-shadow: none; }
+@media (max-width: 620px) {
+  .data-services-dialog.workspace-drawer .drawer-body { padding: 2px 16px 16px; }
+  .data-services-dialog .service-status-main { grid-template-columns: 18px minmax(0, 1fr) auto; }
+  .data-services-dialog .service-status-actions { max-width: 132px; }
+  .data-services-dialog .service-status-actions > button { min-height: 38px; font-size: 12px; }
+  .data-services-dialog .service-status-row { padding: 12px 0; }
+}

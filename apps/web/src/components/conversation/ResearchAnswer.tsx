@@ -3,6 +3,8 @@ import { useMemo, useRef } from 'react'
 import remarkGfm from 'remark-gfm'
 import remarkCjkStrong from './remarkCjkStrong'
 import { StockText } from '../StockMentions'
+import type { ResearchReadingBrief } from '../../api'
+import ResearchSummary from './ResearchSummary'
 function researchUrl(url: string, conversationId: string) {
   const normalized = url.replace(/\\/g, '/')
   if (/^https?:\/\//i.test(normalized) || normalized.startsWith('//')) return defaultUrlTransform(url)
@@ -25,7 +27,7 @@ function researchUrl(url: string, conversationId: string) {
   return defaultUrlTransform(url)
 }
 
-export default function ResearchAnswer({ content, conversationId, references }: { content: string; conversationId: string; messageId?: string; references?: Record<string, unknown>[] }) {
+export default function ResearchAnswer({ content, conversationId, references, summary }: { content: string; conversationId: string; messageId?: string; references?: Record<string, unknown>[]; summary?: ResearchReadingBrief | null }) {
   const filePrefix = `/api/v1/conversations/${encodeURIComponent(conversationId)}/generated-files/`
   const referencesRef = useRef(references)
   referencesRef.current = references
@@ -54,5 +56,5 @@ export default function ResearchAnswer({ content, conversationId, references }: 
         ? <img src={src?.startsWith(filePrefix) ? src.replace('/generated-files/', '/research-assets/') : src} alt={alt || '研究图表'} loading="lazy" />
         : <a href={src || undefined}>{alt || '查看图表'}</a>,
     }), [filePrefix])
-  return <div className="research-answer"><ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkStrong]} urlTransform={url => researchUrl(url, conversationId)} components={components}>{content}</ReactMarkdown></div>
+  return <div className="research-answer"><ResearchSummary value={summary} /><ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkStrong]} urlTransform={url => researchUrl(url, conversationId)} components={components}>{content}</ReactMarkdown></div>
 }

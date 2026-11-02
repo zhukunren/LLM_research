@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ClipboardCheck } from 'lucide-react'
 import { api } from '../api'
 import './financial-probe.css'
 
@@ -20,7 +21,7 @@ const labels: Record<string, string> = {
   skipped: '未重复请求', configuration_error: '配置需处理', invalid_response: '响应无效',
 }
 
-export default function FinancialProbePanel() {
+export default function FinancialProbePanel({ refreshKey = 0 }: { refreshKey?: number }) {
   const [data, setData] = useState<FinancialStatus | null>(null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -46,7 +47,7 @@ export default function FinancialProbePanel() {
     }
     void load()
     return () => { controller.abort(); clearTimeout(timer) }
-  }, [generation])
+  }, [generation, refreshKey])
   async function start() {
     setSubmitting(true); setError('')
     try {
@@ -71,19 +72,19 @@ export default function FinancialProbePanel() {
     link.href = url; link.download = '财务接口与十家公司试点.json'; link.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
-  return <section className="drawer-section financial-probe-panel" aria-label="财务与披露接口">
-    <h3>财务与披露接口</h3>
-    <p>检查 10 家公司的财务样本与公告索引，分别确认普通财务、VIP 和公告权限。</p>
+  const available = data?.capabilities.filter(item => item.status === 'available').length || 0
+  const restricted = data?.capabilities.some(item => ['denied', 'rate_limited', 'configuration_error', 'invalid_response', 'contract_error', 'transient_error'].includes(item.status))
+  return <section className="service-status-row financial-probe-panel" aria-label="财务与披露接口">
+    <div className="service-status-main"><ClipboardCheck size={17} aria-hidden="true" /><div><h3>财务与披露接口</h3><p>{!data ? error ? '状态读取失败' : '正在读取状态…' : !data.configured ? 'Tushare 凭据待配置' : active ? '正在检查' : run && !run.credential_matches ? '凭据已变化，需重新检查' : restricted ? '部分接口受限或待处理' : available ? `${available} 项接口样本可用` : '样本可用性尚未证实'}</p></div>
+      {data && <div className="service-status-actions">{data.can_probe && <button className="secondary-button workspace-button" aria-label={active ? '正在检查财务接口…' : submitting ? '正在提交…' : '检查接口与十家公司样本'} disabled={!data.configured || submitting || active} onClick={() => void start()}>{active ? '正在检查…' : submitting ? '正在提交…' : '检查接口'}</button>}{active && data.can_probe && <button className="text-button workspace-button" disabled={submitting} onClick={() => void stop()}>停止财务检查</button>}</div>}
+    </div>
     {error && <p role="alert" className="workspace-error">财务接口状态：{error}<button className="text-button workspace-button" onClick={() => setGeneration(v => v + 1)}>重试财务状态</button></p>}
     {!data ? <p>正在读取财务接口状态…</p> : <>
       {!data.configured && <p>Tushare 凭据尚未配置，完成配置后可以检查。</p>}
-      <div className="financial-probe-actions">
-        {data.can_probe && <button className="secondary-button workspace-button" disabled={!data.configured || submitting || active} onClick={() => void start()}>{active ? '正在检查财务接口…' : submitting ? '正在提交…' : '检查接口与十家公司样本'}</button>}
-        {active && data.can_probe && <button className="secondary-button workspace-button" disabled={submitting} onClick={() => void stop()}>停止财务检查</button>}
-        {run && <button className="text-button workspace-button" onClick={download}>下载试点结果</button>}
-      </div>
       {!data.can_probe && <p>请由平台维护者运行接口检查。</p>}
-      {run && <div role="status">
+      {active && run && <p className="service-status-message" role="status">{run.message} · 已处理 {run.summary.checked}/{run.summary.planned} 项</p>}
+      <details className="service-status-details"><summary>接口检查详情</summary><p>检查 10 家公司的财务样本与公告索引，分别确认普通财务、VIP 和公告权限。</p>
+      {run && <div>
         <p>{run.message}</p>
         {!run.credential_matches && <p>凭据已变化，下方历史试点不能证明当前权限；请重新检查。</p>}
         <p>已处理 {run.summary.checked}/{run.summary.planned} 项 · 实际请求 {run.summary.attempted} 次 · {run.summary.companies_with_rows}/10 家取得样本</p>
@@ -97,6 +98,8 @@ export default function FinancialProbePanel() {
       </ul></details>
       <details><summary>试点公司与每项结果</summary><p>{data.companies.map(item => `${item.name}（${item.category}）`).join('、')}</p>
         {run?.checks.map(check => <div key={check.key} className="financial-probe-check"><strong>{check.stock_code} · {check.endpoint} · {labels[check.status] || check.status}</strong><p>{check.message}{check.received !== undefined ? ` 返回 ${check.received} 条。` : ''}</p></div>)}
+      </details>
+      {run && <button className="text-button workspace-button" onClick={download}>下载试点结果</button>}
       </details>
     </>}
   </section>

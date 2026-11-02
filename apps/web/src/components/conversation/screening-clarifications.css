@@ -1,0 +1,105 @@
+/* Clarification cards keep the plan actionable without hiding the questions. */
+.screening-clarifications {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0 2px;
+}
+
+.screening-clarifications-heading h3 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.screening-clarifications-heading p {
+  margin: 4px 0 0;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.screening-clarification-card {
+  display: grid;
+  gap: 7px;
+  padding: 12px 13px;
+  border: 1px solid var(--ui-warning-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-warning-soft);
+}
+
+.screening-clarification-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+}
+
+.screening-clarification-meta q {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screening-clarification-kind {
+  padding: 1px 7px;
+  border: 1px solid var(--ui-warning-border);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface);
+  color: var(--ui-warning);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.screening-clarification-card > strong {
+  color: var(--ui-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.screening-clarification-card > p {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.screening-clarification-card .workspace-field-label {
+  gap: 4px;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+}
+
+.screening-clarification-card .workspace-field {
+  width: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
+}
+
+.screening-clarifications-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.screening-clarifications-actions > span {
+  color: var(--ui-text-faint);
+  font-size: 11px;
+}
+
+@media (max-width: 600px) {
+  .screening-clarifications-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .screening-clarifications-actions > button {
+    width: 100%;
+  }
+}

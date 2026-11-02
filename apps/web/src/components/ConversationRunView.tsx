@@ -6,7 +6,7 @@ import StockChartDialog from './StockChartDialog'
 import { TaskLogic } from './conversation/TaskBrief'
 
 type Run = { id: string; as_of: string; status: string; task_revision: number; task: ScreeningTaskRevision; job: { progress: number; message: string }; result: { coverage?: { target_total: number; true_count: number; false_count: number; unknown_count: number } } }
-export default function ConversationRunView({ conversationId, runId, onContinue }: { conversationId: string; runId: string; onContinue: () => void }) {
+export default function ConversationRunView({ conversationId, runId, title, onContinue }: { conversationId: string; runId: string; title?: string; onContinue: () => void }) {
   const [run, setRun] = useState<Run | null>(null)
   const [items, setItems] = useState<ScreeningTaskDecision[]>([])
   const [state, setState] = useState('true')
@@ -43,11 +43,11 @@ export default function ConversationRunView({ conversationId, runId, onContinue 
     return () => { active = false; clearTimeout(timer) }
   }, [base, run?.status, state, query, offset, reload])
   if (!run) return <StockText><div><p className={error ? 'workspace-error' : undefined} role={error ? 'alert' : 'status'}>{error || '正在读取历史筛选…'}</p>{error && <button onClick={() => setReload(i => i + 1)} className="workspace-button">重试</button>}</div></StockText>
-  return <StockText><div className="conversation-history-result"><div className="section-title-row"><h2>选股记录</h2><button className="primary-button workspace-button" onClick={onContinue}>打开原对话与方案</button></div>
+  return <StockText><div className="conversation-history-result"><div className="section-title-row"><h2>{title || '选股记录'}</h2><button className="secondary-button workspace-button" onClick={onContinue}>打开原对话与方案</button></div>
     <div className="history-run-context"><p className="history-date-notice workspace-feedback workspace-feedback-info">截止日期：{run.as_of}</p>
     <details><summary>本次采用的筛选规则</summary><TaskLogic task={run.task} /></details></div>
-    <ScreeningResultView asOf={run.as_of} revision={run.task_revision} status={run.status} isCurrent={false}
-      coverage={run.result.coverage} progress={{ message: run.job.message, percent: run.job.progress }}
+    <ScreeningResultView title={`对话选股 · v${run.task_revision}`} asOf={run.as_of} revision={run.task_revision} status={run.status} isCurrent={false}
+      coverage={run.result.coverage} progress={{ message: run.job?.message || '', percent: run.job?.progress || 0 }}
       decisions={items.map(item => ({ stock_code: item.stock_code, state: item.state, as_of: run.as_of, conditions: item.condition_decisions.map(condition => ({ name: run.task.conditions.find(c => c.condition_id === condition.condition_id)?.description || '筛选条件', state: condition.state, explanation: condition.explanation })) }))}
       loading={loading} error={error} total={total} offset={offset} pageSize={20} stateFilter={state} query={query}
       onStateFilterChange={value => { setState(value); setOffset(0) }} onQueryChange={value => { setQuery(value); setOffset(0) }} onPageChange={setOffset}
