@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FolderOpen } from 'lucide-react'
 import { api } from '../../api'
 import type { ResearchProjectSummary } from '../../research'
@@ -12,20 +12,32 @@ export default function ProjectMembership({ conversationId, projectId, disabled,
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [reload, setReload] = useState(0)
+  const generation = useRef(0)
+  const operation = useRef<AbortController | null>(null)
+  useEffect(() => {
+    ++generation.current
+    operation.current = null
+    setSaving(false)
+    return () => { ++generation.current; operation.current?.abort(); operation.current = null }
+  }, [conversationId])
   useEffect(() => {
     const controller = new AbortController()
     setLoadError(false)
     api<{ items: ResearchProjectSummary[] }>('/research-projects', { signal: controller.signal })
-      .then(result => setProjects(result.items)).catch(() => { if (!controller.signal.aborted) setLoadError(true) })
+      .then(result => { if (!controller.signal.aborted) setProjects(result.items) }).catch(() => { if (!controller.signal.aborted) setLoadError(true) })
     return () => controller.abort()
   }, [conversationId, projectId, reload])
   async function change(next: string) {
+    if (disabled || operation.current) return
+    const controller = new AbortController(), current = generation.current
+    const accepted = () => current === generation.current && !controller.signal.aborted
+    operation.current = controller
     setSaving(true)
     try {
-      await api(`/conversations/${conversationId}/project`, { method: 'PATCH', body: JSON.stringify({ project_id: next || null }) })
-      onChange(next || null)
-    } catch (reason) { onError((reason as Error).message) }
-    finally { setSaving(false) }
+      await api(`/conversations/${conversationId}/project`, { method: 'PATCH', signal: controller.signal, body: JSON.stringify({ project_id: next || null }) })
+      if (accepted()) onChange(next || null)
+    } catch (reason) { if (accepted()) onError((reason as Error).message) }
+    finally { if (accepted()) { operation.current = null; setSaving(false) } }
   }
   return <div className="project-membership">
     <FolderOpen size={15} aria-hidden="true" />

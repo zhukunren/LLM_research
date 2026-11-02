@@ -1,12 +1,12 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { api } from '../../api'
+import { api, ApiRequestError } from '../../api'
 import type { DynamicIndicatorDefinition, IndicatorTrial, SavedIndicator } from '../../dynamicIndicators'
 import MyIndicators, { splitIndicatorCharts } from './MyIndicators'
 import { WorkspaceSessionPane } from '../../WorkspaceSession'
 
-vi.mock('../../api', () => ({ api: vi.fn() }))
+vi.mock('../../api', async importOriginal => ({ ...await importOriginal<typeof import('../../api')>(), api: vi.fn() }))
 const mocked = vi.mocked(api)
 const definition: DynamicIndicatorDefinition = {
   name: '成交加权偏离', description: '相对成交量加权均价的标准化偏离', formula: '(close - VWAP(window)) / volatility', original_prompt: '观察量价偏离的完整走势',
@@ -270,10 +270,9 @@ describe('contextual dynamic indicators', () => {
     expect(screen.getByText('需要更多历史数据')).toBeInTheDocument()
   })
 
-  it('can reopen the description editor while inspecting a saved indicator', async () => {
+  it('can reopen the description editor to modify the saved indicator without starting a new one', async () => {
     render(<MyIndicators {...base} />); await open(); await selectSaved()
-    await userEvent.click(screen.getByRole('button', { name: '描述新指标' }))
-    await waitFor(() => expect(screen.getByLabelText('指标描述')).toHaveFocus())
+    await userEvent.click(screen.getByText('用自然语言创建或修改指标'))
     await userEvent.type(screen.getByLabelText('指标描述'), '增加一个动量输出')
     await userEvent.click(screen.getByRole('button', { name: '基于当前指标修改' }))
     expect(base.onPrompt.mock.calls[0][0]).toContain('read_dynamic_indicator')
@@ -365,4 +364,139 @@ it('requires a new version when the actual input bar count changes under the sam
   expect(screen.getByLabelText('指标历史长度')).toHaveValue(500)
   expect(screen.getByRole('button', { name: '用于选股草稿' })).toBeDisabled()
   expect(screen.getByRole('button', { name: '确认保存此版本' })).toBeEnabled()
+})
+
+it('restores edited indicator drafts on reopen without trusting cached validation or crossing conversations', async () => {
+  trials = [trial]
+  const view = render(<MyIndicators {...base} />)
+  await open()
+  await screen.findByLabelText('保存指标名称')
+  fireEvent.change(screen.getByLabelText('指标描述'), { target: { value: '保留我的修改要求' } })
+  fireEvent.change(screen.getByLabelText('指标参数 窗口'), { target: { value: '24' } })
+  fireEvent.change(screen.getByLabelText('指标历史长度'), { target: { value: '321' } })
+  fireEvent.change(screen.getByLabelText('保存指标名称'), { target: { value: '尚未保存的名称' } })
+  await userEvent.click(screen.getByRole('button', { name: '关闭我的指标' }))
+  await open()
+  await screen.findByLabelText('保存指标名称')
+  expect(screen.getByLabelText('指标描述')).toHaveValue('保留我的修改要求')
+  expect(screen.getByLabelText('指标参数 窗口')).toHaveValue(24)
+  expect(screen.getByLabelText('指标历史长度')).toHaveValue(321)
+  expect(screen.getByLabelText('保存指标名称')).toHaveValue('尚未保存的名称')
+  expect(screen.getByRole('button', { name: '确认保存此版本' })).toBeDisabled()
+  expect(mocked.mock.calls.some(([path]) => path === '/dynamic-indicators/preview')).toBe(false)
+  view.rerender(<MyIndicators {...base} contextKey="research:other" conversationId="other" />)
+  await open()
+  expect(screen.getByLabelText('指标描述')).toHaveValue('')
+  view.rerender(<MyIndicators {...base} />)
+  await open()
+  expect(screen.getByLabelText('指标描述')).toHaveValue('保留我的修改要求')
+})
+
+it('keeps the draft while storage is unavailable and only resets on an explicit new indicator', async () => {
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+  render(<MyIndicators {...base} />)
+  await open()
+  fireEvent.change(screen.getByLabelText('指标描述'), { target: { value: '内存中的要求' } })
+  await userEvent.click(screen.getByRole('button', { name: '关闭我的指标' }))
+  await open()
+  expect(screen.getByLabelText('指标描述')).toHaveValue('内存中的要求')
+  await userEvent.click(screen.getByRole('button', { name: '描述新指标' }))
+  expect(screen.getByLabelText('指标描述')).toHaveValue('')
+  expect(screen.queryByLabelText('保存指标名称')).not.toBeInTheDocument()
+})
+
+it('keeps an explicitly new indicator empty across reopen even with earlier trials', async () => {
+  trials = [trial]
+  render(<MyIndicators {...base} />)
+  await open(); await screen.findByLabelText('保存指标名称')
+  await userEvent.click(screen.getByRole('button', { name: '描述新指标' }))
+  await userEvent.click(screen.getByRole('button', { name: '关闭我的指标' }))
+  await open()
+  expect(screen.queryByLabelText('保存指标名称')).not.toBeInTheDocument()
+  expect(screen.getByLabelText('指标描述')).toHaveValue('')
+  expect(screen.getByRole('button', { name: '写入生成请求' })).toHaveClass('primary-button')
+})
+
+it('preserves edits made while a restored indicator detail is still loading', async () => {
+  render(<MyIndicators {...base} />)
+  await open(); await selectSaved()
+  await userEvent.click(screen.getByRole('button', { name: '关闭我的指标' }))
+  const pending = deferred<SavedIndicator>()
+  mocked.mockImplementation(async (path, init) => path.includes('indicator-one?version=') ? pending.promise : defaultResponse(path, init))
+  await open()
+  fireEvent.change(screen.getByLabelText('指标描述'), { target: { value: '读取过程中继续写的新要求' } })
+  await act(async () => pending.resolve(saved))
+  expect(screen.getByLabelText('指标描述')).toHaveValue('读取过程中继续写的新要求')
+})
+
+it('makes recalculation primary before saving edited parameters, then makes the verified save primary', async () => {
+  render(<MyIndicators {...base} />)
+  await open(); await selectSaved()
+  expect(screen.getByRole('button', { name: '用于选股草稿' })).toHaveClass('primary-button')
+  fireEvent.change(screen.getByLabelText('指标参数 窗口'), { target: { value: '24' } })
+  const preview = screen.getByRole('button', { name: '试算完整走势' })
+  expect(preview).toHaveClass('primary-button')
+  expect(screen.getByLabelText('指标下一步')).toHaveTextContent('试算')
+  expect(screen.getByRole('button', { name: '用于选股草稿' })).toBeDisabled()
+  await userEvent.click(preview)
+  expect(await screen.findByRole('button', { name: '确认保存此版本' })).toHaveClass('primary-button')
+  expect(screen.getByRole('button', { name: '确认保存此版本' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '用于选股草稿' })).toBeDisabled()
+  fireEvent.change(screen.getByLabelText('指标参数 窗口'), { target: { value: '25' } })
+  expect(screen.getByRole('button', { name: '按当前参数重新试算' })).toHaveClass('primary-button')
+  expect(screen.getByRole('button', { name: '确认保存此版本' })).toBeDisabled()
+})
+
+it('keeps prior trial and edited inputs on a service failure and opens the real service callback', async () => {
+  trials = [trial]
+  const services = vi.fn()
+  mocked.mockImplementation(async (path, init) => {
+    if (path === '/dynamic-indicators/preview') throw new ApiRequestError('计算环境暂不可用', 503, 'indicator_runtime_unavailable')
+    return defaultResponse(path, init)
+  })
+  render(<MyIndicators {...base} onOpenDataServices={services} />)
+  await open(); await screen.findByLabelText('保存指标名称')
+  fireEvent.change(screen.getByLabelText('指标参数 窗口'), { target: { value: '24' } })
+  await userEvent.click(screen.getByRole('button', { name: '按当前参数重新试算' }))
+  expect(await screen.findByText('计算环境暂不可用')).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: '指标试算完整走势' })).toBeInTheDocument()
+  expect(screen.getByLabelText('指标参数 窗口')).toHaveValue(24)
+  expect(screen.getByRole('button', { name: '确认保存此版本' })).toBeDisabled()
+  await userEvent.click(screen.getByRole('button', { name: '检查数据与服务' }))
+  expect(services).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('dialog', { name: '我的指标' })).not.toBeInTheDocument()
+  await open(); await screen.findByLabelText('指标参数 窗口')
+  expect(screen.getByLabelText('指标参数 窗口')).toHaveValue(24)
+  expect(mocked.mock.calls.filter(([path]) => path === '/dynamic-indicators/preview')).toHaveLength(1)
+})
+
+it('honors a later common-indicator entry without discarding the custom description', async () => {
+  mocked.mockImplementation(async (path, init) => path === '/indicators' ? { items: [] } : defaultResponse(path, init))
+  const view = render(<MyIndicators {...base} />)
+  await open()
+  fireEvent.change(screen.getByLabelText('指标描述'), { target: { value: '自定义要求' } })
+  await userEvent.click(screen.getByRole('button', { name: '关闭我的指标' }))
+  view.rerender(<MyIndicators {...base} initialCommon />)
+  expect(await screen.findByRole('region', { name: '常用指标预览' })).toBeInTheDocument()
+  await selectSaved()
+  expect(screen.getByLabelText('指标描述')).toHaveValue('自定义要求')
+})
+
+it('locks edits during saving, clears completed modification text, and restores the saved fixed version', async () => {
+  trials = [trial]
+  const pending = deferred<SavedIndicator>()
+  mocked.mockImplementation(async (path, init) => path === '/dynamic-indicators/save' ? pending.promise : defaultResponse(path, init))
+  render(<MyIndicators {...base} />)
+  await open(); await screen.findByLabelText('保存指标名称')
+  fireEvent.change(screen.getByLabelText('指标描述'), { target: { value: '本轮已完成的修改描述' } })
+  await userEvent.click(screen.getByRole('button', { name: '确认保存此版本' }))
+  expect(screen.getByLabelText('指标描述')).toBeDisabled()
+  expect(screen.getByRole('button', { name: '写入生成请求' })).toBeDisabled()
+  await act(async () => pending.resolve({ ...saved, trial_id: trial.trial_id }))
+  expect(screen.getByLabelText('指标描述')).toHaveValue('')
+  expect(screen.getByRole('button', { name: '用于选股草稿' })).toHaveClass('primary-button')
+  await userEvent.click(screen.getByRole('button', { name: '关闭我的指标' }))
+  await open(); await screen.findByText('固定版本 v2 · 数值时序指标')
+  expect(screen.getByLabelText('指标描述')).toHaveValue('')
+  expect(screen.getByRole('button', { name: '用于选股草稿' })).toHaveClass('primary-button')
 })

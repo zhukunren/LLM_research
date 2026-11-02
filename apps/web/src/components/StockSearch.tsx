@@ -90,6 +90,8 @@ export default function StockSearch({ value, onChange, label = '搜索股票', i
       onBlur={() => setOpen(false)}
       onChange={event => { const text = event.target.value; setQuery(text); setOpen(true); setCursor(0); if (/^\d{6}\.(SH|SZ|BJ)$/i.test(text.trim())) onChange(text.trim().toUpperCase()); else onSelectionPending?.() }}
       onKeyDown={event => {
+        // Candidate selection belongs to the IME, not the stock picker.
+        if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.stopPropagation(); return }
         if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); setOpen(false) }
         if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setCursor(i => Math.max(0, Math.min(matches.length - 1, i + 1))) }
         if (event.key === 'ArrowUp') { event.preventDefault(); setCursor(i => Math.max(0, i - 1)) }

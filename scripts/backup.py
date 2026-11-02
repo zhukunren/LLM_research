@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from apps.api.app.settings import DB_PATH, PROJECT_ROOT, REPORT_DIR, STOCK_FILE
 from apps.api.app.storage import storage_paths
 from scripts.backup_io import publish_directory
+from scripts.backup_retention import backup_lock, dataset_id, rotate_backups, unlinked_path, verify_backup
 
 
 def sha256(path: Path) -> str:
@@ -133,8 +134,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Back up local research assets and source references.")
     parser.add_argument("destination", type=Path, help="New backup directory; it must not already exist")
     parser.add_argument("--include-source", action="store_true", help="Copy the read-only Parquet and local PDF sources")
+    parser.add_argument("--retain-count", type=int, metavar="N", help="Opt in to keeping N newest unpinned managed backups (including the new backup); .keep backups are additional. Default: never delete old backups")
+    parser.add_argument("--retention-dry-run", action="store_true", help="Create and verify the new backup, then only print retention candidates; never delete old backups. Requires --retain-count")
     args = parser.parse_args()
-    destination = args.destination.resolve()
+    if args.retain_count is not None and args.retain_count < 1:
+        parser.error("--retain-count must be at least 1")
+    if args.retention_dry_run and args.retain_count is None:
+        parser.error("--retention-dry-run requires --retain-count")
+    destination = unlinked_path(args.destination)
     if destination.exists():
         raise SystemExit("Backup destination already exists; choose a new directory.")
     if not DB_PATH.is_file():
@@ -149,11 +156,21 @@ def main() -> None:
     total_copy = sum(path.stat().st_size for path in inventory(locations).values())
     if args.include_source:
         total_copy += sum(path.stat().st_size for path in source_files)
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    # Source file contents may evolve; the dataset identity follows configured roots,
+    # storage mappings and source inclusion mode, not today's file inventory.
+    dataset = dataset_id(locations, args.include_source, [STOCK_FILE, REPORT_DIR])
+    with backup_lock(destination.parent):
+        create_backup(args, destination, locations, source_files, total_copy, dataset)
+
+
+def create_backup(args, destination: Path, locations, source_files, total_copy: int, dataset: str) -> None:
+    if destination.exists():
+        raise FileExistsError("Backup destination already exists")
     if shutil.disk_usage(destination.parent).free < total_copy + 20 * 1024 * 1024:
         raise SystemExit("Insufficient free space for the requested backup.")
 
     temporary = destination.with_name(destination.name + ".tmp")
+    unlinked_path(temporary)
     if temporary.exists():
         raise SystemExit(f"Temporary backup path already exists: {temporary}")
     temporary.mkdir()
@@ -180,6 +197,7 @@ def main() -> None:
         manifest = {
             "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "format_version": 2,
+            "retention": {"version": 1, "dataset_id": dataset},
             "database": "runtime/app.db",
             "files": records,
             "storage_mappings": [{"original_path": str(source.resolve()), "path": relative.as_posix()} for source, relative in locations],
@@ -187,12 +205,27 @@ def main() -> None:
             "source_files_copied": bool(args.include_source),
         }
         (temporary / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        verify_backup(temporary, dataset)
         publish_directory(temporary, destination)
+        verify_backup(destination, dataset)
     except Exception:
-        shutil.rmtree(temporary, ignore_errors=True)
+        if temporary.is_dir() and not temporary.is_symlink() and not temporary.is_junction():
+            shutil.rmtree(temporary, ignore_errors=True)
         raise
     print(f"Backup created: {destination}")
     print(f"Database: {DB_PATH.stat().st_size:,} bytes; source files copied: {args.include_source}")
+
+    if args.retain_count is not None:
+        try:
+            retired = rotate_backups(destination, dataset, args.retain_count, dry_run=args.retention_dry_run)
+        except Exception:
+            print(f"New backup remains at {destination}; retention stopped. Inspect any .llmr-retiring-* directory before manual action.", file=sys.stderr)
+            raise
+        label = "Would retire (new backup already created)" if args.retention_dry_run else "Retired"
+        for path in retired:
+            print(f"{label}: {path}")
+        if not retired:
+            print("No eligible old backups to retire; pinned, unknown and invalid directories are retained.")
 
 
 if __name__ == "__main__":

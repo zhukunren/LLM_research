@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { Conversation, ConversationMessage } from '../../api'
@@ -111,4 +111,89 @@ it('labels the downloaded file as a loaded fragment and keeps the selected-answe
   expect(content).toContain(question.content)
   expect(content).toContain(message.content)
   expect(content).not.toContain(later.content)
+})
+
+
+it.each(['create', 'revoke'] as const)('keeps the %s result when the share dialog is closed and reopened during a write', async operation => {
+  const user = userEvent.setup()
+  const snapshot = { id: 'share', url: 'https://share.example.test/s/snapshot-token' }
+  let finishWrite!: (value: Response) => void
+  let finishRead!: (value: Response) => void
+  let reads = 0
+  const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'POST' || init?.method === 'DELETE') return new Promise<Response>(resolve => { finishWrite = resolve })
+    reads += 1
+    if (reads === 1) return Promise.resolve(json({ configured: true, share: operation === 'create' ? null : snapshot }))
+    return new Promise<Response>(resolve => { finishRead = resolve })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  await user.click(screen.getByRole('button', { name: '分享答复' }))
+  const action = await screen.findByRole('button', { name: operation === 'create' ? '创建分享链接' : '撤销分享链接' })
+  await waitFor(() => expect(action).toBeEnabled())
+  await user.click(action)
+  await user.click(screen.getByRole('button', { name: '关闭分享' }))
+  expect(screen.getByRole('button', { name: '分享答复' })).toHaveFocus()
+  await user.click(screen.getByRole('button', { name: '分享答复' }))
+  await act(async () => finishWrite(json(operation === 'create' ? snapshot : {})))
+  // A previously started read may ignore cancellation and carry the old snapshot.
+  if (finishRead) await act(async () => finishRead(json({ configured: true, share: operation === 'create' ? null : snapshot })))
+  if (operation === 'create') expect(screen.getByRole('textbox', { name: '研究对话分享链接' })).toHaveValue(snapshot.url)
+  else {
+    expect(screen.queryByRole('textbox', { name: '研究对话分享链接' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '创建分享链接' })).toBeEnabled()
+  }
+  expect(fetcher.mock.calls.filter(call => call[1]?.method === (operation === 'create' ? 'POST' : 'DELETE'))).toHaveLength(1)
+})
+
+it('ignores a stale share lookup that finishes after revocation', async () => {
+  const user = userEvent.setup()
+  const snapshot = { id: 'share', url: 'https://share.example.test/s/snapshot-token' }
+  let finishRead!: (value: Response) => void
+  let reads = 0
+  vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'DELETE') return Promise.resolve(json({}))
+    reads += 1
+    return reads === 1 ? Promise.resolve(json({ configured: true, share: snapshot })) : new Promise<Response>(resolve => { finishRead = resolve })
+  }))
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  await user.click(screen.getByRole('button', { name: '分享答复' }))
+  await screen.findByRole('textbox', { name: '研究对话分享链接' })
+  await user.click(screen.getByRole('button', { name: '关闭分享' }))
+  await user.click(screen.getByRole('button', { name: '分享答复' }))
+  await user.click(screen.getByRole('button', { name: '撤销分享链接' }))
+  await waitFor(() => expect(screen.queryByRole('textbox', { name: '研究对话分享链接' })).not.toBeInTheDocument())
+  await act(async () => finishRead(json({ configured: true, share: snapshot })))
+  expect(screen.queryByRole('textbox', { name: '研究对话分享链接' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '创建分享链接' })).toBeEnabled()
+})
+
+it('keeps a failed pending creation retryable after the share dialog is reopened', async () => {
+  const user = userEvent.setup()
+  const snapshot = { id: 'share', url: 'https://share.example.test/s/retried-snapshot' }
+  let rejectWrite!: (reason: Error) => void
+  let writes = 0
+  const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method !== 'POST') return Promise.resolve(json({ configured: true, share: null }))
+    writes += 1
+    return writes === 1 ? new Promise<Response>((_resolve, reject) => { rejectWrite = reject }) : Promise.resolve(json(snapshot))
+  })
+  vi.stubGlobal('fetch', fetcher)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  await user.click(screen.getByRole('button', { name: '分享答复' }))
+  const create = await screen.findByRole('button', { name: '创建分享链接' })
+  await waitFor(() => expect(create).toBeEnabled())
+  await user.click(create)
+  await user.click(screen.getByRole('button', { name: '关闭分享' }))
+  await user.click(screen.getByRole('button', { name: '分享答复' }))
+  expect(screen.getByRole('button', { name: '正在创建…' })).toBeDisabled()
+  await act(async () => rejectWrite(new Error('分享服务暂时不可用')))
+  expect(screen.getByRole('alert')).toHaveTextContent('暂时无法连接本地服务，请稍后重试。')
+  expect(screen.getByRole('button', { name: '创建分享链接' })).toBeEnabled()
+  await user.click(screen.getByRole('button', { name: '创建分享链接' }))
+  expect(await screen.findByRole('textbox', { name: '研究对话分享链接' })).toHaveValue(snapshot.url)
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  const requests = fetcher.mock.calls.filter(call => call[1]?.method === 'POST')
+  expect(requests).toHaveLength(2)
+  expect(requests[1][1]?.body).toBe(requests[0][1]?.body)
 })

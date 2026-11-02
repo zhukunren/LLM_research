@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ResearchProgress } from './ResearchFeedback'
+import { ResearchFailure, ResearchProgress } from './ResearchFeedback'
 
 const startedAt = '2026-10-08T08:00:00.000Z'
 const props = { label: '正在搜索网页', startedAt, updatedAt: startedAt, stopping: false, onStop: vi.fn() }
@@ -47,5 +47,44 @@ describe('compact research progress', () => {
     expect(screen.getByRole('button', { name: '停止当前研究' })).toBeDisabled()
     expect(screen.getByRole('status')).toHaveTextContent('正在停止…')
     expect(screen.queryByText(/仍在处理/)).not.toBeInTheDocument()
+  })
+})
+
+
+describe('research failure recovery', () => {
+  it('offers only real callbacks and does not run research when checking services or editing scope', () => {
+    const onRetry = vi.fn(), onOpenDataServices = vi.fn(), onAdjustScope = vi.fn()
+    render(<ResearchFailure content="研究处理失败：timeout" onRetry={onRetry} onOpenDataServices={onOpenDataServices} onAdjustScope={onAdjustScope} />)
+    expect(screen.getByText('这次研究等待超时')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '检查数据与服务' }))
+    expect(onOpenDataServices).toHaveBeenCalledOnce()
+    expect(onRetry).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '调整研究范围' }))
+    expect(onAdjustScope).toHaveBeenCalledOnce()
+    expect(onRetry).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '重试这次研究' }))
+    expect(onRetry).toHaveBeenCalledOnce()
+    expect(screen.getByText('研究处理失败：timeout')).toBeInTheDocument()
+  })
+
+  it('does not invent a local-file cause for an access-denied error', () => {
+    render(<ResearchFailure content="研究处理失败：remote access denied" />)
+    expect(screen.getByText(/服务报告访问受限/)).toBeInTheDocument()
+    expect(screen.queryByText(/无法访问所需的本地文件/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('keeps the original error and existing results guidance without inventing a diagnosis', () => {
+    render(<ResearchFailure content="研究处理失败：unknown new error" />)
+    expect(screen.getByText('这次研究未能完成')).toBeInTheDocument()
+    expect(screen.getByText(/原问题和已有成果已保留/)).toBeInTheDocument()
+    expect(screen.getByText('研究处理失败：unknown new error')).toBeInTheDocument()
+  })
+
+  it('disables retry and scope edits during a current operation but retains the read-only service check', () => {
+    render(<ResearchFailure content="研究处理失败" disabled onRetry={vi.fn()} onAdjustScope={vi.fn()} onOpenDataServices={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '重试这次研究' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '调整研究范围' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '检查数据与服务' })).toBeEnabled()
   })
 })

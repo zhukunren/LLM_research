@@ -25,7 +25,7 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   const [loadingSources, setLoadingSources] = useState(false), [sourceRetry, setSourceRetry] = useState(0)
   const [share, setShare] = useState<{ id: string; url: string } | null>(null)
   const [shareLoading, setShareLoading] = useState(false), [sharing, setSharing] = useState(false)
-  const shareRequest = useRef<string | null>(null), shareLock = useRef(false)
+  const shareRequest = useRef<string | null>(null), shareLock = useRef(false), shareRevision = useRef(0)
   const [position, setPosition] = useState<CSSProperties>({ top: 0, left: 0 })
   const trigger = useRef<HTMLButtonElement>(null), popup = useRef<HTMLDivElement>(null), closeButton = useRef<HTMLButtonElement>(null)
   const dialogLauncher = useRef<HTMLElement | null>(null)
@@ -74,17 +74,21 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
         .catch(reason => { if (!controller.signal.aborted) setError((reason as Error).message) })
         .finally(() => { if (!controller.signal.aborted) setLoadingSources(false) })
     } else {
+      // Reopening a pending write must not read a pre-publication/revocation snapshot.
+      if (shareLock.current) { setShareLoading(false); return () => controller.abort() }
+      const revision = shareRevision.current
+      const current = () => !controller.signal.aborted && revision === shareRevision.current
       setShareLoading(true)
       api<{ configured: boolean; share: { id: string; url: string } | null }>(`/conversations/${conversation.id}/answers/${message.id}/share`, { signal: controller.signal })
-        .then(result => { if (!controller.signal.aborted) { setShare(result.share || null); if (result.configured === false) setError('公开分享服务尚未配置。') } })
-        .catch(reason => { if (!controller.signal.aborted) setError((reason as Error).message) })
-        .finally(() => { if (!controller.signal.aborted) setShareLoading(false) })
+        .then(result => { if (current()) { setShare(result.share || null); if (result.configured === false) setError('公开分享服务尚未配置。') } })
+        .catch(reason => { if (current()) setError((reason as Error).message) })
+        .finally(() => { if (current()) setShareLoading(false) })
     }
     return () => controller.abort()
   }, [dialog, conversation.id, message.id, sourceRetry])
   async function createShare() {
     if (shareLock.current || shareLoading) return
-    shareLock.current = true; setSharing(true); setError('')
+    shareLock.current = true; shareRevision.current += 1; setShareLoading(false); setSharing(true); setError('')
     shareRequest.current ||= crypto.randomUUID()
     try {
       const result = await api<{ id: string; url: string }>(`/conversations/${conversation.id}/answers/${message.id}/share`, {
@@ -97,7 +101,7 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   }
   async function revokeShare() {
     if (!share || shareLock.current) return
-    shareLock.current = true; setSharing(true); setError('')
+    shareLock.current = true; shareRevision.current += 1; setShareLoading(false); setSharing(true); setError('')
     try {
       await api(`/conversations/${conversation.id}/shares/${share.id}`, { method: 'DELETE' })
       setShare(null); setCopied(false); shareRequest.current = null

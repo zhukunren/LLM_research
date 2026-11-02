@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
@@ -80,4 +80,39 @@ it('returns to a running task without sending a new prompt and restores keyboard
   expect(open).toHaveBeenCalledWith('ongoing', 'report')
   expect(fetcher.mock.calls[0]).toBeDefined()
   expect(screen.getByRole('button', { name: '运行任务' })).toHaveFocus()
+})
+
+
+it('connects failure recovery to services and the real composer without discarding a newer draft or submitting it', async () => {
+  const writes = restore('研究处理失败：timeout', true)
+  const onOpenDataServices = vi.fn(), user = userEvent.setup()
+  render(<ConversationWorkspace initialScope="report" initialConversationId="research" onOpenDataServices={onOpenDataServices} />)
+  await screen.findByText('这次研究等待超时')
+  const composer = screen.getByRole('textbox', { name: '研究要求' })
+  await waitFor(() => expect(composer).toBeEnabled())
+  await user.type(composer, '只核对最近一季度的现金流，保留这段未发送的草稿')
+  await user.click(screen.getByRole('button', { name: '检查数据与服务' }))
+  expect(onOpenDataServices).toHaveBeenCalledOnce()
+  expect(composer).toHaveValue('只核对最近一季度的现金流，保留这段未发送的草稿')
+  expect(writes).toEqual([])
+  await user.click(screen.getByRole('button', { name: '调整研究范围' }))
+  await waitFor(() => expect(composer).toHaveFocus())
+  expect(composer).toHaveValue('只核对最近一季度的现金流，保留这段未发送的草稿')
+  expect(writes).toEqual([])
+
+  // Explicit retry still sends the failed question, never the newer unsent draft.
+  const before = vi.mocked(fetch).getMockImplementation()!
+  vi.mocked(fetch).mockImplementation((input, init) => {
+    if (init?.method === 'PATCH' && String(input).endsWith('/research-scope')) {
+      const { base_revision, ...research_scope } = JSON.parse(String(init.body))
+      return Promise.resolve(json({ research_scope, research_scope_revision: base_revision + 1 }))
+    }
+    return init?.method === 'POST' ? Promise.resolve(json({ message: '重试暂未受理' }, 503)) : before(input, init)
+  })
+  await user.click(screen.getByRole('button', { name: '重试这次研究' }))
+  await screen.findByText('重试暂未受理')
+  const retry = vi.mocked(fetch).mock.calls.find(([path, init]) => String(path).endsWith('/conversations/research/messages') && init?.method === 'POST')
+  expect(retry).toBeDefined()
+  expect(JSON.parse(String(retry![1]!.body)).content).toBe('核对现金流')
+  expect(composer).toHaveValue('只核对最近一季度的现金流，保留这段未发送的草稿')
 })

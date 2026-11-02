@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { api } from '../api'
@@ -60,4 +60,32 @@ it('dismisses uncommitted keyboard selection with Escape', async () => {
   expect(parentEscape).not.toHaveBeenCalled()
   await user.keyboard('{Escape}')
   expect(parentEscape).toHaveBeenCalledOnce()
+})
+
+
+it.each([
+  { isComposing: true },
+  { keyCode: 229 },
+])('leaves composition keys to the input method (%o)', async composition => {
+  const user = userEvent.setup(), change = vi.fn(), parentKey = vi.fn()
+  function Harness() {
+    const [value, setValue] = useState('000001.SZ')
+    return <StockSearch value={value} onChange={code => { setValue(code); change(code) }} />
+  }
+  render(<SecuritiesProvider><div onKeyDown={parentKey}><Harness /></div></SecuritiesProvider>)
+  const input = screen.getByRole('combobox', { name: '搜索股票' })
+  await waitFor(() => expect(input).toHaveValue('平安银行'))
+  await user.click(input)
+  const first = screen.getByRole('option', { name: /平安银行/ })
+  for (const key of ['ArrowDown', 'ArrowUp', 'Enter', 'Escape']) {
+    expect(fireEvent.keyDown(input, { key, ...composition })).toBe(true)
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+    expect(first).toHaveAttribute('aria-selected', 'true')
+    expect(change).not.toHaveBeenCalled()
+    expect(parentKey).not.toHaveBeenCalled()
+  }
+  // Once composition ends, the same keyboard workflow still commits normally.
+  await user.keyboard('{ArrowDown}{Enter}')
+  expect(change).toHaveBeenCalledExactlyOnceWith('600000.SH')
+  expect(input).toHaveValue('浦发银行')
 })
