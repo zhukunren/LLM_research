@@ -332,3 +332,17 @@ it('does not remember automatic closures of removed conversations and discards d
   act(() => { result.current.reopenClosed() })
   expect(result.current.tabs).toBe(previous)
 })
+
+it('preserves legacy condition routes and the current draft while naming the scheme workspace', () => {
+  localStorage.setItem('workbench.tree', JSON.stringify({ op: 'any', children: [{ op: 'filter_ref', filter_id: 'fixed', version: 2 }] }))
+  const { result } = renderHook(useWorkspaceTabs)
+  act(() => result.current.open({ page: 'conditions', view: 'saved' }))
+  expect(result.current.activeTab.title).toBe('我的筛选方案')
+  act(() => result.current.open({ page: 'conditions', view: 'compose' }))
+  expect(result.current.activeTab.title).toBe('方案规则')
+  expect(window.location.hash).toBe('#/screening?view=compose')
+  act(() => result.current.open({ page: 'conditions', view: 'library' }))
+  expect(result.current.activeTab.title).toBe('条件库管理')
+  expect(window.location.hash).toBe('#/screening?view=library')
+  expect(JSON.parse(localStorage.getItem('workbench.tree')!)).toEqual({ op: 'any', children: [{ op: 'filter_ref', filter_id: 'fixed', version: 2 }] })
+})

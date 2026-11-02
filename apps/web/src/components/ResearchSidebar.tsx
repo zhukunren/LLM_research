@@ -25,8 +25,8 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
   const [limit, setLimit] = useState(12)
-  const [advancedOpen, setAdvancedOpen] = useState(toolMenus.some(item => item.id === page) || page === 'conditions' && ['library', 'create', 'compose'].includes(screeningView || ''))
-  useEffect(() => { if (toolMenus.some(item => item.id === page) || page === 'conditions' && ['library', 'create', 'compose'].includes(screeningView || '')) setAdvancedOpen(true) }, [page, screeningView])
+  const [advancedOpen, setAdvancedOpen] = useState(toolMenus.some(item => item.id === page) || page === 'conditions' && ['library'].includes(screeningView || ''))
+  useEffect(() => { if (toolMenus.some(item => item.id === page) || page === 'conditions' && ['library'].includes(screeningView || '')) setAdvancedOpen(true) }, [page, screeningView])
   const close = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!mobileOpen) return
@@ -76,11 +76,11 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
         <button className="chat-nav-button workspace-button" aria-label="研究项目" data-tooltip="研究项目" aria-current={page === 'research' ? 'page' : undefined} onClick={() => onNavigate('research')}><FolderOpen size={18} /><span>研究项目</span></button>
         </>}
         {!isResearch && <>
-          <button className="chat-nav-button workspace-button" aria-label="我的方案" aria-current={page === 'conditions' && screeningView === 'saved' ? 'page' : undefined} onClick={() => onScreeningView?.('saved')}><Bookmark size={18} /><span>我的方案</span></button>
+          <button className="chat-nav-button workspace-button" aria-label="我的筛选方案" aria-current={page === 'conditions' && ['saved', 'compose', 'create'].includes(screeningView || '') ? 'page' : undefined} onClick={() => onScreeningView?.('saved')}><Bookmark size={18} /><span>我的筛选方案</span></button>
         </>}
         {!isResearch && <><button className="chat-nav-button chat-tools-toggle workspace-button" aria-label="策略工具" aria-expanded={advancedOpen} aria-controls="screening-advanced-links" onClick={() => setAdvancedOpen(value => !value)}><Wrench size={18} /><span>策略工具</span><ChevronDown size={14} /></button>
           <div id="screening-advanced-links" className="chat-tool-links" hidden={!advancedOpen}>
-          <button className="chat-nav-button workspace-button" aria-label="条件与组合" aria-current={page === 'conditions' && ['library', 'create', 'compose'].includes(screeningView || '') ? 'page' : undefined} onClick={() => onScreeningView?.('library')}><ListFilter size={18} /><span>条件与组合</span></button>
+          <button className="chat-nav-button workspace-button" aria-label="条件库管理" aria-current={page === 'conditions' && ['library'].includes(screeningView || '') ? 'page' : undefined} onClick={() => onScreeningView?.('library')}><ListFilter size={18} /><span>条件库管理</span></button>
           {toolMenus.map(({ id, label, icon: Icon }) => <button className="chat-nav-button workspace-button" key={id} aria-label={label} aria-current={page === id ? 'page' : undefined} onClick={() => onNavigate(id)}><Icon size={16} /><span>{label}</span></button>)}
           </div></>}
         <div className="workspace-shared-label">共享资料</div>

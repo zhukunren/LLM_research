@@ -1,3 +1,4 @@
+import SavedScreeningPlans from './SavedScreeningPlans'
 import LoadingState from '../components/LoadingState'
 import { StockText } from '../components/StockMentions'
 import { localStorage } from '../authStorage'
@@ -7,7 +8,7 @@ import StockChartDialog from '../components/StockChartDialog'
 import './history-results-layout.css'
 import StockSearch from '../components/StockSearch'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { ArrowRight, Check, ChevronDown, CircleHelp, Clock3, Database, GitBranch, Library, ListOrdered, MessageCircle, Play, Plus, RefreshCw, Save, Search, SlidersHorizontal, Sparkles, TrendingUp, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronDown, CircleHelp, Clock3, Database, GitBranch, Library, ListOrdered, MessageCircle, Play, Plus, RefreshCw, Save, Search, SlidersHorizontal, Sparkles, TrendingUp, X } from 'lucide-react'
 import { api, type ConversationScope, type ConversationSourceReference, type DataStatus, type Filter, type Pattern, type Strategy, type WorkflowType } from '../api'
 import { ParameterNumber, type Asset, type Node } from './StrategyPage'
 import { actualLabel, applyConditionParameters, conditionParameter, conditionText, distinctConditionDescription, targetLabel } from '../conditionText'
@@ -65,7 +66,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   const [storedSection, setStoredSection] = useStored<Section>(`${prefix}.section`, screeningOnly || workflowOnly ? 'conversation' : 'create')
   const conditionTools = workflowOnly && !scope
   const requestedSection = view ?? (screeningOnly && !['conversation', 'compose', 'history'].includes(storedSection) ? 'conversation' : storedSection)
-  const [creationOrigin, setCreationOrigin] = useState<'library' | 'compose'>(requestedSection === 'compose' ? 'compose' : 'library')
+  const [creationOrigin, setCreationOrigin] = useState<'library' | 'compose'>(requestedSection === 'library' ? 'library' : 'compose')
   const [creationOpen, setCreationOpen] = useState(conditionTools && requestedSection === 'create')
   const section = conditionTools && requestedSection === 'create' ? creationOrigin : requestedSection
   useEffect(() => { if (conditionTools) setCreationOpen(requestedSection === 'create') }, [conditionTools, requestedSection])
@@ -100,6 +101,8 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   const [conditionLimit, setConditionLimit] = useState(12)
   const [selected, setSelected] = useState<Filter | null>(null)
   const [selectedEdit, setSelectedEdit] = useState<Edit>({})
+  const [selectedEditing, setSelectedEditing] = useState(false)
+  useEffect(() => { setSelectedEditing(false) }, [selected?.id, selected?.version])
   const [tree, setTree] = useStored<Node>('workbench.tree', emptyTree())
   const [rankingTree, setRankingTree] = useState<Node | null>(null)
   const [referencePath, setReferencePath] = useState<number[] | null>(null)
@@ -131,8 +134,9 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   const [resultLoading, setResultLoading] = useState(false)
   const [resourceWarnings, setResourceWarnings] = useState<string[]>([])
   const [catalogLoading, setCatalogLoading] = useState(true)
+  const [compositionCatalogError, setCompositionCatalogError] = useState('')
   const [savedComposition, setSavedComposition] = useStored<{ strategy: Strategy; fingerprint: string } | null>('workbench.savedComposition', null)
-  const [previousComposition, setPreviousComposition] = useStored<{ tree: Node; name: string; id: string; topN: number } | null>('workbench.previousComposition', null)
+  const [previousComposition, setPreviousComposition] = useStored<{ tree: Node; name: string; id: string; topN: number; savedComposition?: { strategy: Strategy; fingerprint: string } | null } | null>('workbench.previousComposition', null)
   const [historyQuery, setHistoryQuery] = useState('')
   const [historyStatus, setHistoryStatus] = useState('')
   const [historyLimit, setHistoryLimit] = useState(15)
@@ -170,6 +174,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
     if(f.status === 'fulfilled') setFilters(f.value.items)
     if(p.status === 'fulfilled') setPatterns(p.value.items)
     if(s.status === 'fulfilled') setStrategies(s.value.items)
+    setCompositionCatalogError(s.status === 'rejected' ? (s.reason as Error).message : '')
     if(w.status === 'fulfilled') setPools(w.value.items)
     if(r.status === 'fulfilled') setRuns(r.value.items)
     if(d.status === 'fulfilled') setDraftHistory(d.value.items)
@@ -322,7 +327,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
     })
   }
   function rememberComposition() {
-    const previous = { tree: structuredClone(tree), name: strategyName, id: strategyId, topN: Number.isFinite(topN) ? topN : 30 }
+    const previous = { tree: structuredClone(tree), name: strategyName, id: strategyId, topN: Number.isFinite(topN) ? topN : 30, savedComposition }
     setPreviousComposition(previous)
     try { localStorage.setItem('workbench.previousComposition',JSON.stringify(previous)) } catch { /* Current editing remains available. */ }
   }
@@ -333,8 +338,8 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
     const incoming = draft.saved.tree
     const next = replaceExisting ? (incoming.op.endsWith('_ref') ? { op: 'all', children: [incoming] } : incoming) : appendConditionPlan(tree, incoming)
     const name = replaceExisting || !countRefs(tree) ? '我的选股组合' : strategyName
-    writeCombination(next, name)
-    setTree(next); setStrategyId(''); setStrategyName(name)
+    if (scope) writeCombination(next, name)
+    setTree(next); if (replaceExisting) setStrategyId(''); setStrategyName(name)
     if(scope && onCompose) { onCompose(); return }
     setSection('compose'); setNotice(replaceExisting ? '已用本次条件新建组合，可撤销恢复上一份草稿。' : '已加入组合并保留原有分组关系。')
   }
@@ -348,12 +353,15 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   function undoComposition() {
     if(!previousComposition || busy) return
     setTree(previousComposition.tree); setStrategyId(previousComposition.id); setStrategyName(previousComposition.name); setTopN(previousComposition.topN)
+    if ('savedComposition' in previousComposition) setSavedComposition(previousComposition.savedComposition ?? null)
     setPreviousComposition(null); setNotice('已恢复上一份组合草稿。')
   }
   function resetComposition() {
     if(busy) return
-    rememberComposition(); setTree(emptyTree()); setStrategyId(''); setStrategyName('我的选股组合')
-    setNotice('已新建空组合。')
+    const hasPrevious = !!(countRefs(tree) || strategyId || strategyName !== '我的选股组合')
+    if (hasPrevious) rememberComposition()
+    setTree(emptyTree()); setStrategyId(''); setStrategyName('我的选股组合')
+    setSection('compose'); setNotice(hasPrevious || previousComposition ? '已新建空组合；可撤销恢复最近一份草稿。' : '已新建空组合。')
   }
   const fingerprint = compositionFingerprint(strategyName, tree, topN)
   const treeIssues = catalogLoaded ? compositionIssues(tree,catalog) : []
@@ -409,10 +417,12 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   }
   function loadStrategy(value: string) {
     const item = strategies.find(s => `${s.id}@${s.version}` === value)
-    if (!item) return
+    if (!item || busy) return
+    const changed = currentSaved?.version !== item.version || strategyId !== item.id || fingerprint !== compositionFingerprint(item.name, item.tree as Node, item.top_n)
+    if (changed) rememberComposition()
     setTree(structuredClone(item.tree) as Node); setStrategyId(item.id); setStrategyName(item.name); setTopN(item.top_n)
-    setPreviousComposition(null); setSavedComposition({ strategy: item, fingerprint: compositionFingerprint(item.name, item.tree as Node, item.top_n) })
-    setNotice(`已载入“${item.name}”第 ${item.version} 版。`)
+    setSavedComposition({ strategy: item, fingerprint: compositionFingerprint(item.name, item.tree as Node, item.top_n) })
+    setSection('compose'); setNotice(`已载入“${item.name}”第 ${item.version} 版，尚未执行筛选。${changed || previousComposition ? '可撤销恢复最近一次切换前的草稿。' : ''}`)
   }
   async function revise() {
     if (!selected) return
@@ -452,9 +462,9 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
           <div className="intent-confirm">{draft.saved ? <><span><Check size={16} />条件已保存</span><button className="primary-button workspace-button" disabled={!!busy} onClick={() => usePlan()}>用这些条件组合选股<ArrowRight size={16} /></button>{countRefs(tree) > 0 && <button className="secondary-button workspace-button" disabled={!!busy} onClick={() => usePlan(true)}>以这些条件新建组合</button>}</> : <><button className="primary-button workspace-button" disabled={!!busy || !!draftEditIssues.length} onClick={confirm}><Save size={16} />{busy === 'confirm' ? '保存中…' : `确认并保存 ${draft.conditions.length} 个条件`}</button></>}</div></>}
       </section>}
     </div>{draftHistory.length > 0 && <aside className="intent-guide"><section className="draft-history"><h3>最近的描述</h3>{draftHistory.filter((item, index, all) => all.findIndex(other => other.prompt === item.prompt) === index).slice(0, 8).map(item => <button key={item.id} disabled={!!busy} onClick={() => loadDraft(item.id)} className="workspace-button"><span>{item.prompt}</span></button>)}</section></aside>}</div>
-  const conditionInspector = selected ? <div className="condition-inspector">{!conditionTools && <div className="section-title-row"><h2>{selected.name}</h2><button className="icon-button workspace-button" aria-label="关闭条件详情" onClick={() => setSelected(null)}><X size={17} /></button></div>}<label className="history-version workspace-field-label">查看历史版本<select value={selected.version} onChange={e => { const item = filters.find(f => f.id === selected.id && f.version === Number(e.target.value)); if (item) { setSelected(item); setSelectedEdit({}) } }} className="workspace-field workspace-select">{filters.filter(f => f.id === selected.id).map(f => <option value={f.version} key={f.version}>第 {f.version} 版 · {dateText(f.created_at)}</option>)}</select></label><p>{selectedDirty ? '修改后：' : ''}{selectedSummary}</p><ul className="contract-notes">{selected.contract?.notes.map(item => <li key={item}>{item.startsWith('涨幅 =') ? `涨幅 =（最新收盘价 ÷ ${selectedExpression.window} 个交易日前收盘价 − 1）× 100%。` : item}</li>)}</ul><Provenance value={selected.provenance} />
-        <ParameterEditor name={selectedEdit.name ?? selected.name} parameters={selected.parameters} expression={selected.expression} edit={selectedEdit} disabled={!!busy} onChange={setSelectedEdit} />
-        <div className="card-actions"><button className="secondary-button workspace-button" disabled={selectedDirty || !!busy || compositionKeys.has(`filter:${selected.id}@${selected.version}`)} onClick={() => addCondition(selected)}>{selectedDirty ? '先保存修改再加入组合' : compositionKeys.has(`filter:${selected.id}@${selected.version}`) ? '已加入当前组合' : '将此版本加入组合'}</button>{selectedDirty && <button className="text-button workspace-button" disabled={!!busy} onClick={() => setSelectedEdit({})}>撤销修改</button>}{selected.library === 'report' && <button className="secondary-button workspace-button" disabled={!!busy} onClick={() => { setEvaluationFilter(selected); if (conditionTools) setSelected(null) }}>核验研报证据</button>}<button className="primary-button workspace-button" disabled={!!busy || !Object.keys(selectedEdit).length} onClick={revise}><Save size={15} />保存为新版本</button></div><details className="technical-details"><summary>查看原始执行规则</summary><pre>{JSON.stringify(selectedExpression, null, 2)}</pre></details></div> : null
+  const conditionInspector = selected ? <div className="condition-inspector">{!conditionTools && <div className="section-title-row"><h2>{selected.name}</h2><button className="icon-button workspace-button" aria-label="关闭条件详情" onClick={() => setSelected(null)}><X size={17} /></button></div>}<label className="history-version workspace-field-label">查看历史版本<select value={selected.version} onChange={e => { const item = filters.find(f => f.id === selected.id && f.version === Number(e.target.value)); if (item) { setSelected(item); setSelectedEdit({}) } }} className="workspace-field workspace-select">{filters.filter(f => f.id === selected.id).map(f => <option value={f.version} key={f.version}>第 {f.version} 版 · {dateText(f.created_at)}</option>)}</select></label><p className="condition-management-note">这里修改条件库资产；本组合的临时参数请在方案规则中调整。</p><p>{selectedDirty ? '修改后：' : ''}{selectedSummary}</p><ul className="contract-notes">{selected.contract?.notes.map(item => <li key={item}>{item.startsWith('涨幅 =') ? `涨幅 =（最新收盘价 ÷ ${selectedExpression.window} 个交易日前收盘价 − 1）× 100%。` : item}</li>)}</ul><Provenance value={selected.provenance} />
+        {(!conditionTools || selectedEditing) && <ParameterEditor name={selectedEdit.name ?? selected.name} parameters={selected.parameters} expression={selected.expression} edit={selectedEdit} disabled={!!busy} onChange={setSelectedEdit} />}
+        <div className="card-actions"><button className="secondary-button workspace-button" disabled={selectedDirty || !!busy || compositionKeys.has(`filter:${selected.id}@${selected.version}`)} onClick={() => addCondition(selected)}>{selectedDirty ? '先保存修改再加入组合' : compositionKeys.has(`filter:${selected.id}@${selected.version}`) ? '已加入当前组合' : '将此版本加入组合'}</button>{selectedDirty && <button className="text-button workspace-button" disabled={!!busy} onClick={() => setSelectedEdit({})}>撤销修改</button>}{selected.library === 'report' && <button className="secondary-button workspace-button" disabled={!!busy} onClick={() => { setEvaluationFilter(selected); if (conditionTools) setSelected(null) }}>核验研报证据</button>}{conditionTools && !selectedEditing ? <button type="button" className="secondary-button workspace-button" disabled={!!busy} onClick={() => setSelectedEditing(true)}>编辑条件</button> : <><button className="primary-button workspace-button" disabled={!!busy || !Object.keys(selectedEdit).length} onClick={revise}><Save size={15} />保存为新版本</button>{conditionTools && <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => { setSelectedEdit({}); setSelectedEditing(false) }}>取消编辑</button>}</>}</div><details className="technical-details"><summary>查看原始执行规则</summary><pre>{JSON.stringify(selectedExpression, null, 2)}</pre></details></div> : null
 
   const visibleRuns = runs.filter(item => (!historyStatus || (historyStatus === 'running' ? ['queued','running'].includes(item.status) : item.status === historyStatus)) && [item.name, item.as_of, strategies.find(value => value.id === item.strategy_id && value.version === item.strategy_version)?.name].join(' ').toLowerCase().includes(historyQuery.trim().toLowerCase())).sort((a, b) => b.created_at.localeCompare(a.created_at))
   const screeningHeading = workflowOnly ? '条件选股' : section === 'conversation' ? '对话筛选' : section === 'history' ? '筛选记录' : '组合选股'
@@ -467,10 +477,18 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
     {catalogLoading && !runs.length ? <LoadingState compact label="正在读取筛选记录…" /> : !visibleRuns.length && <Empty icon={Clock3} title={runs.length ? '没有符合当前筛选的记录' : '暂无筛选记录'} action={runs.length ? <button className="text-button workspace-button" onClick={() => { setHistoryQuery(''); setHistoryStatus('') }}>查看全部记录</button> : <button className="primary-button workspace-button" onClick={() => setSection(workflowOnly ? 'conversation' : 'compose')}>开始一次选股</button>} />}
   </div>
 
+  if (conditionTools && section === 'saved') return <StockText><div className="page-content workspace-tool-page screening-tool-page saved-screening-page">{error && <p className="workspace-error" role="alert">{error}</p>}{!!resourceWarnings.length && <p className="screening-resource-warning workspace-feedback workspace-feedback-warning" role="status">部分资料未能更新：{resourceWarnings.join('；')}</p>}<SavedScreeningPlans externalBusy={!!busy} data={data} onOpenConversation={onResumeConversation}
+    strategies={strategies} loading={catalogLoading} compositionError={compositionCatalogError}
+    onRefreshCompositions={() => { void action('refresh', refresh) }} onOpenComposition={loadStrategy}
+    onNewComposition={resetComposition} onOpenConditionLibrary={() => setSection('library')}
+    onContinueComposition={() => setSection('compose')}
+    compositionDraft={countRefs(tree) || strategyId || previousComposition ? { name: strategyName, conditionCount: countRefs(tree), saved: !!currentSaved, version: currentSaved?.version } : undefined} /></div></StockText>
+
   return <StockText><div className={`page-content workbench ${workflowOnly && section !== 'conversation' ? 'workspace-tool-page screening-tool-page' : ''} ${section !== 'conversation' ? 'screening-workflow' : ''} ${workflowOnly && section !== 'conversation' ? 'condition-studio' : ''} ${section === 'conversation' ? 'workbench-conversation' : ''} ${section === 'compose' ? 'workbench-composing' : ''}`}>
-    {workflowOnly && shellNavigation && ['library', 'create', 'compose'].includes(section) && <nav className="condition-studio-nav" aria-label="条件与组合">
-      <button className={`workspace-button${section === 'library' ? ' active' : ''}`} aria-current={section === 'library' ? 'page' : undefined} onClick={() => setSection('library')}><Library size={16} />条件库</button>
-      <button className={`workspace-button${section === 'compose' ? ' active' : ''}`} aria-current={section === 'compose' ? 'page' : undefined} onClick={() => setSection('compose')}><GitBranch size={16} />组合</button>
+    {conditionTools && ['library', 'compose'].includes(section) && <nav className="condition-workspace-location" aria-label="方案位置">
+      <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => setSection('saved')}><ArrowLeft size={15} />我的筛选方案</button>
+      <span>{section === 'library' ? '条件资产管理' : '条件组合编辑'}</span>
+      {section === 'compose' && <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => setSection('library')}>管理条件库</button>}
     </nav>}
     {evaluationFilter && (conditionTools ? <ConditionWorkspaceDrawer title={"核验“" + evaluationFilter.name + "”的研报证据"} closeLabel="收起核验" onClose={() => setEvaluationFilter(null)}><ReportEvaluations key={evaluationFilter.id + "@" + evaluationFilter.version} selected={evaluationFilter} /></ConditionWorkspaceDrawer> : <section className="condition-evidence-panel" aria-label="研报条件证据核验"><div className="section-title-row"><h2>核验“{evaluationFilter.name}”的研报证据</h2><button className="text-button workspace-button" onClick={() => setEvaluationFilter(null)}>收起核验</button></div><ReportEvaluations key={`${evaluationFilter.id}-${evaluationFilter.version}`} selected={evaluationFilter} /></section>)}
     {section !== 'history' && !(conditionTools && ['library', 'compose'].includes(section)) && !scope && (!shellNavigation || section !== 'conversation') && (workflowOnly || section !== 'conversation') && <header className="workbench-heading"><div><h1>{screeningOnly || workflowOnly ? screeningHeading : '选股工作台'}</h1></div><div className="condition-studio-heading-meta"><span className="workbench-data-status"><Database size={14} />{data?.last_date ? <>行情截至 <time>{data.last_date}</time></> : data ? '待添加行情数据' : '正在读取数据状态…'}</span></div></header>}
@@ -500,7 +518,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
       {conditionInspector}
     </ConditionWorkspaceDrawer>}
 
-    {section === 'library' && <section className="library-workspace"><div className="section-title-row"><div><h1>条件库</h1></div><button className="primary-button workspace-button" disabled={!!busy} onClick={() => conditionTools ? setSection('create') : newDescription()}><Plus size={16} />新增可复用条件</button></div>
+    {section === 'library' && <section className="library-workspace"><div className="section-title-row"><div><h1>条件库</h1><p className="condition-management-note">管理可复用条件；加入方案时固定版本，修改条件将保存为新版本。</p></div><button className="primary-button workspace-button" disabled={!!busy} onClick={() => conditionTools ? setSection('create') : newDescription()}><Plus size={16} />新增可复用条件</button></div>
       <div className="library-filters workspace-filters"><label className="search-input workspace-field-shell"><Search size={16} /><input aria-label="搜索我的条件" placeholder="搜索条件名称、判断口径或描述" value={search} onChange={e => setSearch(e.target.value)} className="workspace-field" />{search && <button className="icon-button workspace-button" aria-label="清除条件搜索" onClick={() => setSearch('')}><X size={14} /></button>}</label><select disabled={!!scope} aria-label="条件类型" value={library} onChange={e => setLibrary(e.target.value)} className="workspace-field workspace-select"><option value="all">全部条件</option><option value="technical">行情条件</option><option value="report">研报条件</option><option value="news">资讯条件</option></select><select aria-label="条件排序" value={conditionSort} onChange={event => setConditionSort(event.target.value)} className="workspace-field workspace-select"><option value="recent">最近保存优先</option><option value="name">按名称排序</option></select><button className="secondary-button workspace-button" disabled={!!busy} onClick={() => setSection('compose')}>查看组合 · {countRefs(tree)} 项<ArrowRight size={15} /></button></div>
       {workflowOnly && <div className="condition-library-overview"><span>{filtered.length === latest.length ? `共 ${latest.length} 个条件` : `找到 ${filtered.length} / ${latest.length} 个条件`}</span>{(search || library !== (scope ?? 'all')) && <button className="text-button workspace-button" onClick={() => { setSearch(''); setLibrary(scope ?? 'all') }}>重置筛选</button>}</div>}
       {catalogLoading && <p className="workbench-help">正在载入本库条件…</p>}{catalogLoaded && !filtered.length && <Empty icon={Library} title={latest.length ? '没有找到匹配的条件' : '还没有保存的条件'} action={!latest.length ? <button className="primary-button workspace-button" onClick={() => newDescription()}><Plus size={15} />描述一个条件</button> : undefined} />}
@@ -509,7 +527,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
         const inComposition = compositionKeys.has(`filter:${item.id}@${item.version}`)
         return <article className="saved-condition-card" key={item.id}>
           <button className="condition-library-open workspace-button" aria-label={`查看与调整 ${item.name}`} onClick={() => { setSelected(item); setSelectedEdit({}); setNotice(''); setError('') }}><h3>{item.name}</h3>{summary && <p>{summary}</p>}</button>
-          <span className="condition-library-kind">{libraryNames[item.library]}</span>
+          <span className="condition-library-kind">{libraryNames[item.library]}<small>v{item.version}</small></span>
           <span className={`availability ${item.contract?.availability}`}>{item.contract?.availability_label}</span>
           <div className="card-actions"><button className="secondary-button workspace-button" disabled={!!busy || inComposition} onClick={() => addCondition(item)}>{inComposition ? <><Check size={14} />已加入组合</> : <><Plus size={14} />加入组合</>}</button></div>
         </article>
@@ -522,7 +540,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
     {rankingTree === tree && <CompositionRankingSettings tree={tree} catalog={catalog} disabled={!!busy} onApply={next => { changeTree(next); setRankingTree(null) }} onClose={() => setRankingTree(null)} />}
     {referencePath && inspectedReference?.op.endsWith('_ref') && <ConditionReferenceDetails node={inspectedReference} catalog={catalog} disabled={!!busy} onClose={() => setReferencePath(null)} onUpdate={next => { changeTree(replaceCompositionNode(tree, referencePath, next)); setNotice('已更新本组合的条件引用，保存组合后生效。') }} />}
     {section === 'compose' && <>
-      <header className="advanced-composition-heading"><h1>组合编辑</h1><div className="composition-heading-actions">
+      <header className="advanced-composition-heading"><h1>条件组合编辑</h1><div className="composition-heading-actions">
         <CompositionPicker strategies={strategies} currentId={strategyId} currentVersion={currentSaved?.version} disabled={!!busy} onSelect={loadStrategy} />
         <button className="secondary-button workspace-button" disabled={!!busy} onClick={resetComposition}><Plus size={15} />新建组合</button>
       </div></header>
@@ -548,7 +566,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
             <button className="secondary-button workspace-button" disabled={!!busy || !catalogLoaded || !!saveIssues.length || !!currentSaved} onClick={() => saveStrategy(false)}><Save size={15} />{busy === 'strategy' ? '保存中…' : '保存组合'}</button>
             <button className="primary-button run-button workspace-button" disabled={!catalogLoaded || !!busy || !!runIssues.length} onClick={() => saveStrategy(true)}><Play size={16} />{busy === 'run' ? '正在提交…' : '开始筛选'}</button>
           </div>
-          <div className="composition-execution-status" role="status"><span className={!runIssues.length && catalogLoaded ? 'ready' : ''}>{catalogLoading ? '正在读取条件目录' : !catalogLoaded ? '条件目录未就绪' : !countRefs(tree) ? '先从条件库加入条件' : !data?.available ? '本地行情尚未就绪' : runIssues.length ? '请修正标记的设置或组合条件' : `条件检查通过 · ${countRefs(tree)} 项条件`}</span>{data?.available && data.last_date && <span>行情截至 {data.last_date}</span>}{!data?.available && onOpenDataServices && <button className="text-button workspace-button" onClick={onOpenDataServices}>查看数据与服务</button>}<span className="composition-version-note">{currentSaved ? `采用 v${currentSaved.version}` : '开始筛选时保存为新版本'}</span></div>
+          <div className="composition-execution-status" role="status"><span className={!runIssues.length && catalogLoaded ? 'ready' : ''}>{catalogLoading ? '正在读取条件目录' : !catalogLoaded ? '条件目录未就绪' : !countRefs(tree) ? '先从条件库加入条件' : !data?.available ? '本地行情尚未就绪' : runIssues.length ? '请修正标记的设置或组合条件' : `条件检查通过 · ${countRefs(tree)} 项条件`}</span>{data?.available && data.last_date && <span>行情截至 {data.last_date}</span>}{!data?.available && onOpenDataServices && <button className="text-button workspace-button" onClick={onOpenDataServices}>查看数据与服务</button>}<span>范围与截止日期用于本次运行；组合保存规则与保留数量。</span><span className="composition-version-note">{currentSaved ? `采用 v${currentSaved.version}` : '开始筛选时保存为新版本'}</span></div>
         </footer>
       </div>
     </>}

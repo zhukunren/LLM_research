@@ -291,7 +291,7 @@ describe('screening product flow', () => {
     await user.click(await screen.findByRole('button', { name: '历史与方案' }))
     await user.click(screen.getByRole('button', { name: '已保存方案' }))
     await user.click(await screen.findByText('趋势跟踪'))
-    await user.click(screen.getByRole('button', { name: '按原日期复用' }))
+    await user.click(screen.getByRole('button', { name: '按原日期运行' }))
     await screen.findByText('已复用趋势跟踪，正在自动筛选。')
     await waitFor(() => expect(screen.getByLabelText(/研究要求|选股要求/)).toBeEnabled())
     expect(screen.getByRole('region', { name: '本次选股进展' })).toHaveTextContent('2026-09-14')

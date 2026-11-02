@@ -1,4 +1,4 @@
-/* Composition has two editing panes and one shared execution bar. */
+/* Rules remain central; the condition picker is an optional second pane. */
 .page-content.workbench.workbench-composing { box-sizing: border-box; height: calc(100dvh - var(--ui-header-height,60px)); min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px 20px 12px; background: var(--ui-surface); overflow: hidden; }
 .workbench-composing > .workbench-heading { display: none; }
 .workbench-composing > :is(.workbench-tabs,.condition-studio-nav) { margin: 0; flex-shrink: 0; }
@@ -21,6 +21,11 @@
 .condition-transfer-grid { grid-template-columns: minmax(230px,.8fr) minmax(280px,1.2fr); }
 .workbench-composing .condition-transfer { display: flex; flex: 1; flex-direction: column; min-height: 0; margin: 0; border-top: 1px solid var(--ui-border-subtle); }
 .workbench-composing .condition-transfer-grid { display: grid; grid-template-columns: clamp(260px,33%,350px) minmax(0,1fr); grid-template-rows: minmax(0,1fr); flex: 1; min-height: 0; gap: 0; }
+.workbench-composing .condition-transfer[data-library-open=false] .condition-transfer-grid { grid-template-columns: minmax(0,1fr); }
+.condition-transfer-panel[hidden] { display: none !important; }
+.workbench-composing .condition-transfer[data-library-open=false] .condition-transfer-selected { padding-left: 0; }
+.condition-rule-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.workbench-composing .condition-transfer-available > .condition-create-button { align-self: flex-start; margin-bottom: 8px; border: 0; padding: 4px 0; color: var(--ui-primary); background: transparent; font-size: 11px; }
 .workbench-composing .condition-transfer-panel { display: flex; flex-direction: column; min-height: 0; border: 0; border-radius: 0; background: transparent; overflow: hidden; }
 .workbench-composing .condition-transfer-available { padding-right: 16px; border-right: 1px solid var(--ui-border-subtle); }
 .workbench-composing .condition-transfer-selected { padding-left: 16px; }
@@ -78,7 +83,9 @@
 .workbench-composing .condition-logic-summary { flex-shrink: 0; padding: 10px 0; margin: 0; border-top: 1px solid var(--ui-border-subtle); font-size: 11px; }
 .workbench-composing .condition-logic-summary > div { display: flex; align-items: center; justify-content: space-between; color: var(--ui-text-muted); }
 .workbench-composing .condition-logic-summary button { padding: 0; font-size: 11px; }
-.workbench-composing .condition-logic-summary p { margin: 5px 0 0; max-height: 44px; overflow-y: auto; color: var(--ui-text); font-size: 11px; line-height: 1.8; }
+.workbench-composing .condition-logic-summary p { margin: 5px 0 0; max-height: 44px; overflow: hidden; color: var(--ui-text); font-size: 11px; line-height: 1.8; }
+.workbench-composing .condition-logic-summary[data-expanded=true] { flex-shrink: 1; min-height: 90px; overflow-y: auto; }
+.workbench-composing .condition-logic-summary[data-expanded=true] p { max-height: none; overflow: visible; overflow-wrap: anywhere; }
 .workbench-composing .condition-transfer-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px 12px; min-height: 160px; color: var(--ui-text-muted); text-align: center; }
 .workbench-composing .condition-transfer-empty strong { font-size: 13px; font-weight: 500; }
 .workbench-composing .condition-transfer-empty p, .workbench-composing .condition-transfer-empty > span { margin: 0; font-size: 11px; line-height: 1.8; }

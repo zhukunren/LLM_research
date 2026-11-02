@@ -1,0 +1,31 @@
+.scheme-center { display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; }
+.scheme-center-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.scheme-center-heading h1 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.5; }
+.scheme-center-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+.scheme-center-actions button { display: inline-flex; align-items: center; gap: 6px; }
+.scheme-center-toolbar { max-width: 800px; }
+.scheme-center-types { display: flex; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid var(--ui-border-subtle); }
+.scheme-center-types button { padding: 6px 12px; border: 0; border-radius: 5px; background: transparent; color: var(--ui-text-muted); font-size: 13px; }
+.scheme-center-types button[aria-pressed=true] { background: var(--ui-primary-soft); color: var(--ui-primary); }
+.scheme-current-draft { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--ui-border-subtle); border-radius: 6px; background: var(--ui-surface-subtle); }
+.scheme-current-draft strong { font-size: 14px; font-weight: 500; }
+.scheme-current-draft p { margin: 4px 0 0; font-size: 12px; color: var(--ui-text-muted); }
+.scheme-current-draft button { flex-shrink: 0; }
+.scheme-center-results { display: grid; gap: 24px; }
+.scheme-center-source h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.scheme-source-note { margin: 6px 0 12px; color: var(--ui-text-muted); font-size: 12px; line-height: 1.8; }
+.composition-plan-entry { border-bottom: 1px solid var(--ui-border-subtle); }
+.composition-plan-entry > .saved-plan-row { grid-template-columns: minmax(0,1fr) auto; border-bottom: 0; }
+.composition-plan-history { padding: 0 0 10px 26px; font-size: 12px; color: var(--ui-text-muted); }
+.composition-plan-history summary { cursor: pointer; padding: 4px 0; }
+.composition-plan-version { display: flex; width: 100%; justify-content: space-between; gap: 12px; padding: 8px 4px; border: 0; background: transparent; color: var(--ui-text-muted); font-size: 12px; text-align: left; }
+.composition-plan-version:hover { background: var(--ui-surface-subtle); color: var(--ui-primary); }
+@media (max-width: 760px) {
+  .scheme-current-draft { flex-wrap: wrap; }
+  .scheme-center-heading { flex-direction: column; gap: 10px; }
+  .scheme-center-actions { width: 100%; }
+  .scheme-center-actions button { flex: 1; min-height: 36px; }
+  .scheme-center-types { flex-wrap: wrap; }
+  .scheme-center-types button { min-height: 36px; }
+  .composition-plan-version { flex-wrap: wrap; }
+}

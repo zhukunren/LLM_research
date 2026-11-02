@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import type { Asset, Node } from '../pages/StrategyPage'
@@ -23,7 +23,7 @@ it('adds checked conditions in one batch and excludes chosen versions from the a
   await user.click(screen.getByLabelText('选择待选条件 成交量条件 第 1 版'))
   await user.click(screen.getByRole('button', { name: '加入勾选条件' }))
   expect(currentTree().children?.map(node => node.filter_id)).toEqual(['price', 'volume'])
-  expect(within(screen.getByRole('group', { name: '切换条件列表' })).getByRole('button', { name: '已选条件 · 2' })).toHaveAttribute('aria-pressed', 'true')
+  expect(within(screen.getByRole('group', { name: '切换条件列表' })).getByRole('button', { name: '返回规则 · 2' })).toHaveAttribute('aria-pressed', 'false')
   expect(screen.queryByLabelText('选择待选条件 价格条件 第 2 版')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: '加入勾选条件' })).toBeDisabled()
   expect(screen.queryByLabelText('历史版本')).not.toBeInTheDocument()
@@ -50,6 +50,7 @@ it('adds and removes a single condition directly while preserving an existing ne
   const group: Node = { op: 'any', children: [{ op: 'filter_ref', filter_id: 'report', version: 1, score_weight: 3, parameter_overrides: { n: 7 } }] }
   const initial: Node = { op: 'all', children: [group] }
   const user = userEvent.setup(); render(<Harness initial={initial} />)
+  await user.click(screen.getByRole('button', { name: '添加条件' }))
   await user.click(screen.getByRole('button', { name: '加入 价格条件 第 2 版' }))
   expect(currentTree().children?.[0]).toEqual(group)
   expect(currentTree().children?.[1]).toMatchObject({ op: 'filter_ref', filter_id: 'price', version: 2 })
@@ -156,4 +157,77 @@ it('changes the visible relation and wraps exclusion without losing nested param
   expect(currentTree()).toEqual({ op: 'not', children: [{ ...initial, op: 'any' }] })
   await user.selectOptions(screen.getByRole('combobox', { name: '组合关系' }), 'all')
   expect(currentTree()).toEqual(initial)
+})
+
+
+it('keeps an existing rule central and opens the library only on request without editing its AST', async () => {
+  const user = userEvent.setup()
+  const initial: Node = { op: 'all', children: [{ op: 'not', children: [{ op: 'filter_ref', filter_id: 'price', version: 1, parameter_overrides: { value: 22 } }] }] }
+  render(<Harness initial={initial} />)
+  expect(screen.queryByRole('region', { name: '待选条件' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '添加条件' })).toHaveAttribute('aria-expanded', 'false')
+  await user.click(screen.getByRole('button', { name: '添加条件' }))
+  await waitFor(() => expect(screen.getByRole('textbox', { name: '搜索待选条件' })).toHaveFocus())
+  expect(currentTree()).toEqual(initial)
+  await user.type(screen.getByRole('textbox', { name: '搜索待选条件' }), '量能')
+  await user.click(screen.getByLabelText('选择待选条件 成交量条件 第 1 版'))
+  await user.click(screen.getByRole('button', { name: '收起添加条件' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '添加条件' })).toHaveFocus())
+  await user.click(screen.getByRole('button', { name: '添加条件' }))
+  expect(screen.getByRole('textbox', { name: '搜索待选条件' })).toHaveValue('量能')
+  expect(screen.getByLabelText('选择待选条件 成交量条件 第 1 版')).toBeChecked()
+  expect(currentTree()).toEqual(initial)
+})
+
+it('keeps the picker open for repeated additions and offers an explicit mobile return to rules', async () => {
+  const user = userEvent.setup(); render(<Harness />)
+  const picker = screen.getByRole('region', { name: '待选条件' })
+  const root = picker.closest('.condition-transfer')!
+  expect(root).toHaveAttribute('data-library-open', 'true')
+  await user.click(screen.getByRole('button', { name: '加入 价格条件 第 2 版' }))
+  expect(root).toHaveAttribute('data-mobile-pane', 'available')
+  await user.click(screen.getByRole('button', { name: '加入 成交量条件 第 1 版' }))
+  await user.click(screen.getByRole('button', { name: '返回规则 · 2' }))
+  expect(root).toHaveAttribute('data-mobile-pane', 'selected')
+  expect(currentTree().children).toHaveLength(2)
+  await user.click(screen.getByRole('button', { name: /待选条件 ·/ }))
+  expect(root).toHaveAttribute('data-mobile-pane', 'available')
+  expect(currentTree().children).toHaveLength(2)
+})
+
+it('does not close the picker for IME Escape and restores focus for a normal Escape', async () => {
+  const user = userEvent.setup(); render(<Harness />)
+  const search = screen.getByRole('textbox', { name: '搜索待选条件' })
+  await user.click(search)
+  fireEvent.keyDown(search, { key: 'Escape', isComposing: true })
+  expect(screen.getByRole('region', { name: '待选条件' })).toBeInTheDocument()
+  fireEvent.keyDown(search, { key: 'Escape', keyCode: 229 })
+  expect(screen.getByRole('region', { name: '待选条件' })).toBeInTheDocument()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('region', { name: '待选条件' })).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.getByRole('button', { name: '添加条件' })).toHaveFocus())
+})
+
+it('expands the entire readable rule using a keyboard-operable control without changing versions', async () => {
+  const user = userEvent.setup(), change = vi.fn()
+  const logic = '满足价格条件，且（满足成交量条件或研报增长条件），并排除停牌条件'
+  render(<ConditionTransferEditor tree={{ op: 'all', children: [{ op: 'filter_ref', filter_id: 'price', version: 1 }] }} catalog={assets} logicSummary={logic} onChange={change} onCreateCondition={vi.fn()} />)
+  expect(screen.getByText('固定 v1')).toBeInTheDocument()
+  const toggle = screen.getByRole('button', { name: '展开完整逻辑' })
+  toggle.focus(); await user.keyboard('{Enter}')
+  expect(screen.getByRole('button', { name: '收起完整逻辑' })).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByText(logic)).toHaveAttribute('tabindex', '0')
+  expect(change).not.toHaveBeenCalled()
+})
+
+
+it('opens the picker when a saved scheme is reset to an empty draft without retaining old rules', () => {
+  const change = vi.fn(), create = vi.fn()
+  const { rerender } = render(<ConditionTransferEditor tree={{ op: 'all', children: [{ op: 'filter_ref', filter_id: 'price', version: 1 }] }} catalog={assets} onChange={change} onCreateCondition={create} />)
+  expect(screen.queryByRole('region', { name: '待选条件' })).not.toBeInTheDocument()
+  rerender(<ConditionTransferEditor tree={{ op: 'all', children: [] }} catalog={assets} onChange={change} onCreateCondition={create} />)
+  expect(screen.getByRole('region', { name: '待选条件' })).toBeInTheDocument()
+  expect(screen.getByText('还没有方案规则')).toBeInTheDocument()
+  expect(screen.queryByLabelText('选择已选条目 1 价格条件')).not.toBeInTheDocument()
+  expect(change).not.toHaveBeenCalled()
 })
