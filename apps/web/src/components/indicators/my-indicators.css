@@ -22,7 +22,10 @@
 .my-indicators-item small { display:block; color:var(--ui-text-muted); font-size:11px; margin-top:5px; }
 .my-indicators-item:hover { background:var(--ui-surface-subtle); }
 .my-indicators-item[aria-pressed=true] { background:var(--ui-primary-soft); border-color:var(--ui-border); color:var(--ui-primary); }
-.my-indicators-detail { padding:24px; overflow:auto; min-width:0; }
+.my-indicators-detail-pane { display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
+.my-indicators-detail { flex:1; min-height:0; padding:24px; overflow:auto; min-width:0; }
+.my-indicators-stage-bar { flex-shrink:0; padding:12px var(--ui-surface-gutter,24px); border-top:1px solid var(--ui-border-subtle); background:var(--ui-surface); }
+.my-indicators-stage-bar .my-indicators-actions { margin-top:8px; justify-content:flex-end; }
 .my-indicators-detail > * + * { margin-top:18px; }
 .my-indicators-back { display:none; }
 .my-indicators-describe { padding:14px 16px; background:var(--ui-surface-subtle); border:1px solid var(--ui-border); border-radius:10px; }
@@ -70,9 +73,11 @@
   .my-indicators-header { padding:16px; }
   .my-indicators-body { grid-template-columns:minmax(0,1fr); }
   .my-indicators-catalog { border:0; }
-  .my-indicators-detail { display:none; padding:18px 16px; }
+  .my-indicators-detail-pane { display:none; }
+  .my-indicators-detail { padding:18px 16px; }
   .my-indicators-detail-open .my-indicators-catalog { display:none; }
-  .my-indicators-detail-open .my-indicators-detail { display:block; }
+  .my-indicators-detail-open .my-indicators-detail-pane { display:flex; }
+  .my-indicators-stage-bar { padding:10px 16px; }
   .my-indicators-back { display:inline-flex; align-items:center; gap:4px; }
   .my-indicators-inputs, .my-indicators-condition { grid-template-columns:minmax(0,1fr); }
   .my-indicators-dialog button { min-height:40px; }

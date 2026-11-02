@@ -73,3 +73,33 @@ it('keeps candles and keyboard inspection usable in a compact comparison chart',
   expect(screen.getByRole('status', { name: '行情数据' })).toHaveTextContent('收 10.5')
 })
 
+
+it('associates a unique keyboard hint and shows it only while the chart itself is focused', () => {
+  const chartData = preview('sma', 'overlay').chart
+  render(<><MarketIndicatorChart chart={chartData} /><MarketIndicatorChart chart={chartData} /></>)
+  const charts = screen.getAllByRole('img')
+  const ids = charts.map(chart => chart.getAttribute('aria-describedby'))
+  expect(ids[0]).toBeTruthy(); expect(ids[0]).not.toBe(ids[1])
+  const hint = document.getElementById(ids[0]!)!
+  expect(hint).toHaveTextContent('← / → 查看相邻交易日；Home / End 跳到首日 / 末日')
+  expect(hint).toHaveAttribute('data-visible', 'false')
+  fireEvent.focus(charts[0])
+  expect(hint).toHaveAttribute('data-visible', 'true')
+  fireEvent.blur(charts[0])
+  expect(hint).toHaveAttribute('data-visible', 'false')
+})
+it('does not intercept composing, modified or descendant key events', () => {
+  render(<MarketIndicatorChart chart={preview('sma', 'overlay').chart} />)
+  const chart = screen.getByRole('img')
+  for (const init of [{ key: 'Home', isComposing: true }, { key: 'Home', keyCode: 229 }, { key: 'Home', ctrlKey: true }]) {
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+    fireEvent(chart, event)
+    expect(event.defaultPrevented).toBe(false)
+  }
+  const child = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject')
+  chart.append(child)
+  const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
+  fireEvent(child, event)
+  expect(event.defaultPrevented).toBe(false)
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})

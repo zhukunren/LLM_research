@@ -269,6 +269,22 @@ def hide_entry(entry_key: str):
     return {'entry_key': entry_key, 'hidden': True}
 
 
+@router.post('/entries/{entry_key}/restore')
+def restore_entry(entry_key: str):
+    """Restore a soft-hidden entry only while its source exists in this actor's workspace."""
+    with connect() as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        exists = connection.execute(
+            _OBSERVATION_ENTRIES + 'SELECT 1 FROM entries WHERE entry_key=?', (entry_key,)
+        ).fetchone()
+        if not exists:
+            raise HTTPException(404, '找不到这条观察记录，源记录可能已不存在。')
+        connection.execute('INSERT INTO observation_entry_preferences(entry_key,hidden,updated_at) '
+                           'VALUES(?,0,?) ON CONFLICT(entry_key) DO UPDATE SET hidden=0,updated_at=excluded.updated_at',
+                           (entry_key, utc_now()))
+    return {'entry_key': entry_key, 'hidden': False}
+
+
 @router.get('/owners')
 def observation_owners():
     """Only offer filters that currently contain observation entries."""

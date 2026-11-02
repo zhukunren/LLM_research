@@ -99,3 +99,47 @@ it('read-only views expose neither acquisition nor save actions', async () => {
   expect(screen.queryByRole('button', { name: '保存本次计算' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '更新十家公司财务' })).not.toBeInTheDocument()
 })
+
+it('copies exact financial values with their units, report periods and calculation context', async () => {
+  const user = userEvent.setup(), clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+  render(<CompanyFinancialsPanel stockCode="600519.SH" asOf="2026-10-20" />)
+  await user.click(await screen.findByRole('button', { name: '复制财务数据与口径' }))
+  expect(await screen.findByText('已复制财务数据与口径')).toBeInTheDocument()
+  const text = clipboard.mock.calls[0][0]
+  expect(text).toContain('2025-12-31')
+  expect(text).toContain('12340000000 元')
+  expect(text).toContain('CNY')
+  expect(text).toContain('请求截止日：2026-10-20')
+  expect(text).toContain('年度')
+  expect(text).toContain('source-1')
+  expect(text).toContain('原始数值尚未核验。')
+  expect(text).not.toContain('公告日期')
+})
+
+it('does not show an old copy success in a newly selected financial scope and reports refusal', async () => {
+  const user = userEvent.setup()
+  let finish!: () => void
+  const clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockImplementation(() => new Promise<void>(resolve => { finish = resolve }))
+  const view = render(<CompanyFinancialsPanel stockCode="600519.SH" asOf="2026-10-20" />)
+  await user.click(await screen.findByRole('button', { name: '复制财务数据与口径' }))
+  view.rerender(<CompanyFinancialsPanel stockCode="000001.SZ" asOf="2026-10-20" />)
+  await act(async () => finish())
+  expect(screen.queryByText('已复制财务数据与口径')).not.toBeInTheDocument()
+  clipboard.mockRejectedValue(new Error('权限不足'))
+  await user.click(await screen.findByRole('button', { name: '复制财务数据与口径' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('复制失败：权限不足')
+})
+
+it('preserves missing financial values as gaps and ignores duplicate pending copy requests', async () => {
+  const user = userEvent.setup()
+  responseGate = Promise.resolve(data('/companies/600519.SH', null))
+  let finish!: () => void
+  const clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockImplementation(() => new Promise<void>(resolve => { finish = resolve }))
+  render(<CompanyFinancialsPanel stockCode="600519.SH" asOf="2026-10-20" />)
+  const button = await screen.findByRole('button', { name: '复制财务数据与口径' })
+  await user.click(button); await user.click(button)
+  expect(clipboard).toHaveBeenCalledOnce()
+  expect(clipboard.mock.calls[0][0]).toContain('营业收入：无可用值')
+  expect(clipboard.mock.calls[0][0]).toContain('缺少当时可得的版本证据')
+  await act(async () => finish())
+})

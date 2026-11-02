@@ -12,7 +12,7 @@ it('opens full evidence from the compact list, including a false condition on a 
     { name: '亏损', state: 'false', explanation: '净利润为正' },
   ] }]} />)
   expect(screen.getByRole('table', { name: '筛选结果股票列表' })).toBeInTheDocument()
-  expect(screen.getByText('不符合 · 净利润为正')).toBeVisible()
+  expect(screen.getByText('不符合 · 亏损 · 净利润为正')).toBeVisible()
   await user.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
   const dialog = screen.getByRole('dialog', { name: '个股条件与依据' })
   expect(within(dialog).getByText('半年报第12页')).toBeVisible()
@@ -50,6 +50,8 @@ it('defaults to matches while retaining date and accurate mixed-status coverage'
   expect(screen.getByLabelText('判断状态')).toHaveValue('true')
   expect(screen.getByText('数据截止日：2026-09-30')).toBeVisible()
   expect(screen.getByText(/已有明确判断 5 \/ 10 只/)).toBeVisible()
+  expect(screen.getByText(/包含 2 只处理失败、1 只未处理/)).not.toBeVisible()
+  fireEvent.click(screen.getByText('覆盖明细'))
   expect(screen.getByText(/包含 2 只处理失败、1 只未处理/)).toBeVisible()
   expect(screen.getByText(/未能判断的股票不等于不符合/)).toBeVisible()
   expect(screen.queryByText('本次没有找到符合条件的股票')).not.toBeInTheDocument()
@@ -104,7 +106,7 @@ it('shows compact evidence previews and opens full judgments in the sidebar', ()
   ]} />)
   const table = screen.getByRole('table', { name: '筛选结果股票列表' })
   expect(within(table).getByText(/实际值：25/)).toBeVisible()
-  expect(within(table).getByText(/ROE 为 18%/)).toBeVisible()
+  expect(within(table).getByText(/估值 · 市盈率为 12 倍/)).toBeVisible()
   expect(screen.queryByRole('button', { name: '详细卡片' })).not.toBeInTheDocument()
   expect(screen.queryByText(/分值/)).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
@@ -157,7 +159,7 @@ it('shows actual false-condition evidence for a true result without assuming AND
       { name: '亏损', state: 'false', explanation: '净利润为正' },
     ] },
   ]} />)
-  expect(within(screen.getByRole('table', { name: '筛选结果股票列表' })).getByText(/不符合 · 净利润为正/)).toBeVisible()
+  expect(within(screen.getByRole('table', { name: '筛选结果股票列表' })).getByText(/不符合 · 亏损 · 净利润为正/)).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
   expect(within(screen.getByRole('dialog', { name: '个股条件与依据' })).getByText('亏损 · 不符合')).toBeVisible()
 })
@@ -248,4 +250,122 @@ it('offers data and scope actions while coverage is incomplete', () => {
   expect(open).toHaveBeenCalledOnce()
   fireEvent.click(screen.getByRole('button', { name: '缩小范围' }))
   expect(adjust).toHaveBeenCalledOnce()
+})
+
+it('keeps all selected row snapshots across pages for copy, export and observation', async () => {
+  const user = userEvent.setup(), copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+  const writes: string[] = [], blobs: Blob[] = []
+  vi.stubGlobal('fetch', vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'POST') writes.push(JSON.parse(String(init.body)).stock_code)
+    return new Response(JSON.stringify({ items: [] }), { status: 200 })
+  }))
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn((blob: Blob) => { blobs.push(blob); return 'blob:test' }), revokeObjectURL: vi.fn() }))
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  const first = [{ stock_code: '600000.SH', state: 'true', conditions: [] }], second = [{ stock_code: '000001.SZ', state: 'false', conditions: [] }]
+  const view = render(<ScreeningResultView status="succeeded" decisions={first} />)
+  await user.click(screen.getByRole('checkbox', { name: '勾选本页全部筛选结果' }))
+  view.rerender(<ScreeningResultView status="succeeded" decisions={first} offset={20} loading />)
+  expect(screen.getByText('已选 1 只')).toBeInTheDocument()
+  view.rerender(<ScreeningResultView status="succeeded" decisions={second} offset={20} />)
+  await user.click(screen.getByRole('checkbox', { name: '勾选本页全部筛选结果' }))
+  expect(screen.getByText('已选 2 只')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '复制所选' }))
+  expect(copy).toHaveBeenCalledWith('600000.SH\n000001.SZ')
+  await user.click(screen.getByRole('button', { name: '导出所选' }))
+  const exported = await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsText(blobs[0]) })
+  expect(exported).toContain('600000.SH'); expect(exported).toContain('000001.SZ')
+  await user.click(screen.getByRole('button', { name: '加入观察池' }))
+  await waitFor(() => expect(writes).toEqual(['600000.SH', '000001.SZ']))
+})
+
+it('unchecks only the current page and clears selections on a new batch or filter', async () => {
+  const user = userEvent.setup()
+  const first = [{ stock_code: '600000.SH', state: 'true', conditions: [] }], second = [{ stock_code: '000001.SZ', state: 'true', conditions: [] }]
+  const view = render(<ScreeningResultView resultKey="run-a" status="succeeded" decisions={first} />)
+  await user.click(screen.getByRole('checkbox', { name: '勾选本页全部筛选结果' }))
+  view.rerender(<ScreeningResultView resultKey="run-a" status="succeeded" decisions={second} offset={20} />)
+  await user.click(screen.getByRole('checkbox', { name: '勾选本页全部筛选结果' }))
+  await user.click(screen.getByRole('checkbox', { name: '勾选本页全部筛选结果' }))
+  expect(screen.getByText('已选 1 只')).toBeInTheDocument()
+  view.rerender(<ScreeningResultView resultKey="run-b" status="succeeded" decisions={second} />)
+  expect(screen.queryByRole('group', { name: '所选结果操作' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('checkbox', { name: '勾选本页全部筛选结果' }))
+  view.rerender(<ScreeningResultView resultKey="run-b" status="succeeded" decisions={second} query="银行" />)
+  expect(screen.queryByRole('group', { name: '所选结果操作' })).not.toBeInTheDocument()
+})
+
+it('prioritizes unresolved and false conditions and labels actual values and thresholds', () => {
+  render(<ScreeningResultView status="partial" decisions={[{ stock_code: '600000.SH', state: 'true', conditions: [
+    { name: '股价', state: 'true', actual: 10, explanation: '' },
+    { name: '营业收入同比增长率', state: 'unknown', threshold: 15, explanation: '缺少报告' },
+    { name: 'ROE', state: 'false', actual: 8, threshold: 12, explanation: '' },
+  ] }]} />)
+  const table = screen.getByRole('table')
+  expect(within(table).getByText(/营业收入同比增长率.*缺少报告.*门槛：15/)).toBeVisible()
+  expect(within(table).getByText(/ROE.*实际值：8.*门槛：12/)).toBeVisible()
+  expect(within(table).queryByText(/股价.*实际值/)).not.toBeInTheDocument()
+})
+
+it('navigates page evidence, retains opening focus and ignores composing Escape', async () => {
+  const user = userEvent.setup()
+  render(<ScreeningResultView status="succeeded" decisions={['600000.SH', '000001.SZ'].map(stock_code => ({ stock_code, state: 'true', conditions: [] }))} />)
+  const opener = screen.getByRole('button', { name: '查看 600000.SH 条件与依据' })
+  await user.click(opener)
+  expect(screen.getByRole('button', { name: '上一只' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: '下一只' }))
+  expect(screen.getByText('本页 2 / 2')).toBeVisible()
+  expect(screen.getByRole('button', { name: '下一只' })).toBeDisabled()
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape', isComposing: true })
+  expect(screen.getByRole('dialog')).toBeInTheDocument()
+  await user.keyboard('{Escape}')
+  expect(opener).toHaveFocus()
+})
+
+it('stops remaining batch writes after a scope change and ignores a late failed response', async () => {
+  const user = userEvent.setup(), writes: string[] = []
+  let finish!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn(async (_path: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === 'POST') {
+      writes.push(JSON.parse(String(init.body)).stock_code)
+      return new Promise<Response>(resolve => { finish = resolve })
+    }
+    return new Response(JSON.stringify({ items: [] }), { status: 200 })
+  }))
+  const rows = ['600000.SH', '000001.SZ'].map(stock_code => ({ stock_code, state: 'true', conditions: [] }))
+  const view = render(<ScreeningResultView resultKey="old" status="succeeded" decisions={rows} />)
+  await user.click(screen.getByRole('checkbox', { name: '勾选本页全部筛选结果' }))
+  const add = screen.getByRole('button', { name: '加入观察池' })
+  fireEvent.click(add); fireEvent.click(add)
+  expect(writes).toEqual(['600000.SH'])
+  view.rerender(<ScreeningResultView resultKey="new" status="succeeded" decisions={rows} />)
+  await user.click(screen.getByRole('checkbox', { name: '勾选筛选结果 000001.SZ' }))
+  await act(async () => finish(new Response(JSON.stringify({ detail: '旧请求失败' }), { status: 503 })))
+  expect(writes).toEqual(['600000.SH'])
+  expect(screen.getByText('已选 1 只')).toBeVisible()
+  expect(screen.getByRole('checkbox', { name: '勾选筛选结果 000001.SZ' })).toBeChecked()
+  expect(screen.queryByText(/旧请求失败/)).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '加入观察池' })).toBeEnabled()
+})
+
+it('guards repeated selected clipboard requests and suppresses old-scope feedback', async () => {
+  const user = userEvent.setup()
+  let finish!: () => void
+  const copy = vi.spyOn(navigator.clipboard, 'writeText').mockImplementation(() => new Promise<void>(resolve => { finish = resolve }))
+  const rows = [{ stock_code: '600000.SH', state: 'true', conditions: [] }]
+  const view = render(<ScreeningResultView status="succeeded" decisions={rows} />)
+  await user.click(screen.getByRole('checkbox', { name: '勾选本页全部筛选结果' }))
+  fireEvent.click(screen.getByRole('button', { name: '复制所选' })); fireEvent.click(screen.getByRole('button', { name: '复制所选' }))
+  expect(copy).toHaveBeenCalledOnce()
+  view.rerender(<ScreeningResultView status="succeeded" stateFilter="false" decisions={rows} />)
+  await act(async () => finish())
+  expect(screen.queryByText(/已复制所选/)).not.toBeInTheDocument()
+})
+
+it('closes the evidence drawer when a different page begins loading', async () => {
+  const user = userEvent.setup(), rows = [{ stock_code: '600000.SH', state: 'true', conditions: [] }]
+  const view = render(<ScreeningResultView status="succeeded" decisions={rows} />)
+  await user.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
+  view.rerender(<ScreeningResultView status="succeeded" decisions={rows} offset={20} loading />)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(document.body.style.overflow).not.toBe('hidden')
 })

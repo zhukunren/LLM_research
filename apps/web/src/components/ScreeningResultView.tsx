@@ -43,6 +43,8 @@ export type CoverageCounts = {
 
 export interface ScreeningResultViewProps {
   title?: string
+  /** Stable run identity; changing pages must not change it. */
+  resultKey?: string
   asOf?: string | null
   revision?: number | string
   status: string
@@ -104,13 +106,20 @@ function stateClass(state: string) {
 }
 
 function conciseCondition(condition: UnifiedConditionDecision) {
-  if (condition.actual != null) return `实际值：${condition.actual}`
   const values = (condition.explanation || '').match(/本次计算值[：:]\s*(.*?)(?:；(?:符合|不符合)条件|。|$)/)
-  return values?.[1] || condition.explanation || condition.name
+  const value = condition.actual != null ? `实际值：${condition.actual}` : values?.[1] || condition.explanation || '未提供数值'
+  const name = condition.name.length > 20 ? condition.name.slice(0, 20) + '…' : condition.name
+  return `${name} · ${value}${condition.threshold != null ? ` · 门槛：${condition.threshold}` : ''}`
+}
+
+function keyConditions(conditions: UnifiedConditionDecision[]) {
+  // Highlight exceptions, not a presumed AND/OR contribution to the final decision.
+  return [...conditions].sort((a, b) => Number(a.state === 'true') - Number(b.state === 'true')).slice(0, 2)
 }
 
 export default function ScreeningResultView({
   title,
+  resultKey,
   asOf,
   revision,
   status,
@@ -155,46 +164,86 @@ export default function ScreeningResultView({
 
   const [copying, setCopying] = useState(false)
   const [expandedCode, setExpandedCode] = useState('')
-  const [selectedCodes, setSelectedCodes] = useState<string[]>([])
+  const selectionScope = JSON.stringify([resultKey, query, stateFilter, asOf, revision, title])
+  const scopeRef = useRef(selectionScope)
+  scopeRef.current = selectionScope
+  const [selection, setSelection] = useState<{ scope: string; rows: UnifiedDecisionItem[] }>({ scope: selectionScope, rows: [] })
+  const selectedRows = selection.scope === selectionScope ? selection.rows : []
+  const selectedCodes = selectedRows.map(item => item.stock_code)
+  function setSelectedRows(update: UnifiedDecisionItem[] | ((rows: UnifiedDecisionItem[]) => UnifiedDecisionItem[])) {
+    setSelection(current => ({ scope: selectionScope, rows: typeof update === 'function' ? update(current.scope === selectionScope ? current.rows : []) : update }))
+  }
   const [addingSelected, setAddingSelected] = useState(false)
   const [batchMessage, setBatchMessage] = useState('')
   const [batchError, setBatchError] = useState('')
   const batchLock = useRef(false)
+  const batchRequest = useRef<AbortController | null>(null)
+  const selectedCopyLock = useRef(false)
   const requests = useRef(new Map<string, string>())
   const detailClose = useRef<HTMLButtonElement>(null)
-  const activeDecision = decisions.find(item => item.stock_code === expandedCode)
-  useEffect(() => { setSelectedCodes([]); setExpandedCode(''); setBatchMessage(''); setBatchError('') }, [query, stateFilter, offset, asOf, revision, title, loading])
+  const activeDecision = !loading && !error ? decisions.find(item => item.stock_code === expandedCode) : undefined
+  const detailOpen = !!activeDecision
+  const activeIndex = decisions.findIndex(item => item.stock_code === expandedCode)
   useEffect(() => {
-    if (!expandedCode) return
+    setSelection({ scope: selectionScope, rows: [] }); setBatchMessage(''); setBatchError('')
+    requests.current.clear(); batchLock.current = false; setAddingSelected(false)
+    return () => { batchRequest.current?.abort() }
+  }, [selectionScope])
+  useEffect(() => { setExpandedCode('') }, [selectionScope, offset, loading, error])
+  useEffect(() => {
+    if (!detailOpen) return
     const previous = document.activeElement as HTMLElement | null
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'; detailClose.current?.focus()
     return () => { document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus({ preventScroll: true }) }
-  }, [expandedCode])
-  function selectCode(code: string) { setSelectedCodes(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]) }
+  }, [detailOpen])
+  useEffect(() => { if (expandedCode) detailClose.current?.focus() }, [expandedCode])
+  function selectCode(code: string) {
+    const row = decisions.find(item => item.stock_code === code)
+    if (row) setSelectedRows(current => current.some(item => item.stock_code === code) ? current.filter(item => item.stock_code !== code) : [...current, row])
+  }
+  function selectPage(checked: boolean) {
+    setSelectedRows(current => {
+      const otherPages = current.filter(item => !decisions.some(row => row.stock_code === item.stock_code))
+      return checked ? [...otherPages, ...decisions] : otherPages
+    })
+  }
   async function copySelected() {
-    try { await navigator.clipboard.writeText(selectedCodes.join('\n')); setBatchMessage(`已复制所选 ${selectedCodes.length} 只股票代码。`); setBatchError('') }
-    catch { setBatchError('复制失败，可使用导出所选。') }
+    if (selectedCopyLock.current) return
+    selectedCopyLock.current = true
+    const scope = selectionScope
+    try {
+      await navigator.clipboard.writeText(selectedCodes.join('\n'))
+      if (scopeRef.current === scope) { setBatchMessage(`已复制所选 ${selectedCodes.length} 只股票代码。`); setBatchError('') }
+    } catch { if (scopeRef.current === scope) setBatchError('复制失败，可使用导出所选。') }
+    finally { selectedCopyLock.current = false }
   }
   function exportSelected() {
-    const rows = decisions.filter(item => selectedCodes.includes(item.stock_code))
-    const csv = '\uFEFF证券代码,判断,数据截止日\r\n' + rows.map(item => [item.stock_code, stateLabels[item.state] || item.state, item.as_of || asOf || ''].map(value => '"' + String(value).replace(/"/g, '""') + '"').join(',')).join('\r\n')
+    const csv = '\uFEFF证券代码,判断,数据截止日\r\n' + selectedRows.map(item => [item.stock_code, stateLabels[item.state] || item.state, item.as_of || asOf || ''].map(value => '"' + String(value).replace(/"/g, '""') + '"').join(',')).join('\r\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a'); link.href = url; link.download = `所选筛选结果-${asOf || '未指定日期'}.csv`; link.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   async function addSelected() {
     if (batchLock.current || !selectedCodes.length) return
+    const controller = new AbortController(), scope = selectionScope
+    batchRequest.current = controller
     batchLock.current = true; setAddingSelected(true); setBatchMessage(''); setBatchError('')
-    const codes = [...selectedCodes], failed: string[] = [], reasons: string[] = []
-    for (const code of codes) {
+    const rows = [...selectedRows], failed: UnifiedDecisionItem[] = [], reasons: string[] = []
+    let succeeded = 0
+    for (const row of rows) {
+      if (controller.signal.aborted || scopeRef.current !== scope) break
+      const code = row.stock_code
       if (!requests.current.has(code)) requests.current.set(code, crypto.randomUUID())
-      try { await api('/observation/quick-add', { method: 'POST', body: JSON.stringify({ request_id: requests.current.get(code), stock_code: code }) }) }
-      catch (reason) { failed.push(code); reasons.push(`${code}：${(reason as Error).message}`) }
+      try {
+        await api('/observation/quick-add', { method: 'POST', signal: controller.signal, body: JSON.stringify({ request_id: requests.current.get(code), stock_code: code }) })
+        succeeded++
+      } catch (reason) { failed.push(row); reasons.push(`${code}：${(reason as Error).message}`) }
     }
-    setSelectedCodes(failed); setBatchMessage(`已加入或复用 ${codes.length - failed.length} 只股票的观察记录。`)
-    if (failed.length) setBatchError(`${failed.length} 只未完成：${failed.join('、')}。${reasons.slice(0, 2).join('；')}。保留勾选，可再次加入。`)
-    if (codes.length > failed.length) window.dispatchEvent(new Event('observation:changed'))
+    if (succeeded) window.dispatchEvent(new Event('observation:changed'))
+    if (controller.signal.aborted || scopeRef.current !== scope) return
+    setSelectedRows(failed); setBatchMessage(`已加入或复用 ${succeeded} 只股票的观察记录。`)
+    if (failed.length) setBatchError(`${failed.length} 只未完成：${failed.map(item => item.stock_code).join('、')}。${reasons.slice(0, 2).join('；')}。保留勾选，可再次加入。`)
     setAddingSelected(false); batchLock.current = false
   }
   const [copyNotice, setCopyNotice] = useState('')
@@ -316,7 +365,8 @@ export default function ScreeningResultView({
             <div className="workspace-metric-card"><span>已判断覆盖</span><strong>{resolvedCount} / {coverage.target_total}</strong></div>
             <div className="workspace-metric-card"><span>数据不足</span><strong>{Math.max(0, coverage.unknown_count - (coverage.failed_count ?? 0) - (coverage.not_evaluated_count ?? 0))}</strong></div>
           </div>
-          <p className="conversation-coverage-note">已有明确判断 {resolvedCount} / {coverage.target_total} 只；不符合 {coverage.false_count} 只。尚无法判断共 {coverage.unknown_count} 只，包含 {coverage.failed_count ?? 0} 只处理失败、{coverage.not_evaluated_count ?? 0} 只未处理。</p>
+          <p className="conversation-coverage-note">已有明确判断 {resolvedCount} / {coverage.target_total} 只；尚无法判断 {coverage.unknown_count} 只。</p>
+          <details className="screening-coverage-details"><summary>覆盖明细</summary><p className="conversation-coverage-note">不符合 {coverage.false_count} 只。尚无法判断共 {coverage.unknown_count} 只，包含 {coverage.failed_count ?? 0} 只处理失败、{coverage.not_evaluated_count ?? 0} 只未处理。</p></details>
           {coverage.unknown_count > 0 && <p className="conversation-coverage-note">结果覆盖不完整，未能判断的股票不等于不符合。</p>}
         </section>
       )}
@@ -392,7 +442,7 @@ export default function ScreeningResultView({
 
           {copyNotice && <div className="inline-feedback-badge workspace-status workspace-feedback-inline">{copyNotice}</div>}
           <div className="screening-list-toolbar workspace-view-toolbar"><span>{decisions.length ? `本页 ${decisions.length} 只 · 查看依据可打开完整条件与证据` : ''}</span></div>
-          {!!selectedCodes.length && <div className="screening-selection-toolbar" role="group" aria-label="所选结果操作"><strong>已选 {selectedCodes.length} 只</strong><button type="button" className="text-button workspace-button" disabled={addingSelected || loading} onClick={() => void copySelected()}>复制所选</button><button type="button" className="text-button workspace-button" disabled={addingSelected || loading} onClick={exportSelected}>导出所选</button><button type="button" className="secondary-button compact workspace-button" disabled={addingSelected || loading} data-tooltip="所选股票加入手动观察，已有关注记录直接复用" onClick={() => void addSelected()}>{addingSelected ? '正在加入…' : '加入观察池'}</button><button type="button" className="text-button workspace-button" disabled={addingSelected} onClick={() => setSelectedCodes([])}>清除勾选</button></div>}
+          {!!selectedCodes.length && <div className="screening-selection-toolbar" role="group" aria-label="所选结果操作"><strong>已选 {selectedCodes.length} 只</strong><button type="button" className="text-button workspace-button" disabled={addingSelected || loading} onClick={() => void copySelected()}>复制所选</button><button type="button" className="text-button workspace-button" disabled={addingSelected || loading} onClick={exportSelected}>导出所选</button><button type="button" className="secondary-button compact workspace-button" disabled={addingSelected || loading} data-tooltip="所选股票加入手动观察，已有关注记录直接复用" onClick={() => void addSelected()}>{addingSelected ? '正在加入…' : '加入观察池'}</button><button type="button" className="text-button workspace-button" disabled={addingSelected} onClick={() => setSelectedRows([])}>清除勾选</button></div>}
           {batchMessage && <p role="status" className="screening-selection-message workspace-feedback-inline">{batchMessage}</p>}{batchError && <p role="alert" className="screening-selection-error workspace-error">{batchError}</p>}
 
 
@@ -446,11 +496,11 @@ export default function ScreeningResultView({
                 )}
               </div>
             ) : (
-              decisions.length > 0 && <div className="screening-compact-scroll workspace-table-scroll workspace-table-cards"><table className="screening-compact-table workspace-data-table" aria-label="筛选结果股票列表"><thead><tr><th><input type="checkbox" aria-label="勾选本页全部筛选结果" checked={decisions.length > 0 && decisions.every(item => selectedCodes.includes(item.stock_code))} disabled={addingSelected} onChange={event => setSelectedCodes(event.target.checked ? decisions.map(item => item.stock_code) : [])} className="workspace-check" /></th><th>股票</th><th>判断</th><th>关键值与条件</th><th>完整依据</th></tr></thead><tbody>{decisions.map(decision => <tr key={decision.stock_code}>
+              decisions.length > 0 && <div className="screening-compact-scroll workspace-table-scroll workspace-table-cards"><table className="screening-compact-table workspace-data-table" aria-label="筛选结果股票列表"><thead><tr><th><input type="checkbox" aria-label="勾选本页全部筛选结果" checked={decisions.length > 0 && decisions.every(item => selectedCodes.includes(item.stock_code))} disabled={addingSelected} onChange={event => selectPage(event.target.checked)} className="workspace-check" /></th><th>股票</th><th>判断</th><th>关键值与条件</th><th>完整依据</th></tr></thead><tbody>{decisions.map(decision => <tr key={decision.stock_code}>
                 <td data-label="勾选"><input type="checkbox" aria-label={`勾选筛选结果 ${decision.stock_code}`} checked={selectedCodes.includes(decision.stock_code)} disabled={addingSelected} onChange={() => selectCode(decision.stock_code)} className="workspace-check" /></td>
                 <td data-label="股票"><StockName code={decision.stock_code} />{typeof decision.close === 'number' && <small>收盘 {decision.close.toFixed(2)}（行情原始单位）</small>}</td>
                 <td data-label="判断"><span className={["workspace-status", `conversation-turn-state ${stateClass(decision.state)}`].filter(Boolean).join(' ')}>{stateLabels[decision.state] || decision.state}</span><small>{scoreLabel && typeof decision.score === 'number' ? scoreLabel + ' ' + decision.score + ' · ' : ''}{decision.conditions.length ? `${decision.conditions.filter(item => item.state === 'true').length} / ${decision.conditions.length} 条符合` : '暂无条件明细'}</small></td>
-                <td data-label="关键值与条件" className="screening-key-values">{decision.conditions.slice(0, 2).map((condition, index) => <span key={condition.reference_id || index} data-tooltip={`${condition.name}：${condition.explanation}`}><i className={`screening-condition-marker ${condition.state}`} aria-label={stateLabels[condition.state] || condition.state} />{stateLabels[condition.state] || condition.state} · {conciseCondition(condition)}</span>)}</td>
+                <td data-label="关键值与条件" className="screening-key-values">{keyConditions(decision.conditions).map((condition, index) => <span key={condition.reference_id || index} data-tooltip={`${condition.name}：${condition.explanation}`}><i className={`screening-condition-marker ${condition.state}`} aria-label={stateLabels[condition.state] || condition.state} />{stateLabels[condition.state] || condition.state} · {conciseCondition(condition)}</span>)}</td>
                 <td data-label="完整依据"><button type="button" className="text-button workspace-button" aria-label={`查看 ${decision.stock_code} 条件与依据`} onClick={() => setExpandedCode(decision.stock_code)}>查看依据</button></td>
               </tr>)}</tbody></table></div>
             )}
@@ -480,6 +530,6 @@ export default function ScreeningResultView({
           )}
         </>
       )}
-    </div>{activeDecision && createPortal(<div className="screening-evidence-layer"><div className="screening-evidence-backdrop" onClick={() => setExpandedCode('')} aria-hidden="true" /><section className="screening-evidence-drawer workspace-tool-dialog workspace-drawer" role="dialog" aria-modal="true" aria-label="个股条件与依据" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setExpandedCode('') }; trapDialogTab(event) }}><header><div><StockName code={activeDecision.stock_code} /><p>数据截止日：{activeDecision.as_of || asOf || '未提供'}</p></div><button ref={detailClose} type="button" className="icon-button workspace-button" aria-label="关闭个股依据" onClick={() => setExpandedCode('')}><X size={19} /></button></header><div className="screening-evidence-body">{decisionDetails(activeDecision)}</div></section></div>, portalTarget)}</StockText>
+    </div>{activeDecision && createPortal(<div className="screening-evidence-layer"><div className="screening-evidence-backdrop" onClick={() => setExpandedCode('')} aria-hidden="true" /><section className="screening-evidence-drawer workspace-tool-dialog workspace-drawer" role="dialog" aria-modal="true" aria-label="个股条件与依据" onKeyDown={event => { if (event.nativeEvent.isComposing || event.keyCode === 229) { event.stopPropagation(); return }; if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setExpandedCode('') }; trapDialogTab(event) }}><header><div><StockName code={activeDecision.stock_code} /><p>数据截止日：{activeDecision.as_of || asOf || '未提供'}</p></div><button ref={detailClose} type="button" className="icon-button workspace-button" aria-label="关闭个股依据" onClick={() => setExpandedCode('')}><X size={19} /></button></header><nav className="screening-evidence-navigation" aria-label="本页个股导航"><button type="button" className="text-button workspace-button" disabled={activeIndex <= 0} onClick={() => setExpandedCode(decisions[activeIndex - 1].stock_code)}>上一只</button><span aria-live="polite">本页 {activeIndex + 1} / {decisions.length}</span><button type="button" className="text-button workspace-button" disabled={activeIndex >= decisions.length - 1} onClick={() => setExpandedCode(decisions[activeIndex + 1].stock_code)}>下一只</button></nav><div className="screening-evidence-body" key={activeDecision.stock_code}>{decisionDetails(activeDecision)}</div></section></div>, portalTarget)}</StockText>
   )
 }

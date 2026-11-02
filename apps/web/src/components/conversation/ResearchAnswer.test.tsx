@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import ResearchAnswer from './ResearchAnswer'
 
@@ -94,4 +94,36 @@ describe('research answer reading', () => {
     expect(screen.getByText('范围：').tagName).toBe('STRONG')
     expect(container.textContent).toContain('<script>alert(1)</script>')
   })
+})
+
+
+it('provides unique, stable section targets for long answers and ignores fenced headings', () => {
+  const content = '## 结论\n\n' + '研究材料。'.repeat(250) + '\n\n## 证据\n\n事实\n\n## 结论\n\n风险\n\n```md\n## 不是章节\n```'
+  const view = render(<><ResearchAnswer conversationId="one" content={content} /><ResearchAnswer conversationId="one" content={content} /></>)
+  expect(screen.getAllByLabelText('跳转答复章节')).toHaveLength(2)
+  const headings = [...view.container.querySelectorAll('h3')]
+  expect(new Set(headings.map(node => node.id)).size).toBe(6)
+  expect(headings.every(node => node.id && (node as HTMLElement).tabIndex === -1)).toBe(true)
+  const firstId = headings[0].id
+  view.rerender(<><ResearchAnswer conversationId="one" content={content + '\n\n更多材料'} /><ResearchAnswer conversationId="one" content={content} /></>)
+  expect(view.container.querySelector('h3')?.id).toBe(firstId)
+  expect(screen.queryByRole('option', { name: '不是章节' })).not.toBeInTheDocument()
+})
+
+it('keeps short answers uncluttered and supports keyboard section navigation', () => {
+  const view = render(<ResearchAnswer conversationId="one" content={'## 结论\n短答复'} />)
+  expect(screen.queryByLabelText('跳转答复章节')).not.toBeInTheDocument()
+  view.rerender(<ResearchAnswer conversationId="one" content={'## 结论\n' + '资料。'.repeat(500) + '\n## 证据\n事实\n## 风险\n风险'} />)
+  const target = screen.getByRole('heading', { name: '风险' })
+  fireEvent.change(screen.getByLabelText('跳转答复章节'), { target: { value: target.id } })
+  expect(target).toHaveFocus()
+})
+
+it('indexes rendered setext/inline headings, and removes the index when replaced by a short answer', () => {
+  const content = '研究 **结论**\n===\n\n' + '已核验资料。'.repeat(220) + '\n\n## [来源](https://example.com)\n事实\n\n### 风险 `注释`\n待核验'
+  const view = render(<ResearchAnswer conversationId="one" content={content} />)
+  expect(screen.getByRole('option', { name: '研究 结论' })).toBeInTheDocument()
+  expect(screen.getByRole('option', { name: '风险 注释' })).toBeInTheDocument()
+  view.rerender(<ResearchAnswer conversationId="one" content="简短修订" />)
+  expect(screen.queryByRole('navigation', { name: '答复章节' })).not.toBeInTheDocument()
 })

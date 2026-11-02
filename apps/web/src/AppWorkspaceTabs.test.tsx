@@ -236,3 +236,19 @@ it('restores an edited seeded QMT draft without replaying the original prompt', 
   expect(screen.getByLabelText('研究要求')).toHaveValue('修改后的策略要求，恢复时保留这份草稿')
 })
 
+
+it('creates a screening tab from the screening mode without changing the original draft', async () => {
+  window.history.replaceState(null, '', '#/screening/new')
+  const user = userEvent.setup()
+  render(<App />)
+  const draft = await screen.findByLabelText('选股要求')
+  await waitFor(() => expect(draft).toBeEnabled())
+  await user.type(draft, '原选股草稿')
+  const firstTab = screen.getByRole('tab', { selected: true })
+  await user.click(screen.getByRole('button', { name: '新建选股标签' }))
+  expect(await screen.findByLabelText('选股要求')).toHaveValue('')
+  expect(screen.queryByLabelText('研究要求')).not.toBeInTheDocument()
+  await user.click(firstTab)
+  expect(screen.getByLabelText('选股要求')).toBe(draft)
+  expect(draft).toHaveValue('原选股草稿')
+})

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api'
@@ -435,4 +435,98 @@ it('requires a merge when an unknown creation was changed elsewhere before its o
   expect(revisions).toEqual([2])
   expect(creates).toBe(2)
   expect(project.notes).toHaveLength(1)
+})
+
+it.each(['project', 'note'])('distinguishes %s draft persistence from formal save and surfaces storage failure', async kind => {
+  const project = existing()
+  vi.mocked(api).mockImplementation(async path => path === '/research-projects' ? { items: [summary(project)] } as never : path.endsWith('/files') ? { items: [] } as never : project as never)
+  const user = userEvent.setup()
+  render(<ResearchProjectsPage initialProjectId="p1" onOpenConversation={vi.fn()} />)
+  await screen.findByRole('heading', { name: project.name })
+  await user.click(screen.getByRole('button', { name: kind === 'project' ? '编辑项目' : '写研究笔记' }))
+  const input = screen.getByLabelText(kind === 'project' ? '项目名称' : '笔记标题')
+  await user.type(input, '新增草稿')
+  expect(screen.getByText('本页草稿已暂存，尚未正式保存。')).toBeInTheDocument()
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage full') })
+  await user.type(input, '仍可编辑')
+  expect(screen.getByText('草稿暂存失败，仅当前编辑器保留；尚未正式保存，请勿刷新或关闭。')).toBeInTheDocument()
+  expect(screen.queryByText('本页草稿已暂存，尚未正式保存。')).not.toBeInTheDocument()
+})
+
+it.each(['project', 'note'])('ignores a late %s save after navigation to a different project', async kind => {
+  const first = existing(), second = { ...existing(), id: 'p2', name: '第二项目' }
+  let resolve!: (value: never) => void
+  const pending = new Promise<never>(done => { resolve = done })
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (init?.method === 'PATCH' || init?.method === 'POST') return pending
+    if (path === '/research-projects') return { items: [summary(first), summary(second)] } as never
+    if (path.endsWith('/files')) return { items: [] } as never
+    return (path.endsWith('/p2') ? second : first) as never
+  })
+  const user = userEvent.setup(), location = vi.fn()
+  const view = render(<ResearchProjectsPage initialProjectId="p1" onLocationChange={location} onOpenConversation={vi.fn()} />)
+  await screen.findByRole('heading', { name: first.name })
+  await user.click(screen.getByRole('button', { name: kind === 'project' ? '编辑项目' : '写研究笔记' }))
+  await user.type(screen.getByLabelText(kind === 'project' ? '项目名称' : '笔记标题'), '原草稿')
+  await user.click(screen.getByRole('button', { name: kind === 'project' ? '保存项目' : '保存笔记' }))
+  view.rerender(<ResearchProjectsPage initialProjectId="p2" onLocationChange={location} onOpenConversation={vi.fn()} />)
+  await screen.findByRole('heading', { name: second.name })
+  location.mockClear()
+  await act(async () => { resolve({ ...(kind === 'project' ? first : { id: 'note-new' }), revision: 2 } as never) })
+  expect(screen.getByRole('heading', { name: second.name })).toBeInTheDocument()
+  expect(location).not.toHaveBeenCalledWith('p1', true)
+  expect(screen.queryByText('研究笔记已保存。')).not.toBeInTheDocument()
+  expect(screen.queryByText('研究项目已保存。')).not.toBeInTheDocument()
+})
+
+it.each(['project', 'note'])('does not clear later %s edits or claim they were saved when an earlier snapshot completes', async kind => {
+  const project = existing()
+  let resolve!: (value: never) => void
+  const pending = new Promise<never>(done => { resolve = done })
+  const writes: { path: string; method: string; body: Record<string, unknown> }[] = []
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (init?.method === 'PATCH' || init?.method === 'POST') {
+      writes.push({ path, method: init.method, body: JSON.parse(String(init.body)) })
+      if (writes.length === 1) return pending
+      return { ...(kind === 'project' ? project : { id: 'created-note' }), revision: 3 } as never
+    }
+    return (path === '/research-projects' ? { items: [summary(project)] } : path.endsWith('/files') ? { items: [] } : project) as never
+  })
+  const user = userEvent.setup()
+  render(<ResearchProjectsPage initialProjectId="p1" onOpenConversation={vi.fn()} />)
+  await screen.findByRole('heading', { name: project.name })
+  await user.click(screen.getByRole('button', { name: kind === 'project' ? '编辑项目' : '写研究笔记' }))
+  const input = screen.getByLabelText(kind === 'project' ? '项目名称' : '笔记标题')
+  await user.clear(input); await user.type(input, '先提交的版本')
+  const form = screen.getByRole('form', { name: kind === 'project' ? '编辑研究项目' : '编辑研究笔记' })
+  fireEvent.submit(form); fireEvent.submit(form)
+  expect(writes).toHaveLength(1)
+  expect(input).toBeDisabled()
+  // Exercise a queued/programmatic edit as well as the disabled user control.
+  fireEvent.change(input, { target: { value: '后来输入的版本' } })
+  await act(async () => resolve({ ...(kind === 'project' ? project : { id: 'created-note' }), revision: 2 } as never))
+  expect(input).toHaveValue('后来输入的版本')
+  expect(input).toBeEnabled()
+  expect(screen.getByText(/此前提交已保存；当前修改尚未保存/)).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: kind === 'project' ? '保存项目' : '保存笔记' }))
+  await waitFor(() => expect(writes).toHaveLength(2))
+  expect(writes[1].method).toBe('PATCH')
+  expect(writes[1].body.base_revision).toBe(2)
+  expect(writes[1].body[kind === 'project' ? 'name' : 'title']).toBe('后来输入的版本')
+  if (kind === 'note') expect(writes[1].path).toBe('/research-projects/p1/notes/created-note')
+})
+
+it('provides focusable full timestamps on project and note dates', async () => {
+  const project = existing()
+  project.notes = [{ id: 'n1', project_id: 'p1', title: '笔记时间', body: '正文', stock_code: null, validation_plan: '', invalidation_condition: '', status: 'watching', revision: 1, source_conversation_id: null, source_message_id: null, updated_at: project.updated_at }]
+  vi.mocked(api).mockImplementation(async path => (path === '/research-projects' ? { items: [summary(project)] } : path.endsWith('/files') || path.includes('/notes/') ? { items: [] } : project) as never)
+  const view = render(<ResearchProjectsPage initialProjectId="p1" onOpenConversation={vi.fn()} />)
+  await screen.findByRole('heading', { name: project.name })
+  const times = [...view.container.querySelectorAll('time')]
+  expect(times.length).toBeGreaterThanOrEqual(2)
+  for (const time of times) {
+    expect(time).toHaveAttribute('tabindex', '0')
+    expect(time.getAttribute('data-tooltip')).toContain('2026')
+    expect(time.getAttribute('aria-label')).toBe(time.getAttribute('data-tooltip'))
+  }
 })

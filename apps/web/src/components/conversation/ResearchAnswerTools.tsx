@@ -8,7 +8,9 @@ import { api, type Conversation, type ConversationMessage } from '../../api'
 import { trapDialogTab } from '../../keyboard'
 import AnswerSources from './AnswerSources'
 import { answerSources } from './collectAnswerSources'
+import { copyAnswerProvenance } from './copyAnswerProvenance'
 import { displayedMessages } from './answerVersions'
+import { researchAnswerTurn } from './researchResultNextSteps'
 
 export default function ResearchAnswerTools({ conversation, message, locked, saved, savingNote, onSave, onCopy, onObserve, onDraft, onRegenerate, onBranch }: {
   conversation: Conversation; message: ConversationMessage; locked: boolean; saved: boolean; savingNote: boolean
@@ -18,6 +20,11 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   const workspaceSession = useWorkspaceSession()
   const portalTarget = workspaceSession.portalTarget ?? document.body
   const [menu, setMenu] = useState(false)
+  const copyScope = JSON.stringify([conversation.id, message.id, message.content])
+  const copyScopeRef = useRef(copyScope); copyScopeRef.current = copyScope
+  const copyRequest = useRef<AbortController | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState<{ scope: string; state: 'loading' | 'done' | 'error'; message: string } | null>(null)
+  useEffect(() => () => { copyRequest.current?.abort(); copyRequest.current = null }, [copyScope])
   const [dialog, setDialog] = useState<'sources' | 'share' | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
@@ -31,6 +38,8 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   const dialogLauncher = useRef<HTMLElement | null>(null)
   const menuId = useId()
   const sources = answerSources({ ...message, source_refs: [...(resolvedSources ?? []), ...message.source_refs] })
+  // Prefer recorded evidence/summary, never infer executable conditions from prose.
+  const primaryAction = sources.length ? 'sources' : !saved && researchAnswerTurn(conversation, message)?.result.research_summary ? 'note' : null
   const closeMenu = (focus = true) => { setMenu(false); if (focus) trigger.current?.focus() }
   useEffect(() => { if (!workspaceSession.active) { setMenu(false); setDialog(null) } }, [workspaceSession.active])
   const openDialog = (kind: 'sources' | 'share') => {
@@ -108,6 +117,22 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
     } catch (reason) { setError((reason as Error).message) }
     finally { shareLock.current = false; setSharing(false) }
   }
+  async function copyWithSources() {
+    if (copyRequest.current) return
+    const controller = new AbortController(), scope = copyScope
+    copyRequest.current = controller
+    const current = () => !controller.signal.aborted && copyScopeRef.current === scope
+    closeMenu(); setCopyFeedback({ scope, state: 'loading', message: '正在读取来源并复制…' })
+    try {
+      const result = await api<{ items: Record<string, unknown>[] }>(`/conversations/${conversation.id}/answers/${message.id}/sources`, { signal: controller.signal })
+      if (!current()) return
+      if (!Array.isArray(result.items)) throw new Error('来源返回格式无效，请重试。')
+      if (!navigator.clipboard?.writeText) throw new Error('浏览器暂时无法复制，请使用普通复制或手动选择正文。')
+      await navigator.clipboard.writeText(copyAnswerProvenance(message, result.items))
+      if (current()) setCopyFeedback({ scope, state: 'done', message: '已复制答复及已有来源信息' })
+    } catch (reason) { if (current()) setCopyFeedback({ scope, state: 'error', message: `复制失败：${(reason as Error).message}` }) }
+    finally { if (copyRequest.current === controller) copyRequest.current = null }
+  }
   async function copyLink() {
     if (!share) return
     try {
@@ -126,17 +151,19 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   }
   return <>
     <div className="research-answer-toolbar" role="group" aria-label="回答操作">
-      <button type="button" aria-label="加入关注" disabled={locked} onClick={onObserve} className="research-answer-action research-answer-observe workspace-button"><Star size={16} aria-hidden="true" /><span>加入关注</span></button>
-      <button type="button" aria-label="查看依据" onClick={() => openDialog('sources')} className="research-answer-action workspace-button"><BookOpen size={16} aria-hidden="true" /><span>查看依据</span></button>
+      <button type="button" aria-label="加入关注" disabled={locked} onClick={onObserve} className="research-answer-action workspace-button"><Star size={16} aria-hidden="true" /><span>加入关注</span></button>
+      <button type="button" aria-label="查看依据" data-primary-action={primaryAction === 'sources'} onClick={() => openDialog('sources')} className="research-answer-action workspace-button"><BookOpen size={16} aria-hidden="true" /><span>查看依据</span></button>
+      <button type="button" aria-label="转为选股草稿" disabled={locked} onClick={onDraft} className="research-answer-action workspace-button"><ListFilter size={16} aria-hidden="true" /><span>转为选股草稿</span></button>
       <button type="button" aria-label="复制答复" data-tooltip="复制答复" onClick={onCopy} className="workspace-button"><Copy size={17} /></button>
       <button type="button" aria-label="分享答复" data-tooltip="分享答复" onClick={() => openDialog('share')} className="workspace-button"><Share2 size={17} /></button>
       <button type="button" aria-label="重新生成答案" data-tooltip="重新生成答案" disabled={locked || !onRegenerate} onClick={onRegenerate} className="workspace-button"><RefreshCw size={17} /></button>
-      <button type="button" aria-label="保存为研究笔记" data-tooltip={saved ? '已保存为研究笔记' : savingNote ? '正在保存…' : '保存为研究笔记'} disabled={locked || saved} onClick={onSave} className="workspace-button">
-        {savingNote ? <LoaderCircle size={17} className="spin" /> : saved ? <Check size={17} /> : <Bookmark size={17} />}<span className="sr-only">{saved ? '已保存为研究笔记' : ''}</span>
+      <button type="button" aria-label="保存为研究笔记" data-primary-action={primaryAction === 'note'} data-tooltip={saved ? '已保存为研究笔记' : savingNote ? '正在保存…' : '保存为研究笔记'} disabled={locked || saved} onClick={onSave} className={primaryAction === 'note' ? "research-answer-action workspace-button" : "workspace-button"}>
+        {savingNote ? <LoaderCircle size={17} className="spin" /> : saved ? <Check size={17} /> : <Bookmark size={17} />}<span className={primaryAction === 'note' ? undefined : "sr-only"}>{primaryAction === 'note' ? '存笔记' : saved ? '已保存为研究笔记' : ''}</span>
       </button>
       <button ref={trigger} type="button" aria-label="更多回答操作" data-tooltip="更多回答操作" aria-haspopup="menu" aria-expanded={menu} aria-controls={menu ? menuId : undefined}
         onClick={() => setMenu(value => !value)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setMenu(true) } }} className="workspace-button"><MoreHorizontal size={19} /></button>
     </div>
+    {copyFeedback?.scope === copyScope && <p role={copyFeedback.state === 'error' ? 'alert' : 'status'} className={copyFeedback.state === 'error' ? 'workspace-error' : 'research-secondary'}>{copyFeedback.message}</p>}
     {menu && createPortal(<div ref={popup} id={menuId} className="research-answer-menu workspace-tool-dialog workspace-popover workspace-menu" style={position} role="menu" aria-label="更多回答操作" onKeyDown={event => {
       const buttons = Array.from(popup.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || [])
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
@@ -148,6 +175,7 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
       <button type="button" role="menuitem" onClick={() => openDialog('sources')} className="workspace-button workspace-menu-option"><BookOpen size={17} />查看来源{(sources.length > 0 || resolvedSources !== null) && <span className="research-answer-source-count">{sources.length}</span>}</button>
       <button type="button" role="menuitem" disabled={locked || !onBranch} onClick={() => { closeMenu(false); onBranch?.() }} className="workspace-button workspace-menu-option"><GitBranch size={17} />打开新对话分支<ChevronRight size={15} /></button>
       <button type="button" role="menuitem" disabled={locked} onClick={() => { closeMenu(); onDraft() }} className="workspace-button workspace-menu-option"><ListFilter size={17} />转为选股草稿</button>
+      <button type="button" role="menuitem" disabled={copyFeedback?.scope === copyScope && copyFeedback.state === 'loading'} onClick={() => void copyWithSources()} className="workspace-button workspace-menu-option"><Copy size={17} />复制并附来源/日期</button>
     </div>, portalTarget)}
     {dialog && createPortal(<div className={`research-result-dialog-backdrop${dialog === 'sources' ? ' research-sources-backdrop' : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) setDialog(null) }}>
       <section className={`research-result-dialog workspace-tool-dialog${dialog === 'sources' ? ' research-sources-drawer workspace-drawer' : ' workspace-dialog'}`} role="dialog" aria-modal="true" aria-label={dialog === 'sources' ? '回答来源' : '分享研究答复'}

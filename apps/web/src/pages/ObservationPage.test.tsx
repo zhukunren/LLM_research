@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ObservationPage from './ObservationPage'
@@ -301,4 +301,130 @@ describe('统一观察池', () => {
     expect(await screen.findByTestId('chart')).toHaveTextContent('600001.SH · observation')
     expect(screen.getByRole('dialog', { name: '观察详情' })).toBeInTheDocument()
   })
+})
+
+it('offers only the most recent removal for sixty seconds and retries a failed restore', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  const restored: string[] = []; let fail = true
+  mockApi((url, init) => {
+    if (init?.method === 'DELETE') return json({ hidden: true })
+    if (url.pathname.endsWith('/restore')) { restored.push(url.pathname); if (fail) { fail = false; return json({ message: '暂时不可恢复' }, 503) }; return json({ hidden: false }) }
+  })
+  const user = userEvent.setup(); render(<ObservationPage data={null} />)
+  await user.click(await screen.findByRole('button', { name: '更多贵州茅台观察操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '删除贵州茅台观察记录' }))
+  expect(await screen.findByText(/60 秒内可撤销最近一次移除/)).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '撤销移除贵州茅台' }))
+  expect(await screen.findByText(/撤销失败.*暂时不可恢复/)).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '撤销移除贵州茅台' }))
+  expect(await screen.findByText(/贵州茅台已恢复到观察池/)).toBeInTheDocument()
+  expect(restored).toEqual(Array(2).fill('/api/v1/observation/entries/candidate%3Acandidate/restore'))
+  expect(screen.queryByRole('button', { name: '撤销移除贵州茅台' })).not.toBeInTheDocument()
+})
+
+it('replaces the undo item after a newer successful removal and expires it without a write', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  const writes: string[] = []
+  mockApi((url, init) => { if (init?.method === 'DELETE' || url.pathname.endsWith('/restore')) { writes.push(url.pathname); return json({}) } })
+  const user = userEvent.setup(); render(<ObservationPage data={null} />)
+  await user.click(await screen.findByRole('button', { name: '更多贵州茅台观察操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '删除贵州茅台观察记录' }))
+  await screen.findByRole('button', { name: '撤销移除贵州茅台' })
+  await user.click(await screen.findByRole('button', { name: '更多浦发银行观察操作' }))
+  vi.useFakeTimers()
+  try {
+    fireEvent.click(screen.getByRole('menuitem', { name: '删除浦发银行观察记录' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(screen.queryByRole('button', { name: '撤销移除贵州茅台' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '撤销移除浦发银行' })).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_001) })
+    expect(screen.queryByRole('button', { name: /撤销移除/ })).not.toBeInTheDocument()
+    expect(writes).toHaveLength(2)
+  } finally { vi.useRealTimers() }
+})
+
+it('does not let a delayed removal overwrite a newer filtered view or offer a stale undo', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  let finish!: (response: Response) => void
+  const pending = new Promise<Response>(resolve => { finish = resolve })
+  mockApi((_url, init) => init?.method === 'DELETE' ? pending : undefined)
+  const user = userEvent.setup(); render(<ObservationPage data={null} />)
+  await user.click(await screen.findByRole('button', { name: '更多贵州茅台观察操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '删除贵州茅台观察记录' }))
+  await user.type(screen.getByLabelText('搜索观察记录'), '浦发')
+  await act(async () => finish(json({ hidden: true })))
+  await waitFor(() => expect(screen.queryByText(/贵州茅台已从观察池移除/)).not.toBeInTheDocument())
+  expect(screen.queryByRole('button', { name: '撤销移除贵州茅台' })).not.toBeInTheDocument()
+  expect(screen.getByLabelText('搜索观察记录')).toHaveValue('浦发')
+})
+
+it('returns an emptied last page to a valid offset and restores without changing the current filter', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  let hidden = false
+  const offsets: string[] = [], writes: string[] = []
+  mockApi((url, init) => {
+    if (init?.method === 'DELETE') { hidden = true; writes.push('delete'); return json({}) }
+    if (url.pathname.endsWith('/restore')) { hidden = false; writes.push('restore'); return json({}) }
+    if (url.pathname.endsWith('/entries')) {
+      const offset = url.searchParams.get('offset') || '0'; offsets.push(offset)
+      const rows = offset === '30' ? hidden ? [] : [researchEntry] : [screeningEntry()]
+      return json({ items: rows, total: hidden ? 30 : 31 })
+    }
+  })
+  const user = userEvent.setup(); render(<ObservationPage data={null} />)
+  await screen.findByRole('button', { name: '更多浦发银行观察操作' })
+  await user.click(screen.getByRole('button', { name: '下一页' }))
+  await user.click(await screen.findByRole('button', { name: '更多贵州茅台观察操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '删除贵州茅台观察记录' }))
+  await screen.findByRole('button', { name: '撤销移除贵州茅台' })
+  await screen.findByRole('button', { name: '更多浦发银行观察操作' })
+  expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled()
+  expect(offsets).toContain('30')
+  await user.type(screen.getByLabelText('搜索观察记录'), '银行')
+  await user.click(screen.getByRole('button', { name: '撤销移除贵州茅台' }))
+  expect(await screen.findByText(/贵州茅台已恢复到观察池/)).toBeInTheDocument()
+  expect(screen.getByLabelText('搜索观察记录')).toHaveValue('银行')
+  expect(writes).toEqual(['delete', 'restore'])
+})
+
+it('locks duplicate restore submissions and ignores their late notice after changing filters', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  let finish!: (response: Response) => void
+  const pending = new Promise<Response>(resolve => { finish = resolve }); let writes = 0
+  mockApi((url, init) => {
+    if (init?.method === 'DELETE') return json({})
+    if (url.pathname.endsWith('/restore')) { writes++; return pending }
+  })
+  const user = userEvent.setup(); render(<ObservationPage data={null} />)
+  await user.click(await screen.findByRole('button', { name: '更多贵州茅台观察操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '删除贵州茅台观察记录' }))
+  const restore = await screen.findByRole('button', { name: '撤销移除贵州茅台' })
+  fireEvent.click(restore); fireEvent.click(restore)
+  expect(writes).toBe(1)
+  await user.type(screen.getByLabelText('搜索观察记录'), '银行')
+  await act(async () => finish(json({ hidden: false })))
+  expect(screen.queryByText(/已恢复到观察池/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '撤销移除贵州茅台' })).not.toBeInTheDocument()
+  expect(screen.getByLabelText('搜索观察记录')).toHaveValue('银行')
+})
+
+it('resets an emptied offset to zero when the server total becomes zero', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  let empty = false
+  const offsets: number[] = []
+  mockApi((url, init) => {
+    if (init?.method === 'DELETE') { empty = true; return json({}) }
+    if (url.pathname.endsWith('/entries')) {
+      const offset = Number(url.searchParams.get('offset')); offsets.push(offset)
+      return json({ items: empty ? [] : [researchEntry], total: empty ? 0 : 31 })
+    }
+  })
+  const user = userEvent.setup(); render(<ObservationPage data={null} />)
+  await screen.findByRole('button', { name: '更多贵州茅台观察操作' })
+  await user.click(screen.getByRole('button', { name: '下一页' }))
+  await user.click(await screen.findByRole('button', { name: '更多贵州茅台观察操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '删除贵州茅台观察记录' }))
+  await waitFor(() => expect(offsets.at(-1)).toBe(0))
+  expect(offsets).toContain(30)
+  expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled()
 })

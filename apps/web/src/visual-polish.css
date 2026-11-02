@@ -146,6 +146,15 @@ label { font-size: 11px; }
 .conversation-task-panel[hidden] { display: none; }
 .conversation-plain-message { white-space: pre-wrap; }
 .research-answer { min-width: 0; font-size: 14px; line-height: 1.85; color: var(--ui-text); overflow-wrap: anywhere; }
+.research-answer-sections { margin-block: 12px; padding: 10px 12px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface-subtle); }
+.research-answer-section-list summary { cursor: pointer; }
+.research-answer-section-picker { display: none; }
+.research-answer [data-research-section] { scroll-margin-block-start: 24px; }
+@media (max-width: 640px) {
+  .research-answer-section-list { display: none; }
+  .research-answer-section-picker { display: grid; gap: 6px; }
+  .research-answer-section-picker select { width: 100%; min-width: 0; }
+}
 .research-answer > :first-child { margin-top: 0; }
 .research-answer > :last-child { margin-bottom: 0; }
 .research-answer p, .research-answer ul, .research-answer ol, .research-answer blockquote { margin: 10px 0; }

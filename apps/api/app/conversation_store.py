@@ -257,12 +257,16 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
 
 
 def list_conversations(entry_scope: str | None = None, limit: int = 50, active_only: bool = False,
-                       workflow_type: str | None = None, state: str | None = None, *, exclude_intelligence: bool = False) -> list[dict[str, Any]]:
+                       workflow_type: str | None = None, state: str | None = None, *, exclude_intelligence: bool = False, q: str | None = None, offset: int = 0) -> list[dict[str, Any]]:
     recover_expired_turns()
     limit = max(1, min(int(limit), 100))
+    offset = max(0, int(offset))
+    words = (q or '').strip().split()
+    # Literal substring matching: SQL wildcard characters in user input stay literal.
+    search = " AND ".join("instr(lower(COALESCE(title,'') || ' ' || CASE workflow_type WHEN 'screening' THEN '选股对话' ELSE '研究对话' END), lower(?)) > 0" for _ in words) or "1=1"
     with connect() as connection:
         rows = connection.execute(
-            """SELECT c.id,c.entry_scope,c.research_mode,c.project_id,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
+            f"""WITH history AS (SELECT c.id,c.entry_scope,c.research_mode,c.project_id,c.task_revision,c.active_run_id,c.state,c.created_at,c.updated_at,
                       c.workflow_type,c.research_depth,c.workflow_revision,c.research_scope_json,c.research_scope_revision,c.assistant_snapshot_json,c.assistant_revision,
                       c.model_id,c.reasoning_effort,c.model_revision,
                       c.pinned,COALESCE(c.title,(SELECT CASE WHEN m.client_message_id LIKE 'assistant-launch:%' AND instr(m.content,char(10))>0
@@ -278,8 +282,9 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50, active_o
                  AND (?=0 OR NOT EXISTS (SELECT 1 FROM intelligence_runs ir WHERE ir.conversation_id=c.id))
                  AND (?=0 OR EXISTS (SELECT 1 FROM conversation_turns t WHERE t.conversation_id=c.id AND t.state IN ('awaiting_agent','running'))
                       OR EXISTS (SELECT 1 FROM screening_task_runs r WHERE r.conversation_id=c.id AND r.status IN ('queued','running')))
-               ORDER BY c.pinned DESC,c.updated_at DESC,c.id DESC LIMIT ?""",
-            (entry_scope, entry_scope, workflow_type, workflow_type, state, state, exclude_intelligence, active_only, limit),
+               ) SELECT * FROM history WHERE {search}
+               ORDER BY pinned DESC,updated_at DESC,id DESC LIMIT ? OFFSET ?""",
+            (entry_scope, entry_scope, workflow_type, workflow_type, state, state, exclude_intelligence, active_only, *words, limit, offset),
         ).fetchall()
     items = []
     for row in rows:

@@ -1,14 +1,16 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeftToLine, ArrowRightToLine, ListX, Plus, RotateCcw, SquareX, X } from 'lucide-react'
+import { ArrowLeftToLine, ArrowRightToLine, List, ListX, Plus, RotateCcw, SquareX, X } from 'lucide-react'
+import type { WorkflowType } from '../api'
 import type { WorkspaceTab } from '../workspaceTabs'
 import { workspaceMenus } from '../navigation'
 
-export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onCloseOthers, onCloseSide, onCloseAll, canReopen, onReopen, onMove, onNew }: { tabs: WorkspaceTab[]; activeId: string; onActivate: (id: string) => void; onClose: (id: string) => void; onCloseOthers: (id: string) => void; onCloseSide: (id: string, side: 'left' | 'right') => void; onCloseAll: () => void; canReopen: boolean; onReopen: () => void; onMove: (id: string, targetId: string, placement: 'before' | 'after') => void; onNew: () => void }) {
+export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onCloseOthers, onCloseSide, onCloseAll, canReopen, onReopen, onMove, onNew, newWorkflow = 'research' }: { tabs: WorkspaceTab[]; activeId: string; onActivate: (id: string) => void; onClose: (id: string) => void; onCloseOthers: (id: string) => void; onCloseSide: (id: string, side: 'left' | 'right') => void; onCloseAll: () => void; canReopen: boolean; onReopen: () => void; onMove: (id: string, targetId: string, placement: 'before' | 'after') => void; onNew: () => void; newWorkflow?: WorkflowType }) {
   const list = useRef<HTMLDivElement>(null)
   const popup = useRef<HTMLDivElement>(null)
   const menuId = useId()
-  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const allTrigger = useRef<HTMLButtonElement>(null)
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number; all?: boolean } | null>(null)
   const menuIndex = tabs.findIndex(tab => tab.id === menu?.id)
   const drag = useRef<{ id: string; x: number } | null>(null)
   const scrollFrame = useRef(0)
@@ -60,7 +62,7 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
   }
   function closeMenu(restoreFocus = true) {
     setMenu(null)
-    if (restoreFocus) focusTab(menu?.id)
+    if (restoreFocus) { if (menu?.all) allTrigger.current?.focus(); else focusTab(menu?.id) }
   }
   function menuAction(action: () => void) {
     setMenu(null)
@@ -77,20 +79,24 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
   useEffect(() => {
     if (!menu) return
     const dismiss = () => setMenu(null)
-    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !popup.current?.contains(event.target)) dismiss() }
+    const width = window.innerWidth, height = window.innerHeight
+    // Activating a workspace emits a synthetic resize for charts; it must not
+    // dismiss a menu opened before that pending layout frame has completed.
+    const resize = () => { if (window.innerWidth !== width || window.innerHeight !== height) dismiss() }
+    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !popup.current?.contains(event.target) && !(menu.all && allTrigger.current?.contains(event.target))) dismiss() }
     const scroll = (event: Event) => { if (!(event.target instanceof Node) || !popup.current?.contains(event.target)) dismiss() }
     document.addEventListener('pointerdown', outside, true)
-    window.addEventListener('resize', dismiss)
+    window.addEventListener('resize', resize)
     window.addEventListener('scroll', scroll, true)
     window.addEventListener('blur', dismiss)
     return () => {
       document.removeEventListener('pointerdown', outside, true)
-      window.removeEventListener('resize', dismiss)
+      window.removeEventListener('resize', resize)
       window.removeEventListener('scroll', scroll, true)
       window.removeEventListener('blur', dismiss)
     }
   }, [menu])
-  useEffect(() => { if (menu && !tabs.some(tab => tab.id === menu.id)) setMenu(null) }, [tabs, menu])
+  useEffect(() => { if (menu && !menu.all && !tabs.some(tab => tab.id === menu.id)) setMenu(null) }, [tabs, menu])
   useEffect(() => {
     const node = list.current
     if (!node) return
@@ -103,6 +109,7 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
     return () => observer?.disconnect()
   }, [activeId, tabs.length])
   function keyDown(event: KeyboardEvent, index: number) {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
       event.preventDefault()
       closeMenu(false)
@@ -128,6 +135,7 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
     list.current?.querySelector<HTMLButtonElement>(`#workspace-tab-${tabs[next].id}`)?.focus()
   }
   function menuKeys(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.stopPropagation(); return }
     if (event.key === 'Escape' || event.key === 'Tab') { event.preventDefault(); event.stopPropagation(); closeMenu(); return }
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
@@ -166,8 +174,14 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
         </div>
       })}
     </div>
-    <button type="button" className="workspace-tab-new workspace-button" aria-label="新建研究标签" data-tooltip="新建研究标签" onClick={onNew}><Plus size={16} aria-hidden="true" /></button>
-    {menu && createPortal(<div ref={popup} id={menuId} role="menu" aria-label="标签页操作" className="workspace-tab-context-menu workspace-tool-dialog workspace-popover workspace-menu" style={{ left: menu.x, top: menu.y }} onKeyDown={menuKeys} onContextMenu={event => event.preventDefault()}>
+    <button type="button" className="workspace-tab-new workspace-button" aria-label={newWorkflow === 'screening' ? '新建选股标签' : '新建研究标签'} data-tooltip={newWorkflow === 'screening' ? '新建选股标签' : '新建研究标签'} onClick={onNew}><Plus size={16} aria-hidden="true" /></button>
+    <button ref={allTrigger} type="button" className="workspace-tab-new workspace-button" aria-label={`已打开工作区（${tabs.length}）`} aria-haspopup="menu" aria-expanded={!!menu?.all} aria-controls={menu?.all ? menuId : undefined} onClick={event => {
+      if (menu?.all) { closeMenu(); return }
+      const rect = event.currentTarget.getBoundingClientRect()
+      setMenu({ id: '', x: rect.right - 320, y: rect.bottom, all: true })
+    }}><List size={16} aria-hidden="true" /></button>
+    {menu && createPortal(<div ref={popup} id={menuId} role="menu" aria-label={menu.all ? '已打开工作区' : '标签页操作'} className={`workspace-tab-context-menu workspace-tool-dialog workspace-popover workspace-menu${menu.all ? ' workspace-tab-overflow' : ''}`} style={{ left: menu.x, top: menu.y }} onKeyDown={menuKeys} onContextMenu={event => event.preventDefault()}>
+      {menu.all ? tabs.map(tab => <button key={tab.id} type="button" role="menuitem" aria-current={tab.id === activeId ? 'page' : undefined} onClick={() => menuAction(() => onActivate(tab.id))} className="workspace-button workspace-menu-option"><small>{tab.route.page === 'conditions' || tab.route.workspace === 'screening' ? '选股' : tab.route.page === 'screening' ? '研究' : '资料'}</small><span>{tab.title}</span></button>) : <>
       <button type="button" role="menuitem" onClick={() => menuAction(() => onClose(menu.id))} className="workspace-button workspace-menu-option"><X size={15} aria-hidden="true" /><span>关闭当前标签</span></button>
       <button type="button" role="menuitem" disabled={tabs.length === 1} onClick={() => menuAction(() => onCloseOthers(menu.id))} className="workspace-button workspace-menu-option"><SquareX size={15} aria-hidden="true" /><span>关闭其他标签</span></button>
       <button type="button" role="menuitem" disabled={menuIndex <= 0} onClick={() => menuAction(() => onCloseSide(menu.id, 'left'))} className="workspace-button workspace-menu-option"><ArrowLeftToLine size={15} aria-hidden="true" /><span>关闭左侧标签</span></button>
@@ -176,6 +190,7 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
       <button type="button" role="menuitem" onClick={() => menuAction(onCloseAll)} className="workspace-button workspace-menu-option"><ListX size={15} aria-hidden="true" /><span>关闭全部标签</span></button>
       <div role="separator" />
       <button type="button" role="menuitem" disabled={!canReopen} onClick={() => menuAction(onReopen)} className="workspace-button workspace-menu-option"><RotateCcw size={15} aria-hidden="true" /><span>重新打开关闭的标签</span></button>
+      </>}
     </div>, document.body)}
   </div>
 }

@@ -243,8 +243,10 @@ def list_conversations(
     workflow_type: str | None = Query(default=None, pattern="^(research|screening)$"),
     state: Literal["active", "archived"] | None = None,
     exclude_intelligence: bool = False,
+    q: str | None = Query(default=None, max_length=200),
+    offset: int = Query(default=0, ge=0),
 ):
-    return {"items": conversation_store.list_conversations(scope, limit, active_only, workflow_type, state, exclude_intelligence=exclude_intelligence)}
+    return {"items": conversation_store.list_conversations(scope, limit, active_only, workflow_type, state, exclude_intelligence=exclude_intelligence, q=q, offset=offset)}
 
 
 class UpdateConversationHistory(ContractModel):

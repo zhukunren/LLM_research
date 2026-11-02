@@ -27,7 +27,7 @@
 .screening-compact-table td:last-child { white-space: nowrap; }
 .screening-compact-table tr:hover td { background: var(--ui-surface-subtle); }
 .screening-key-values { max-width: 330px; }
-.screening-key-values > span { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-block: 4px; line-height: 1.6; color: var(--ui-text-muted); }
+.screening-key-values > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-block: 4px; line-height: 1.6; color: var(--ui-text-muted); }
 .screening-condition-marker { display: inline-block; width: 5px; height: 5px; margin-right: 6px; border-radius: 50%; background: var(--ui-text-muted); }
 .screening-condition-marker.true { background: var(--ui-brand); }
 .viewport-workspace .page-frame .screening-result-view.screening-list-compact .conversation-run-counts { display: flex; flex-wrap: wrap; gap: 6px 24px; margin-block: 6px; }
@@ -65,7 +65,7 @@
   .screening-compact-table td:nth-child(3) { grid-column: 3; grid-row: 1; text-align: right; }
   .screening-compact-table td:nth-child(4) { grid-column: 2 / -1; max-width: none; }
   .screening-compact-table td:last-child { grid-column: 2 / -1; justify-self: end; }
-  .screening-key-values > span { -webkit-line-clamp: 1; }
+  .screening-key-values > span { -webkit-line-clamp: 2; }
 }
 .history-mobile-toggle { display: none; }
 @media (max-width: 620px) {
@@ -79,3 +79,6 @@
 
 .screening-compact-table :is(button,input):focus-visible, .screening-list-toolbar button:focus-visible { outline: 2px solid var(--ui-focus-outline); outline-offset: 2px; }
 @media (pointer: coarse) { .screening-compact-table button, .screening-list-toolbar button, .screening-selection-toolbar button { min-height: 44px; } }
+
+.screening-coverage-details > summary { cursor: pointer; color: var(--ui-text-muted); font-size: 11px; }
+.screening-evidence-navigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 18px; border-bottom: 1px solid var(--ui-border-subtle); color: var(--ui-text-muted); font-size: 12px; }

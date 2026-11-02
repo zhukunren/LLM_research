@@ -17,6 +17,7 @@
 .research-matrix-company-options input { width:auto; }
 .research-matrix-panel > .heading-actions { margin:16px 0; }
 .research-matrix-panel .heading-actions label { font-size:12px; display:flex; align-items:center; gap:8px; }
+.research-matrix-question-picker { display:none; }
 .research-matrix-scroll { overflow-x:auto; max-width:100%; margin:18px 0; }
 .research-matrix-table { width:100%; min-width:640px; border-collapse:collapse; font-size:13px; }
 .research-matrix-table caption { text-align:left; color:var(--ui-text-muted); padding:8px 0; font-size:12px; }
@@ -49,6 +50,15 @@
 .research-quality-issues p { margin:6px 0 0; font-size:12px; color:var(--ui-text-muted); }
 .research-quality-panel details,.research-matrix-panel details,.research-changes-panel details { margin:16px 0; font-size:13px; }
 @media(max-width:720px) {
+  .research-matrix-question-picker { display:grid; gap:6px; }
+  .research-matrix-question-picker select { width:100%; min-width:0; }
+  .research-matrix-panel .research-matrix-scroll .research-matrix-table { min-width:0; }
+  .research-matrix-panel .research-matrix-table.workspace-data-table :is(caption,tbody,tr) { display:block; }
+  .research-matrix-panel .research-matrix-table.workspace-data-table thead { display:none; }
+  .research-matrix-panel .research-matrix-table.workspace-data-table tr { margin-block:12px; border:1px solid var(--ui-border); border-radius:8px; }
+  .research-matrix-panel .research-matrix-table.workspace-data-table :is(th,td) { display:block; min-width:0; width:auto; position:static; border:0; }
+  .research-matrix-panel .research-matrix-table.workspace-data-table td:not([data-active-question="true"]) { display:none; }
+
   .company-workspace-entry label { display:grid; width:100%; }
   .company-workspace-entry select { width:100%; }
   .research-quality-issues li { align-items:flex-start; flex-direction:column; }

@@ -1,4 +1,5 @@
 import LoadingState from '../LoadingState'
+import TimeLabel, { fullTimeDescription } from '../TimeLabel'
 import { StockText } from '../StockMentions'
 import { localStorage, sessionStorage } from '../../authStorage'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
@@ -35,6 +36,7 @@ import ScreeningSettings from './ScreeningSettings'
 import './screening-simple.css'
 import ResearchPanel from './ResearchPanel'
 import ResearchAnswer from './ResearchAnswer'
+import ResearchQuestionIndex from './ResearchQuestionIndex'
 import ResearchResultActions, { type ResearchResultRequest } from './ResearchResultActions'
 import AnswerSources from './AnswerSources'
 import { isExecutionFailure, ResearchFailure, ResearchProgress } from './ResearchFeedback'
@@ -222,9 +224,6 @@ function sessionStorageKey(scope: ConversationScope) {
   return `conversation.active.${scope}`
 }
 
-function shortTime(value: string) {
-  return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
 
 function stateClass(state: string) {
   if (state === 'true' || state === 'succeeded') return 'positive'
@@ -1708,13 +1707,14 @@ export default function ConversationWorkspace({
             {filteredSessions.map((item) => (
               <button
                 key={item.id}
+                data-tooltip={fullTimeDescription(item.updated_at)}
                 className={["workspace-button", `conversation-session-row ${selectedId === item.id ? 'selected' : ''}`].filter(Boolean).join(' ')}
                 disabled={busy || saving}
                 aria-current={selectedId === item.id ? 'true' : undefined}
                 onClick={() => { setSessionsOpen(false); if (item.id === selectedId && conversation) return; openSession(item); if (onOpenConversation && conversationWorkflow(item, initialWorkflowType) !== initialWorkflowType) return; setConversation(null); setTask(null); setRuns([]); setRun(null); setError(''); setRefreshIndex(value => value + 1) }}
               >
                 <strong>{item.title?.trim() || '新对话'}</strong>
-                <span>{conversationWorkflow(item, initialWorkflowType) === 'research' ? '研究对话' : '选股对话'}{item.last_turn_state === 'failed' ? ' · 已中断' : item.last_turn_state === 'running' ? ' · 处理中' : ''} · {shortTime(item.updated_at)}</span>
+                <span>{conversationWorkflow(item, initialWorkflowType) === 'research' ? '研究对话' : '选股对话'}{item.last_turn_state === 'failed' ? ' · 已中断' : item.last_turn_state === 'running' ? ' · 处理中' : ''} · <TimeLabel value={item.updated_at} focusable={false} /></span>
               </button>
             ))}
           </div>
@@ -1726,6 +1726,14 @@ export default function ConversationWorkspace({
         {isResearch && error && (isExecutionFailure(error) ? <ResearchFailure onOpenDataServices={onOpenDataServices} onAdjustScope={focusComposer} content={error} /> : <div className="conversation-error workspace-error" role="alert"><AlertCircle size={17} /><span>{error}</span><button className="icon-button workspace-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={15} /></button></div>)}
         {isResearch && notice && <div className="conversation-notice workspace-feedback workspace-feedback-success" role="status"><Check size={16} /><span>{notice}</span>{savedNoteProject && onOpenProject && <button className="text-button workspace-button" onClick={() => onOpenProject(savedNoteProject)}>查看笔记</button>}<button className="icon-button workspace-button" aria-label="关闭保存提示" onClick={() => { setNotice(''); setSavedNoteProject('') }}><X size={15} /></button></div>}
         {loadingConversation && <LoadingState label="正在恢复对话…" skeleton />}
+        {isResearch && conversation && <ResearchQuestionIndex messages={conversation.messages} onJump={id => {
+          const target = Array.from(messageListRef.current?.querySelectorAll<HTMLElement>('[data-message-id]') || []).find(element => element.dataset.messageId === id)
+          if (!target) return
+          followLatestRef.current = false
+          setShowLatest(true)
+          target.scrollIntoView?.({ block: 'start', behavior: 'auto' })
+          target.focus({ preventScroll: true })
+        }} />}
         <div className="conversation-message-stage">
           <div className="conversation-message-list" ref={messageListRef} role="log" aria-live="polite" aria-relevant="additions" onScroll={onMessageListScroll} onWheel={() => { if (screeningPanelOpen) readingChangedWhilePanel.current = true }} onTouchStart={() => { if (screeningPanelOpen) readingChangedWhilePanel.current = true }} onKeyDown={event => { if (screeningPanelOpen && ['PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) readingChangedWhilePanel.current = true }}>
             {embedded && !conversation?.messages.length && !task && !loadingConversation && <p className="library-context-intro">{isResearch ? '资料已带入，可修改下方问题后发送，继续核对判断与原文依据。' : '先把资料中的判断整理为选股草稿，再确认条件、范围并开始筛选。'}</p>}
@@ -1762,10 +1770,10 @@ export default function ConversationWorkspace({
             const retryQuestion = failed ? conversation.messages.slice(0, messageIndex).reverse().find(item => item.role === 'user') : undefined
             const canRetryAnswer = retryQuestion && retryQuestion.id === conversation.messages.filter(item => item.role === 'user').at(-1)?.id && turnsByMessage.get(retryQuestion.id)?.state === 'failed'
             return (
-              <article className={`conversation-message ${message.role}`} key={message.id}>
+              <article className={`conversation-message ${message.role}`} key={message.id} data-message-id={message.id} tabIndex={-1}>
                 <div className="conversation-message-meta">
                   <strong>{message.role === 'user' ? '你' : message.role === 'assistant' ? isResearch ? '投研助手' : '选股助手' : '工具'}</strong>
-                  <time dateTime={message.created_at}>{shortTime(message.created_at)}</time>
+                  <TimeLabel value={message.created_at} />
                   {turn && !['succeeded'].includes(turn.state) && <span className={["workspace-status", `conversation-turn-state ${stateClass(turn.state)}`].filter(Boolean).join(' ')}>{stateLabels[turn.state] ?? turn.state}</span>}
                   {turn?.assistant && turn.assistant.id !== 'general' && <span className="conversation-assistant-tag workspace-status" data-tooltip={`助手版本 ${turn.assistant.revision}`}>{turn.assistant.name}</span>}
                 </div>
@@ -1951,6 +1959,7 @@ export default function ConversationWorkspace({
           ) : (
             <ScreeningResultView
               key={run.id}
+              resultKey={run.id}
               asOf={run.as_of}
               revision={run.task_revision}
               status={run.status}

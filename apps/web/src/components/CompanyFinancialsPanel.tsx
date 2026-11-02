@@ -53,11 +53,15 @@ export default function CompanyFinancialsPanel({ stockCode, asOf, writable = tru
   const [revision, setRevision] = useState(0), [syncRevision, setSyncRevision] = useState(0)
   const [loaded, setResult] = useState<Result | null>(null), [error, setError] = useState(''), [syncError, setSyncError] = useState('')
   const [selected, setSelected] = useState<Point | null>(null), [factId, setFactId] = useState(''), [evidence, setEvidence] = useState<Evidence | null>(null)
+  const [copyFeedback, setCopyFeedback] = useState<{ key: string; error: boolean; message: string } | null>(null)
+  const copyGeneration = useRef(0)
+  const copyLock = useRef(false)
   const [saving, setSaving] = useState(false), [submitting, setSubmitting] = useState(false), [savedId, setSavedId] = useState('')
   const targetCode = stockCode || code, targetCutoff = asOf || cutoff
   const key = `${targetCode}|${targetCutoff}|${basis}|${mode}|${metric}`, currentKey = useRef(key)
   const result = loaded && loaded.request.stock_code === targetCode && loaded.request.as_of === targetCutoff && loaded.request.basis === basis && loaded.request.mode === mode && loaded.request.metrics[0] === metric ? loaded : null
   currentKey.current = key
+  useEffect(() => () => { copyGeneration.current++; copyLock.current = false }, [key])
   const lastFinished = useRef('')
   const observedActive = useRef(false)
   const [statusLoaded, setStatusLoaded] = useState(false)
@@ -132,6 +136,21 @@ export default function CompanyFinancialsPanel({ stockCode, asOf, writable = tru
     } catch (reason) { if (expectedKey === currentKey.current) setError((reason as Error).message) }
     finally { setSaving(false) }
   }
+  async function copyFinancials() {
+    if (!result || copyLock.current) return
+    copyLock.current = true
+    const expectedKey = key, generation = ++copyGeneration.current
+    const current = () => expectedKey === currentKey.current && generation === copyGeneration.current
+    setCopyFeedback(null)
+    const content = [`股票：${result.request.stock_code}`, `请求截止日：${result.request.as_of}`, `期间口径：${basisNames[result.request.basis] || result.request.basis}`, `版本口径：${result.request.mode === 'as_of' ? '当时可验证口径' : '最新修订口径'}`, `公式版本：${result.formula_version}`, `计算标识：${result.calculation_id}`,
+      ...result.rows.map(row => { const point = row.values[metric]; return [`报告期：${row.period}`, `${result.metrics.find(item => item.code === metric)?.label || metric}：${point.value === null ? '无可用值' : point.value + ' ' + point.unit}${point.currency ? ' · ' + point.currency : ''}`, `实际口径：${basisNames[point.actual_basis || ''] || point.actual_basis || '未提供'}`, `状态：${point.reason}`, point.formula ? `公式：${formulaNames[point.formula] || point.formula}` : '', point.input_fact_ids.length ? `输入事实标识：${point.input_fact_ids.join('、')}` : '', point.source_record_ids.length ? `来源记录标识：${point.source_record_ids.join('、')}` : '', point.comparability && point.comparability !== 'provider_same_scope' ? '重述口径待复核' : ''].filter(Boolean).join('\n') }), ...result.notes].join('\n\n')
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('浏览器暂时无法复制，请手动选择表格内容。')
+      await navigator.clipboard.writeText(content)
+      if (current()) setCopyFeedback({ key: expectedKey, error: false, message: '已复制财务数据与口径' })
+    } catch (reason) { if (current()) setCopyFeedback({ key: expectedKey, error: true, message: `复制失败：${(reason as Error).message}` }) }
+    finally { if (current()) copyLock.current = false }
+  }
   const unit = (result?.metrics[0]?.unit || catalog.find(item => item.code === metric)?.unit) === '元' ? '亿元' : result?.metrics[0]?.unit || ''
   const points = result?.rows.map(row => row.values[metric]) || []
   const available = points.some(point => point.value !== null)
@@ -154,9 +173,10 @@ export default function CompanyFinancialsPanel({ stockCode, asOf, writable = tru
       <label>财务指标<select aria-label="财务指标" value={metric} onChange={e => setMetric(e.target.value)}>{(catalog.length ? catalog : [{ code: 'revenue', label: '营业收入', unit: '元' }]).map(item => <option key={item.code} value={item.code}>{item.label}</option>)}</select></label>
     </div>
     <p className="research-secondary">截至 {targetCutoff} · 合并报表优先。{mode === 'as_of' ? '仅使用截止日前已观察到的版本；今天补采的旧财报不会被当作过去已取得的证据。' : '按公告日期过滤当前取得的版本，可能包含后来修订，不代表历史当时可得。'}</p>
+    {copyFeedback?.key === key && <p role={copyFeedback.error ? 'alert' : 'status'} className={copyFeedback.error ? 'workspace-error' : 'research-secondary'}>{copyFeedback.message}</p>}
     {error && <p role="alert" className="workspace-error">{error}<button className="text-button workspace-button" onClick={() => setRevision(v => v + 1)}>重新读取财务</button></p>}
     {!result ? <p>{error ? '财务序列尚未读取成功。' : '正在读取财务序列…'}</p> : <>
-      <div className="financial-series-actions"><strong>{label} · {unit}</strong><span>{points.filter(p => p.status === 'ok').length}/{points.length} 期有可用结果</span>
+      <div className="financial-series-actions"><strong>{label} · {unit}</strong><button className="secondary-button workspace-button" onClick={() => void copyFinancials()}>复制财务数据与口径</button><span>{points.filter(p => p.status === 'ok').length}/{points.length} 期有可用结果</span>
         {writable && status?.can_save && <button className="secondary-button workspace-button" disabled={saving || !available || savedId === result.calculation_id} onClick={() => void save()}>{savedId === result.calculation_id ? '本次计算已保存' : saving ? '正在保存…' : '保存本次计算'}</button>}</div>
       {available && <Suspense fallback={<p>正在绘制财务序列…</p>}><Chart style={{ height: 230 }} notMerge option={{
         animation: false, grid: { left: 65, right: 20, top: 25, bottom: 40 },

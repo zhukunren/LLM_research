@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { chartAxisValue } from '../chartTheme'
 
 type ChartLine = { id: string; label: string; color: string; values: (number | null)[] }
@@ -21,6 +21,8 @@ export function ResponsiveMarketIndicatorChart({ chart, height, minHeight, showL
 }
 
 export function MarketIndicatorChart({ chart, containerWidth, height, minHeight = 160, showLegend = true, referenceDate }: { chart: IndicatorChart; containerWidth?: number } & MarketChartPresentation) {
+  const hintId = useId()
+  const [focused, setFocused] = useState(false)
   const [hover, setHover] = useState<{ index: number; y: number; keyboard: boolean } | null>(null)
   useEffect(() => setHover(null), [chart])
   const bars = chart.bars.map(bar => bar.quality_valid === false ? { ...bar, open: NaN, high: NaN, low: NaN, close: NaN } : bar)
@@ -75,7 +77,8 @@ export function MarketIndicatorChart({ chart, containerWidth, height, minHeight 
   }
   return <div className={`indicator-market-chart workspace-chart ${chart.placement}`}>
     {showLegend && <div className="indicator-chart-legend"><span className="price-key">K线</span>{chart.lines.map(line => <span key={line.id} style={{ '--series-color': line.color } as CSSProperties}><i />{line.label}</span>)}{chart.histogram && <span style={{ '--series-color': chart.histogram.color } as CSSProperties}><i />{chart.histogram.label}</span>}</div>}
-    <svg tabIndex={0} aria-keyshortcuts="ArrowLeft ArrowRight Home End" onBlur={() => setHover(null)} onKeyDown={event => {
+    <svg tabIndex={0} aria-describedby={hintId} aria-keyshortcuts="ArrowLeft ArrowRight Home End" onFocus={event => { if (event.target === event.currentTarget) setFocused(true) }} onBlur={() => { setHover(null); setFocused(false) }} onKeyDown={event => {
+      if (event.target !== event.currentTarget || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
       event.preventDefault()
       const current = hover?.index ?? bars.length - 1
@@ -90,6 +93,7 @@ export function MarketIndicatorChart({ chart, containerWidth, height, minHeight 
       <text x={pad.left} y={totalHeight - 4}>{axisDate(bars[0]?.trade_date)}</text><text x={width - pad.right} y={totalHeight - 4} textAnchor="end">{axisDate(bars.at(-1)?.trade_date)}</text><text x="4" y={pad.top + 9}>{chartAxisValue(priceMax)}</text><text x="4" y={priceHeight - pad.bottom}>{chartAxisValue(priceMin)}</text>
       {hover && <g className="indicator-crosshair" pointerEvents="none"><line x1={x(activeIndex)} x2={x(activeIndex)} y1={pad.top} y2={totalHeight - 20} /><line x1={pad.left} x2={width - pad.right} y1={hover.y} y2={hover.y} /><rect x={Math.max(44, Math.min(width - 100, x(activeIndex) - 42))} y={totalHeight - 19} width="88" height="19" /><text x={Math.max(88, Math.min(width - 56, x(activeIndex)))} y={totalHeight - 5} textAnchor="middle">{bars[activeIndex]?.trade_date}</text></g>}
     </svg>
+    <p id={hintId} className="indicator-keyboard-hint" data-visible={focused}>← / → 查看相邻交易日；Home / End 跳到首日 / 末日</p>
     <div className="indicator-hover-values workspace-chart-readout" role={hover ? 'status' : 'group'} aria-label="行情数据" aria-live={hover?.keyboard ? 'polite' : 'off'} aria-atomic="true"><strong>{hover ? '查看' : '最近'} {activeBar.trade_date}</strong><span>开 {fmt(activeBar.open)}</span><span>高 {fmt(activeBar.high)}</span><span>低 {fmt(activeBar.low)}</span><span>收 {fmt(activeBar.close)}</span>{[...chart.lines, ...(chart.histogram ? [chart.histogram] : [])].map(line => <span key={line.id}>{line.label} {fmt(line.values[activeIndex] ?? null)}</span>)}</div>
   </div>
 }

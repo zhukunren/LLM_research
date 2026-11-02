@@ -1,4 +1,5 @@
 import LoadingState from '../components/LoadingState'
+import TimeLabel, { fullTimeDescription } from '../components/TimeLabel'
 import WorkspacePageHeading from '../components/WorkspacePageHeading'
 import { StockText } from '../components/StockMentions'
 import EmptyState from '../components/EmptyState'
@@ -26,7 +27,6 @@ import { useWorkspaceSession } from '../WorkspaceSession'
 import './research-project-layout.css'
 import '../research-workbench.css'
 
-const time = (value: string) => new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 type NoteContent = Pick<ResearchNote, 'title' | 'body' | 'stock_code' | 'validation_plan' | 'invalidation_condition' | 'status'>
 type NoteSubmission = { request_id: string; content: NoteContent; note_id?: string }
 type NoteDraft = NoteContent & { base_revision: number; request_id: string; submission?: NoteSubmission }
@@ -57,33 +57,45 @@ function validDrafts(value: unknown): value is Record<string, NoteDraft> {
 }
 
 function ProjectForm({ project, onSaved, onCancel }: { project?: ResearchProject; onSaved: (id: string) => void; onCancel: () => void }) {
-  type Draft = { name: string; objective: string; base_revision: number; status: 'active' | 'archived'; request_id: string }
+  type Draft = { name: string; objective: string; base_revision: number; status: 'active' | 'archived'; request_id: string; saved_id?: string }
   const key = project?.id || 'new'
-  const [drafts, setDrafts] = useSessionState<Record<string, Draft>>('research.projectDrafts', {}, (value): value is Record<string, Draft> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item => item && typeof item.name === 'string' && typeof item.objective === 'string' && typeof item.request_id === 'string' && Number.isInteger(item.base_revision) && item.base_revision > 0 && ['active', 'archived'].includes(item.status)))
+  const [drafts, setDrafts, persistence] = useSessionState<Record<string, Draft>>('research.projectDrafts', {}, (value): value is Record<string, Draft> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item => item && typeof item.name === 'string' && typeof item.objective === 'string' && typeof item.request_id === 'string' && Number.isInteger(item.base_revision) && item.base_revision > 0 && ['active', 'archived'].includes(item.status) && (item.saved_id === undefined || typeof item.saved_id === 'string')))
   const initial = useRef<Draft>({ name: project?.name || '', objective: project?.objective || '', base_revision: project?.revision || 1, status: project?.status || 'active', request_id: crypto.randomUUID() })
   const draft = drafts[key] || initial.current
+  const currentDraft = useRef(draft); currentDraft.current = draft
+  const active = useRef(true), saveLock = useRef(false)
+  const [savedEarlier, setSavedEarlier] = useState(false)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
   const { name, objective } = draft
-  const change = (value: Partial<Draft>) => setDrafts(current => ({ ...current, [key]: { ...draft, ...value, request_id: crypto.randomUUID() } }))
+  const change = (value: Partial<Draft>) => setDrafts(current => { const next = { ...currentDraft.current, ...value, request_id: crypto.randomUUID() }; currentDraft.current = next; return { ...current, [key]: next } })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [latest, setLatest] = useState<ResearchProject | null>(null)
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (busy) return
+    if (saveLock.current) return
+    saveLock.current = true
     setBusy(true); setError('')
+    const targetId = project?.id || draft.saved_id
     try {
-      const saved = await api<ResearchProject>(`/research-projects${project ? `/${project.id}` : ''}`, {
-        method: project ? 'PATCH' : 'POST', body: JSON.stringify({ name, objective, ...(project ? { base_revision: draft.base_revision, status: draft.status } : { request_id: draft.request_id }) }),
+      const saved = await api<ResearchProject>(`/research-projects${targetId ? `/${targetId}` : ''}`, {
+        method: targetId ? 'PATCH' : 'POST', body: JSON.stringify({ name, objective, ...(targetId ? { base_revision: draft.base_revision, status: draft.status } : { request_id: draft.request_id }) }),
       })
+      if (!active.current) return
+      if (currentDraft.current.name !== name || currentDraft.current.objective !== objective || currentDraft.current.status !== draft.status) {
+        setDrafts(current => ({ ...current, [key]: { ...currentDraft.current, saved_id: saved.id, base_revision: saved.revision } }))
+        setSavedEarlier(true); return
+      }
       setDrafts(current => { const next = { ...current }; delete next[key]; return next })
       onSaved(saved.id)
     } catch (reason) {
+      if (!active.current) return
       setError((reason as Error).message)
-      if (project) {
-        try { const current = await api<ResearchProject>(`/research-projects/${project.id}`); if (current.revision !== draft.base_revision) setLatest(current) } catch { /* Preserve the draft and the original error. */ }
+      if (targetId) {
+        try { const current = await api<ResearchProject>(`/research-projects/${targetId}`); if (active.current && current.revision !== draft.base_revision) setLatest(current) } catch { /* Preserve the draft and the original error. */ }
       }
     }
-    finally { setBusy(false) }
+    finally { saveLock.current = false; if (active.current) setBusy(false) }
   }
   return <form className="research-project-form workspace-form" onSubmit={event => void submit(event)} aria-label={project ? '编辑研究项目' : '新建研究项目'}>
     <div className="research-form-heading"><h2>{project ? '编辑项目' : '新建研究项目'}</h2></div>
@@ -91,26 +103,37 @@ function ProjectForm({ project, onSaved, onCancel }: { project?: ResearchProject
     <label className="workspace-field-label">研究目标<textarea aria-label="研究目标" disabled={busy} value={objective} maxLength={8000} rows={3} onChange={event => change({ objective: event.target.value })} className="workspace-field" /></label>
     {error && <p className="research-error workspace-error" role="alert">{error}</p>}
     {latest && <section className="research-note-conflict"><h3>另一处保存的最新项目</h3><strong>{latest.name}</strong><p>{latest.objective}</p><button type="button" className="secondary-button workspace-button" onClick={() => { change({ base_revision: latest.revision, status: latest.status }); setLatest(null); setError('你的输入已保留，请结合最新内容核对后保存。') }}>继续合并我的修改</button></section>}
+    <p className="research-draft-status" role="status">{savedEarlier && '此前提交已保存；当前修改尚未保存。'}{drafts[key] ? persistence.persisted ? '本页草稿已暂存，尚未正式保存。' : '草稿暂存失败，仅当前编辑器保留；尚未正式保存，请勿刷新或关闭。' : project ? '已载入正式保存的内容，修改后需再次保存。' : '尚未正式保存；输入后将在本页暂存草稿。'}</p>
     <div className="heading-actions"><button className="primary-button workspace-button" disabled={busy || !name.trim() || !!latest} type="submit">{busy ? '保存中…' : '保存项目'}</button><button className="secondary-button workspace-button" type="button" disabled={busy} onClick={onCancel}>关闭编辑</button></div>
   </form>
 }
 
 function NoteEditor({ project, note, initialStockCode = '', onSaved, onCancel }: { project: ResearchProject; note?: ResearchNote; initialStockCode?: string; onSaved: () => void; onCancel: () => void }) {
   const key = `${project.id}:${note?.id || (initialStockCode ? `new:${initialStockCode}` : 'new')}`
-  const [drafts, setDrafts] = useSessionState<Record<string, NoteDraft>>('research.noteDrafts', {}, validDrafts)
+  const [drafts, setDrafts, persistence] = useSessionState<Record<string, NoteDraft>>('research.noteDrafts', {}, validDrafts)
   const initial = useRef({ ...draftFor(note), ...(!note && initialStockCode ? { stock_code: initialStockCode } : {}) })
   const draft = drafts[key] || initial.current
+  const currentDraft = useRef(draft); currentDraft.current = draft
+  const active = useRef(true), saveLock = useRef(false)
+  const [savedEarlier, setSavedEarlier] = useState(false)
+  useEffect(() => { active.current = true; return () => { active.current = false } }, [])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [latest, setLatest] = useState<ResearchNote | null>(null)
-  const change = (values: Partial<NoteDraft>) => setDrafts(current => ({ ...current, [key]: { ...draft, ...values } }))
-  function saved() {
+  const change = (values: Partial<NoteDraft>) => setDrafts(current => { const next = { ...currentDraft.current, ...values }; currentDraft.current = next; return { ...current, [key]: next } })
+  function saved(content: NoteContent, targetId: string, revision: number) {
+    if (!active.current) return
+    if (!sameNoteContent(currentDraft.current, content)) {
+      setDrafts(current => ({ ...current, [key]: { ...currentDraft.current, base_revision: revision, ...(!note ? { submission: { request_id: draft.request_id, content, note_id: targetId } } : {}) } }))
+      setSavedEarlier(true); return
+    }
     setDrafts(current => { const next = { ...current }; delete next[key]; return next })
     onSaved()
   }
   async function save(event: FormEvent) {
     event.preventDefault()
-    if (busy) return
+    if (saveLock.current) return
+    saveLock.current = true
     setBusy(true); setError(''); setLatest(null)
     const content = noteContent(draft)
     let targetId = note?.id || draft.submission?.note_id
@@ -124,20 +147,23 @@ function NoteEditor({ project, note, initialStockCode = '', onSaved, onCancel }:
         const created = await api<ResearchNote>(`/research-projects/${project.id}/notes`, {
           method: 'POST', body: JSON.stringify({ ...submission.content, request_id: submission.request_id }),
         })
+        if (!active.current) return
         targetId = created.id
         baseRevision = created.revision
         setDrafts(current => ({ ...current, [key]: { ...(current[key] || draft), base_revision: baseRevision, submission: { ...submission, note_id: targetId } } }))
-        if (sameNoteContent(content, submission.content)) { saved(); return }
+        if (sameNoteContent(content, submission.content)) { saved(content, targetId, baseRevision); return }
       }
-      await api(`/research-projects/${project.id}/notes/${targetId}`, {
+      const updated = await api<ResearchNote>(`/research-projects/${project.id}/notes/${targetId}`, {
         method: 'PATCH', body: JSON.stringify({ ...content, base_revision: baseRevision }),
       })
-      saved()
+      saved(content, targetId, updated?.revision || baseRevision + 1)
     } catch (reason) {
+      if (!active.current) return
       setError((reason as Error).message)
       if (targetId || draft.submission) {
         try {
           const current = await api<ResearchProject>(`/research-projects/${project.id}`)
+          if (!active.current) return
           const updated = current.notes.find(item => targetId ? item.id === targetId : (item as ResearchNote & { request_id?: string }).request_id === draft.submission?.request_id)
           const recoveredCreation = !targetId && !!updated
           if (recoveredCreation && updated && draft.submission) {
@@ -146,11 +172,11 @@ function NoteEditor({ project, note, initialStockCode = '', onSaved, onCancel }:
           }
           // Recognize a committed PATCH whose response was lost, while keeping
           // unrelated concurrent edits behind the existing merge confirmation.
-          if (updated && (recoveredCreation || updated.revision > baseRevision) && sameNoteContent(updated, content)) { saved(); return }
+          if (updated && (recoveredCreation || updated.revision > baseRevision) && sameNoteContent(updated, content)) { saved(content, updated.id, updated.revision); return }
           if (updated && (recoveredCreation || updated.revision !== baseRevision)) setLatest(updated)
         } catch { /* Keep the original error and the unsaved draft. */ }
       }
-    } finally { setBusy(false) }
+    } finally { saveLock.current = false; if (active.current) setBusy(false) }
   }
   return <StockText><form className="research-note-editor workspace-form" aria-label="编辑研究笔记" onSubmit={event => void save(event)}>
     <div className="research-form-heading"><h3>{note ? '编辑研究笔记' : '写研究笔记'}</h3></div>
@@ -166,6 +192,7 @@ function NoteEditor({ project, note, initialStockCode = '', onSaved, onCancel }:
     </div>
     {error && <p className="research-error workspace-error" role="alert">{error}</p>}
     {latest && <section className="research-note-conflict"><h3>另一处保存的最新内容</h3><p>{latest.title} · {noteStatuses[latest.status]}</p><ResearchAnswer content={latest.body} conversationId={latest.source_conversation_id || ''} /><p>验证事项：{latest.validation_plan || '未填写'}<br />失效条件：{latest.invalidation_condition || '未填写'}</p><button className="secondary-button workspace-button" type="button" onClick={() => { change({ base_revision: latest.revision }); setLatest(null); setError('已保留你的输入。请结合最新内容修改，核对后保存。') }}>继续合并我的修改</button></section>}
+    <p className="research-draft-status" role="status">{savedEarlier && '此前提交已保存；当前修改尚未保存。'}{drafts[key] ? persistence.persisted ? '本页草稿已暂存，尚未正式保存。' : '草稿暂存失败，仅当前编辑器保留；尚未正式保存，请勿刷新或关闭。' : note ? '已载入正式保存的内容，修改后需再次保存。' : '尚未正式保存；输入后将在本页暂存草稿。'}</p>
     <div className="heading-actions"><button className="primary-button workspace-button" disabled={busy || !draft.title.trim() || !!latest} type="submit">{busy ? '保存中…' : '保存笔记'}</button><button className="secondary-button workspace-button" disabled={busy} type="button" onClick={onCancel}>关闭编辑</button></div>
   </form></StockText>
 }
@@ -330,7 +357,7 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
       <section className={'research-project-detail ' + (form ? 'research-detail-editing' : '') + (editing ? ' research-note-layout-editing' : '')} aria-label="当前研究项目" aria-busy={projectLoading}>
         {form ? <ProjectForm key={form === 'edit' ? formProject?.id : 'new'} project={form === 'edit' ? formProject : undefined} onSaved={saved} onCancel={() => setForm(null)} /> : project ? <>
           {projectError && <div className="research-error workspace-error" role="alert">{projectError}<button className="text-button workspace-button" onClick={() => setReload(value => value + 1)}>重试项目详情</button></div>}
-          <div className="research-project-heading"><div className="research-project-title"><div className="research-project-topline"><span className={["workspace-status", 'research-project-state ' + project.status].filter(Boolean).join(' ')}>{project.status === 'archived' ? '已归档' : '进行中'}</span><span>更新于 <time>{time(project.updated_at)}</time></span></div><h2>{project.name}</h2></div><div className="heading-actions"><button className="secondary-button tool-icon-button workspace-button" disabled={busy} onClick={() => { setFormProject(project); setForm('edit') }} aria-label="编辑项目"><Pencil size={15} /></button><button className="secondary-button workspace-button" disabled={busy} onClick={() => void mutate(`/research-projects/${project.id}`, { method: 'PATCH', body: JSON.stringify({ base_revision: project.revision, name: project.name, objective: project.objective, status: writable ? 'archived' : 'active' }) }, writable ? '项目已归档，研究内容保留。' : '项目已恢复。')}><Archive size={15} />{writable ? '归档' : '恢复'}</button><button className={["workspace-button", editing ? "secondary-button" : "primary-button"].filter(Boolean).join(' ')} disabled={locked || !writable} onClick={() => void startResearch(companyFilter || undefined)}><MessageCircle size={15} />开始研究</button></div></div>
+          <div className="research-project-heading"><div className="research-project-title"><div className="research-project-topline"><span className={["workspace-status", 'research-project-state ' + project.status].filter(Boolean).join(' ')}>{project.status === 'archived' ? '已归档' : '进行中'}</span><span>更新于 <TimeLabel value={project.updated_at} /></span></div><h2>{project.name}</h2></div><div className="heading-actions"><button className="secondary-button tool-icon-button workspace-button" disabled={busy} onClick={() => { setFormProject(project); setForm('edit') }} aria-label="编辑项目"><Pencil size={15} /></button><button className="secondary-button workspace-button" disabled={busy} onClick={() => void mutate(`/research-projects/${project.id}`, { method: 'PATCH', body: JSON.stringify({ base_revision: project.revision, name: project.name, objective: project.objective, status: writable ? 'archived' : 'active' }) }, writable ? '项目已归档，研究内容保留。' : '项目已恢复。')}><Archive size={15} />{writable ? '归档' : '恢复'}</button><button className={["workspace-button", editing ? "secondary-button" : "primary-button"].filter(Boolean).join(' ')} disabled={locked || !writable} onClick={() => void startResearch(companyFilter || undefined)}><MessageCircle size={15} />开始研究</button></div></div>
           <details className="research-project-context" open={contextOpen} onToggle={event => setContextOpen(event.currentTarget.open)}><summary>研究目标与关联公司 <span>{project.companies.length} 家</span></summary>
           {project.objective && <div className="research-project-objective"><span>研究目标</span><p>{project.objective}</p></div>}
 
@@ -352,14 +379,14 @@ export default function ResearchProjectsPage({ initialProjectId, onOpenConversat
               <div className="research-content-heading">{writable && !editing && <button className="secondary-button workspace-button" onClick={() => setEditing('new')}><Plus size={14} />写研究笔记</button>}</div>
 
               {!editing && <div className="workspace-filter-bar research-note-filters workspace-filters"><SearchField label="搜索研究笔记" placeholder="搜索标题、正文或验证事项" value={noteQuery} onChange={setNoteQuery} /><select aria-label="筛选笔记状态" value={noteStatus} onChange={event => setNoteStatus(event.target.value as typeof noteStatus)} className="workspace-field workspace-select"><option value="">全部观点状态</option>{Object.entries(noteStatuses).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label="笔记排序" value={noteSort} onChange={event => setNoteSort(event.target.value as typeof noteSort)} className="workspace-field workspace-select"><option value="updated">最近更新</option><option value="title">按标题排序</option></select><span className="workspace-result-count" aria-live="polite">{visibleNotes.length} / {scopedNotes.length} 份笔记</span>{notesFiltered && <button className="text-button workspace-button" onClick={clearNoteFilters}>重置笔记筛选</button>}</div>}
-              {editing && writable ? <NoteEditor key={`${project.id}:${typeof editing === 'string' ? `new:${companyFilter}` : editing.id}`} project={project} initialStockCode={currentCompany ? companyFilter : ''} note={typeof editing === 'string' ? undefined : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setReload(value => value + 1); setNotice('研究笔记已保存。') }} /> : <div className="research-note-list">{visibleNotes.map(note => <article className={'research-note ' + (activeNoteId === note.id ? 'research-note-open' : '')} key={note.id}><div className="research-note-heading"><h3><button className="research-note-disclosure workspace-button" aria-expanded={activeNoteId === note.id} aria-controls={'research-note-body-' + note.id} onClick={() => setOpenNoteId(activeNoteId === note.id ? null : note.id)}><ChevronDown size={16} /><span>{note.title}</span></button></h3><div className="heading-actions"><span className={["workspace-status", `research-note-status ${note.status}`].filter(Boolean).join(' ')}>{noteStatuses[note.status]}</span>{writable && <button className="icon-button workspace-button" aria-label={`编辑笔记 ${note.title}`} onClick={() => setEditing(note)}><Pencil size={15} /></button>}</div></div><div className="research-note-meta">{note.stock_code && <StockName code={note.stock_code} />}<ResearchNotePDF projectId={project.id} noteId={note.id} revision={note.revision} pdf={note.pdf} /><time>{time(note.updated_at)}</time>{note.source_conversation_id && <button className="text-button workspace-button" onClick={() => {
+              {editing && writable ? <NoteEditor key={`${project.id}:${typeof editing === 'string' ? `new:${companyFilter}` : editing.id}`} project={project} initialStockCode={currentCompany ? companyFilter : ''} note={typeof editing === 'string' ? undefined : editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); setReload(value => value + 1); setNotice('研究笔记已保存。') }} /> : <div className="research-note-list">{visibleNotes.map(note => <article className={'research-note ' + (activeNoteId === note.id ? 'research-note-open' : '')} key={note.id}><div className="research-note-heading"><h3><button className="research-note-disclosure workspace-button" aria-expanded={activeNoteId === note.id} aria-controls={'research-note-body-' + note.id} onClick={() => setOpenNoteId(activeNoteId === note.id ? null : note.id)}><ChevronDown size={16} /><span>{note.title}</span></button></h3><div className="heading-actions"><span className={["workspace-status", `research-note-status ${note.status}`].filter(Boolean).join(' ')}>{noteStatuses[note.status]}</span>{writable && <button className="icon-button workspace-button" aria-label={`编辑笔记 ${note.title}`} onClick={() => setEditing(note)}><Pencil size={15} /></button>}</div></div><div className="research-note-meta">{note.stock_code && <StockName code={note.stock_code} />}<ResearchNotePDF projectId={project.id} noteId={note.id} revision={note.revision} pdf={note.pdf} /><TimeLabel value={note.updated_at} />{note.source_conversation_id && <button className="text-button workspace-button" onClick={() => {
                 const source = project.conversations.find(item => item.id === note.source_conversation_id)
                 if (source) onOpenConversation(source.id, source.entry_scope)
                 else void api<Conversation>(`/conversations/${note.source_conversation_id}`).then(value => onOpenConversation(value.id, value.entry_scope)).catch(reason => setError((reason as Error).message))
               }}>查看原对话<ArrowUpRight size={13} /></button>}</div><div id={'research-note-body-' + note.id} hidden={activeNoteId !== note.id}><ResearchAnswer content={note.body} conversationId={note.source_conversation_id || ''} />{(note.validation_plan || note.invalidation_condition) && <dl className="research-note-checks">{note.validation_plan && <><dt>接下来验证</dt><dd>{note.validation_plan}</dd></>}{note.invalidation_condition && <><dt>判断失效条件</dt><dd>{note.invalidation_condition}</dd></>}</dl>}<ResearchNoteEvidence key={`evidence:${note.id}:${note.revision}`} project={project} note={note} asOf={researchDate} /><ResearchNoteHistory key={`${note.id}:${note.revision}`} projectId={project.id} noteId={note.id} /></div></article>)}</div>}
               {!editing && !visibleNotes.length && <EmptyState icon={FileText} title={notesFiltered ? '没有符合当前筛选的笔记。' : companyFilter ? '该公司暂无关联研究笔记。' : '暂无研究笔记。'} description={notesFiltered ? '调整关键词或观点状态，查看已有研究记录。' : '写下研究判断、原文依据和接下来的验证事项。'} actions={notesFiltered && <button className="secondary-button workspace-button" onClick={clearNoteFilters}>查看全部笔记</button>} />}
             </>}
-            {tab === 'conversations' && (scopedConversations.length ? <div className="research-conversation-list">{scopedConversations.map(item => <button className="research-conversation-row workspace-button" key={item.id} onClick={() => onOpenConversation(item.id, item.entry_scope)}><MessageCircle size={17} /><span><strong>{item.title || '新研究'}</strong><small>{conversationWorkflow(item) === 'screening' ? '选股对话' : item.last_turn_state === 'running' || item.last_turn_state === 'awaiting_agent' ? '正在研究' : item.last_turn_state === 'failed' ? '研究中断' : '研究对话'} · {time(item.updated_at)}</small></span><ArrowUpRight size={16} /></button>)}</div> : <EmptyState icon={MessageCircle} title={companyFilter ? '该公司暂无关联研究对话。' : '暂无研究对话。'} description={companyFilter ? '从项目顶部开始研究，新对话会带入当前公司范围。未关联公司的历史对话可在整个项目中查看。' : '从项目顶部开始研究，相关对话会汇集在这里。'} />)}
+            {tab === 'conversations' && (scopedConversations.length ? <div className="research-conversation-list">{scopedConversations.map(item => <button className="research-conversation-row workspace-button" data-tooltip={fullTimeDescription(item.updated_at)} key={item.id} onClick={() => onOpenConversation(item.id, item.entry_scope)}><MessageCircle size={17} /><span><strong>{item.title || '新研究'}</strong><small>{conversationWorkflow(item) === 'screening' ? '选股对话' : item.last_turn_state === 'running' || item.last_turn_state === 'awaiting_agent' ? '正在研究' : item.last_turn_state === 'failed' ? '研究中断' : '研究对话'} · <TimeLabel value={item.updated_at} focusable={false} /></small></span><ArrowUpRight size={16} /></button>)}</div> : <EmptyState icon={MessageCircle} title={companyFilter ? '该公司暂无关联研究对话。' : '暂无研究对话。'} description={companyFilter ? '从项目顶部开始研究，新对话会带入当前公司范围。未关联公司的历史对话可在整个项目中查看。' : '从项目顶部开始研究，相关对话会汇集在这里。'} />)}
             {tab === 'files' && !companyFilter && <div className="heading-actions"><button className="text-button workspace-button" disabled={!!reportBusy} onClick={() => void generateReports()}>{reportBusy === 'generate' ? '正在提交…' : '生成已有报告'}</button></div>}
             {tab === 'files' && (fileError ? <p className="research-error workspace-error" role="alert">{fileError}<button className="text-button workspace-button" onClick={() => setReload(value => value + 1)}>重试成果加载</button></p> : filesLoading ? <LoadingState compact label="正在汇集研究成果…" /> : scopedFiles.length ? <ResearchFileList files={scopedFiles} busyId={reportBusy} onRetry={file => void generateReports(file)} /> : <EmptyState icon={Download} title={companyFilter ? '该公司暂无关联研究成果。' : '暂无研究成果。'} description={companyFilter ? '相关公司对话与笔记的报告会显示在这里。未关联公司的文件可在整个项目中查看。' : '项目生成的报告与文件会显示在这里，便于查看和下载。'} />)}
           </section>

@@ -125,3 +125,15 @@
   .chat-page .research-studio .conversation-composer-model { grid-column:1; grid-row:2; justify-self:start; min-width:0; margin-left:0; }
   .chat-page .research-studio .conversation-composer-footer > button[type=submit] { grid-column:2; grid-row:2; justify-self:end; }
 }
+
+/* Long conversations keep navigation outside the independently scrolling log. */
+.research-question-index { flex-shrink: 0; min-width: 0; padding: 8px 16px; border-bottom: 1px solid var(--ui-border-subtle); background: var(--ui-surface); }
+.research-question-index summary { cursor: pointer; color: var(--ui-text-muted); }
+.research-question-index ol { max-height: 180px; overflow: auto; padding-left: 0; list-style: none; margin: 8px 0 0; }
+.research-question-index li button { white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.research-question-select { display: none; }
+@media (max-width: 620px) {
+  .research-question-index details { display: none; }
+  .research-question-select { display: flex; gap: 8px; align-items: center; }
+  .research-question-select select { flex: 1; min-width: 0; }
+}

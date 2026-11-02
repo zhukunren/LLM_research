@@ -47,3 +47,9 @@
 @media (prefers-reduced-motion: reduce) {
   .workspace-tab-item, .workspace-tab-close { transition: none; }
 }
+
+.workspace-tab-overflow { width: 320px; }
+.workspace-tab-overflow > button { align-items: flex-start; }
+.workspace-tab-overflow > button > small { flex-shrink: 0; color: var(--ui-text-muted); }
+.workspace-tab-overflow > button > span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.workspace-tab-overflow > button[aria-current=page] { background: var(--ui-primary-soft); color: var(--ui-primary); }

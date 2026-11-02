@@ -1,6 +1,6 @@
 import LoadingState from '../components/LoadingState'
 import WorkspacePageHeading from '../components/WorkspacePageHeading'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useRef, useState } from 'react'
 import { BookOpen, Newspaper } from 'lucide-react'
 import type { ConversationSourceReference, DataStatus, WorkflowType } from '../api'
 import type { LibraryScope, LibrarySeed } from '../libraryContext'
@@ -22,9 +22,12 @@ export default function LibraryWorkspace({ scope, data, onBrowseChange, onHistor
   const [disclosuresOpen, setDisclosuresOpen] = useSessionState('library.disclosures-open', false, (value): value is boolean => typeof value === 'boolean')
   const [quickEntries, setQuickEntries] = useSessionState<Record<string, LibraryQuickEntry>>('library.quick-sessions', {}, validLibraryQuickEntries)
   const [openEntry, setOpenEntry] = useState('')
+  const [expandedEntry, setExpandedEntry] = useState('')
+  const returnTarget = useRef<HTMLElement | null>(null)
   const researchPrompt = '请解释当前资料的核心判断，区分事实、预测和推断，并核对支持与反方证据。'
   const screeningPrompt = '请基于这份资料整理可操作、可核对的选股条件，先形成草稿。'
   function openQuickSession(entryScope: 'news' | 'report', source: LibraryQuickEntry['source'], prompt: string, workflow: WorkflowType) {
+    returnTarget.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const key = JSON.stringify([workflow, entryScope, source.reference])
     setQuickEntries(current => current[key] ? current : { ...current, [key]: { id: crypto.randomUUID(), scope: entryScope, source, prompt, workflow } })
     setOpenEntry(key)
@@ -36,7 +39,7 @@ export default function LibraryWorkspace({ scope, data, onBrowseChange, onHistor
   function fromNews(item: { id: string; title: string }, workflow: WorkflowType) {
     openQuickSession('news', { reference: { kind: 'news_item', source_id: item.id }, label: item.title }, workflow === 'research' ? researchPrompt : screeningPrompt, workflow)
   }
-  return <div className={`page-content library-shell library-redesign scope-${scope} workspace-tool-page`}>
+  return <div className={`page-content library-shell library-redesign scope-${scope} workspace-tool-page${expandedEntry ? ' library-session-expanded' : ''}`}>
     <WorkspacePageHeading className="library-heading" actions={null}><h1>资料库</h1></WorkspacePageHeading>
     <nav className="library-viewbar" aria-label="资料类型">
       <button className={`workspace-button${!disclosuresOpen && scope === 'news' ? ' active' : ''}`} aria-current={!disclosuresOpen && scope === 'news' ? 'page' : undefined} onClick={() => { setDisclosuresOpen(false); onBrowseChange?.('news') }}><Newspaper size={15} />资讯</button>
@@ -50,6 +53,6 @@ export default function LibraryWorkspace({ scope, data, onBrowseChange, onHistor
         {!disclosuresOpen && scope === 'news' && <NewsPage onDiscuss={item => fromNews(item, 'research')} onDefineCondition={item => fromNews(item, 'screening')} />}
       </Suspense>
     </div>
-    {Object.entries(quickEntries).map(([key, entry]) => <LibraryQuickSession key={entry.id} entry={entry} open={openEntry === key} data={data} onClose={() => setOpenEntry('')} onChange={change => setQuickEntries(current => ({ ...current, [key]: { ...current[key], ...change } }))} onHistoryChange={onHistoryChange} />)}
+    {Object.entries(quickEntries).map(([key, entry]) => <LibraryQuickSession key={entry.id} entry={entry} open={openEntry === key} data={data} expanded={expandedEntry === key} onExpand={() => setExpandedEntry(key)} onClose={() => { setOpenEntry(''); setExpandedEntry(''); requestAnimationFrame(() => { if (returnTarget.current?.isConnected) returnTarget.current.focus({ preventScroll: true }) }) }} onChange={change => setQuickEntries(current => ({ ...current, [key]: { ...current[key], ...change } }))} onHistoryChange={onHistoryChange} />)}
   </div>
 }

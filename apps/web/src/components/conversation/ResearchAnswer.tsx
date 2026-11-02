@@ -1,5 +1,5 @@
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown'
-import { useMemo, useRef } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import remarkGfm from 'remark-gfm'
 import remarkCjkStrong from './remarkCjkStrong'
 import { StockText } from '../StockMentions'
@@ -28,13 +28,27 @@ function researchUrl(url: string, conversationId: string) {
 }
 
 export default function ResearchAnswer({ content, conversationId, references, summary }: { content: string; conversationId: string; messageId?: string; references?: Record<string, unknown>[]; summary?: ResearchReadingBrief | null }) {
+  const root = useRef<HTMLDivElement>(null)
+  const sectionPrefix = `research-section-${useId().replace(/:/g, '')}`
+  const [sections, setSections] = useState<{ id: string; title: string }[]>([])
+  useLayoutEffect(() => {
+    const headings = [...(root.current?.querySelectorAll<HTMLElement>('[data-research-section]') || [])]
+    setSections(content.length >= 1200 && headings.length >= 3 ? headings.map(node => ({ id: node.id, title: node.textContent || '未命名章节' })) : [])
+  }, [content])
+  function jump(id: string) {
+    const target = document.getElementById(id)
+    if (target && root.current?.contains(target)) { target.scrollIntoView?.({ block: 'start' }); target.focus({ preventScroll: true }) }
+  }
   const filePrefix = `/api/v1/conversations/${encodeURIComponent(conversationId)}/generated-files/`
   const referencesRef = useRef(references)
   referencesRef.current = references
   const components = useMemo<Components>(() => ({
-      h1: ({ children }) => <StockText><h3>{children}</h3></StockText>,
-      h2: ({ children }) => <StockText><h3>{children}</h3></StockText>,
-      h3: ({ children }) => <StockText><h4>{children}</h4></StockText>,
+      h1: ({ children, node }) => <StockText><h3 id={`${sectionPrefix}-${node?.position?.start.offset}`} data-research-section tabIndex={-1}>{children}</h3></StockText>,
+      h2: ({ children, node }) => <StockText><h3 id={`${sectionPrefix}-${node?.position?.start.offset}`} data-research-section tabIndex={-1}>{children}</h3></StockText>,
+      h3: ({ children, node }) => <StockText><h4 id={`${sectionPrefix}-${node?.position?.start.offset}`} data-research-section tabIndex={-1}>{children}</h4></StockText>,
+      h4: ({ children, node }) => <StockText><h4 id={`${sectionPrefix}-${node?.position?.start.offset}`} data-research-section tabIndex={-1}>{children}</h4></StockText>,
+      h5: ({ children, node }) => <StockText><h5 id={`${sectionPrefix}-${node?.position?.start.offset}`} data-research-section tabIndex={-1}>{children}</h5></StockText>,
+      h6: ({ children, node }) => <StockText><h6 id={`${sectionPrefix}-${node?.position?.start.offset}`} data-research-section tabIndex={-1}>{children}</h6></StockText>,
       p: ({ children }) => <StockText><p>{children}</p></StockText>,
       li: ({ children }) => <StockText><li>{children}</li></StockText>,
       td: ({ children }) => <StockText><td>{children}</td></StockText>,
@@ -55,6 +69,10 @@ export default function ResearchAnswer({ content, conversationId, references, su
       img: ({ src, alt }) => /\.(png|jpe?g|gif|webp)(?:[?#]|$)/i.test(src || '')
         ? <img src={src?.startsWith(filePrefix) ? src.replace('/generated-files/', '/research-assets/') : src} alt={alt || '研究图表'} loading="lazy" />
         : <a href={src || undefined}>{alt || '查看图表'}</a>,
-    }), [filePrefix])
-  return <div className="research-answer"><ResearchSummary value={summary} /><ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkStrong]} urlTransform={url => researchUrl(url, conversationId)} components={components}>{content}</ReactMarkdown></div>
+    }), [filePrefix, sectionPrefix])
+  return <div ref={root} className="research-answer"><ResearchSummary value={summary} />
+    {sections.length > 0 && <nav className="research-answer-sections" aria-label="答复章节">
+      <details className="research-answer-section-list"><summary>答复目录 · {sections.length} 节</summary><ol>{sections.map(section => <li key={section.id}><a href={`#${section.id}`} onClick={event => { event.preventDefault(); jump(section.id) }}>{section.title}</a></li>)}</ol></details>
+      <label className="research-answer-section-picker">答复章节<select aria-label="跳转答复章节" className="workspace-field workspace-select" value="" onChange={event => jump(event.target.value)}><option value="" disabled>选择章节定位</option>{sections.map(section => <option key={section.id} value={section.id}>{section.title}</option>)}</select></label>
+    </nav>}<ReactMarkdown remarkPlugins={[remarkGfm, remarkCjkStrong]} urlTransform={url => researchUrl(url, conversationId)} components={components}>{content}</ReactMarkdown></div>
 }

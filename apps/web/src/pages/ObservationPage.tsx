@@ -1,4 +1,5 @@
 import Pagination from '../components/Pagination'
+import TimeLabel from '../components/TimeLabel'
 import LoadingState from '../components/LoadingState'
 import WorkspacePageHeading from '../components/WorkspacePageHeading'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -52,7 +53,6 @@ type Props = {
 const watchLabels: Record<string, string> = { watching: '观察中', priority: '重点关注', ended: '结束观察' }
 const runLabels: Record<string, string> = { queued: '排队中', running: '执行中', succeeded: '已完成', partial: '部分数据不足', failed: '执行失败', cancelled: '已取消' }
 const keyOf = (item: Entry) => item.kind === 'candidate' ? 'candidate:' + item.candidate_id : 'screening:' + item.run_id + ':' + item.stock_code
-const shortTimestamp = (value: string) => new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
 const timestamp = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
 export const number = (value: number | null | undefined) => value == null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 export const percent = (value: number | null | undefined) => value == null ? '—' : (value > 0 ? '+' : '') + value.toFixed(2) + '%'
@@ -104,6 +104,22 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   const [detailError, setDetailError] = useState('')
   const [notice, setNotice] = useState('')
   const [refresh, setRefresh] = useState(0)
+  const [undoRemoval, setUndoRemoval] = useState<{ key: string; label: string; expires: number } | null>(null)
+  const [removalBusy, setRemovalBusy] = useState(false)
+  const removalLock = useRef(false)
+  const removalScope = JSON.stringify([activeTab, query, status, owner, sort, sortDirection, offset, initialRunId, initialCode, initialCandidateId, initialTab])
+  const removalView = useRef({ key: removalScope, generation: 0 })
+  if (removalView.current.key !== removalScope) removalView.current = { key: removalScope, generation: removalView.current.generation + 1 }
+  const selectedEntry = useRef(selectedKey)
+  selectedEntry.current = selectedKey
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  useEffect(() => {
+    if (!undoRemoval) return
+    const timer = window.setTimeout(() => setUndoRemoval(current => current === undoRemoval ? null : current), Math.max(0, undoRemoval.expires - Date.now()))
+    return () => window.clearTimeout(timer)
+  }, [undoRemoval])
+
   const [detailView, setDetailView] = useState<'chart' | 'note'>('chart')
   const detailRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -144,7 +160,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
       void api<{ items: Entry[]; total: number }>(url + '&include_metrics=false', { signal: controller.signal })
         .then(async result => {
           if (controller.signal.aborted) return
-          if (offset && !result.items.length && result.total) { setOffset(Math.floor((result.total - 1) / 30) * 30); return }
+          if (offset && !result.items.length) { setOffset(result.total ? Math.floor((result.total - 1) / 30) * 30 : 0); return }
           setItems(result.items); setTotal(result.total)
           setLoading(false)
           try {
@@ -262,16 +278,36 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   }
   async function hideEntry(item: Entry) {
     const key = keyOf(item)
-    if (editLock.current.has(key) || !window.confirm(`从观察池移除${item.name || item.stock_code}？源研究和选股记录会保留。`)) return
+    if (removalLock.current || editLock.current.has(key) || !window.confirm(`从观察池移除${item.name || item.stock_code}？源研究和选股记录会保留。`)) return
+    const generation = removalView.current.generation
+    removalLock.current = true; setRemovalBusy(true)
     editLock.current.add(key); setSavingKeys(current => [...current, key]); setNotice('')
     try {
       await api('/observation/entries/' + encodeURIComponent(key), { method: 'DELETE' })
-      setCheckedKeys(current => current.filter(value => value !== key))
-      if (selectedKey === key) closeDetail()
-      setNotice(`${item.name || item.stock_code}已从观察池移除；源研究和选股记录已保留。`)
+      if (!mounted.current) return
+      setUndoRemoval(null)
+      if (generation === removalView.current.generation) {
+        setCheckedKeys(current => current.filter(value => value !== key))
+        if (selectedEntry.current === key) closeDetail()
+        setUndoRemoval({ key, label: item.name || item.stock_code, expires: Date.now() + 60_000 })
+        setNotice(`${item.name || item.stock_code}已从观察池移除；源研究和选股记录已保留。`)
+      }
       setRefresh(value => value + 1)
-    } catch (reason) { setNotice(`移除失败：${(reason as Error).message}`) }
-    finally { editLock.current.delete(key); setSavingKeys(current => current.filter(value => value !== key)) }
+    } catch (reason) { if (mounted.current && generation === removalView.current.generation) setNotice(`移除失败：${(reason as Error).message}`) }
+    finally { removalLock.current = false; editLock.current.delete(key); if (mounted.current) { setRemovalBusy(false); setSavingKeys(current => current.filter(value => value !== key)) } }
+  }
+  async function restoreRemoval() {
+    if (!undoRemoval || removalLock.current || Date.now() >= undoRemoval.expires) return
+    const undo = undoRemoval, generation = removalView.current.generation
+    removalLock.current = true; setRemovalBusy(true); setNotice('')
+    try {
+      await api('/observation/entries/' + encodeURIComponent(undo.key) + '/restore', { method: 'POST' })
+      if (!mounted.current) return
+      setUndoRemoval(current => current === undo ? null : current)
+      if (generation === removalView.current.generation) setNotice(`${undo.label}已恢复到观察池；当前筛选条件保持不变。`)
+      setRefresh(value => value + 1)
+    } catch (reason) { if (mounted.current && generation === removalView.current.generation) setNotice(`撤销失败：${(reason as Error).message}`) }
+    finally { removalLock.current = false; if (mounted.current) setRemovalBusy(false) }
   }
   async function moveEntry(item: Entry, move: 'up' | 'down') {
     const key = keyOf(item)
@@ -355,6 +391,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     {!!checkedKeys.length && <div className="observation-batch-toolbar" role="group" aria-label="批量处理本页观察记录"><strong>本页已选 {checkedKeys.length} 条</strong>{Object.entries(watchLabels).map(([value, label]) => <button key={value} type="button" className="text-button workspace-button" disabled={batchBusy || !!savingKeys.length || loading} onClick={() => void changeSelectedStatus(value)}>设为{label}</button>)}<button type="button" className="text-button workspace-button" disabled={batchBusy} onClick={() => setCheckedKeys([])}>清除勾选</button>{batchBusy && <span role="status">正在保存…</span>}</div>}
     {error && <div className="library-error workspace-error" role="alert">{error}<button className="text-button workspace-button" onClick={() => setRefresh(value => value + 1)}>重新加载</button></div>}
     {notice && <p className="observation-save-message observation-list-message workspace-feedback workspace-feedback-success" role="status"><span>{notice}</span><button type="button" className="icon-button workspace-button" aria-label="关闭观察提示" onClick={() => setNotice('')}><X size={14} /></button></p>}
+    {undoRemoval && <p className="observation-save-message observation-list-message workspace-feedback" role="status"><span>60 秒内可撤销最近一次移除：{undoRemoval.label}。再次成功移除会替换此撤销项。</span><button type="button" className="text-button workspace-button" disabled={removalBusy} aria-label={'撤销移除' + undoRemoval.label} onClick={() => void restoreRemoval()}>{removalBusy ? '正在处理…' : '撤销移除'}</button></p>}
     <section className="observation-summary-bar" aria-label="当前筛选范围汇总">
       <SummaryCard label="观察记录" value={loading ? '—' : total.toLocaleString('zh-CN') + ' 条'} />
       <SummaryCard label="研究 / 手动" value={summary ? summary.research_count.toLocaleString('zh-CN') + ' 条' : '—'} />
@@ -373,7 +410,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
                 <td data-label="勾选" className="observation-check-column" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={`勾选观察记录 ${item.stock_code} ${item.owner_label}`} checked={checkedKeys.includes(keyOf(item))} disabled={batchBusy || savingKeys.includes(keyOf(item))} onChange={() => toggleChecked(item)} className="workspace-check" /></td>
                 <td data-label="股票"><button className="stock-link workspace-button" aria-label={'查看' + (item.name || item.stock_code) + '观察详情'} onClick={event => { event.stopPropagation(); choose(item) }}>{item.name || item.stock_code}{item.name && <small>{item.stock_code}</small>}</button><select className="observation-inline-status workspace-field workspace-select" aria-label={`修改${item.name || item.stock_code}观察状态`} value={item.status} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => event.stopPropagation()} onChange={event => void changeEntryStatus(item, event.target.value)}>{Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
                 <td data-label="所属"><span className={'observation-kind observation-kind-' + item.owner_type}>{item.owner_type === 'screening' ? '选股' : item.owner_type === 'manual' ? '手动' : '研究'}</span><span className="observation-owner-label" data-tooltip={item.owner_label}>{item.owner_label}</span></td>
-                <td data-label="加入时间" data-tooltip={timestamp(item.joined_at)}><time dateTime={item.joined_at}>{shortTimestamp(item.joined_at)}</time></td>
+                <td data-label="加入时间"><TimeLabel value={item.joined_at} hour12={false} /></td>
                 <td data-label="至今涨跌幅" className={returnClass(item.return_latest)} data-tooltip={metricTitle(item)}><strong>{metricText(item.return_latest, metricsLoading)}</strong><small>{item.metric_reason || (item.base_date ? '起算 ' + item.base_date : '')}</small></td>
                 <td data-label="最大回撤" className={returnClass(item.max_drawdown)} data-tooltip={metricTitle(item)}><strong>{metricText(item.max_drawdown, metricsLoading)}</strong></td>
                 <td data-label="关注备注" className="observation-reason"><button type="button" className="observation-inline-note workspace-button" aria-label={`编辑${item.name || item.stock_code}关注备注`} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => { event.stopPropagation(); setEditNote(item) }}>{item.note || item.verification || '添加备注'}</button></td>
@@ -382,7 +419,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
                   <ObservationRowMenu label={'更多' + (item.name || item.stock_code) + '观察操作'} disabled={batchBusy || loading || savingKeys.includes(keyOf(item))}>{close => <>
                     <button type="button" role="menuitem" className="workspace-button" aria-label={'上移' + (item.name || item.stock_code)} disabled={offset + index === 0} onClick={() => { close(); void moveEntry(item, 'up') }}><ArrowUp size={14} />上移</button>
                     <button type="button" role="menuitem" className="workspace-button" aria-label={'下移' + (item.name || item.stock_code)} disabled={offset + index >= total - 1} onClick={() => { close(); void moveEntry(item, 'down') }}><ArrowDown size={14} />下移</button>
-                    <button type="button" role="menuitem" className="workspace-button observation-menu-delete" aria-label={'删除' + (item.name || item.stock_code) + '观察记录'} onClick={() => { close(); void hideEntry(item) }}><Trash2 size={14} />删除观察记录</button>
+                    <button type="button" role="menuitem" className="workspace-button observation-menu-delete" disabled={removalBusy} aria-label={'删除' + (item.name || item.stock_code) + '观察记录'} onClick={() => { close(); void hideEntry(item) }}><Trash2 size={14} />删除观察记录</button>
                   </>}</ObservationRowMenu>
                 </div></td>
               </tr>)}</tbody>

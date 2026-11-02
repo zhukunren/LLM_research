@@ -563,3 +563,6 @@
     grid-template-columns: 1fr;
   }
 }
+
+.indicator-keyboard-hint { margin: 4px 0 0; color: var(--ui-text-muted); line-height: 1.5; visibility: hidden; }
+.indicator-keyboard-hint[data-visible="true"] { visibility: visible; }

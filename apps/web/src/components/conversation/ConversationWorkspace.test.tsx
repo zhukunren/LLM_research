@@ -551,3 +551,22 @@ it.each(['news', 'report'] as const)('preserves the library %s source when reset
   expect(screen.getByText(source.label)).toBeInTheDocument()
   expect(onSourceChange).toHaveBeenLastCalledWith(source)
 })
+
+it('jumps through the long research question index without changing draft or submitting', async () => {
+  const stored = conversation('long-research', { workflow_type: 'research', messages: Array.from({ length: 4 }, (_, index) => ({ id: `question-${index}`, role: 'user' as const, content: `回看问题 ${index}`, source_refs: [], created_at: '2026-10-08T12:00:00Z' })) })
+  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    return jsonResponse(path.endsWith('/long-research') ? stored : { items: path.endsWith('/conversations') ? [stored] : [] })
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const user = userEvent.setup()
+  render(<ConversationWorkspace initialConversationId="long-research" initialWorkflowType="research" />)
+  await screen.findByRole('navigation', { name: '研究问题索引' })
+  const input = screen.getByLabelText('研究要求')
+  await user.type(input, '定位不应改掉的草稿')
+  await user.selectOptions(screen.getByLabelText('定位研究问题'), 'question-1')
+  expect(document.activeElement).toHaveAttribute('data-message-id', 'question-1')
+  expect(input).toHaveValue('定位不应改掉的草稿')
+  expect(screen.getByRole('button', { name: '查看最新' })).toBeInTheDocument()
+  expect(fetcher.mock.calls.some(([path]) => String(path).endsWith('/messages'))).toBe(false)
+})

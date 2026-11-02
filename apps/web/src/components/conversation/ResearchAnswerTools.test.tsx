@@ -17,7 +17,7 @@ it('offers compact labelled icons and invokes only the chosen action', async () 
   const handlers = callbacks(), user = userEvent.setup()
   render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...handlers} />)
   const toolbar = screen.getByRole('group', { name: '回答操作' })
-  expect(within(toolbar).getAllByRole('button')).toHaveLength(7)
+  expect(within(toolbar).getAllByRole('button')).toHaveLength(8)
   await user.click(within(toolbar).getByRole('button', { name: '复制答复' }))
   await user.click(within(toolbar).getByRole('button', { name: '重新生成答案' }))
   expect(handlers.onCopy).toHaveBeenCalledOnce(); expect(handlers.onRegenerate).toHaveBeenCalledOnce()
@@ -196,4 +196,74 @@ it('keeps a failed pending creation retryable after the share dialog is reopened
   const requests = fetcher.mock.calls.filter(call => call[1]?.method === 'POST')
   expect(requests).toHaveLength(2)
   expect(requests[1][1]?.body).toBe(requests[0][1]?.body)
+})
+
+it('highlights actual evidence and exposes screening as a confirmed draft action', async () => {
+  const handlers = callbacks(), user = userEvent.setup()
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...handlers} />)
+  const toolbar = screen.getByRole('group', { name: '回答操作' })
+  expect(within(toolbar).getByRole('button', { name: '查看依据' })).toHaveAttribute('data-primary-action', 'true')
+  expect(within(toolbar).getByRole('button', { name: '加入关注' })).not.toHaveAttribute('data-primary-action', 'true')
+  await user.click(within(toolbar).getByRole('button', { name: '转为选股草稿' }))
+  expect(handlers.onDraft).toHaveBeenCalledOnce()
+})
+
+it('prefers notes only with the answer own structured summary and remains neutral otherwise', () => {
+  const plain = { ...message, turn_id: 'answer-turn', content: '没有附来源的答复' }
+  const withSummary = { ...conversation, turns: [{ id: 'answer-turn', result: { research_summary: { version: 1, conclusion: '结论' } } }] } as unknown as Conversation
+  const view = render(<ResearchAnswerTools conversation={withSummary} message={plain} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  expect(screen.getByRole('button', { name: '保存为研究笔记' })).toHaveAttribute('data-primary-action', 'true')
+  view.rerender(<ResearchAnswerTools conversation={conversation} message={plain} locked saved={false} savingNote={false} {...callbacks()} />)
+  expect(view.container.querySelector('[data-primary-action="true"]')).toBeNull()
+  expect(within(screen.getByRole('group', { name: '回答操作' })).getByRole('button', { name: '转为选股草稿' })).toBeDisabled()
+})
+
+it('copies original answer with only recorded provenance and keeps ordinary copy', async () => {
+  const user = userEvent.setup(), clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(), handlers = callbacks()
+  vi.stubGlobal('fetch', vi.fn(async () => json({ items: [{ kind: 'web', title: '公告原文', url: 'https://example.com/notice', published_at: '2026-09-30', retrieved_at: '2026-10-10T01:00:00Z' }, { kind: 'financial', source_id: 'fact-id', title: '财务原值', report_period: '2025-12-31', unit: '元', excerpt: '12340000000 元' }] })))
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...handlers} />)
+  await user.click(screen.getByRole('button', { name: '更多回答操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '复制并附来源/日期' }))
+  expect(await screen.findByText('已复制答复及已有来源信息')).toBeInTheDocument()
+  const text = clipboard.mock.calls[0][0]
+  expect(text).toContain(message.content)
+  expect(text).toContain('答复记录时间：2026-10-10T00:00:00Z')
+  expect(text).toContain('发布日期：2026-09-30')
+  expect(text).toContain('抓取时间：2026-10-10T01:00:00Z')
+  expect(text).toContain('报告期：2025-12-31')
+  expect(text).toContain('12340000000 元')
+  expect(text).not.toContain('发布日期：2026-10-10')
+  await user.click(screen.getByRole('button', { name: '复制答复' }))
+  expect(handlers.onCopy).toHaveBeenCalledOnce()
+})
+it('reports clipboard refusal without claiming a successful provenance copy', async () => {
+  const user = userEvent.setup(); vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('剪贴板拒绝'))
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  await user.click(screen.getByRole('button', { name: '更多回答操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '复制并附来源/日期' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('剪贴板拒绝')
+  expect(screen.queryByText('已复制答复及已有来源信息')).not.toBeInTheDocument()
+})
+
+it('does not copy a late source response after the answer identity changes', async () => {
+  const user = userEvent.setup(), clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+  let finish!: (response: Response) => void
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { finish = resolve })))
+  const view = render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  await user.click(screen.getByRole('button', { name: '更多回答操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '复制并附来源/日期' }))
+  view.rerender(<ResearchAnswerTools conversation={conversation} message={{ ...message, id: 'other', content: '新答复' }} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  await act(async () => finish(json({ items: [] })))
+  expect(clipboard).not.toHaveBeenCalled()
+  expect(screen.queryByText('已复制答复及已有来源信息')).not.toBeInTheDocument()
+})
+
+it('does not silently copy partial provenance when the source read fails', async () => {
+  const user = userEvent.setup(), clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: '来源暂不可读' }), { status: 503, headers: { 'Content-Type': 'application/json' } })))
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  await user.click(screen.getByRole('button', { name: '更多回答操作' }))
+  await user.click(screen.getByRole('menuitem', { name: '复制并附来源/日期' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('来源暂不可读')
+  expect(clipboard).not.toHaveBeenCalled()
 })

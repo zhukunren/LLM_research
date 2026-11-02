@@ -34,3 +34,11 @@
 
 .library-quick-drawer .conversation-product.conversation-embedded .studio-results-heading { display: none; }
 .library-quick-drawer .library-context-intro { margin: 0; color: var(--ui-text-muted); font-size: 12px; line-height: 1.8; }
+
+.page-content.library-shell.library-session-expanded > :is(.library-heading, .library-viewbar, .library-workspace-panel) { display: none; }
+.library-quick-expanded { display: flex; flex: 1; flex-direction: column; width: 100%; min-width: 0; min-height: 0; overflow: hidden; }
+.library-quick-expanded > header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--ui-border-subtle); }
+.library-quick-expanded > header > div { min-width: 0; }
+.library-quick-expanded > header :is(h2, p) { margin: 0; overflow-wrap: anywhere; font-size: inherit; }
+.library-quick-expanded > header p { color: var(--ui-text-muted); }
+.library-quick-expanded > header > button { flex-shrink: 0; }

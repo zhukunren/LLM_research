@@ -55,7 +55,7 @@
 .workspace-pagination { display: flex; flex: 0 0 auto; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--ui-border-subtle); }
 .workspace-pagination.workspace-pagination-inset { margin-top: 0; padding: 14px 16px; }
 .workspace-pagination-summary { flex: 1 1 140px; min-width: 0; color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.workspace-pagination-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.workspace-pagination-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .workspace-pagination-controls > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 82px; min-height: var(--ui-tool-control); padding: 7px 10px; border: 1px solid var(--ui-composer-border); border-radius: var(--ui-radius-sm); color: var(--ui-text); background: var(--ui-surface); font-size: 13px; font-weight: 500; line-height: 1.5; white-space: nowrap; }
 .workspace-pagination-controls > button > svg { flex-shrink: 0; }
 .workspace-pagination-controls > button:disabled { cursor: default; opacity: .45; }
@@ -123,3 +123,8 @@
   :is(.workspace-pagination,.workspace-filters,.workspace-view-toolbar) { --ui-tool-control: 44px; }
   .workspace-error > :is(button,a) { min-height: 44px; }
 }
+
+.workspace-pagination-jump { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.workspace-pagination-jump label { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--ui-text-muted); }
+.workspace-pagination-jump input { width: 5em; min-width: 0; }
+@media (max-width: 640px) { .workspace-pagination-jump { grid-column: 1 / -1; flex-wrap: wrap; } }

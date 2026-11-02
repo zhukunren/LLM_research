@@ -45,6 +45,6 @@
 .research-next-step-form-actions .primary-button { min-height: 40px; }
 .research-next-step-submit-error { margin: 0; padding: 10px; border-radius: 6px; color: var(--ui-danger, #a83232); background: var(--ui-danger-soft, #fff2f2); font-size: 13px; line-height: 1.6; }
 .research-answer-toolbar > .research-answer-action { width: auto; height: auto; min-height: 36px; gap: 6px; padding: 7px 10px; font-size: 14px; line-height: 1.5; color: var(--ui-primary); }
-.research-answer-toolbar > .research-answer-observe { background: var(--ui-primary-soft); }
+.research-answer-toolbar > [data-primary-action="true"] { background: var(--ui-primary-soft); }
 @media (max-width: 640px) { .research-answer-toolbar > button { width: 44px; height: 44px; min-height: 44px; } .research-answer-toolbar > .research-answer-action { width: auto; min-height: 44px; } .research-sources-backdrop { padding: 0; } .research-sources-drawer { max-height: 100dvh; } }
 @media (max-width: 640px) { .research-result-dialog-backdrop { padding: 12px; } .research-result-dialog { max-height: calc(100dvh - 24px); } .research-result-dialog-header { padding: 15px 14px 13px; } .research-result-dialog-body { padding: 15px 14px; } .research-next-step-form textarea, .research-result-dialog .stock-search-control > input { font-size: 16px; } .research-next-step-form-actions { gap: 9px; padding: 12px 14px; } .research-next-step-form-actions .primary-button { flex: 1; min-height: 44px; } .research-next-step-form-actions .secondary-button { min-height: 44px; } }

@@ -166,3 +166,42 @@ it('offers reopening when closed history is available and dismisses the menu aft
   expect(actions.onActivate).not.toHaveBeenCalled()
   expect(screen.queryByRole('menu')).not.toBeInTheDocument()
 })
+
+it('lists complete titles and workflow types and restores focus when dismissed', async () => {
+  const title = '很长的完整选股工作区标题，不应只在提示里显示'
+  const actions = setup([...tabs, { id: 'selection', route: { page: 'conditions', view: 'conversation' }, title }]), user = userEvent.setup()
+  const trigger = screen.getByRole('button', { name: '已打开工作区（4）' })
+  await user.click(trigger)
+  expect(screen.getByRole('menu', { name: '已打开工作区' })).toBeInTheDocument()
+  expect(screen.getByRole('menuitem', { name: `选股 ${title}` })).toHaveTextContent(title)
+  await user.keyboard('{Escape}')
+  expect(trigger).toHaveFocus()
+  await user.click(trigger)
+  await user.click(trigger)
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  await user.click(trigger)
+  await user.click(screen.getByRole('menuitem', { name: `选股 ${title}` }))
+  expect(actions.onActivate).toHaveBeenCalledWith('selection')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+})
+
+it('labels new tabs with the current workflow and ignores composing tab shortcuts', () => {
+  const actions = setup()
+  actions.rerender(<WorkspaceTabs tabs={tabs} activeId="research" {...actions} newWorkflow="screening" />)
+  fireEvent.click(screen.getByRole('button', { name: '新建选股标签' }))
+  expect(actions.onNew).toHaveBeenCalledOnce()
+  fireEvent.keyDown(screen.getByRole('tab', { name: '新研究' }), { key: 'ArrowRight', isComposing: true })
+  expect(actions.onActivate).not.toHaveBeenCalled()
+})
+
+it('keeps a newly opened menu through background layout refreshes but closes on viewport resize', () => {
+  setup()
+  fireEvent.contextMenu(screen.getByRole('tab', { name: '新研究' }))
+  fireEvent(window, new Event('resize'))
+  expect(screen.getByRole('menu', { name: '标签页操作' })).toBeInTheDocument()
+  const width = window.innerWidth
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width - 100 })
+  fireEvent(window, new Event('resize'))
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+})
