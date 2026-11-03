@@ -81,6 +81,7 @@ class PatternMarketWindowInput(StrictModel):
 
 
 class PatternInput(StrictModel):
+    note: str = Field(default="", max_length=4000)
     id: str | None = None
     name: str = Field(min_length=1, max_length=100)
     input_type: Literal["drawing", "screenshot", "market_window", "natural_language"]

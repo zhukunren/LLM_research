@@ -95,32 +95,64 @@ def best_window(template: dict, bars: list[dict]) -> dict | None:
     return best
 
 
-def find_example(template: dict, limit: int = 1) -> dict:
+def template_timing(template: dict, as_of: str) -> tuple[str, str]:
+    source = template.get("market_source") or {}
+    end = source.get("end_date")
+    if end and end > as_of:
+        return "post_hoc", "事后构造：模板来源区间晚于检索截止日，不能作为该日已知的研究假设。"
+    if end:
+        return "verified", "仅核验模板来源行情区间不晚于截止日；不能证明当时已提出该研究假设，也不保证不存在其他前视偏差。"
+    return "unknown", "模板可用时点未知：手绘、截图或文字无法证明在历史截止日已知，请勿视为无前视偏差的历史验证。"
+
+
+def find_example(template: dict, limit: int = 1, as_of: str | None = None) -> dict:
     if type(limit) is not int or not 1 <= limit <= MAX_EXAMPLES:
         raise ValueError(f"样本数量应在1至{MAX_EXAMPLES}之间")
+    requested = as_of or date.today().isoformat()
+    try:
+        requested_date = date.fromisoformat(requested)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("截止日必须为 YYYY-MM-DD") from exc
+    if requested_date > date.today():
+        raise ValueError("截止日不能晚于今天")
+    requested = requested_date.isoformat()
+    timing, warning = template_timing(template, requested)
     fingerprint = market.source_fingerprint()
+    metadata = {"requested_as_of": requested, "template_timing": timing, "timing_warning": warning,
+                "source_fingerprint": hashlib.sha256(json_dump(fingerprint).encode()).hexdigest() if fingerprint else None,
+                "price_basis": market.PRICE_BASIS, "frequency": "daily", "scanned_securities": 0, "valid_securities": 0,
+                "as_of": None, "recent_windows": RECENT_WINDOWS,
+                "scope": "本地全部证券，每只最近120个结束窗口；每家公司取最相近区间，按原始相似度排序"
+                         + ("；已排除来源股票" if (template.get("market_source") or {}).get("stock_code") else "")}
     if fingerprint is None:
-        return {"state": "unknown", "reason": "暂无本地真实行情", "bars": [], "items": []}
-    cutoff = market.latest_market_date(date.today().isoformat())
+        return {**metadata, "state": "unknown", "reason": "暂无本地真实行情", "bars": [], "items": []}
+    cutoff = market.latest_market_date(requested)
     if cutoff is None:
-        return {"state": "unknown", "reason": "暂无本地真实行情", "bars": [], "items": []}
-    key = hashlib.sha256(json_dump({"template": template, "source": fingerprint, "as_of": cutoff, "windows": RECENT_WINDOWS, "algorithm": "ranked-best-v2", "max_examples": MAX_EXAMPLES}).encode()).hexdigest()
+        return {**metadata, "state": "unknown", "reason": "暂无本地真实行情", "bars": [], "items": []}
+    cutoff = min(cutoff, requested)
+    key = hashlib.sha256(json_dump({"template": template, "source": fingerprint, "as_of": cutoff, "windows": RECENT_WINDOWS, "algorithm": "ranked-best-v3-metadata", "max_examples": MAX_EXAMPLES}).encode()).hexdigest()
     with _scan_lock:
         with connect() as connection:
             cached = connection.execute("SELECT result_json FROM pattern_examples WHERE cache_key=?", (key,)).fetchone()
         if cached:
             result = json_load(cached[0])
-            return {**result, "items": result["items"][:limit]}
+            return {**result, "requested_as_of": requested, "template_timing": timing, "timing_warning": warning, "items": result["items"][:limit]}
         ranked, scanned, valid = [], 0, 0
         source_code = (template.get("market_source") or {}).get("stock_code")
         for code, bars in market.iter_recent_bars(cutoff, template["target_bars"] + RECENT_WINDOWS - 1):
             if code == source_code:
                 continue
             scanned += 1
+            # Defense in depth: never trust a source adapter to honor the cutoff.
+            bars = [bar for bar in bars if bar["trade_date"] <= cutoff]
             candidate = best_window(template, bars)
             if candidate is None:
                 continue
             valid += 1
+            age = sum(bar["trade_date"] > candidate["end_date"] for bar in bars)
+            candidate = {**candidate, "match_age_bars": age, "is_current": candidate["end_date"] == cutoff,
+                         "end_lag_days": (date.fromisoformat(cutoff) - date.fromisoformat(candidate["end_date"])).days,
+                         "age_basis": "距截止日在该证券已载入行情中的观测根数；停牌/缺失不折算为交易日"}
             entry = (candidate["similarity"], candidate["end_date"], code, {**candidate, "stock_code": code})
             if len(ranked) < MAX_EXAMPLES:
                 heapq.heappush(ranked, entry)
@@ -129,7 +161,7 @@ def find_example(template: dict, limit: int = 1) -> dict:
         if market.source_fingerprint() != fingerprint:
             raise ValueError("行情更新中，请稍后重试")
         items = [entry[3] for entry in sorted(ranked, key=lambda entry: entry[:3], reverse=True)]
-        result = {**(items[0] if items else {"state": "unknown", "reason": "本地行情没有足够的有效 K 线窗口", "bars": []}),
+        result = {**metadata, **(items[0] if items else {"state": "unknown", "reason": "本地行情没有足够的有效 K 线窗口", "bars": []}),
                   "items": items,
                   "as_of": cutoff, "scanned_securities": scanned, "valid_securities": valid,
                   "recent_windows": RECENT_WINDOWS, "scope": "本地全部证券，每只最近120个结束窗口；每家公司取最相近区间，按原始相似度排序" + ("；已排除来源股票" if source_code else "")}

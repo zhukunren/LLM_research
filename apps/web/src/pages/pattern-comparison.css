@@ -164,3 +164,22 @@
   .pattern-comparison-target-focused .pattern-comparison-chart-content { flex: 1; }
   .pattern-comparison-target-focused .pattern-comparison-plot { height: min(60dvh,500px); }
 }
+
+/* Research explanations reuse the existing palette and text scale. */
+.pattern-comparison-view-switch { align-self: flex-start; flex-shrink: 0; margin: 3px 0 6px; }
+.pattern-comparison-view-switch > button { font-size: 12px; }
+.pattern-comparison-view-switch > button:focus-visible, .pattern-match-explanation > summary:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
+.pattern-normalized-overlay { min-height: 110px; }
+.pattern-normalized-overlay svg { display: block; width: 100%; max-height: 220px; }
+.pattern-overlay-template { stroke: var(--ui-chart-line); }
+.pattern-overlay-candidate { stroke: var(--ui-text-muted); }
+.pattern-normalized-overlay p, .pattern-comparison-notice, .pattern-match-explanation { margin: 4px 0; font-size: 12px; color: var(--ui-text-muted); line-height: 1.6; }
+.pattern-overlay-template-key { color: var(--ui-chart-line); }
+.pattern-match-explanation { flex-shrink: 0; max-height: 160px; overflow-y: auto; }
+.pattern-match-explanation > summary { cursor: pointer; }
+.pattern-match-explanation p { margin: 5px 0; }
+.pattern-match-explanation dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px 16px; margin: 6px 0; }
+.pattern-match-explanation dl > div { display: flex; justify-content: space-between; gap: 8px; }
+.pattern-match-explanation dd { margin: 0; font-variant-numeric: tabular-nums; }
+.pattern-comparison-scope p { margin: 4px 0; }
+.pattern-comparison-scope { max-height: 220px; overflow-y: auto; flex-shrink: 0; }

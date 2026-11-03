@@ -31,6 +31,7 @@ from .saved_screening_api import router as saved_screening_router
 from .condition_api import router as condition_router
 from .dynamic_indicator_api import router as dynamic_indicator_router
 from .pattern_language import router as pattern_language_router
+from .pattern_research import router as pattern_research_router, save_search
 from .product_api import router as product_router
 from .observation_api import router as observation_router
 from .research_project_api import router as research_project_router
@@ -114,6 +115,7 @@ app.include_router(screening_router)
 app.include_router(news_router)
 app.include_router(saved_screening_router)
 app.include_router(pattern_language_router)
+app.include_router(pattern_research_router)
 app.include_router(product_router)
 app.include_router(observation_router)
 app.include_router(research_project_router)
@@ -1034,7 +1036,7 @@ def save_pattern(payload: PatternInput):
         except ValueError as exc:
             _bad_request(str(exc), 422, "invalid_pattern_image")
     content = {
-        "input_type": payload.input_type, "representation": payload.representation,
+        "input_type": payload.input_type, "representation": payload.representation, "note": payload.note,
         "target_bars": payload.target_bars, "points": payload.points,
         "candlesticks": payload.candlesticks, "params": payload.params,
         "algorithm_version": "candle-window-v2" if payload.representation == "ohlc_sequence" else "path-window-v2",
@@ -1097,21 +1099,37 @@ def preview_pattern(payload: PatternPreviewInput):
 
 
 @app.get(f"{API_PREFIX}/patterns/{{pattern_id}}/best-match")
-def pattern_best_match(pattern_id: str, version: int, limit: int = Query(default=1, ge=1, le=24)):
+def pattern_best_match(pattern_id: str, version: int, limit: int = Query(default=1, ge=1, le=24), as_of: date | None = None):
     from .pattern_examples import find_example
+    if as_of and as_of > date.today():
+        _bad_request("截止日不能晚于今天", 422, "invalid_pattern_cutoff")
     with connect() as connection:
-        row = connection.execute("SELECT pattern_json FROM patterns WHERE id=? AND version=?", (pattern_id, version)).fetchone()
+        row = connection.execute("SELECT pattern_json,name FROM patterns WHERE id=? AND version=?", (pattern_id, version)).fetchone()
     if not row:
         _bad_request("找不到形态版本", 404, "pattern_version_not_found")
+    template = {**json_load(row[0]), "id": pattern_id, "version": version, "name": row[1]}
     try:
-        return find_example(json_load(row[0]), limit=limit)
+        result = find_example(template, limit=limit, as_of=as_of.isoformat() if as_of else None)
+        return result
     except ValueError as exc:
         _bad_request(str(exc), 409, "pattern_market_changed")
 
 
+@app.post(f"{API_PREFIX}/patterns/{{pattern_id}}/search")
+def search_saved_pattern(pattern_id: str, version: int, limit: int = Query(default=1, ge=1, le=24), as_of: date | None = None):
+    # Explicit POST preserves CSRF and write-role checks for persisted research.
+    result = pattern_best_match(pattern_id, version, limit, as_of)
+    with connect() as connection:
+        row = connection.execute("SELECT pattern_json,name FROM patterns WHERE id=? AND version=?", (pattern_id, version)).fetchone()
+    template = {**json_load(row[0]), "id": pattern_id, "version": version, "name": row[1]}
+    return save_search(template, result, {"pattern_id": pattern_id, "version": version, "as_of": as_of.isoformat() if as_of else None, "limit": limit, "mode": "historical_examples"})
+
+
 @app.post(f"{API_PREFIX}/patterns/match")
-def match_pattern_input(payload: PatternInput, limit: int = Query(default=1, ge=1, le=24)):
+def match_pattern_input(payload: PatternInput, limit: int = Query(default=1, ge=1, le=24), as_of: date | None = None):
     from .pattern_examples import find_example
+    if as_of and as_of > date.today():
+        _bad_request("截止日不能晚于今天", 422, "invalid_pattern_cutoff")
     market_source = _pattern_market_source(payload)
     if len(payload.points) != payload.target_bars:
         _bad_request("走势点数必须与目标交易日数一致", 422)
@@ -1122,12 +1140,15 @@ def match_pattern_input(payload: PatternInput, limit: int = Query(default=1, ge=
             validate_candles(payload.candlesticks)
         except ValueError as exc:
             _bad_request(str(exc), 422)
-    template = {"representation": payload.representation, "target_bars": payload.target_bars,
+    template = {"name": payload.name, "input_type": payload.input_type, "note": payload.note, "params": payload.params,
+                "source_draft_id": payload.source_draft_id, "source_window_id": payload.source_window_id,
+                "representation": payload.representation, "target_bars": payload.target_bars,
                 "points": payload.points, "candlesticks": payload.candlesticks,
                 "algorithm_version": "candle-window-v2" if payload.representation == "ohlc_sequence" else "path-window-v2",
                 "market_source": market_source}
     try:
-        return find_example(template, limit=limit)
+        result = find_example(template, limit=limit, as_of=as_of.isoformat() if as_of else None)
+        return save_search(template, result, {"as_of": as_of.isoformat() if as_of else None, "limit": limit, "mode": "historical_examples"})
     except ValueError as exc:
         _bad_request(str(exc), 409, "pattern_market_changed")
 

@@ -92,6 +92,7 @@ export type PatternMarketSource = {
 }
 
 export type Pattern = {
+  note?: string
   id: string
   name: string
   version: number

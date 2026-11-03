@@ -363,3 +363,30 @@ def test_codex_state_formula_cache_and_research_snapshot_are_private(users, monk
         assert len(candidates) == 1
         with sqlite3.connect(candidates[0]) as c:
             assert c.execute("SELECT text FROM report_pages").fetchone()[0] == "Alice private report"
+
+
+def test_pattern_search_records_require_write_csrf_and_remain_actor_owned(users, monkeypatch):
+    from apps.api.app import market
+    client, a, b = users
+    monkeypatch.setattr(market, "source_fingerprint", lambda: None)
+    login(client, a)
+    payload = {"name": "私人形态", "input_type": "drawing", "representation": "price_path", "target_bars": 10, "points": list(range(10))}
+    pattern = client.post("/api/v1/patterns", json=payload).json()
+    endpoint = f"/api/v1/patterns/{pattern['id']}/search?version=1"
+    client.headers.pop("X-CSRF-Token")
+    assert client.post(endpoint).status_code == 403
+    login(client, a)
+    result = client.post(endpoint)
+    assert result.status_code == 200, result.text
+    identifier = result.json()["search_run_id"]
+    login(client, b)
+    assert not client.get("/api/v1/patterns/search-runs").json()["items"]
+    assert client.get(f"/api/v1/patterns/search-runs/{identifier}").status_code == 404
+    assert client.patch(f"/api/v1/patterns/search-runs/{identifier}", json={"note": "cross-user"}).status_code == 404
+    identity.set_permissions(a.user_id, role="viewer")
+    viewer = identity.actor_for_user(a.user_id, a.tenant_id)
+    login(client, viewer)
+    assert client.get(f"/api/v1/patterns/{pattern['id']}/best-match?version=1").status_code == 200
+    assert client.post(endpoint).status_code == 403
+    assert client.patch(f"/api/v1/patterns/search-runs/{identifier}", json={"note": "read-only"}).status_code == 403
+    assert len(client.get("/api/v1/patterns/search-runs").json()["items"]) == 1

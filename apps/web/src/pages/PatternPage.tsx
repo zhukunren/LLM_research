@@ -12,6 +12,8 @@ import { navigateTabs, trapDialogTab } from '../keyboard'
 import SearchField from '../components/SearchField'
 import StockSearch, { StockName } from '../components/StockSearch'
 import PatternComparison, { MiniCandles, PatternMarketChart, type PatternMatch } from './PatternComparison'
+import PatternResearchRecords from './PatternResearchRecords'
+import './PatternResearch.css'
 import '../pattern-matches.css'
 import './pattern-editor-layout.css'
 import './pattern-studio.css'
@@ -23,7 +25,7 @@ type Extraction = { points: number[]; target_bars: number; quality: { confidence
 type ShapeDraft = { id: string; prompt: string; status: string; name: string; points: number[]; target_bars: number; min_similarity: number; assumptions: string[]; issues: string[]; description: string }
 type PatternSource = Pattern['input_type']
 type MarketSelection = { code: string; start: string; end: string }
-type EditorSnapshot = { activeId: string; version: number; name: string; mode: 'price_path' | 'ohlc_sequence'; source: PatternSource; marketSource?: PatternMarketSource | null; marketSelection?: MarketSelection; panel: 'browse' | 'create' | 'saved'; draft: ShapeDraft | null; sourceDraftId: string; minSimilarity: number; matchMode: 'current' | 'recent'; recentBars: number; dirty: boolean; targetBars: number; rawPoints: Point[]; candles: Candle[]; selectedCandle: number; imageData: string; savedImageUrl: string; imageMime: 'image/png' | 'image/jpeg' | 'image/webp'; imageName: string; crop: { x: number; y: number; width: number; height: number }; quality: Extraction['quality'] | null }
+type EditorSnapshot = { note?: string; asOf?: string; activeId: string; version: number; name: string; mode: 'price_path' | 'ohlc_sequence'; source: PatternSource; marketSource?: PatternMarketSource | null; marketSelection?: MarketSelection; panel: 'browse' | 'create' | 'saved'; draft: ShapeDraft | null; sourceDraftId: string; minSimilarity: number; matchMode: 'current' | 'recent'; recentBars: number; dirty: boolean; targetBars: number; rawPoints: Point[]; candles: Candle[]; selectedCandle: number; imageData: string; savedImageUrl: string; imageMime: 'image/png' | 'image/jpeg' | 'image/webp'; imageName: string; crop: { x: number; y: number; width: number; height: number }; quality: Extraction['quality'] | null }
 function validMarketSource(value: PatternMarketSource): boolean {
   return !!value && ['snapshot_id', 'stock_code', 'requested_start_date', 'requested_end_date', 'start_date', 'end_date', 'price_basis', 'created_at'].every(key => typeof value[key as keyof PatternMarketSource] === 'string')
     && Array.isArray(value.bars) && value.bars.length >= 10 && value.bars.length <= 250
@@ -40,6 +42,7 @@ function readEditor(): EditorSnapshot | null {
   try {
     const value = JSON.parse(sessionStorage.getItem('pattern.editor') || 'null') as EditorSnapshot | null
     if (!value || !['price_path', 'ohlc_sequence'].includes(value.mode) || !['drawing', 'screenshot', 'natural_language', 'market_window'].includes(value.source) || !['browse', 'create', 'saved'].includes(value.panel)) return null
+    if (value.note !== undefined && typeof value.note !== 'string' || value.asOf !== undefined && (typeof value.asOf !== 'string' || value.asOf !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(value.asOf))) return null
     if (value.marketSource && !validMarketSource(value.marketSource)) return null
     if (value.marketSelection && ![value.marketSelection.code, value.marketSelection.start, value.marketSelection.end].every(item => typeof item === 'string')) return null
     if (!['activeId', 'name', 'sourceDraftId', 'imageData', 'savedImageUrl', 'imageName'].every(key => typeof (value as unknown as Record<string, unknown>)[key] === 'string')) return null
@@ -73,6 +76,14 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   const [activeId, setActiveId] = useState(restored?.activeId || '')
   const [version, setVersion] = useState(restored?.version || 0)
   const [name, setName] = useState(restored?.name || '新形态')
+  const [note, setNote] = useState(restored?.note || '')
+  const [asOf, setAsOf] = useState(restored?.asOf || '')
+  const [versions, setVersions] = useState<Pattern[]>([])
+  const [historyBusy, setHistoryBusy] = useState(false)
+  const historyRequest = useRef(0)
+  const [selectionError, setSelectionError] = useState('')
+  const selectionRequest = useRef(0)
+  const selectionQueue = useRef<Promise<unknown>>(Promise.resolve())
   const [mode, setMode] = useState<'price_path' | 'ohlc_sequence'>(restored?.mode || 'ohlc_sequence')
   const [source, setSource] = useState<PatternSource>(restored?.source || 'market_window')
   const [marketSource, setMarketSource] = useState<PatternMarketSource | null>(restored?.marketSource || null)
@@ -101,6 +112,7 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   const [notice, setNotice] = useState('')
   const [noticeArea, setNoticeArea] = useState<'source' | 'footer'>('source')
   const [busy, setBusy] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [inputMatch, setInputMatch] = useState<PatternMatch | null>(null)
   const [selectedMatchKey, setSelectedMatchKey] = useState('')
   const [matchLoading, setMatchLoading] = useState(false)
@@ -122,34 +134,34 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   const selected = candles[selectedCandle]
   const filteredItems = items.filter(item => (!representation || item.representation === representation) && item.name.toLowerCase().includes(query.trim().toLowerCase()))
   function clearPatternFilters() { setQuery(''); setRepresentation('') }
-  const geometry = JSON.stringify([source, marketSource?.snapshot_id, mode, targetBars, pointValues, candles])
+  const geometry = JSON.stringify([asOf, source, marketSource?.snapshot_id, mode, targetBars, pointValues, candles])
   const geometryRef = useRef(geometry)
   const editorRef = useRef<EditorSnapshot | null>(null)
-  editorRef.current = { activeId, version, name, mode, source, marketSource, marketSelection, panel, draft, sourceDraftId, minSimilarity, matchMode, recentBars, dirty, targetBars, rawPoints, candles, selectedCandle, imageData, savedImageUrl, imageMime, imageName, crop, quality }
+  editorRef.current = { note, asOf, activeId, version, name, mode, source, marketSource, marketSelection, panel, draft, sourceDraftId, minSimilarity, matchMode, recentBars, dirty, targetBars, rawPoints, candles, selectedCandle, imageData, savedImageUrl, imageMime, imageName, crop, quality }
   useEffect(() => {
     const save = () => { try { sessionStorage.setItem('pattern.editor', JSON.stringify(editorRef.current)) } catch { /* Editing and explicit template saving remain available. */ } }
     const timer = setTimeout(save, 300)
     return () => clearTimeout(timer)
-  }, [activeId, version, name, mode, source, marketSource, marketSelection, panel, draft, sourceDraftId, minSimilarity, matchMode, recentBars, dirty, targetBars, rawPoints, candles, selectedCandle, imageData, savedImageUrl, imageMime, imageName, crop, quality])
+  }, [note, asOf, activeId, version, name, mode, source, marketSource, marketSelection, panel, draft, sourceDraftId, minSimilarity, matchMode, recentBars, dirty, targetBars, rawPoints, candles, selectedCandle, imageData, savedImageUrl, imageMime, imageName, crop, quality])
   useEffect(() => {
     const save = () => { try { sessionStorage.setItem('pattern.editor', JSON.stringify(editorRef.current)) } catch { /* Explicit saved templates are independent of browser storage. */ } }
     window.addEventListener('pagehide', save)
     return () => { window.removeEventListener('pagehide', save); save() }
   }, [])
   geometryRef.current = geometry
-  useEffect(() => { matchRequest.current += 1; setInputMatch(null); setSelectedMatchKey(''); setMatchError(''); setMatchLoading(false) }, [geometry])
+  useEffect(() => { matchRequest.current += 1; selectionRequest.current += 1; setSelectionError(''); setInputMatch(null); setSelectedMatchKey(''); setMatchError(''); setMatchLoading(false) }, [geometry])
   useEffect(() => {
-    if (!savedPreview) return
+    if (!savedPreview || dirty) return
     const request = ++matchRequest.current
     let active = true
     const requestedGeometry = geometryRef.current
     setMatchLoading(true); setMatchError('')
-    requestPatternExamples(savedPreview.id, savedPreview.version, true).then(result => {
+    requestPatternExamples(savedPreview.id, savedPreview.version, true, asOf).then(result => {
       if (active && request === matchRequest.current && requestedGeometry === geometryRef.current) setInputMatch(result)
     }).catch(error => { if (active && request === matchRequest.current) setMatchError((error as Error).message) })
       .finally(() => { if (active && request === matchRequest.current) setMatchLoading(false) })
     return () => { active = false }
-  }, [savedPreview])
+  }, [savedPreview, asOf])
   useEffect(() => () => { marketRequest.current += 1 }, [])
 
   function changeMarketSelection(next: MarketSelection) {
@@ -183,17 +195,20 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   }
 
   function reset() {
+    selectionRequest.current++; setSelectionError('')
+    historyRequest.current++; setHistoryBusy(false)
     marketRequest.current += 1; setMarketSource(null); setMarketSelection({ code: '', start: '', end: '' }); setInputMatch(null)
     setDrawingFocused(false); setSavedPreview(null)
-    setActiveId(''); setVersion(0); setName('新形态'); setMode('ohlc_sequence'); setSource('market_window'); setTargetBars(40)
+    setActiveId(''); setVersion(0); setName('新形态'); setNote(''); setVersions([]); setMode('ohlc_sequence'); setSource('market_window'); setTargetBars(40)
     setRawPoints([]); setCandles([]); setSelectedCandle(0); setImageData(''); setSavedImageUrl(''); setQuality(null); setNotice('')
     setDraft(null); setSourceDraftId(''); setMinSimilarity(80); setMatchMode('current'); setRecentBars(20); setDirty(false); setPanel('create')
     localStorage.removeItem('library.pattern.draft')
   }
 
   function acceptDraft(result: ShapeDraft) {
+    historyRequest.current++; setHistoryBusy(false)
     marketRequest.current += 1; setMarketSource(null)
-    setDraft(result); setActiveId(''); setVersion(0); setSource('natural_language'); setSourceDraftId(result.status === 'ready' ? result.id : '')
+    setDraft(result); setActiveId(''); setVersion(0); setNote(''); setVersions([]); setSource('natural_language'); setSourceDraftId(result.status === 'ready' ? result.id : '')
     setName(result.name); setMode('price_path'); setTargetBars(result.target_bars); setMinSimilarity(result.min_similarity); setMatchMode('current'); setRecentBars(20)
     setRawPoints(result.points.map((y, i) => ({ x: i / Math.max(1, result.points.length - 1), y })))
     setImageData(''); setSavedImageUrl(''); setQuality(null); setCandles([]); setDirty(true); setPanel('create')
@@ -309,10 +324,13 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   }
 
   function load(item: Pattern) {
+    if (saving) return
+    selectionRequest.current++; setSelectionError('')
+    historyRequest.current++; setHistoryBusy(false); if (item.id !== activeId) setVersions([])
     marketRequest.current += 1; setMarketSource(item.market_source ?? null); setInputMatch(null)
     if (item.market_source) setMarketSelection({ code: item.market_source.stock_code, start: item.market_source.requested_start_date, end: item.market_source.requested_end_date })
     setSavedPreview({ id: item.id, version: item.version })
-    setActiveId(item.id); setVersion(item.version); setName(item.name); setMode(item.representation); setSource(item.input_type)
+    setActiveId(item.id); setVersion(item.version); setName(item.name); setNote(item.note || ''); setMode(item.representation); setSource(item.input_type)
     setSourceDraftId(item.provenance?.draft_id ?? ''); setMinSimilarity(Number(item.params.min_similarity ?? 80)); setMatchMode(item.params.match_mode === 'recent' ? 'recent' : 'current'); setRecentBars(Number(item.params.recent_bars ?? 20)); setDraft(null); setDirty(false); setPanel('create')
     if (item.provenance?.prompt) setPrompt(item.provenance.prompt)
     setTargetBars(item.target_bars); setCandles(item.candlesticks ?? []); setRawPoints(item.points.map((y, index) => ({ x: index / Math.max(1, item.points.length - 1), y })))
@@ -322,38 +340,63 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
     setSelectedCandle(0); setQuality(null); setNotice('')
   }
 
-  async function save() {
+  async function save(copy = false) {
     setNoticeArea('footer')
     if (mode === 'price_path' && pointValues.length < 10) { setNotice('先手绘至少两个点，或上传截图完成走势提取'); return }
     if (mode === 'ohlc_sequence' && candles.length < 10) { setNotice('蜡烛模板至少需要 10 根已编辑 OHLC'); return }
     if (mode === 'ohlc_sequence' && candles.length !== targetBars) { setNotice('当前蜡烛数与目标交易日数不一致'); return }
-    setBusy(true); setNotice('')
+    setBusy(true); setSaving(true); setNotice('')
     try {
+      let imageForSave = imageData
+      if (copy && source === 'screenshot' && !imageForSave && savedImageUrl) {
+        const response = await fetch(savedImageUrl)
+        if (!response.ok) throw new Error('无法读取副本来源截图，请重试')
+        const blob = await response.blob()
+        imageForSave = (await readDataUrl(new File([blob], imageName || 'pattern-image', { type: blob.type }))).split(',')[1] ?? ''
+      }
       const saved = await api<Pattern>('/patterns', { method: 'POST', body: JSON.stringify({
-        id: activeId || undefined, name, input_type: source, representation: mode, target_bars: mode === 'ohlc_sequence' ? candles.length : targetBars,
+        id: copy ? undefined : activeId || undefined, name: copy ? `${name} 副本` : name, note, input_type: source, representation: mode, target_bars: mode === 'ohlc_sequence' ? candles.length : targetBars,
         source_draft_id: sourceDraftId || undefined,
         source_window_id: source === 'market_window' ? marketSource?.snapshot_id : undefined,
         points: mode === 'ohlc_sequence' ? candles.map((item) => item.close) : pointValues,
         candlesticks: mode === 'ohlc_sequence' ? candles : [], params: { min_similarity: minSimilarity, match_mode: matchMode, recent_bars: recentBars, screenshot_quality: quality },
-        source_image_base64: source === 'screenshot' && imageData ? imageData : undefined,
-        source_image_mime: source === 'screenshot' && imageData ? imageMime : undefined,
+        source_image_base64: source === 'screenshot' && imageForSave ? imageForSave : undefined,
+        source_image_mime: source === 'screenshot' && imageForSave ? imageMime : undefined,
         source_image_filename: source === 'screenshot' ? imageName : undefined,
       }) })
-      setActiveId(saved.id); setVersion(saved.version); await refresh(); setNotice(`已保存 ${saved.name} v${saved.version}`)
+      setActiveId(saved.id); setVersion(saved.version); setName(saved.name); setVersions([]); await refresh(); setNotice(`已保存 ${saved.name} v${saved.version}`)
       setDirty(false); localStorage.removeItem('library.pattern.draft')
     } catch (error) { setNotice((error as Error).message) }
-    finally { setBusy(false) }
+    finally { setBusy(false); setSaving(false) }
   }
 
   const svgPoints = rawPoints.map((point) => `${point.x * 900},${(1 - point.y) * 280}`).join(' ')
   async function matchInput() {
+    selectionRequest.current++; setSelectionError('')
     const request = ++matchRequest.current
     setBusy(true); setMatchLoading(true); setMatchError(''); setNotice(''); setInputMatch(null)
     const requestedGeometry = geometryRef.current
     try {
-      const result = await api<PatternMatch>('/patterns/match?limit=12', { method: 'POST', body: JSON.stringify({ name, input_type: source, source_window_id: source === 'market_window' ? marketSource?.snapshot_id : undefined, representation: mode, target_bars: targetBars, points: mode === 'ohlc_sequence' ? candles.map(item => item.close) : pointValues, candlesticks: mode === 'ohlc_sequence' ? candles : [] }) })
+      const cutoff = asOf ? `&as_of=${encodeURIComponent(asOf)}` : ''
+      const result = activeId && !dirty
+        ? await api<PatternMatch>(`/patterns/${encodeURIComponent(activeId)}/search?version=${version}&limit=12${cutoff}`, { method: 'POST' })
+        : await api<PatternMatch>(`/patterns/match?limit=12${cutoff}`, { method: 'POST', body: JSON.stringify({ name, note, input_type: source, source_draft_id: sourceDraftId || undefined, source_window_id: source === 'market_window' ? marketSource?.snapshot_id : undefined, representation: mode, target_bars: targetBars, points: mode === 'ohlc_sequence' ? candles.map(item => item.close) : pointValues, candlesticks: mode === 'ohlc_sequence' ? candles : [], params: { min_similarity: minSimilarity, match_mode: matchMode, recent_bars: recentBars, screenshot_quality: quality } }) })
       if (request === matchRequest.current && geometryRef.current === requestedGeometry) setInputMatch(result)
     } catch (error) { if (request === matchRequest.current) setMatchError((error as Error).message) } finally { setBusy(false); if (request === matchRequest.current) setMatchLoading(false) }
+  }
+  async function readVersions() {
+    const requestedId = activeId, request = ++historyRequest.current
+    setHistoryBusy(true); setNoticeArea('footer'); setNotice('')
+    try { const result = await api<{ items: Pattern[] }>('/patterns?include_history=true'); if (request === historyRequest.current && editorRef.current?.activeId === requestedId) setVersions(result.items.filter(item => item.id === requestedId).sort((a, b) => b.version - a.version)) }
+    catch (error) { if (request === historyRequest.current) setNotice((error as Error).message) } finally { if (request === historyRequest.current) setHistoryBusy(false) }
+  }
+  async function selectMatch(key: string) {
+    setSelectedMatchKey(key); setSelectionError('')
+    const runId = (inputMatch as (PatternMatch & { search_run_id?: string }) | null)?.search_run_id
+    if (!runId) return
+    const request = ++selectionRequest.current
+    try { const update = selectionQueue.current.catch(() => undefined).then(() => api(`/patterns/search-runs/${encodeURIComponent(runId)}`, { method: 'PATCH', body: JSON.stringify({ selected_key: key }) })); selectionQueue.current = update; await update }
+    catch (error) { if (request === selectionRequest.current) setSelectionError(`案例选择未保存：${(error as Error).message}`) }
   }
   const selectedValue = (field: keyof Candle) => selected?.[field] ?? 0
   function chooseSource(next: PatternSource) {
@@ -363,20 +406,15 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
     setMarketSource(null); setSource(next); setMode('price_path'); setSourceDraftId(''); setDraft(null)
     setRawPoints([]); setCandles([]); setQuality(null); setNotice(''); setDirty(true)
   }
-  function retryMatch() {
-    if (activeId && !dirty) {
-      exampleRequests.delete(`${activeId}@${version}@similar`)
-      setSavedPreview({ id: activeId, version })
-    } else void matchInput()
-  }
+  function retryMatch() { void matchInput() }
   const canMatch = !(source === 'market_window' && !marketSource) && (mode === 'price_path' ? pointValues.length >= 10 : candles.length >= 10)
   const screeningSettings = <details className="pattern-workbench-settings" onKeyDown={event => { if (event.key === 'Escape') { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
     <summary><SlidersHorizontal size={14} />选股设置</summary>
     <div className="pattern-settings-popover">
-      <label className="field workspace-field-label"><span>最低相似度</span><input aria-label="最低相似度" type="number" min={0} max={100} step={1} value={minSimilarity} onChange={event => { setMinSimilarity(Number(event.target.value)); setDirty(true) }} className="workspace-field" /></label>
-      <label className="field workspace-field-label"><span>选股匹配窗口</span><select aria-label="形态匹配窗口" value={matchMode} onChange={event => { setMatchMode(event.target.value as 'current' | 'recent'); setDirty(true) }} className="workspace-field workspace-select"><option value="current">当前窗口</option><option value="recent">近期最相近窗口</option></select></label>
-      {matchMode === 'recent' && <label className="field workspace-field-label"><span>近期回看（根）</span><input aria-label="近期回看交易日数" type="number" min={1} max={120} value={recentBars} onChange={event => { setRecentBars(Number(event.target.value)); setDirty(true) }} className="workspace-field" /></label>}
-      <p>设置随模板保存，在组合选股时生效。</p>
+      <label className="field workspace-field-label"><span>最低相似度</span><input disabled={busy} aria-label="最低相似度" type="number" min={0} max={100} step={1} value={minSimilarity} onChange={event => { setMinSimilarity(Number(event.target.value)); setDirty(true) }} className="workspace-field" /></label>
+      <label className="field workspace-field-label"><span>选股匹配窗口</span><select disabled={busy} aria-label="形态匹配窗口" value={matchMode} onChange={event => { setMatchMode(event.target.value as 'current' | 'recent'); setDirty(true) }} className="workspace-field workspace-select"><option value="current">当前窗口</option><option value="recent">近期最相近窗口</option></select></label>
+      {matchMode === 'recent' && <label className="field workspace-field-label"><span>近期回看（根）</span><input disabled={busy} aria-label="近期回看交易日数" type="number" min={1} max={120} value={recentBars} onChange={event => { setRecentBars(Number(event.target.value)); setDirty(true) }} className="workspace-field" /></label>}
+      <p>按形态选股：设置随模板版本保存，在组合选股的截止日生效。近期模式以相似度与时效权重共同选窗；这里的阈值不会筛除历史案例检索结果。</p>
     </div>
   </details>
   const targetChart = <section className={'pattern-comparison-target' + (drawingFocused ? ' pattern-comparison-target-focused' : '')} aria-label={drawingFocused ? '专注绘图' : '目标形态'} role={drawingFocused ? 'dialog' : 'region'} aria-modal={drawingFocused ? true : undefined} onKeyDown={event => {
@@ -405,31 +443,36 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
     </div>
     {source === 'market_window' && marketSource && <p className="pattern-comparison-dates">{marketSource.start_date} — {marketSource.end_date} · 行情快照已保留</p>}
     {source === 'drawing' && mode === 'price_path' && <div className="pattern-target-edit-tools"><span>从左向右拖动绘图</span><button className="text-button workspace-button" disabled={busy} onClick={() => { setRawPoints([]); setQuality(null); setDirty(true) }}><Trash2 size={13} />清除走势</button></div>}
-    {source !== 'market_window' && mode === 'ohlc_sequence' && <details className="pattern-candle-controls"><summary>编辑蜡烛 · {candles.length} 根</summary><div className="candle-strip">{candles.map((candle, index) => <button key={index} className={'workspace-button candle-chip' + (selectedCandle === index ? ' active' : '') + (candle.close >= candle.open ? ' up' : ' down')} onClick={() => setSelectedCandle(index)} aria-label={`选择第 ${index + 1} 根蜡烛`} aria-pressed={selectedCandle === index}><i /><small>{index + 1}</small></button>)}</div>{selected && <div className="form-grid four-col candle-fields">{(['open', 'high', 'low', 'close'] as const).map(field => <label className="field workspace-field-label" key={field}><span>{field.toUpperCase()}</span><input type="number" step="0.01" value={selectedValue(field)} onChange={event => changeCandle(field, Number(event.target.value))} className="workspace-field" /></label>)}</div>}<button className="secondary-button workspace-button" disabled={busy || candles.length >= 250} onClick={addCandle}><Plus size={13} />添加蜡烛</button></details>}
+    {source !== 'market_window' && mode === 'ohlc_sequence' && <details className="pattern-candle-controls"><summary>编辑蜡烛 · {candles.length} 根</summary><div className="candle-strip">{candles.map((candle, index) => <button key={index} className={'workspace-button candle-chip' + (selectedCandle === index ? ' active' : '') + (candle.close >= candle.open ? ' up' : ' down')} onClick={() => setSelectedCandle(index)} aria-label={`选择第 ${index + 1} 根蜡烛`} aria-pressed={selectedCandle === index}><i /><small>{index + 1}</small></button>)}</div>{selected && <div className="form-grid four-col candle-fields">{(['open', 'high', 'low', 'close'] as const).map(field => <label className="field workspace-field-label" key={field}><span>{field.toUpperCase()}</span><input disabled={busy} type="number" step="0.01" value={selectedValue(field)} onChange={event => changeCandle(field, Number(event.target.value))} className="workspace-field" /></label>)}</div>}<button className="secondary-button workspace-button" disabled={busy || candles.length >= 250} onClick={addCandle}><Plus size={13} />添加蜡烛</button></details>}
   </section>
   return (
     <StockText><div className="page-content workspace-tool-page library-shell library-redesign pattern-library pattern-studio pattern-comparison-studio" data-panel={panel}>
       <WorkspacePageHeading actionsClassName="library-heading-actions" actions={<button className="secondary-button workspace-button" onClick={reset} disabled={busy}><Plus size={15} />新建形态</button>}><h1>形态库</h1><p className="page-description">目标形态与真实样本，同屏对照。</p></WorkspacePageHeading>
       <div className="pattern-studio-navigation"><nav className="library-tabs" role="tablist" aria-label="形态库功能" onKeyDown={event => navigateTabs(event, ['create', 'saved'] as const, panel === 'saved' ? 'saved' : 'create', setPanel)}><button role="tab" id="pattern-create-tab" aria-controls="pattern-content" aria-selected={panel !== 'saved'} tabIndex={panel !== 'saved' ? 0 : -1} className={'workspace-button' + (panel !== 'saved' ? ' active' : '')} onClick={() => setPanel('create')}><ChartNoAxesCombined size={16} />形态匹配</button><button role="tab" id="pattern-saved-tab" aria-controls="pattern-content" aria-selected={panel === 'saved'} tabIndex={panel === 'saved' ? 0 : -1} className={'workspace-button' + (panel === 'saved' ? ' active' : '')} onClick={() => setPanel('saved')}><Library size={16} />我的形态</button></nav><span className="pattern-studio-nav-note">{activeId ? `v${version} · ${dirty ? '有未保存修改' : '已保存'}` : '选择来源，匹配相似 K 线'}</span></div>
+      <PatternResearchRecords refreshKey={(inputMatch as (PatternMatch & { search_run_id?: string }) | null)?.search_run_id} />
       <section id="pattern-content" role="tabpanel" aria-labelledby={`pattern-${panel === 'saved' ? 'saved' : 'create'}-tab`}>
       {panel === 'saved' ? <>
         <div className="workspace-filter-bar pattern-filter-bar workspace-filters"><SearchField label="搜索形态" placeholder="搜索形态名称" value={query} onChange={setQuery} /><select aria-label="形态类型筛选" value={representation} onChange={event => setRepresentation(event.target.value)} className="workspace-field workspace-select"><option value="">全部形态类型</option><option value="price_path">走势曲线</option><option value="ohlc_sequence">蜡烛图</option></select><span className="workspace-result-count">{filteredItems.length} / {items.length} 个形态</span>{(query || representation) && <button className="text-button workspace-button" onClick={clearPatternFilters}>重置形态筛选</button>}</div>
-        {catalogLoading ? <LoadingState compact label="正在加载形态…" /> : catalogError ? <div className="workspace-error" role="alert">{catalogError}<button className="text-button workspace-button" onClick={() => void refresh()}>重新加载形态</button></div> : !filteredItems.length ? <EmptyState icon={Search} titleAs="h3" title={items.length ? '没有找到匹配的形态' : '暂无形态'} description="保存的目标形态会显示在这里，可随时载入对照。" actions={<button className="secondary-button workspace-button" onClick={items.length ? clearPatternFilters : reset}>{items.length ? '查看全部形态' : '创建形态'}</button>} /> : <div className="shape-gallery">{filteredItems.slice(0, visibleCount).map(item => <article className="saved-condition-card" key={item.id}><div className="pattern-gallery-meta"><span>{item.representation === 'ohlc_sequence' ? '蜡烛图' : '走势曲线'}</span><span>v{item.version}</span></div><div className="condition-card-title"><h3>{item.name}</h3><span className="condition-category">{item.target_bars} 个交易日</span></div><PatternExample key={item.id + '@' + item.version} item={item} allowCurve compact />{item.market_source && <p className="pattern-source-caption">来源 {item.market_source.stock_code} · {item.market_source.start_date} 至 {item.market_source.end_date}</p>}<div className="card-actions"><button className="secondary-button workspace-button" onClick={() => load(item)}><PencilLine size={14} />载入对照</button><button className="text-button workspace-button" onClick={() => usePattern(item)}>加入组合<ArrowRight size={14} /></button></div></article>)}{visibleCount < filteredItems.length && <div className="gallery-more"><button className="secondary-button workspace-button" onClick={() => setVisibleCount(value => value + 6)}>显示更多形态（还有 {filteredItems.length - visibleCount} 个）</button></div>}</div>}
+        {catalogLoading ? <LoadingState compact label="正在加载形态…" /> : catalogError ? <div className="workspace-error" role="alert">{catalogError}<button className="text-button workspace-button" onClick={() => void refresh()}>重新加载形态</button></div> : !filteredItems.length ? <EmptyState icon={Search} titleAs="h3" title={items.length ? '没有找到匹配的形态' : '暂无形态'} description="保存的目标形态会显示在这里，可随时载入对照。" actions={<button className="secondary-button workspace-button" onClick={items.length ? clearPatternFilters : reset}>{items.length ? '查看全部形态' : '创建形态'}</button>} /> : <div className="shape-gallery">{filteredItems.slice(0, visibleCount).map(item => <article className="saved-condition-card" key={item.id}><div className="pattern-gallery-meta"><span>{item.representation === 'ohlc_sequence' ? '蜡烛图' : '走势曲线'}</span><span>v{item.version}</span></div><div className="condition-card-title"><h3>{item.name}</h3><span className="condition-category">{item.target_bars} 个交易日</span></div><PatternExample key={item.id + '@' + item.version} item={item} allowCurve compact />{item.market_source && <p className="pattern-source-caption">来源 {item.market_source.stock_code} · {item.market_source.start_date} 至 {item.market_source.end_date}</p>}<div className="card-actions"><button className="secondary-button workspace-button" disabled={saving} onClick={() => load(item)}><PencilLine size={14} />载入对照</button><button className="text-button workspace-button" onClick={() => usePattern(item)}>加入组合<ArrowRight size={14} /></button></div></article>)}{visibleCount < filteredItems.length && <div className="gallery-more"><button className="secondary-button workspace-button" onClick={() => setVisibleCount(value => value + 6)}>显示更多形态（还有 {filteredItems.length - visibleCount} 个）</button></div>}</div>}
       </> : <div className="pattern-workbench">
+        <section className="pattern-research-contract" aria-label="检索口径"><strong>历史相似案例</strong><label className="field workspace-field-label"><span>检索截止日</span><input aria-label="检索截止日" className="workspace-field" type="date" max={new Date().toISOString().slice(0, 10)} value={asOf} onChange={event => { matchRequest.current += 1; selectionRequest.current += 1; setSavedPreview(null); setAsOf(event.target.value); setSelectionError('') }} /></label><span>{asOf ? `不使用 ${asOf} 之后的候选行情` : '留空使用最新可得行情'}</span><p>本地证券每只最近 120 个结束窗口，取各证券最相近区间，按原始相似度排序；不是当前选股命中列表。</p><details><summary>日线与尺度口径</summary><p>当前使用未复权日线，固定目标根数；路径按首价归零、窗口极差缩放，手绘和截图按目标交易日数重采样。形似不保留精确涨跌幅，也不代表上涨概率。</p></details></section>
         <div className="pattern-source-controls" role="region" aria-label="形态来源设置">
           <div className="pattern-source-toolbar"><div className="pattern-source-methods" role="group" aria-label="形态来源">{([{ value: 'market_window', label: '行情区间', Icon: ChartNoAxesCombined }, { value: 'drawing', label: '手绘', Icon: PencilLine }, { value: 'screenshot', label: '截图', Icon: ImageUp }, { value: 'natural_language', label: '文字', Icon: Sparkles }] as const).map(({ value, label, Icon }) => <button type="button" className={'workspace-button' + (source === value ? ' selected' : '')} aria-pressed={source === value} disabled={busy} key={value} onClick={() => chooseSource(value)}><Icon size={14} />{label}</button>)}</div>
           </div>
           {source === 'market_window' && <section className="pattern-market-fields" aria-label="行情区间来源"><div className="field"><span>来源股票</span><StockSearch value={marketSelection.code} onChange={code => changeMarketSelection({ ...marketSelection, code })} onSelectionPending={() => changeMarketSelection({ ...marketSelection, code: '' })} disabled={busy} label="来源股票" /></div><label className="field workspace-field-label"><span>开始日期</span><input type="date" value={marketSelection.start} disabled={busy} onChange={event => changeMarketSelection({ ...marketSelection, start: event.target.value })} className="workspace-field" /></label><label className="field workspace-field-label"><span>结束日期</span><input type="date" value={marketSelection.end} disabled={busy} onChange={event => changeMarketSelection({ ...marketSelection, end: event.target.value })} className="workspace-field" /></label><button className="secondary-button workspace-button" disabled={busy || !marketSelection.code || !marketSelection.start || !marketSelection.end} onClick={loadMarketWindow}>载入 K 线</button></section>}
           {source === 'drawing' && <p className="pattern-source-hint">直接在目标图中手绘走势，或切换蜡烛图逐根编辑。</p>}
-          {source === 'screenshot' && <div className="pattern-screenshot-input"><label className="upload-label secondary-button workspace-button"><ImageUp size={14} />上传截图<input type="file" disabled={busy} accept="image/png,image/jpeg,image/webp" onChange={event => selectImage(event.target.files?.[0])} /></label><span>{imageName || 'PNG、JPEG 或 WebP，最大 10 MB'}</span><button className="secondary-button workspace-button" disabled={busy || (!imageData && !savedImageUrl)} onClick={extract}>提取走势候选</button><details className="pattern-crop-details"><summary>裁剪与来源</summary><div className="pattern-crop-popover">{(imageData || savedImageUrl) && <img src={imageData ? `data:${imageMime};base64,${imageData}` : savedImageUrl} alt="待识别行情图截图" />}<span>主图裁剪范围（百分比）</span><div className="crop-controls">{([{ key: 'x', label: '左', min: 0, max: 95 }, { key: 'y', label: '上', min: 0, max: 95 }, { key: 'width', label: '宽', min: 5, max: 100 }, { key: 'height', label: '高', min: 5, max: 100 }] as const).map(item => <label className="workspace-field-label" key={item.key}>{item.label}<input type="number" min={item.min} max={item.max} value={crop[item.key]} onChange={event => setCrop({ ...crop, [item.key]: Number(event.target.value) })} className="workspace-field" /></label>)}</div>{quality && <p>候选置信度 {Math.round(quality.confidence * 100)}% · 横向覆盖 {Math.round(quality.horizontal_coverage * 100)}%{quality.requires_manual_review ? ' · 请检查路径' : ''}{quality.limitations.join('；')}</p>}</div></details></div>}
+          {source === 'screenshot' && <p className="pattern-source-hint">截图仅提取彩色走势候选，不还原证券、日期、真实价格或 OHLC。请核对候选轨迹，并确认目标交易日数。</p>}
+          {source === 'screenshot' && <div className="pattern-screenshot-input"><label className="upload-label secondary-button workspace-button"><ImageUp size={14} />上传截图<input type="file" disabled={busy} accept="image/png,image/jpeg,image/webp" onChange={event => selectImage(event.target.files?.[0])} /></label><span>{imageName || 'PNG、JPEG 或 WebP，最大 10 MB'}</span><button className="secondary-button workspace-button" disabled={busy || (!imageData && !savedImageUrl)} onClick={extract}>提取走势候选</button><details className="pattern-crop-details"><summary>裁剪与来源</summary><div className="pattern-crop-popover">{(imageData || savedImageUrl) && <img src={imageData ? `data:${imageMime};base64,${imageData}` : savedImageUrl} alt="待识别行情图截图" />}<span>主图裁剪范围（百分比）</span><div className="crop-controls">{([{ key: 'x', label: '左', min: 0, max: 95 }, { key: 'y', label: '上', min: 0, max: 95 }, { key: 'width', label: '宽', min: 5, max: 100 }, { key: 'height', label: '高', min: 5, max: 100 }] as const).map(item => <label className="workspace-field-label" key={item.key}>{item.label}<input disabled={busy} type="number" min={item.min} max={item.max} value={crop[item.key]} onChange={event => setCrop({ ...crop, [item.key]: Number(event.target.value) })} className="workspace-field" /></label>)}</div>{quality && <p>候选置信度 {Math.round(quality.confidence * 100)}% · 横向覆盖 {Math.round(quality.horizontal_coverage * 100)}%{quality.requires_manual_review ? ' · 请检查路径' : ''}{quality.limitations.join('；')}</p>}</div></details></div>}
           {source === 'natural_language' && <div className="pattern-language-input"><textarea aria-label="形态需求描述" rows={2} placeholder="例如：20 个交易日内先下跌后回升，形成 V 形反转" value={prompt} disabled={busy} maxLength={2000} onChange={event => setPrompt(event.target.value)} className="workspace-field" /><button className="secondary-button workspace-button" disabled={busy || !prompt.trim()} onClick={describePattern}><Sparkles size={14} />生成形态草稿</button><details className="pattern-description-examples"><summary>最近描述与示例</summary><div>{(recentDescriptions.length ? recentDescriptions : ['20 个交易日内先下跌后回升，形成 V 形反转', '30 个交易日内形成双底，第二个低点略高', '40 个交易日内先横盘整理，再向上突破']).map(text => <button className="text-button workspace-button" key={text} disabled={busy} onClick={() => setPrompt(text)}>{text}</button>)}{sourceDraftId && <p>原始描述：{draft?.prompt ?? prompt} · 草稿 {sourceDraftId}</p>}</div></details>{draft?.issues.map(issue => <p className="workspace-feedback-warning" key={issue}>{issue}</p>)}</div>}
           {notice && noticeArea === 'source' && <p className="pattern-source-feedback" role="status">{notice}</p>}
         </div>
-        <PatternComparison target={targetChart} matchAction={<button className="primary-button workspace-button" disabled={busy || !canMatch} onClick={matchInput}><Search size={14} />{matchLoading && busy ? '匹配中…' : '匹配相似形态'}</button>} result={inputMatch} loading={matchLoading} error={matchError} selectedKey={selectedMatchKey} onSelect={setSelectedMatchKey} onRetry={retryMatch} />
+        <PatternComparison target={targetChart} matchAction={<button className="primary-button workspace-button" disabled={busy || !canMatch} onClick={matchInput}><Search size={14} />{matchLoading && busy ? '匹配中…' : '匹配相似形态'}</button>} result={inputMatch} loading={matchLoading} error={matchError} selectedKey={selectedMatchKey} onSelect={selectMatch} onRetry={retryMatch} minSimilarity={minSimilarity} />
+        {selectionError && <p className="workspace-error" role="alert">{selectionError}</p>}
+        <div className="pattern-template-research"><label className="field workspace-field-label"><span>模板备注</span><textarea disabled={busy} className="workspace-field" aria-label="模板备注" maxLength={4000} rows={2} value={note} onChange={event => { setNote(event.target.value); setDirty(true) }} /></label>{activeId && <><button type="button" className="secondary-button workspace-button" disabled={busy || historyBusy || dirty} onClick={readVersions}>查看历史版本</button>{versions.length > 0 && <label className="field workspace-field-label"><span>模板版本</span><select aria-label="模板版本" className="workspace-field workspace-select" value={version} disabled={dirty || busy} onChange={event => { const item = versions.find(item => item.version === Number(event.target.value)); if (item) load(item) }}>{versions.map(item => <option key={item.version} value={item.version}>v{item.version} · {item.created_at}</option>)}</select></label>}<button type="button" className="secondary-button workspace-button" disabled={busy || !canMatch} onClick={() => void save(true)}>另存为副本</button></>}</div>
         <footer className="pattern-workbench-footer">
-          <label className="pattern-template-name workspace-field-label"><span>模板名称</span><input value={name} onChange={event => { setName(event.target.value); setDirty(true) }} className="workspace-field" /></label>
+          <label className="pattern-template-name workspace-field-label"><span>模板名称</span><input disabled={busy} value={name} onChange={event => { setName(event.target.value); setDirty(true) }} className="workspace-field" /></label>
           {screeningSettings}
-          <button className="text-button workspace-button" disabled={busy || !canMatch || (!dirty && !!activeId)} onClick={save}><Save size={14} />保存模板</button>
+          <button className="text-button workspace-button" disabled={busy || !canMatch || (!dirty && !!activeId)} onClick={() => void save()}><Save size={14} />保存模板</button>
           {onDiscuss && activeId && <button className="text-button workspace-button" disabled={dirty} onClick={() => onDiscuss(activeId, version, name)}><MessageCircle size={14} />研究此形态</button>}
           <button className="secondary-button workspace-button" disabled={busy || !activeId || dirty} onClick={() => usePattern()}>用于组合<ArrowRight size={14} /></button>
           <span className="pattern-workbench-status" role={notice && noticeArea === 'footer' ? 'status' : undefined}>{notice && noticeArea === 'footer' ? notice : dirty && activeId ? '有未保存修改，保存后可用于组合。' : activeId ? `已保存 v${version}` : source === 'market_window' && !marketSource ? '选择含 10–250 根日线的区间' : '保存后可在“我的形态”中复用'}</span>
@@ -440,15 +483,9 @@ export default function PatternPage({ onCompose, onDiscuss }: { onCompose?: () =
   )
 }
 
-const exampleRequests = new Map<string, { expires: number; request: Promise<PatternMatch> }>()
-function requestPatternExamples(id: string, version: number, similar = false) {
-  const key = `${id}@${version}${similar ? '@similar' : ''}`
-  if (!exampleRequests.has(key) || exampleRequests.get(key)!.expires < Date.now()) {
-    if (exampleRequests.size >= 80) exampleRequests.delete(exampleRequests.keys().next().value!)
-    const request = api<PatternMatch>(`/patterns/${id}/best-match?version=${version}${similar ? '&limit=12' : ''}`).catch(error => { exampleRequests.delete(key); throw error })
-    exampleRequests.set(key, { expires: Date.now() + 5 * 60000, request })
-  }
-  return exampleRequests.get(key)!.request
+// Keep preview requests component-local: module-level promises can outlive an account switch.
+function requestPatternExamples(id: string, version: number, similar = false, asOf = '') {
+  return api<PatternMatch>(`/patterns/${encodeURIComponent(id)}/best-match?version=${version}${similar ? '&limit=12' : ''}${asOf ? `&as_of=${encodeURIComponent(asOf)}` : ''}`)
 }
 function PatternExample({ item, allowCurve = false, showSimilar = false, compact = false }: { item: Pattern; allowCurve?: boolean; showSimilar?: boolean; compact?: boolean }) {
   const [curve, setCurve] = useState(false)
@@ -460,18 +497,13 @@ function PatternExample({ item, allowCurve = false, showSimilar = false, compact
   useEffect(() => {
     let active = true
     setResult(null); setError(''); setSelectedIndex(0)
-    if (!exampleRequests.has(key) || exampleRequests.get(key)!.expires < Date.now()) {
-      if (exampleRequests.size >= 80) exampleRequests.delete(exampleRequests.keys().next().value!)
-      const request = api<PatternMatch>('/patterns/' + item.id + '/best-match?version=' + item.version + (showSimilar ? '&limit=12' : '')).catch(error => { exampleRequests.delete(key); throw error })
-      exampleRequests.set(key, { expires: Date.now() + 5 * 60000, request })
-    }
-    exampleRequests.get(key)!.request.then(value => { if (active) setResult(value) }).catch(error => { if (active) setError(error.message) })
+    requestPatternExamples(item.id, item.version, showSimilar).then(value => { if (active) setResult(value) }).catch(error => { if (active) setError(error.message) })
     return () => { active = false }
   }, [item.id, item.version, retry, showSimilar, key])
   const matches = result?.items?.length ? result.items : result?.bars.length ? [result] : []
   const selectedMatch = matches[selectedIndex] || matches[0]
   return <StockText><div className={'pattern-example' + (showSimilar ? ' pattern-match-browser' : '')}>
-    {allowCurve && <div className="pattern-chart-toolbar">{showSimilar && <span><ChartNoAxesCombined size={14} />{curve ? '原始目标走势' : '真实行情对照'}</span>}<div className="pattern-chart-tools"><div className="segmented"><button aria-pressed={!curve} className={["workspace-button", !curve ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => setCurve(false)}>K线</button><button aria-pressed={curve} className={["workspace-button", curve ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => setCurve(true)}>原始曲线</button></div>{!curve && result && <button className="text-button pattern-refresh workspace-button" aria-label="刷新形态匹配" onClick={() => { exampleRequests.delete(key); setRetry(value => value + 1) }}><RefreshCw size={13} /><span>刷新匹配</span></button>}</div></div>}
+    {allowCurve && <div className="pattern-chart-toolbar">{showSimilar && <span><ChartNoAxesCombined size={14} />{curve ? '原始目标走势' : '真实行情对照'}</span>}<div className="pattern-chart-tools"><div className="segmented"><button aria-pressed={!curve} className={["workspace-button", !curve ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => setCurve(false)}>K线</button><button aria-pressed={curve} className={["workspace-button", curve ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => setCurve(true)}>原始曲线</button></div>{!curve && result && <button className="text-button pattern-refresh workspace-button" aria-label="刷新形态匹配" onClick={() => { setRetry(value => value + 1) }}><RefreshCw size={13} /><span>刷新匹配</span></button>}</div></div>}
     <div className="pattern-match-layout">
     <div className="pattern-match-preview">
     {curve ? <><svg className="pattern-original-curve" viewBox="0 0 600 160" role="img" aria-label={item.name + '原始曲线'}>{[40, 80, 120].map(y => <line key={y} x1="10" x2="590" y1={y} y2={y} className="pattern-thumbnail-grid" />)}<polyline points={galleryPoints(item.points)} fill="none" stroke="var(--ui-chart-line)" strokeWidth="2.5" /></svg><p className="pattern-example-caption">目标走势 · {item.target_bars} 个交易日 · 已保存 v{item.version}</p></> : error ? <p role="alert" className="workspace-error">{error}<button className="text-button workspace-button" onClick={() => setRetry(value => value + 1)}>重试</button></p> : !result ? <LoadingState label="正在寻找相似的真实 K 线…" skeleton /> : selectedMatch ? <>

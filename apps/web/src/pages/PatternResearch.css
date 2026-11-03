@@ -1,0 +1,16 @@
+.pattern-research-contract, .pattern-research-records { border: 1px solid var(--ui-border); border-radius: 8px; padding: 12px; }
+.pattern-research-contract { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.pattern-research-contract p { flex-basis: 100%; margin: 0; }
+.pattern-research-record-list { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 12px; }
+.pattern-research-records > summary { cursor: pointer; }
+.pattern-research-records .pattern-comparison { margin-block: 12px; }
+.pattern-template-research { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.pattern-template-research textarea { min-width: min(24rem, 100%); }
+/* New research controls must not squeeze the existing charts or reduce type size. */
+.pattern-comparison-studio > .pattern-research-records { flex-shrink: 0; max-height: 55vh; overflow: auto; }
+.pattern-comparison-studio .pattern-workbench { overflow-y: auto; }
+.pattern-workbench > .pattern-research-contract, .pattern-workbench > .pattern-template-research, .pattern-workbench > .pattern-workbench-footer { flex-shrink: 0; }
+.pattern-workbench > .pattern-comparison { flex: 1 0 350px; }
+.pattern-research-records .pattern-comparison { min-height: 350px; }
+.pattern-research-records table { width: 100%; border-collapse: collapse; }
+.pattern-research-records th, .pattern-research-records td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--ui-border); }
