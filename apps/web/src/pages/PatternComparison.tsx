@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ChartNoAxesCombined, RefreshCw, Search } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import LoadingState from '../components/LoadingState'
 import { ResponsiveMarketIndicatorChart as MarketIndicatorChart, type ChartBar } from '../components/MarketIndicatorChart'
 import { StockName } from '../components/StockSearch'
@@ -12,9 +12,9 @@ export type PatternMatch = { bars: ChartBar[]; similarity?: number; stock_code?:
 }
 const matchKey = (match: PatternMatch) => `${match.stock_code}@${match.start_date}`
 
-export default function PatternComparison({ target, matchAction, result, loading, error, selectedKey, onSelect, onRetry, minSimilarity }: {
+export default function PatternComparison({ target, matchAction, result, loading, error, selectedKey, onSelect, onRetry, minSimilarity, emptyActionLabel = '重新匹配' }: {
   target: ReactNode; matchAction: ReactNode; result: PatternMatch | null; loading: boolean; error: string; selectedKey: string
-  onSelect: (key: string) => void; onRetry: () => void; minSimilarity?: number
+  onSelect: (key: string) => void; onRetry: () => void; minSimilarity?: number; emptyActionLabel?: string
 }) {
   const [view, setView] = useState<'candles' | 'normalized'>('candles')
   const matches = result?.items?.length ? result.items : result?.bars.length ? [result] : []
@@ -22,30 +22,31 @@ export default function PatternComparison({ target, matchAction, result, loading
   const hasOverlay = validPair(selected?.template_points, selected?.candidate_points)
   useEffect(() => { if (!hasOverlay) setView('candles') }, [hasOverlay])
   const weak = selected?.similarity !== undefined && minSimilarity !== undefined && Number.isFinite(minSimilarity) && selected.similarity < minSimilarity
-  return <section className="pattern-comparison" aria-label="形态对照工作台">
+  return <section className="pattern-comparison" data-has-results={matches.length > 0} aria-label="形态对照工作台">
     <div className="pattern-comparison-charts">
       {target}
-      <div className="pattern-comparison-match-actions">{matchAction}</div>
-      <section className="pattern-comparison-candidate" aria-label="候选K线对照" aria-busy={loading}>
+      {matchAction && <div className="pattern-comparison-match-actions">{matchAction}</div>}
+      {loading ? <div className="pattern-match-feedback"><LoadingState label="正在寻找相似的真实 K 线…" compact /></div> : error ? <p className="pattern-match-feedback workspace-error" role="alert">{error}<button className="text-button workspace-button" onClick={onRetry}>重试</button></p> : result && !selected ? <p className="pattern-match-feedback" role="status">{result.reason || '没有可用的相似样本'}<button className="text-button workspace-button" onClick={onRetry}>{emptyActionLabel}</button></p> : null}
+      {selected && <section className="pattern-comparison-candidate" aria-label="候选K线对照" aria-busy={loading}>
         <header className="pattern-comparison-chart-heading"><div><h2>选中样本</h2>{selected?.stock_code ? <StockName code={selected.stock_code} /> : <span>从右侧选择相似样本</span>}</div>{selected && <span className="pattern-comparison-score"><strong>{selected.similarity?.toFixed(1)}</strong><small>相似度 / 100</small></span>}</header>
         <div className="pattern-comparison-view-switch segmented" role="group" aria-label="对照显示方式">
           <button type="button" className="workspace-button" aria-pressed={view === 'candles'} onClick={() => setView('candles')}>原始 K 线</button>
           <button type="button" className="workspace-button" aria-pressed={view === 'normalized'} disabled={!hasOverlay} onClick={() => setView('normalized')}>归一化叠加</button>
         </div>
         <div className="pattern-comparison-chart-content">
-          {loading ? <LoadingState label="正在寻找相似的真实 K 线…" compact /> : error ? <p className="workspace-error" role="alert">{error}<button className="text-button workspace-button" onClick={onRetry}>重试</button></p> : selected ? view === 'normalized' && hasOverlay ? <NormalizedOverlay expected={selected.template_points!} actual={selected.candidate_points!} /> : <PatternMarketChart bars={selected.bars} /> : <div className="pattern-comparison-placeholder"><ChartNoAxesCombined size={24} /><p>{result?.reason || '匹配后在这里对照相似 K 线。'}</p></div>}
+          {view === 'normalized' && hasOverlay ? <NormalizedOverlay expected={selected.template_points!} actual={selected.candidate_points!} /> : <PatternMarketChart bars={selected.bars} />}
         </div>
         {selected && <p className="pattern-comparison-dates">{selected.start_date} — {selected.end_date} · {selected.bars.length} 个交易日{ageDescription(selected) && ` · ${ageDescription(selected)}`}</p>}
         {weak && <p className="pattern-comparison-notice">低于选股参考阈值 {minSimilarity} 分；此处仅为历史案例排序，不表示选股命中。</p>}
         {selected && <MatchExplanation match={selected} />}
-      </section>
+      </section>}
     </div>
-    <aside className="pattern-comparison-results" aria-label="相似K线样本">
+    {matches.length > 0 && <aside className="pattern-comparison-results" aria-label="相似K线样本">
       <header className="pattern-comparison-results-heading"><div><h2>相似样本 <span>{matches.length || (loading ? '匹配中' : '待匹配')}</span></h2><small>按相似度排序</small></div>{(result || error) && <button type="button" className="text-button workspace-button" aria-label="刷新形态匹配" disabled={loading} onClick={onRetry}><RefreshCw size={14} /></button>}</header>
-      <div className="pattern-comparison-result-list">{matches.length ? matches.map((match, index) => <button type="button" data-stock-ignore key={matchKey(match)} className={'workspace-button pattern-comparison-result' + (selected === match ? ' selected' : '')} aria-pressed={selected === match} aria-label={`查看 ${match.stock_code} 相似K线，相似度 ${match.similarity?.toFixed(1)} 分`} onClick={() => onSelect(matchKey(match))}>
+      <div className="pattern-comparison-result-list">{matches.map((match, index) => <button type="button" data-stock-ignore key={matchKey(match)} className={'workspace-button pattern-comparison-result' + (selected === match ? ' selected' : '')} aria-pressed={selected === match} aria-label={`查看 ${match.stock_code} 相似K线，相似度 ${match.similarity?.toFixed(1)} 分`} onClick={() => onSelect(matchKey(match))}>
         <span className="pattern-comparison-result-title"><span className="pattern-match-rank">{String(index + 1).padStart(2, '0')}</span>{match.stock_code && <StockName code={match.stock_code} interactive={false} />}<strong className="pattern-comparison-result-score">{match.similarity?.toFixed(1)}</strong></span>
         <MiniCandles bars={match.bars} /><span className="pattern-similar-dates">{match.start_date} — {match.end_date}{ageDescription(match) && <><br />{ageDescription(match)}</>}</span>
-      </button>) : <div className="pattern-comparison-list-empty"><Search size={22} /><p>{loading ? '正在比较本地行情' : error ? '暂时无法读取候选' : result ? '没有可用的相似样本' : '匹配结果将在这里排列'}</p></div>}</div>
+      </button>)}</div>
       <div className="pattern-comparison-scope">
         <p>相似度不是上涨概率。</p>
         {result?.as_of && <span>行情截至 {result.as_of}</span>}
@@ -56,7 +57,7 @@ export default function PatternComparison({ target, matchAction, result, loading
           {result?.requested_as_of && <p>检索截止 {result.requested_as_of}</p>}
           <p>日线 · {result?.price_basis && result.price_basis !== 'unadjusted' ? result.price_basis : '未复权'} · 固定交易日窗口</p>
         </details></div>
-    </aside>
+    </aside>}
   </section>
 }
 

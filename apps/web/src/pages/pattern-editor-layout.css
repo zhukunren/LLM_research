@@ -22,9 +22,17 @@
 .pattern-unified-workspace .pattern-target-edit-tools > .secondary-button { min-height: 28px; padding: 4px 7px; font-size: 12px; }
 /* Let review and a short viewport scroll rather than squeezing the current target away. */
 .viewport-workspace .page-frame .pattern-unified-workspace[data-panel=create] > #pattern-content { overflow-y: auto; }
-.pattern-unified-workspace .pattern-comparison { min-height: 440px; }
+.pattern-unified-workspace .pattern-comparison { flex: 1 0 auto; min-height: 0; }
 .pattern-unified-workspace .pattern-workbench { flex: 1 0 auto; }
-.pattern-unified-workspace .pattern-comparison-target .pattern-comparison-chart-content { flex: 1 0 170px; min-height: 170px; }
+.pattern-unified-workspace .pattern-comparison-target .pattern-comparison-chart-content { flex: 1 0 280px; min-height: 280px; }
+.pattern-unified-workspace .pattern-comparison-target[data-state=empty] { flex: 1; justify-content: center; }
+.pattern-unified-workspace .pattern-comparison-target[data-state=empty] .pattern-comparison-chart-content { display: flex; flex: none; min-height: 0; overflow: visible; }
+.pattern-unified-workspace .pattern-comparison-target[data-state=input] { flex: none; }
+.pattern-unified-workspace .pattern-comparison-target[data-state=target] { flex: none; }
+.pattern-unified-workspace .pattern-comparison-target[data-state=input] > .pattern-input-candidate { max-width: 960px; box-sizing: border-box; }
+.pattern-unified-workspace .pattern-comparison-charts { min-width: 0; }
+.pattern-unified-workspace .pattern-comparison[data-has-results=false] .pattern-comparison-charts { flex: 1; }
+.pattern-unified-workspace .pattern-comparison-target:not(.pattern-comparison-target-focused):is([data-state=target],[data-drawing=true]) .pattern-comparison-chart-content { flex: none; height: clamp(280px,38dvh,420px); }
 @media (max-width: 760px) {
   .pattern-input-candidate { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 10px; }
   .pattern-input-candidate-preview { height: 100px; }

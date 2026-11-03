@@ -26,8 +26,8 @@ async function enterWindow() {
   const user = userEvent.setup()
   await user.click(screen.getByRole('tab', { name: '形态匹配' }))
   await choosePatternInput(user, '截取行情区间')
-  expect(screen.getByRole('button', { name: '匹配相似形态' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: '保存模板' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: '匹配相似形态' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '保存模板' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('combobox', { name: '来源股票' }))
   await user.click(await screen.findByRole('option', { name: /浦发银行/ }))
   fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2026-09-01' } })
@@ -67,6 +67,8 @@ it('restores the frozen interval and uses exact closes when comparing price path
   await user.click(await screen.findByRole('button', { name: '应用候选' }))
   view.unmount()
   render(<SecuritiesProvider><PatternPage /></SecuritiesProvider>)
+  expect(screen.queryByRole('region', { name: '输入工具' })).not.toBeInTheDocument()
+  await choosePatternInput(user, '截取行情区间')
   expect(screen.getByLabelText('开始日期')).toHaveValue('2026-09-01')
   expect(screen.getByLabelText('目标交易日数')).toHaveValue(12)
   await user.click(screen.getByRole('button', { name: '走势曲线' }))
@@ -108,7 +110,7 @@ it('shows interval errors and leaves matching disabled after a failed load', asy
   await user.click(screen.getByRole('button', { name: '载入 K 线' }))
   await screen.findByText('所选区间只有 5 根日线，请扩大区间')
   expect(within(screen.getByRole('region', { name: '输入工具' })).getByRole('status')).toHaveTextContent('所选区间只有 5 根日线，请扩大区间')
-  expect(screen.getByRole('button', { name: '匹配相似形态' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: '匹配相似形态' })).not.toBeInTheDocument()
 })
 
 it('ignores a late interval response after selecting another saved template', async () => {

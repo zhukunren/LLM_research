@@ -11,7 +11,12 @@ export async function choosePatternInput(user: ReturnType<typeof userEvent.setup
     await user.click(starter)
     return
   }
-  const trigger = screen.queryByRole('button', { name: '替换目标' }) ?? screen.getByRole('button', { name: '创建目标' })
+  const trigger = screen.queryByRole('button', { name: '替换目标' })
+  if (!trigger) {
+    await user.click(screen.getByRole('button', { name: '关闭输入工具' }))
+    await user.click(screen.getByRole('button', { name }))
+    return
+  }
   if (trigger.getAttribute('aria-expanded') !== 'true') await user.click(trigger)
   await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name }))
 }

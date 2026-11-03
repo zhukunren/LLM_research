@@ -63,7 +63,8 @@ it.each(patternInputActions)('opens a temporary named tool for the blank starter
   expect(within(tool).getByRole('button', { name: '关闭输入工具' })).toBeInTheDocument()
   await user.click(within(tool).getByRole('button', { name: '关闭输入工具' }))
   expect(screen.queryByRole('region', { name: '输入工具' })).not.toBeInTheDocument()
-  expect(screen.getByLabelText('模板名称')).toHaveValue('新形态')
+  expect(screen.queryByLabelText('模板名称')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name })).toHaveFocus()
 })
 
 it('removes the starter overlay while drawing and restores starters when its tool closes', async () => {
@@ -92,7 +93,7 @@ it.each(['blank', 'loaded'] as const)('closes the %s drawing tool from its focus
   fireEvent.compositionEnd(canvas)
   await user.keyboard('{Escape}')
   expect(screen.queryByRole('region', { name: '输入工具' })).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: state === 'loaded' ? '替换目标' : '创建目标' })).toHaveFocus()
+  expect(screen.getByRole('button', { name: state === 'loaded' ? '替换目标' : '绘制新形态' })).toHaveFocus()
   if (state === 'loaded') {
     expect(targetPath()).toBe(original)
     expect(screen.getByLabelText('目标来源')).toHaveTextContent('手绘')

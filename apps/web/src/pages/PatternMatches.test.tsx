@@ -107,7 +107,8 @@ it('retries matching errors and handles a market with no samples', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('行情更新中')
   await user.click(screen.getByRole('button', { name: '重试' }))
   expect(await screen.findByText('暂无本地真实行情')).toBeInTheDocument()
-  expect(within(screen.getByRole('complementary', { name: '相似K线样本' })).queryByRole('button', { name: /查看/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole('complementary', { name: '相似K线样本' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: '候选K线对照' })).not.toBeInTheDocument()
 })
 
 it('keeps a partially edited candle sequence after leaving the workbench', async () => {

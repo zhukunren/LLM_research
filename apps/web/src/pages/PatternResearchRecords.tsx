@@ -188,7 +188,7 @@ export default function PatternResearchRecords({ refreshKey }: { refreshKey?: st
               {derivation?.source_draft_id && <p>来源文字草稿：{derivation.source_draft_id}</p>}
               {(template?.input_type === 'screenshot' || derivation?.origin_type === 'screenshot' || sourceImage) && <p>此记录保存目标与来源元数据，原图不包含在结果快照内；质量说明：{JSON.stringify(template?.params?.screenshot_quality ?? '未记录')}</p>}
             </details>
-            <PatternComparison target={target} matchAction={<span>已保存结果快照</span>} result={record.result} loading={false} error="" selectedKey={record.selected_key} onSelect={key => update({ selected_key: key })} onRetry={() => void load(record.id)} />
+            <PatternComparison emptyActionLabel="重新读取记录" target={target} matchAction={<span>已保存结果快照</span>} result={record.result} loading={false} error="" selectedKey={record.selected_key} onSelect={key => update({ selected_key: key })} onRetry={() => void load(record.id)} />
             <div className="pattern-research-note"><label className="field workspace-field-label"><span>研究记录备注</span><textarea ref={noteInput} className="workspace-field" rows={3} value={note} maxLength={4000} onChange={event => { const value = event.target.value; drafts.current.set(record.id, value); setNote(value) }} /></label><div><button type="button" className="secondary-button workspace-button" disabled={saving || note === (record.note || '')} onClick={() => update({ note })}>保存研究备注</button>{saving ? <span role="status">正在保存…</span> : note !== (record.note || '') && <span>未保存</span>}</div></div>
           </section>}
         </div>

@@ -295,3 +295,22 @@ it('preserves original prompt and screenshot metadata in derived snapshot detail
   expect(details).toHaveTextContent('原始文字：先横盘再缓慢上行')
   expect(details).toHaveTextContent('来源文字草稿：draft-original')
 })
+
+
+it('rereads a zero-result frozen record without creating a new search', async () => {
+  records.run1.result = { bars: [], items: [], reason: '该次冻结检索没有可用样本', as_of: '2026-09-10' }
+  render(<PatternResearchRecords />)
+  const user = await openRecord()
+  const record = screen.getByRole('region', { name: '冻结检索记录' })
+  const frozenPath = within(record).getByRole('img', { name: '冻结目标走势' }).querySelector('polyline')?.getAttribute('points')
+  expect(within(record).getByRole('status')).toHaveTextContent('该次冻结检索没有可用样本')
+  expect(within(record).queryByRole('region', { name: '候选K线对照' })).not.toBeInTheDocument()
+  expect(within(record).queryByRole('complementary', { name: '相似K线样本' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '重新匹配' })).not.toBeInTheDocument()
+  await user.click(within(record).getByRole('button', { name: '重新读取记录' }))
+  await waitFor(() => expect(mocked.mock.calls.filter(([path]) => path === '/patterns/search-runs/run1')).toHaveLength(2))
+  const restored = await screen.findByRole('region', { name: '冻结检索记录' })
+  expect(within(restored).getByRole('img', { name: '冻结目标走势' }).querySelector('polyline')?.getAttribute('points')).toBe(frozenPath)
+  expect(within(restored).getByRole('status')).toHaveTextContent('该次冻结检索没有可用样本')
+  expect(mocked.mock.calls.every(([path, init]) => path.startsWith('/patterns/search-runs') && !init?.method)).toBe(true)
+})

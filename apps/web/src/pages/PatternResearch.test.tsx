@@ -27,6 +27,7 @@ async function loadTemplate() {
   const user = userEvent.setup()
   await user.click(screen.getByRole('tab', { name: '我的形态' }))
   await user.click(await screen.findByRole('button', { name: '载入对照' }))
+  await user.click(screen.getByLabelText('模板备注').closest('details')!.querySelector('summary')!)
   return user
 }
 it('shows separate contracts and copies a selected historical version without its identity', async () => {
@@ -84,6 +85,7 @@ it('ignores historical version responses after switching templates', async () =>
   await user.click(screen.getByRole('tab', { name: '我的形态' }))
   const first = (await screen.findByRole('heading', { name: '研究形态' })).closest('article')!
   await user.click(within(first).getByRole('button', { name: '载入对照' }))
+  await user.click(screen.getByLabelText('模板备注').closest('details')!.querySelector('summary')!)
   await user.click(screen.getByRole('button', { name: '查看历史版本' }))
   await user.click(screen.getByRole('tab', { name: '我的形态' }))
   await user.click(within(screen.getByRole('heading', { name: '另一形态' }).closest('article')!).getByRole('button', { name: '载入对照' }))
