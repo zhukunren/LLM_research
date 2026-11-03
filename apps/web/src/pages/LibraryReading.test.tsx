@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { api } from '../api'
 import PatternPage from './PatternPage'
+import { choosePatternInput } from '../test/patternInputActions'
 import ReportPage from './ReportPage'
 import WorkbenchPage from './WorkbenchPage'
 import type { ReactNode } from 'react'
@@ -32,18 +33,20 @@ it('keeps all four input tools in the workbench without replacing the saved targ
   mocked.mockImplementation(async path => path === '/patterns' ? { items: [pattern] } : { bars: [{ trade_date: '2026-09-14', open: 10, close: 11, high: 12, low: 9 }], stock_code: '600000.SH', similarity: 95, start_date: '2026-09-01', end_date: '2026-09-14', scope: '本地行情' })
   const user = userEvent.setup()
   render(<PatternPage />)
-  expect(screen.getByRole('group', { name: '输入工具' })).toBeInTheDocument()
+  for (const name of ['截取行情区间', '上传截图', '描述目标走势', '绘制新形态']) expect(screen.getByRole('button', { name })).toBeInTheDocument()
   await user.click(screen.getByRole('tab', { name: '我的形态' }))
   expect(await screen.findByRole('img', { name: 'K线主图叠加指标走势' })).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '原始曲线' }))
   expect(screen.getByRole('img', { name: '目标走势原始曲线' })).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '载入对照' }))
   expect(await screen.findByRole('button', { name: /查看 600000.SH/ })).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '文字' }))
+  await choosePatternInput(user, '描述目标走势')
   expect(screen.getByLabelText('形态需求描述')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '截图' }))
-  expect(screen.getByText('上传截图')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: '手绘' })).toBeInTheDocument()
+  await choosePatternInput(user, '上传截图')
+  expect(screen.getByRole('region', { name: '输入工具' })).toHaveTextContent('上传截图')
+  await user.click(screen.getByRole('button', { name: '替换目标' }))
+  expect(screen.getByRole('menuitem', { name: '绘制新形态' })).toBeInTheDocument()
+  await user.keyboard('{Escape}')
   expect(screen.getByLabelText('模板名称')).toHaveValue('目标走势')
   const matching = screen.getByText('选股设置').closest('details')!
   expect(matching).not.toHaveAttribute('open')
@@ -57,7 +60,7 @@ it('restores a generated pattern editor after navigating away without saving the
   const user = userEvent.setup()
   mocked.mockImplementation(async path => path === '/patterns' ? { items: [] } : { id: 'draft', prompt: '双底形态', status: 'ready', name: '双底草稿', points: Array.from({ length: 20 }, (_, index) => index / 19), target_bars: 20, min_similarity: 85, assumptions: [], issues: [], description: '测试草稿' })
   const view = render(<PatternPage />)
-  await user.click(screen.getByRole('button', { name: '文字' }))
+  await choosePatternInput(user, '描述目标走势')
   await user.type(screen.getByLabelText('形态需求描述'), '双底形态')
   await user.click(screen.getByRole('button', { name: '生成形态草稿' }))
   const candidate = await screen.findByRole('region', { name: '建议候选形态' })

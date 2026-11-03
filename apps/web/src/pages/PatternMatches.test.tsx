@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { api } from '../api'
 import PatternPage from './PatternPage'
+import { choosePatternInput } from '../test/patternInputActions'
 import { SecuritiesProvider } from '../components/StockSearch'
 import { StockInteractionsProvider } from '../components/StockMentions'
 
@@ -113,7 +114,7 @@ it('keeps a partially edited candle sequence after leaving the workbench', async
   const user = userEvent.setup()
   mocked.mockResolvedValue({ items: [] })
   const view = render(<PatternPage />)
-  await user.click(screen.getByRole('button', { name: '手绘' }))
+  await choosePatternInput(user, '绘制新形态')
   await user.click(screen.getByRole('button', { name: '蜡烛图' }))
   await user.click(screen.getByText('编辑蜡烛 · 0 根'))
   await user.click(screen.getByRole('button', { name: '添加蜡烛' }))

@@ -1,8 +1,7 @@
 /* Unified input tools and candidate review share the existing chart typography and palette. */
-.pattern-tool-actions, .pattern-candidate-actions { display: flex; align-items: center; gap: 8px; }
-.pattern-tool-actions > button { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 5px 8px; font-size: 12px; }
+.pattern-candidate-actions { display: flex; align-items: center; gap: 8px; }
 .pattern-manual-tools { padding-top: 9px; font-size: 12px; color: var(--ui-text-muted); }
-.pattern-input-candidate { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr); align-items: center; gap: 16px; margin-top: 12px; padding: 12px; border: 1px solid var(--ui-primary-border); border-radius: 8px; background: var(--ui-surface-subtle); }
+.pattern-input-candidate { flex-shrink: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 16px; margin: 0 0 10px; padding: 12px; border: 1px solid var(--ui-primary-border); border-radius: 8px; background: var(--ui-surface-subtle); }
 .pattern-input-candidate-preview { height: 114px; min-width: 0; overflow: hidden; }
 .pattern-input-candidate-preview > svg { display: block; width: 100%; height: 100%; padding: 8px; }
 .pattern-input-candidate-preview .indicator-market-chart { margin: 0; padding: 0; }
@@ -25,10 +24,8 @@
 .viewport-workspace .page-frame .pattern-unified-workspace[data-panel=create] > #pattern-content { overflow-y: auto; }
 .pattern-unified-workspace .pattern-comparison { min-height: 440px; }
 .pattern-unified-workspace .pattern-workbench { flex: 1 0 auto; }
-.pattern-unified-workspace .pattern-comparison-target .pattern-comparison-chart-content { min-height: 135px; }
-.pattern-unified-workspace .pattern-comparison-target-focused .pattern-comparison-chart-content { min-height: 0; }
+.pattern-unified-workspace .pattern-comparison-target .pattern-comparison-chart-content { flex: 1 0 170px; min-height: 170px; }
 @media (max-width: 760px) {
-  .pattern-tool-actions { margin-left: auto; }
   .pattern-input-candidate { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 10px; }
   .pattern-input-candidate-preview { height: 100px; }
   .pattern-input-candidate-summary > span { white-space: normal; }

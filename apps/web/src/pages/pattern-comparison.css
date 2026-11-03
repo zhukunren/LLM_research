@@ -4,12 +4,26 @@
 .viewport-workspace .page-frame .pattern-comparison-studio[data-panel=saved] > #pattern-content { overflow-y: auto; }
 .pattern-comparison-studio .pattern-studio-navigation { min-height: 38px; }
 .pattern-workbench { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 12px; }
-.pattern-source-controls { flex-shrink: 0; padding-bottom: 12px; border-bottom: 1px solid var(--ui-border-subtle); }
-.pattern-source-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; }
-.pattern-source-methods, .pattern-target-actions { display: flex; align-items: center; gap: 6px; }
-.pattern-source-methods > button { display: flex; align-items: center; gap: 5px; min-height: 30px; padding: 5px 8px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--ui-text-muted); font-size: 13px; white-space: nowrap; }
-.pattern-source-methods > button.selected { border-bottom-color: var(--ui-primary); color: var(--ui-primary); font-weight: 600; }
-.pattern-comparison-studio .pattern-market-fields { display: grid; grid-template-columns: minmax(180px,1.5fr) repeat(2,minmax(145px,1fr)) auto; align-items: end; gap: 10px; padding-top: 9px; }
+/* Input actions create or replace a target; only the chart representation is a toggle. */
+.pattern-target-actions { display: flex; align-items: center; gap: 6px; }
+.pattern-input-menu { position: relative; }
+.pattern-input-trigger { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 5px 8px; font-size: 12px; white-space: nowrap; }
+.pattern-input-action-menu { position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; display: grid; width: 180px; padding: 5px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); box-shadow: 0 8px 24px #162e4818; }
+.pattern-input-action-menu > button { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px; border: 0; border-radius: 4px; background: transparent; color: var(--ui-text); text-align: left; font-size: 12px; }
+.pattern-input-action-menu > button:hover, .pattern-input-action-menu > button:focus-visible { background: var(--ui-surface-subtle); }
+.pattern-input-action-menu > button:focus-visible, .pattern-start-actions > button:focus-visible, .pattern-input-trigger:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 1px; }
+.pattern-input-panel { flex-shrink: 0; min-width: 0; margin: 6px 0 10px; padding: 10px 12px; border: 1px solid var(--ui-border-subtle); border-radius: 8px; background: var(--ui-surface-subtle); }
+.pattern-input-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pattern-input-panel-heading > strong { font-size: 12px; font-weight: 600; color: var(--ui-text); }
+.pattern-input-panel-heading > button { display: flex; padding: 4px; }
+.pattern-start-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-content: center; width: min(100%, 500px); min-height: 170px; height: 100%; margin: auto; padding: 12px; }
+.pattern-start-actions > button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 64px; padding: 12px; border: 1px solid var(--ui-border-subtle); border-radius: 8px; background: var(--ui-surface); color: var(--ui-text); text-align: left; font-size: 13px; }
+.pattern-start-actions > button:hover { background: var(--ui-surface-subtle); border-color: var(--ui-border); }
+.pattern-start-actions > button > svg { flex-shrink: 0; color: var(--ui-text-muted); }
+.pattern-start-actions > button > span { display: grid; gap: 3px; }
+.pattern-start-actions small { color: var(--ui-text-muted); font-size: 11px; }
+.pattern-comparison-studio .pattern-market-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: end; gap: 10px; padding-top: 9px; }
+.pattern-comparison-studio .pattern-market-fields > .field:first-child, .pattern-comparison-studio .pattern-market-fields > button { grid-column: 1 / -1; }
 .pattern-comparison-studio .pattern-market-fields .field { display: grid; gap: 4px; min-width: 0; margin: 0; font-size: 12px; color: var(--ui-text-muted); }
 .pattern-comparison-studio .pattern-market-fields .workspace-field { min-height: 33px; height: 33px; padding-block: 5px; font-size: 13px; }
 .pattern-comparison-studio .pattern-market-fields > button { min-height: 33px; font-size: 13px; }
@@ -36,7 +50,7 @@
 .pattern-description-examples > div { display: grid; gap: 8px; }
 .pattern-description-examples > div > button { text-align: left; white-space: normal; }
 .pattern-comparison { display: grid; grid-template-columns: minmax(0,1fr) clamp(210px,23%,270px); gap: 18px; flex: 1; min-height: 0; }
-.pattern-comparison-charts { display: grid; grid-template-rows: minmax(0,1fr) auto minmax(0,1fr); min-width: 0; min-height: 0; gap: 10px; }
+.pattern-comparison-charts { display: grid; grid-template-rows: auto auto minmax(200px,1fr); min-width: 0; min-height: 0; gap: 10px; }
 .pattern-comparison-match-actions { display: flex; justify-content: flex-end; }
 .pattern-comparison-match-actions > button { min-height: 32px; padding: 6px 11px; font-size: 13px; }
 .pattern-comparison-target, .pattern-comparison-candidate { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -45,6 +59,7 @@
 .pattern-comparison-chart-heading > div:first-child { display: grid; gap: 2px; min-width: 0; }
 .pattern-comparison-chart-heading h2, .pattern-comparison-results-heading h2 { margin: 0; color: var(--ui-text-muted); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .pattern-comparison-chart-heading > div > span { display: block; color: var(--ui-text-muted); font-size: 11px; overflow-wrap: anywhere; }
+.pattern-comparison-chart-heading > div > .pattern-target-source { justify-self: start; padding: 2px 6px; border: 1px solid var(--ui-border-subtle); border-radius: 4px; font-size: 10px; }
 .pattern-comparison-chart-heading .stock-identity { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
 .pattern-comparison-chart-heading .stock-identity strong { font-size: 13px; color: var(--ui-text); }
 .pattern-comparison-target .pattern-comparison-chart-heading { flex-wrap: wrap; }
@@ -109,30 +124,29 @@
 .pattern-template-name > input { min-height: 30px; height: 30px; padding: 4px 8px; font-size: 12px; }
 .pattern-workbench-footer > button { min-height: 30px; padding: 5px 8px; font-size: 12px; }
 .pattern-workbench-status { flex: 1 1 150px; align-self: center; color: var(--ui-text-muted); font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
-.viewport-workspace .page-frame .pattern-comparison-studio .pattern-comparison-target-focused { position: fixed; inset: 12px; z-index: 160; padding: 20px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 10px; }
+.viewport-workspace .page-frame .pattern-comparison-studio .pattern-comparison-target-focused { position: fixed; inset: 12px; z-index: 160; overflow-y: auto; padding: 20px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 10px; }
 .pattern-comparison-target-focused .pattern-target-drawing > svg { min-height: 250px; }
 .pattern-comparison-target-focused .pattern-candle-controls { max-height: 220px; }
 @media (min-width: 761px) {
   .pattern-comparison-dates { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .pattern-template-name > span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .pattern-workbench-footer { padding-top: 7px; align-items: center; }
-  .pattern-source-controls { padding-bottom: 8px; }
   .viewport-workspace .page-frame .pattern-comparison-studio .pattern-market-fields .field { gap: 3px; }
   .viewport-workspace .page-frame .pattern-comparison-studio .pattern-market-fields .workspace-field { min-height: 32px; height: 32px; }
 }
 @media (max-width: 1050px) and (min-width: 761px) {
   .pattern-comparison { grid-template-columns: minmax(0,1fr) 200px; gap: 12px; }
   .pattern-comparison-results { padding-left: 10px; }
-  .pattern-comparison-studio .pattern-market-fields { grid-template-columns: minmax(150px,1.2fr) repeat(2,minmax(120px,1fr)) auto; gap: 7px; }
+  .pattern-comparison-studio .pattern-market-fields { gap: 7px; }
   .pattern-target-actions .segmented > button { padding-inline: 5px; }
 }
 @media (max-width: 760px) {
   .viewport-workspace .page-frame > .pattern-comparison-studio.pattern-studio { padding: 10px 12px; }
   .viewport-workspace .page-frame .pattern-comparison-studio[data-panel=create] > #pattern-content { overflow-y: auto; }
   .pattern-workbench { flex: none; min-height: 0; gap: 12px; }
-  .pattern-source-toolbar { align-items: flex-start; }
-  .pattern-source-methods { width: 100%; justify-content: space-between; gap: 2px; }
-  .pattern-source-methods > button { padding-inline: 6px; font-size: 12px; }
+  .pattern-input-action-menu { right: auto; left: 0; }
+  .pattern-start-actions { gap: 8px; padding: 8px 0; }
+  .pattern-start-actions > button { padding: 10px 8px; gap: 7px; font-size: 12px; }
   .pattern-comparison-studio .pattern-market-fields { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
   .pattern-comparison-studio .pattern-market-fields > .field:first-child, .pattern-comparison-studio .pattern-market-fields > button { grid-column: 1 / -1; }
   .pattern-comparison-studio .pattern-market-fields .workspace-field { height: 38px; font-size: 16px; }
@@ -160,7 +174,7 @@
   .pattern-language-input > textarea { flex-basis: 100%; min-width: 0; font-size: 16px; }
   .pattern-crop-details { margin-left: auto; }
   .pattern-description-examples > div { left: 0; right: auto; }
-  .viewport-workspace .page-frame .pattern-comparison-studio .pattern-comparison-target-focused { inset: 0; border: 0; border-radius: 0; padding: 14px; overflow-y: auto; }
+  .viewport-workspace .page-frame .pattern-comparison-studio .pattern-comparison-target-focused { inset: 0; border: 0; border-radius: 0; padding: 14px; }
   .pattern-comparison-target-focused .pattern-comparison-chart-content { flex: 1; }
   .pattern-comparison-target-focused .pattern-comparison-plot { height: min(60dvh,500px); }
 }

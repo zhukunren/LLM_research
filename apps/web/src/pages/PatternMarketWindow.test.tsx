@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { api, type PatternMarketSource } from '../api'
 import { SecuritiesProvider } from '../components/StockSearch'
 import PatternPage from './PatternPage'
+import { choosePatternInput } from '../test/patternInputActions'
 
 vi.mock('../api', () => ({ api: vi.fn() }))
 const mocked = vi.mocked(api)
@@ -24,7 +25,7 @@ beforeEach(() => {
 async function enterWindow() {
   const user = userEvent.setup()
   await user.click(screen.getByRole('tab', { name: '形态匹配' }))
-  await user.click(screen.getByRole('button', { name: '行情区间' }))
+  await choosePatternInput(user, '截取行情区间')
   expect(screen.getByRole('button', { name: '匹配相似形态' })).toBeDisabled()
   expect(screen.getByRole('button', { name: '保存模板' })).toBeDisabled()
   await user.click(screen.getByRole('combobox', { name: '来源股票' }))
@@ -106,7 +107,7 @@ it('shows interval errors and leaves matching disabled after a failed load', asy
   fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2026-09-01' } })
   await user.click(screen.getByRole('button', { name: '载入 K 线' }))
   await screen.findByText('所选区间只有 5 根日线，请扩大区间')
-  expect(within(screen.getByRole('region', { name: '形态来源设置' })).getByRole('status')).toHaveTextContent('所选区间只有 5 根日线，请扩大区间')
+  expect(within(screen.getByRole('region', { name: '输入工具' })).getByRole('status')).toHaveTextContent('所选区间只有 5 根日线，请扩大区间')
   expect(screen.getByRole('button', { name: '匹配相似形态' })).toBeDisabled()
 })
 
