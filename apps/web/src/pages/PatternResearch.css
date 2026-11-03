@@ -1,16 +1,45 @@
-.pattern-research-contract, .pattern-research-records { border: 1px solid var(--ui-border); border-radius: 8px; padding: 12px; }
-.pattern-research-contract { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.pattern-research-contract { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border: 1px solid var(--ui-border); border-radius: 8px; padding: 12px; }
 .pattern-research-contract p { flex-basis: 100%; margin: 0; }
-.pattern-research-record-list { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 12px; }
-.pattern-research-records > summary { cursor: pointer; }
-.pattern-research-records .pattern-comparison { margin-block: 12px; }
 .pattern-template-research { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .pattern-template-research textarea { min-width: min(24rem, 100%); }
-/* New research controls must not squeeze the existing charts or reduce type size. */
-.pattern-comparison-studio > .pattern-research-records { flex-shrink: 0; max-height: 55vh; overflow: auto; }
+/* Research controls must not squeeze the existing charts or reduce type size. */
 .pattern-comparison-studio .pattern-workbench { overflow-y: auto; }
 .pattern-workbench > .pattern-research-contract, .pattern-workbench > .pattern-template-research, .pattern-workbench > .pattern-workbench-footer { flex-shrink: 0; }
 .pattern-workbench > .pattern-comparison { flex: 1 0 350px; }
-.pattern-research-records .pattern-comparison { min-height: 350px; }
+
+.pattern-research-trigger { flex-shrink: 0; white-space: nowrap; }
+.pattern-research-overlay { position: fixed; inset: 0; z-index: 180; display: flex; justify-content: flex-end; background: var(--ui-overlay-backdrop, #172c4340); }
+.pattern-research-records.workspace-drawer { display: flex; flex-direction: column; width: min(1100px, 100vw); height: 100dvh; min-height: 0; border-left: 1px solid var(--ui-border); overflow: hidden; color: var(--ui-text); }
+.pattern-research-heading { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--ui-border-subtle); }
+.pattern-research-heading > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; min-width: 0; }
+.pattern-research-heading h2 { margin: 0; font-size: 18px; line-height: 1.5; }
+.pattern-research-heading span { color: var(--ui-text-muted); }
+.pattern-research-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px; overscroll-behavior: contain; scrollbar-width: thin; }
+.pattern-research-record-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 8px; max-height: 180px; overflow-y: auto; padding: 2px; margin-bottom: 16px; scrollbar-width: thin; }
+.pattern-research-record-list > button.workspace-button { display: block; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.pattern-research-record-list > button > strong { font-weight: 500; }
+.pattern-research-record-list > button > span { color: var(--ui-text-muted); }
+.pattern-research-record-list > button[aria-pressed=true] { border-color: var(--ui-primary-border); background: var(--ui-primary-soft); }
+.pattern-research-empty { color: var(--ui-text-muted); }
+.pattern-research-details { padding: 12px 0; border-block: 1px solid var(--ui-border-subtle); color: var(--ui-text-muted); overflow-wrap: anywhere; }
+.pattern-research-records summary { cursor: pointer; }
+.pattern-research-records p { line-height: 1.7; }
+.pattern-research-records .pattern-comparison { min-height: 430px; margin-block: 20px; }
+.pattern-research-records .pattern-comparison-charts { grid-template-rows: minmax(160px, auto) auto minmax(220px, auto); }
+.pattern-research-records .pattern-comparison-result-list { max-height: 600px; }
+.pattern-research-records .pattern-comparison-target > svg { width: 100%; min-height: 160px; }
+.pattern-research-table { max-width: 100%; overflow-x: auto; }
 .pattern-research-records table { width: 100%; border-collapse: collapse; }
 .pattern-research-records th, .pattern-research-records td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--ui-border); }
+.pattern-research-note { padding-top: 16px; border-top: 1px solid var(--ui-border-subtle); }
+.pattern-research-note > label { display: grid; gap: 8px; margin: 0 0 12px; }
+.pattern-research-note textarea { width: 100%; resize: vertical; }
+.pattern-research-note > div { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.pattern-research-note > div > span { color: var(--ui-text-muted); }
+@media (max-width: 760px) {
+  .pattern-research-heading, .pattern-research-body { padding: 16px; }
+  .pattern-research-record-list { max-height: 150px; }
+  .pattern-research-records .pattern-comparison { grid-template-columns: minmax(0, 1fr); }
+  .pattern-research-records .pattern-comparison-results { border-left: 0; padding-left: 0; border-top: 1px solid var(--ui-border-subtle); padding-top: 16px; }
+  .pattern-research-records .pattern-comparison-result-list { max-height: 280px; }
+}

@@ -95,8 +95,16 @@ def best_window(template: dict, bars: list[dict]) -> dict | None:
     return best
 
 
+def _market_origin(template: dict) -> dict:
+    # Derived geometry remains custom, but its known source still constrains
+    # source exclusion and historical timing. Never replace the target points.
+    derivation = template.get("derivation") or {}
+    inherited = derivation.get("market_source") if derivation.get("origin_type") == "market_window" else None
+    return template.get("market_source") or inherited or {}
+
+
 def template_timing(template: dict, as_of: str) -> tuple[str, str]:
-    source = template.get("market_source") or {}
+    source = _market_origin(template)
     end = source.get("end_date")
     if end and end > as_of:
         return "post_hoc", "事后构造：模板来源区间晚于检索截止日，不能作为该日已知的研究假设。"
@@ -123,7 +131,7 @@ def find_example(template: dict, limit: int = 1, as_of: str | None = None) -> di
                 "price_basis": market.PRICE_BASIS, "frequency": "daily", "scanned_securities": 0, "valid_securities": 0,
                 "as_of": None, "recent_windows": RECENT_WINDOWS,
                 "scope": "本地全部证券，每只最近120个结束窗口；每家公司取最相近区间，按原始相似度排序"
-                         + ("；已排除来源股票" if (template.get("market_source") or {}).get("stock_code") else "")}
+                         + ("；已排除来源股票" if _market_origin(template).get("stock_code") else "")}
     if fingerprint is None:
         return {**metadata, "state": "unknown", "reason": "暂无本地真实行情", "bars": [], "items": []}
     cutoff = market.latest_market_date(requested)
@@ -138,7 +146,7 @@ def find_example(template: dict, limit: int = 1, as_of: str | None = None) -> di
             result = json_load(cached[0])
             return {**result, "requested_as_of": requested, "template_timing": timing, "timing_warning": warning, "items": result["items"][:limit]}
         ranked, scanned, valid = [], 0, 0
-        source_code = (template.get("market_source") or {}).get("stock_code")
+        source_code = _market_origin(template).get("stock_code")
         for code, bars in market.iter_recent_bars(cutoff, template["target_bars"] + RECENT_WINDOWS - 1):
             if code == source_code:
                 continue

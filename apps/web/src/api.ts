@@ -104,6 +104,16 @@ export type Pattern = {
   params: Record<string, unknown>
   source_image?: { filename: string; mime_type: 'image/png' | 'image/jpeg' | 'image/webp'; sha256: string }
   market_source?: PatternMarketSource | null
+  derivation?: {
+    origin_type: 'market_window' | 'screenshot' | 'natural_language' | 'drawing'
+    source_window_id?: string
+    source_draft_id?: string
+    source_pattern_id?: string
+    source_pattern_version?: number
+    market_source?: PatternMarketSource
+    provenance?: Pattern['provenance']
+    source_image?: Pattern['source_image']
+  } | null
   created_at: string
   provenance?: { draft_id: string; prompt: string; source: string; model: string | null; compiler_version: string; assumptions: string[] }
 }

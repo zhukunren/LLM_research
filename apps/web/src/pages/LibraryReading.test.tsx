@@ -27,12 +27,12 @@ it('keeps the report page across catalog and reader switches', async () => {
   expect(screen.getByLabelText('研报页码')).toHaveValue(4)
 })
 
-it('keeps all four sources in the workbench and opens saved patterns for comparison', async () => {
+it('keeps all four input tools in the workbench without replacing the saved target', async () => {
   const pattern = { id: 'pattern', version: 1, name: '目标走势', representation: 'price_path', input_type: 'drawing', points: Array.from({ length: 10 }, (_, i) => i), params: {}, target_bars: 10 }
   mocked.mockImplementation(async path => path === '/patterns' ? { items: [pattern] } : { bars: [{ trade_date: '2026-09-14', open: 10, close: 11, high: 12, low: 9 }], stock_code: '600000.SH', similarity: 95, start_date: '2026-09-01', end_date: '2026-09-14', scope: '本地行情' })
   const user = userEvent.setup()
   render(<PatternPage />)
-  expect(screen.getByRole('group', { name: '形态来源' })).toBeInTheDocument()
+  expect(screen.getByRole('group', { name: '输入工具' })).toBeInTheDocument()
   await user.click(screen.getByRole('tab', { name: '我的形态' }))
   expect(await screen.findByRole('img', { name: 'K线主图叠加指标走势' })).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '原始曲线' }))
@@ -44,6 +44,7 @@ it('keeps all four sources in the workbench and opens saved patterns for compari
   await user.click(screen.getByRole('button', { name: '截图' }))
   expect(screen.getByText('上传截图')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '手绘' })).toBeInTheDocument()
+  expect(screen.getByLabelText('模板名称')).toHaveValue('目标走势')
   const matching = screen.getByText('选股设置').closest('details')!
   expect(matching).not.toHaveAttribute('open')
   await user.click(within(matching).getByText('选股设置'))
@@ -59,6 +60,9 @@ it('restores a generated pattern editor after navigating away without saving the
   await user.click(screen.getByRole('button', { name: '文字' }))
   await user.type(screen.getByLabelText('形态需求描述'), '双底形态')
   await user.click(screen.getByRole('button', { name: '生成形态草稿' }))
+  const candidate = await screen.findByRole('region', { name: '建议候选形态' })
+  expect(screen.getByLabelText('模板名称')).toHaveValue('新形态')
+  await user.click(within(candidate).getByRole('button', { name: '应用候选' }))
   await screen.findByDisplayValue('双底草稿')
   await user.clear(screen.getByLabelText('模板名称'))
   await user.type(screen.getByLabelText('模板名称'), '尚未保存的形态编辑')

@@ -995,9 +995,105 @@ def _pattern_market_source(payload: PatternInput) -> dict | None:
     return source
 
 
+def _pattern_draft_provenance(draft_id: str, *, confirmed: bool) -> dict:
+    with connect() as connection:
+        draft = connection.execute("SELECT prompt,draft_json,created_at FROM pattern_drafts WHERE id=?", (draft_id,)).fetchone()
+    if not draft or json_load(draft[1])["status"] != "ready":
+        _bad_request("自然语言形态草稿不存在或尚未完成确认")
+    plan = json_load(draft[1])
+    provenance = {"draft_id": draft_id, "prompt": draft[0], "original_prompt": draft[0], "source_quote": draft[0],
+            "source": plan["source"], "model": plan["model"], "compiler_version": plan["compiler_version"],
+            "shape": plan["shape"], "original_points": plan["points"], "original_target_bars": plan["target_bars"],
+            "original_min_similarity": plan["min_similarity"], "assumptions": plan["assumptions"], "draft_created_at": draft[2]}
+    if confirmed:
+        provenance["confirmed_at"] = utc_now()
+    return provenance
+
+
+def _pattern_lineage(payload: PatternInput, *, confirm_draft: bool = False) -> tuple[dict | None, dict | None, dict | None]:
+    """Resolve workspace-owned origins, never trust client-supplied snapshot metadata."""
+    derivation, provenance, source_image = None, None, None
+    source_market = None
+    origin = payload.derivation
+    if origin is None and payload.id and payload.input_type == "drawing":
+        with connect() as connection:
+            row = connection.execute("SELECT pattern_json FROM patterns WHERE id=? ORDER BY version DESC LIMIT 1", (payload.id,)).fetchone()
+        previous = json_load(row[0]) if row else {}
+        if previous.get("derivation"):
+            if payload.source_image_base64 or payload.source_draft_id or payload.source_window_id:
+                _bad_request("修改来源副本时请明确指定新的来源")
+            # Match and save both retain known origins when an older client omits them.
+            return previous["derivation"], previous.get("provenance"), previous.get("source_image")
+    if origin:
+        if payload.input_type != "drawing":
+            _bad_request("来源副本必须保存为自定义形态")
+        if payload.source_window_id or payload.source_draft_id:
+            _bad_request("来源副本请仅通过 derivation 指定来源")
+        if bool(origin.source_pattern_id) != (origin.source_pattern_version is not None):
+            _bad_request("来源形态必须同时指定 ID 与版本")
+        routes = sum(bool(value) for value in (origin.source_pattern_id, origin.source_window_id, origin.source_draft_id))
+        if routes > 1:
+            _bad_request("来源副本只能指定一个原始来源")
+        derivation = origin.model_dump(exclude_none=True)
+        if origin.source_pattern_id:
+            with connect() as connection:
+                row = connection.execute("SELECT pattern_json FROM patterns WHERE id=? AND version=?",
+                                         (origin.source_pattern_id, origin.source_pattern_version)).fetchone()
+            if not row:
+                _bad_request("找不到来源形态版本", 404, "pattern_version_not_found")
+            original = json_load(row[0])
+            inherited = original.get("derivation") or {}
+            if origin.origin_type != inherited.get("origin_type", original["input_type"]):
+                _bad_request("来源类型与已保存的形态不一致")
+            source_market = original.get("market_source") or inherited.get("market_source")
+            provenance = original.get("provenance")
+            source_image = original.get("source_image")
+        elif origin.source_window_id:
+            if origin.origin_type != "market_window":
+                _bad_request("行情快照只能作为行情来源")
+            with connect() as connection:
+                row = connection.execute("SELECT window_json FROM pattern_market_windows WHERE id=?", (origin.source_window_id,)).fetchone()
+            if not row:
+                _bad_request("找不到来源行情快照", 404, "pattern_window_not_found")
+            source_market = json_load(row[0])
+        elif origin.source_draft_id:
+            if origin.origin_type != "natural_language":
+                _bad_request("文字草稿只能作为文字来源")
+            provenance = _pattern_draft_provenance(origin.source_draft_id, confirmed=confirm_draft)
+        elif origin.origin_type != "screenshot" or not payload.source_image_base64:
+            _bad_request("自定义副本缺少可核验的原始来源")
+        if payload.source_image_base64 and routes:
+            _bad_request("来源副本不能替换原始截图")
+        if origin.origin_type == "market_window" and not source_market:
+            _bad_request("来源形态缺少行情快照")
+        if origin.origin_type == "natural_language" and not provenance:
+            _bad_request("来源形态缺少文字草稿")
+        if origin.origin_type == "screenshot" and routes and not source_image:
+            _bad_request("来源形态缺少原始截图")
+    elif payload.source_draft_id:
+        provenance = _pattern_draft_provenance(payload.source_draft_id, confirmed=confirm_draft)
+    elif payload.input_type == "natural_language":
+        _bad_request("自然语言形态需要关联生成草稿")
+
+    if payload.source_image_base64:
+        if not payload.source_image_mime:
+            _bad_request("截图模板缺少图片类型")
+        try:
+            source_image = store_source_image(payload.source_image_base64, payload.source_image_mime, payload.source_image_filename)
+        except ValueError as exc:
+            _bad_request(str(exc), 422, "invalid_pattern_image")
+    if derivation:
+        if source_market:
+            derivation["market_source"] = source_market
+        if provenance:
+            derivation["provenance"] = provenance
+        if source_image:
+            derivation["source_image"] = source_image
+    return derivation, provenance, source_image
+
+
 @app.post(f"{API_PREFIX}/patterns")
 def save_pattern(payload: PatternInput):
-    provenance = None
     market_source = _pattern_market_source(payload)
     if len(payload.points) != payload.target_bars:
         _bad_request("走势点数必须与目标交易日数一致")
@@ -1010,15 +1106,6 @@ def save_pattern(payload: PatternInput):
     recent_bars = payload.params.get("recent_bars", 20)
     if type(recent_bars) is not int or isinstance(recent_bars, bool) or not 1 <= recent_bars <= 120:
         _bad_request("近期形态回看交易日数必须为1到120的整数")
-    if payload.source_draft_id:
-        with connect() as connection:
-            draft = connection.execute("SELECT prompt,draft_json FROM pattern_drafts WHERE id=?", (payload.source_draft_id,)).fetchone()
-        if not draft or json_load(draft[1])["status"] != "ready":
-            _bad_request("自然语言形态草稿不存在或尚未完成确认")
-        plan = json_load(draft[1])
-        provenance = {"draft_id": payload.source_draft_id, "prompt": draft[0], "original_prompt": draft[0], "source_quote": draft[0], "source": plan["source"], "model": plan["model"], "compiler_version": plan["compiler_version"], "shape": plan["shape"], "original_points": plan["points"], "original_target_bars": plan["target_bars"], "original_min_similarity": plan["min_similarity"], "assumptions": plan["assumptions"], "confirmed_at": utc_now()}
-    elif payload.input_type == "natural_language":
-        _bad_request("自然语言形态需要关联生成草稿")
     if payload.representation == "ohlc_sequence":
         if len(payload.candlesticks) != payload.target_bars:
             _bad_request("蜡烛数必须与目标 bar 数一致")
@@ -1026,29 +1113,31 @@ def save_pattern(payload: PatternInput):
             validate_candles(payload.candlesticks)
         except ValueError as exc:
             _bad_request(str(exc))
+    derivation, provenance, source_image = _pattern_lineage(payload, confirm_draft=True)
     pattern_id, now = payload.id or str(uuid4()), utc_now()
-    source_image = None
-    if payload.source_image_base64:
-        if not payload.source_image_mime:
-            _bad_request("截图模板缺少图片类型")
-        try:
-            source_image = store_source_image(payload.source_image_base64, payload.source_image_mime, payload.source_image_filename)
-        except ValueError as exc:
-            _bad_request(str(exc), 422, "invalid_pattern_image")
     content = {
         "input_type": payload.input_type, "representation": payload.representation, "note": payload.note,
         "target_bars": payload.target_bars, "points": payload.points,
         "candlesticks": payload.candlesticks, "params": payload.params,
         "algorithm_version": "candle-window-v2" if payload.representation == "ohlc_sequence" else "path-window-v2",
         "provenance": provenance,
-        "market_source": market_source,
+        "market_source": market_source, "derivation": derivation,
     }
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         version = connection.execute("SELECT COALESCE(MAX(version),0)+1 FROM patterns WHERE id=?", (pattern_id,)).fetchone()[0]
-        if source_image is None and version > 1 and payload.input_type == "screenshot":
+        if version > 1:
             previous = connection.execute("SELECT pattern_json FROM patterns WHERE id=? AND version=?", (pattern_id, version - 1)).fetchone()
-            source_image = json_load(previous[0]).get("source_image") if previous else None
+            previous_content = json_load(previous[0]) if previous else {}
+            if source_image is None and payload.input_type == "screenshot":
+                source_image = previous_content.get("source_image")
+            if payload.derivation is None and payload.input_type == "drawing" and previous_content.get("derivation"):
+                # Old clients updating a derived version must not silently discard its origin.
+                if payload.source_image_base64 or payload.source_draft_id or payload.source_window_id:
+                    _bad_request("修改来源副本时请明确指定新的来源")
+                content["derivation"] = previous_content["derivation"]
+                content["provenance"] = previous_content.get("provenance")
+                source_image = previous_content.get("source_image")
         content["source_image"] = source_image
         connection.execute("INSERT INTO patterns(id,name,version,pattern_json,created_at) VALUES(?,?,?,?,?)", (pattern_id, payload.name, version, json_dump(content), now))
         connection.execute("INSERT INTO audit_events(action,entity_type,entity_id,version,created_at) VALUES('save','pattern',?,?,?)", (pattern_id, version, now))
@@ -1140,12 +1229,13 @@ def match_pattern_input(payload: PatternInput, limit: int = Query(default=1, ge=
             validate_candles(payload.candlesticks)
         except ValueError as exc:
             _bad_request(str(exc), 422)
+    derivation, provenance, source_image = _pattern_lineage(payload)
     template = {"name": payload.name, "input_type": payload.input_type, "note": payload.note, "params": payload.params,
                 "source_draft_id": payload.source_draft_id, "source_window_id": payload.source_window_id,
                 "representation": payload.representation, "target_bars": payload.target_bars,
                 "points": payload.points, "candlesticks": payload.candlesticks,
                 "algorithm_version": "candle-window-v2" if payload.representation == "ohlc_sequence" else "path-window-v2",
-                "market_source": market_source}
+                "market_source": market_source, "derivation": derivation, "provenance": provenance, "source_image": source_image}
     try:
         result = find_example(template, limit=limit, as_of=as_of.isoformat() if as_of else None)
         return save_search(template, result, {"as_of": as_of.isoformat() if as_of else None, "limit": limit, "mode": "historical_examples"})

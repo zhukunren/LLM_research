@@ -47,11 +47,15 @@ export default function PatternComparison({ target, matchAction, result, loading
         <MiniCandles bars={match.bars} /><span className="pattern-similar-dates">{match.start_date} — {match.end_date}{ageDescription(match) && <><br />{ageDescription(match)}</>}</span>
       </button>) : <div className="pattern-comparison-list-empty"><Search size={22} /><p>{loading ? '正在比较本地行情' : error ? '暂时无法读取候选' : result ? '没有可用的相似样本' : '匹配结果将在这里排列'}</p></div>}</div>
       <div className="pattern-comparison-scope">
-        <p>形态相似度不是上涨概率，也不预测后续收益。</p>
-        {result?.scanned_securities !== undefined && result.valid_securities !== undefined && <p>有效覆盖 {result.valid_securities} / 已扫描 {result.scanned_securities} 只证券</p>}
-        {result?.timing_warning && <p className="pattern-comparison-notice">{result.timing_warning}</p>}
-        {result?.requested_as_of && <span>检索截止 {result.requested_as_of}</span>}
-        <p>日线 · {result?.price_basis && result.price_basis !== 'unadjusted' ? result.price_basis : '未复权'} · 固定交易日窗口</p>{result?.as_of && <span>行情截至 {result.as_of}</span>}<details><summary>匹配范围与口径</summary><p>{result?.scope || '本地证券每只最近 120 个结束窗口，每家公司取最相近区间。行情区间模板排除来源股票。相似度仅描述形态接近程度。'}</p></details></div>
+        <p>相似度不是上涨概率。</p>
+        {result?.as_of && <span>行情截至 {result.as_of}</span>}
+        <details><summary>匹配范围与口径{result?.template_timing === 'post_hoc' ? ' · 事后构造' : ''}</summary>
+          <p>{result?.scope || '本地证券每只最近 120 个结束窗口，每家公司取最相近区间。行情区间模板排除来源股票。相似度仅描述形态接近程度，不预测后续收益。'}</p>
+          {result?.scanned_securities !== undefined && result.valid_securities !== undefined && <p>有效覆盖 {result.valid_securities} / 已扫描 {result.scanned_securities} 只证券</p>}
+          {result?.timing_warning && <p className="pattern-comparison-notice">{result.timing_warning}</p>}
+          {result?.requested_as_of && <p>检索截止 {result.requested_as_of}</p>}
+          <p>日线 · {result?.price_basis && result.price_basis !== 'unadjusted' ? result.price_basis : '未复权'} · 固定交易日窗口</p>
+        </details></div>
     </aside>
   </section>
 }

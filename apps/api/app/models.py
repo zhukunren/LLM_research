@@ -80,6 +80,15 @@ class PatternMarketWindowInput(StrictModel):
         return value.strip().upper() if isinstance(value, str) else value
 
 
+class PatternDerivationInput(StrictModel):
+    # Clients identify an origin; only the server supplies its frozen metadata.
+    origin_type: Literal["market_window", "screenshot", "natural_language", "drawing"]
+    source_window_id: str | None = Field(default=None, min_length=1, max_length=100)
+    source_draft_id: str | None = Field(default=None, min_length=1, max_length=100)
+    source_pattern_id: str | None = Field(default=None, min_length=1, max_length=100)
+    source_pattern_version: int | None = Field(default=None, ge=1)
+
+
 class PatternInput(StrictModel):
     note: str = Field(default="", max_length=4000)
     id: str | None = None
@@ -87,6 +96,7 @@ class PatternInput(StrictModel):
     input_type: Literal["drawing", "screenshot", "market_window", "natural_language"]
     source_draft_id: str | None = None
     source_window_id: str | None = Field(default=None, max_length=100)
+    derivation: PatternDerivationInput | None = None
     representation: Literal["price_path", "ohlc_sequence"]
     target_bars: int = Field(ge=10, le=250)
     points: list[float] = Field(min_length=10, max_length=250)

@@ -10,9 +10,11 @@ const props = { target: <div>目标</div>, matchAction: <button>匹配</button>,
 it('shows backend evidence, coverage, weak-match reference and a keyboard-operated normalized overlay', async () => {
   const user = userEvent.setup()
   render(<PatternComparison {...props} result={{ ...sample, items: [sample], scanned_securities: 12, valid_securities: 8 }} minSimilarity={80} />)
-  expect(screen.getByText('有效覆盖 8 / 已扫描 12 只证券')).toBeInTheDocument()
+  expect(screen.getByText('有效覆盖 8 / 已扫描 12 只证券')).not.toBeVisible()
+  await user.click(screen.getByText('匹配范围与口径'))
+  expect(screen.getByText('有效覆盖 8 / 已扫描 12 只证券')).toBeVisible()
   expect(screen.getByText(/低于选股参考阈值 80/)).toBeInTheDocument()
-  expect(screen.getByText('形态相似度不是上涨概率，也不预测后续收益。')).toBeInTheDocument()
+  expect(screen.getByText('相似度不是上涨概率。')).toBeVisible()
   const toggle = screen.getByRole('button', { name: '归一化叠加' })
   toggle.focus()
   await user.keyboard('{Enter}')
@@ -31,10 +33,14 @@ it('does not invent explanations or threshold for an old response', () => {
   expect(screen.queryByText(/低于选股参考阈值/)).not.toBeInTheDocument()
   expect(screen.getByText('原始行情图')).toBeInTheDocument()
 })
-it('rejects invalid overlay points and exposes template timing warnings', () => {
+it('rejects invalid overlay points and exposes template timing warnings on demand', async () => {
+  const user = userEvent.setup()
   render(<PatternComparison {...props} result={{ ...sample, candidate_points: [NaN, 1], template_timing: 'post_hoc', timing_warning: '模板来源晚于截止日：事后构造' }} />)
   expect(screen.getByRole('button', { name: '归一化叠加' })).toBeDisabled()
-  expect(screen.getByText('模板来源晚于截止日：事后构造')).toBeInTheDocument()
+  expect(screen.getByText('匹配范围与口径 · 事后构造')).toBeVisible()
+  expect(screen.getByText('模板来源晚于截止日：事后构造')).not.toBeVisible()
+  await user.click(screen.getByText('匹配范围与口径 · 事后构造'))
+  expect(screen.getByText('模板来源晚于截止日：事后构造')).toBeVisible()
 })
 it('falls back to raw candles when a newly selected sample has no normalized evidence', async () => {
   const user = userEvent.setup()
