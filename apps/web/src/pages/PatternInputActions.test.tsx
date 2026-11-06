@@ -54,6 +54,19 @@ it('puts four unselected action starters inside the blank canvas instead of a so
   expect(screen.queryByRole('button', { name: '替换目标' })).not.toBeInTheDocument()
 })
 
+it('saves changed shape parameters before handing a fixed version to the common composition editor', async () => {
+  const onCompose = vi.fn(), user = userEvent.setup()
+  render(<PatternPage screeningMode onCompose={onCompose} />)
+  await load(user)
+  expect(onCompose).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByLabelText('模板名称'), { target: { value: '修改后的目标' } })
+  await user.click(screen.getByRole('button', { name: '保存并用于选股' }))
+  await waitFor(() => expect(onCompose).toHaveBeenCalledTimes(1))
+  const save = mocked.mock.calls.find(([path, options]) => path === '/patterns' && options?.method === 'POST')
+  expect(JSON.parse(String(save?.[1]?.body))).toMatchObject({ id: manual.id, name: '修改后的目标' })
+  expect(JSON.parse(localStorage.getItem('workbench.tree')!)).toMatchObject({ op: 'all', children: [{ op: 'pattern_ref', pattern_id: manual.id, version: 4 }] })
+})
+
 it.each(patternInputActions)('opens a temporary named tool for the blank starter %s', async name => {
   render(<PatternPage />)
   const user = userEvent.setup()

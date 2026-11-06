@@ -1,0 +1,509 @@
+{
+  "date": "2026-11-06",
+  "timezone": "Asia/Shanghai",
+  "baseline": {
+    "label": "before",
+    "conversation_id": "e0be9d44-2f59-406d-bea4-f86e966cc121",
+    "turn_id": "d2ae3c08-ef0a-4d49-a03c-e9b171100876",
+    "brief_id": "3545e962-d612-43bf-b604-9119cef86c23",
+    "url": "http://127.0.0.1:8000/#/intelligence/closing/3545e962-d612-43bf-b604-9119cef86c23",
+    "elapsed_seconds": 711.11,
+    "started_at": "2026-11-06T03:00:40.474233+00:00",
+    "finished_at": "2026-11-06T03:12:31.578962+00:00",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "previous_id": null,
+    "cutoff_at": "2026-10-20T23:59:59+08:00",
+    "business_request_excluding_qa_marker": "生成2026年10月20日A股收评：300至500字客户短稿和完整稿。核对三大指数、沪深两市成交额与主要板块，保留来源和风险提示。金额来源不足时省略未确认数字，不混用沪深与沪深京口径；不确定的次日事件时刻注明待确认。",
+    "state": "partial",
+    "client_characters": 401,
+    "source_attempts": 7,
+    "source_successes": 3,
+    "source_failures": 4,
+    "source_tool_seconds": 296.0,
+    "failed_source_tool_seconds": 191.0,
+    "publish_attempts": 3,
+    "publish_rejections": 2,
+    "rejection_details": [
+      {
+        "code": "invalid_tool_arguments",
+        "fields": [
+          {
+            "field": "items.0.evidence",
+            "reason": "too_long"
+          }
+        ]
+      },
+      {
+        "code": "intelligence_error",
+        "message": "同口径引文未支持所记录的成交金额或变化值，请登记来源直接披露的总额及精度，分项计算另放完整稿说明"
+      }
+    ],
+    "saved_sources": [
+      {
+        "id": "b65f5c31-4251-4bfd-bcde-be038f7e8577",
+        "title": "收评：创业板指冲高回落跌0.26% 自动化设备板块涨幅居前-新闻中心-中国宁波网",
+        "url": "https://news.cnnb.com.cn/system/2026/10/20/030826713.shtml",
+        "sha256": "3703888a76bc075223ad0d88f2bbdacd71285a3d27c463aa529c8aad3aac4c03",
+        "publisher_date": null
+      },
+      {
+        "id": "637d7b83-cc37-4ab2-b190-e322120366f6",
+        "title": "A股收评：创业板指下跌0.26%，智能音箱概念表现强势",
+        "url": "https://stock.10jqka.com.cn/20261020/c680878206.shtml",
+        "sha256": "77d31fa552ce7a6aaf8dde69f4064612eac731bb085593dd5c117b8ce14dd320",
+        "publisher_date": null
+      },
+      {
+        "id": "1be651bc-b76a-49f4-86b4-fe478d6d79d2",
+        "title": "A股三大股指涨跌互现：超3700股收涨，人形机器人概念走强_牛市点线面_澎湃新闻-The Paper",
+        "url": "https://m.thepaper.cn/newsDetail_forward_34289151",
+        "sha256": "09f274076f60bb271dd841dddfeb57a02c84e914760203ebbff0e4f4789b4391",
+        "publisher_date": "2026-10-20T07:28:39.267Z"
+      }
+    ],
+    "cited_source_count": 2,
+    "quote_count": 3,
+    "all_quotes_located": true,
+    "citation_time_statuses": [
+      "date_only",
+      "within_window"
+    ],
+    "turnover": {
+      "market_scope": "SH_SZ",
+      "amount_yi": 14561.0,
+      "evidence_keys": [
+        "a_share_market_close_2026_10_20"
+      ],
+      "comparison": {
+        "market_scope": "SH_SZ",
+        "change_yi": 186.0,
+        "evidence_keys": [
+          "a_share_market_close_2026_10_20"
+        ]
+      }
+    },
+    "validation": {
+      "errors": [],
+      "warnings": [],
+      "suggestions": [
+        "建议客户收评包含盘面回顾、热点板块和明日观察三段"
+      ]
+    },
+    "limitations": [
+      "冻结行情快照没有2026-10-20三大指数数据，以当日已读取的公开收盘报道核对。",
+      "沪深成交额来源分别使用整亿元总额和带小数分项，存在取整差异。",
+      "其他约1.47万亿元报道市场范围未明且原文读取失败，未纳入成交字段。",
+      "未核实下一交易日具体会议或发布会时刻。"
+    ],
+    "validation_level": "basic"
+  },
+  "optimized_trials": [
+    {
+      "label": "optimized trial 1",
+      "conversation_id": "f5236ea9-512a-4737-95c2-09ebdbf4b911",
+      "turn_id": "987e58b0-28b5-4901-96f4-38a44e9e6645",
+      "brief_id": "aba42c7f-7b71-4e82-b9fa-8786d4386abb",
+      "url": "http://127.0.0.1:8000/#/intelligence/closing/aba42c7f-7b71-4e82-b9fa-8786d4386abb",
+      "elapsed_seconds": 171.66,
+      "started_at": "2026-11-06T04:18:16.904581+00:00",
+      "finished_at": "2026-11-06T04:21:08.559697+00:00",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "previous_id": null,
+      "cutoff_at": "2026-10-20T23:59:59+08:00",
+      "business_request_excluding_qa_marker": "生成2026年10月20日A股收评：300至500字客户短稿和完整稿。核对三大指数、沪深两市成交额与主要板块，保留来源和风险提示。金额来源不足时省略未确认数字，不混用沪深与沪深京口径；不确定的次日事件时刻注明待确认。",
+      "state": "partial",
+      "client_characters": 375,
+      "source_attempts": 2,
+      "source_successes": 2,
+      "source_failures": 0,
+      "source_tool_seconds": 5.0,
+      "failed_source_tool_seconds": 0,
+      "publish_attempts": 1,
+      "publish_rejections": 0,
+      "rejection_details": [],
+      "saved_sources": [
+        {
+          "id": "39d5c0cf-6d43-4922-83da-43cc89ed8458",
+          "title": "A股收评：沪指微涨0.12%、创业板指跌0.26%，端侧AI、食品饮料板块走高，机器人概念股活跃，煤炭板块震荡调整-股票-金融界",
+          "url": "https://stock.jrj.com.cn/2026/10/20150658787797.shtml",
+          "sha256": "3fa1f06e71cc61f43bbbe2ab5d38580616b2e34074b1c8dda3529397556e2f05",
+          "publisher_date": null
+        },
+        {
+          "id": "7c3c668e-cf36-4f3a-84c9-46c64595d272",
+          "title": "收评：创业板指冲高回落跌0.26% 自动化设备板块涨幅居前-新闻中心-中国宁波网",
+          "url": "https://news.cnnb.com.cn/system/2026/10/20/030826713.shtml",
+          "sha256": "e7dd3ca66e777e231b03ea9dc1ab47acc002afdc5b0b6ed9c4d1b9cc8d973b98",
+          "publisher_date": null
+        }
+      ],
+      "cited_source_count": 2,
+      "quote_count": 4,
+      "all_quotes_located": true,
+      "citation_time_statuses": [
+        "date_only"
+      ],
+      "turnover": {
+        "market_scope": "SH_SZ",
+        "amount_yi": 14600.0,
+        "evidence_keys": [
+          "cn_a_share_market_close_2026_10_20"
+        ],
+        "comparison": null
+      },
+      "validation": {
+        "errors": [],
+        "warnings": [
+          "未确认时刻的事件「英伟达GTC柏林大会黄仁勋主题演讲」建议在客户稿写明时间待确认"
+        ],
+        "suggestions": [
+          "建议客户收评包含盘面回顾、热点板块和明日观察三段"
+        ]
+      },
+      "limitations": [
+        "冻结行情快照没有可用的当日指数日线；收盘事实依据两篇可读报道交叉核对。",
+        "成交额资料精度不一，采用沪深两市约1.46万亿元；没有登记未经原文一致披露的精确总额或前日变化。",
+        "英伟达GTC柏林大会黄仁勋主题演讲日期有报道支持，但具体时刻未确认。"
+      ],
+      "quality_assessment": "Usable basic draft, but no same-scope previous-day change; not selected as equivalent-coverage comparison. Optional event needs a closer quote binding.",
+      "validation_level": "basic"
+    },
+    {
+      "label": "coverage trial 2",
+      "conversation_id": "b45d1a59-4b9b-42fb-a2d1-aa6d258f1d0e",
+      "turn_id": "84dc2114-3cc9-4abe-af79-3efd4f309ebf",
+      "brief_id": "d0719208-b81d-48d4-9ec9-f879cafdf60f",
+      "url": "http://127.0.0.1:8000/#/intelligence/closing/d0719208-b81d-48d4-9ec9-f879cafdf60f",
+      "elapsed_seconds": 217.25,
+      "started_at": "2026-11-06T04:25:04.625045+00:00",
+      "finished_at": "2026-11-06T04:28:41.877738+00:00",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "previous_id": null,
+      "cutoff_at": "2026-10-20T23:59:59+08:00",
+      "business_request_excluding_qa_marker": "生成2026年10月20日A股收评：300至500字客户短稿和完整稿。核对三大指数、沪深两市成交额与主要板块，保留来源和风险提示。同时核对成交额较前一交易日的同口径变化；有明确原文才能填写，没有则保留缺口，不推算凑数。金额来源不足时省略未确认数字，不混用沪深与沪深京口径；不确定的次日事件时刻注明待确认。",
+      "state": "partial",
+      "client_characters": 381,
+      "source_attempts": 2,
+      "source_successes": 2,
+      "source_failures": 0,
+      "source_tool_seconds": 7.0,
+      "failed_source_tool_seconds": 0,
+      "publish_attempts": 2,
+      "publish_rejections": 1,
+      "rejection_details": [
+        {
+          "code": "invalid_tool_arguments",
+          "fields": [
+            {
+              "field": "items.0.published_at",
+              "reason": "extra_forbidden",
+              "message": "Extra inputs are not permitted",
+              "constraints": {}
+            },
+            {
+              "field": "items.1.published_at",
+              "reason": "extra_forbidden",
+              "message": "Extra inputs are not permitted",
+              "constraints": {}
+            }
+          ]
+        }
+      ],
+      "saved_sources": [
+        {
+          "id": "9321892b-6766-4358-bc31-d61538b35d36",
+          "title": "10月20日A股收评：超3700只个股上涨，沪指收涨",
+          "url": "https://xinwen.bjd.com.cn/content/s6ad719bfe4b039a8e2f28ede.html",
+          "sha256": "78928000c3d027a3bdfc8a6c53ee539d3957b2cf93550d952befc629cc57f4ef",
+          "publisher_date": null
+        },
+        {
+          "id": "49fd256c-2194-4088-99b9-6c8348b73204",
+          "title": "【博时市场点评10月20日】指数涨跌不一，计算机板块领涨 _ 东方财富网",
+          "url": "https://finance.eastmoney.com/a/202610203901698525.html",
+          "sha256": "278923d102d2594b24af47333b302922685fcbe0a0444fcef1bccf61ffd4d914",
+          "publisher_date": null
+        }
+      ],
+      "cited_source_count": 2,
+      "quote_count": 4,
+      "all_quotes_located": true,
+      "citation_time_statuses": [
+        "date_only"
+      ],
+      "turnover": null,
+      "validation": {
+        "errors": [],
+        "warnings": [],
+        "suggestions": [
+          "建议客户收评包含盘面回顾、热点板块和明日观察三段"
+        ]
+      },
+      "limitations": [
+        "冻结行情快照缺少2026-10-20三大指数日线，本次收盘点位改由实际读取的公开报道确认。",
+        "成交额报道分别使用“全市成交额1.47万亿元”及“市场成交额14716.43亿元”等表述，未明确对应沪深两市口径；不能登记为SH_SZ金额或与前一交易日作精确同口径比较。",
+        "上涨股票数量报道存在“超3700只”与Wind统计3456只的差异，统计范围或口径未统一，本文不使用精确家数。",
+        "行业强弱存在统计差异：界面新闻转载的Wind申万一级统计显示计算机、机械设备、综合靠前，另一收评仅列出互联网、生物科技、软件、电子元器件、半导体等上涨行业/方向，未提供统一行业分类与涨跌幅。",
+        "未检索并确认下一交易日需关注的具体会议或发布会时间，故不列具体事件。"
+      ],
+      "quality_assessment": "Coverage incomplete: two-exchange total and requested change were omitted; not selected as equivalent-coverage comparison.",
+      "validation_level": "basic"
+    },
+    {
+      "label": "final full-coverage run",
+      "conversation_id": "a2f1bc84-8cfb-4c51-ab77-643b4ce791d2",
+      "turn_id": "9a5afb53-7b5d-40c6-9f1f-569cc846dd56",
+      "brief_id": "81c6ac99-e122-43e2-972b-31788e7b8452",
+      "url": "http://127.0.0.1:8000/#/intelligence/closing/81c6ac99-e122-43e2-972b-31788e7b8452",
+      "elapsed_seconds": 226.2,
+      "started_at": "2026-11-06T04:34:30.056701+00:00",
+      "finished_at": "2026-11-06T04:38:16.249805+00:00",
+      "model": "gpt-6-luna",
+      "reasoning_effort": "high",
+      "previous_id": null,
+      "cutoff_at": "2026-10-20T23:59:59+08:00",
+      "business_request_excluding_qa_marker": "生成2026年10月20日A股收评：300至500字客户短稿和完整稿。核对三大指数、沪深两市成交额与主要板块，保留来源和风险提示。同时核对成交额较前一交易日的同口径变化；有明确原文才能填写，没有则保留缺口，不推算凑数。金额来源不足时省略未确认数字，不混用沪深与沪深京口径；不确定的次日事件时刻注明待确认。",
+      "state": "partial",
+      "client_characters": 350,
+      "source_attempts": 3,
+      "source_successes": 3,
+      "source_failures": 0,
+      "source_tool_seconds": 7.0,
+      "failed_source_tool_seconds": 0,
+      "publish_attempts": 2,
+      "publish_rejections": 1,
+      "rejection_details": [
+        {
+          "code": "invalid_tool_arguments",
+          "fields": [
+            {
+              "field": "no_updates_reason",
+              "reason": "string_type",
+              "message": "Input should be a valid string",
+              "constraints": {}
+            }
+          ]
+        }
+      ],
+      "saved_sources": [
+        {
+          "id": "12684888-40e4-4402-9838-597593126a73",
+          "title": "收评：创业板指冲高回落跌0.26% 自动化设备板块涨幅居前-新闻中心-中国宁波网",
+          "url": "https://news.cnnb.com.cn/system/2026/10/20/030826713.shtml",
+          "sha256": "e7dd3ca66e777e231b03ea9dc1ab47acc002afdc5b0b6ed9c4d1b9cc8d973b98",
+          "publisher_date": null
+        },
+        {
+          "id": "28ce8203-b6f8-48de-9087-a4196a04aa26",
+          "title": "格上每日收评—2026年10月20日_每日收评_格上基金",
+          "url": "https://mobile.licai.com/licai/post/421038",
+          "sha256": "def2190abf1b26cdfd1e78fdba0442d0e4a80675e1b7af72dd7eddf67954f5de",
+          "publisher_date": null
+        },
+        {
+          "id": "f2777e2d-d9fd-4edf-a92e-575b29d37075",
+          "title": "上午翻红 午后跳水 尾盘回升！今天A股发生了什么？_新浪财经_新浪网",
+          "url": "https://finance.sina.com.cn/roll/2026-10-20/doc-inivwitm5739876.shtml",
+          "sha256": "262cf233b5cebe8260142c40627e9f0e8d26c87cde5181817b3ef9a946cad8c6",
+          "publisher_date": "2026-10-20T16:45:51+08:00"
+        }
+      ],
+      "cited_source_count": 2,
+      "quote_count": 5,
+      "all_quotes_located": true,
+      "citation_time_statuses": [
+        "unknown",
+        "within_window"
+      ],
+      "turnover": {
+        "market_scope": "SH_SZ",
+        "amount_yi": 14600.0,
+        "evidence_keys": [
+          "a_share_close_2026_10_20"
+        ],
+        "comparison": {
+          "market_scope": "SH_SZ",
+          "change_yi": 186.0,
+          "evidence_keys": [
+            "a_share_close_2026_10_20"
+          ]
+        }
+      },
+      "validation": {
+        "errors": [],
+        "warnings": [],
+        "suggestions": []
+      },
+      "limitations": [
+        "冻结行情快照在指定截止时间内缺少上证指数、深证成指和创业板指日线，改由公开收盘报道补足。",
+        "指数和分市场成交额来源为转载中国经济网稿件；另一篇独立报道给出沪深两市成交额1.46万亿元及放量186亿元。未取得交易所官方收盘公告直接核对。",
+        "两市成交额原文精度为1.46万亿元，沪深分项分别为6999.70亿元和7561.37亿元；完整稿保留两种原文口径，不将分项相加结果写作原文披露总额。",
+        "未将未核实的次日会议或产业活动时刻写入客户稿；本稿仅作公开市场资讯交流。"
+      ],
+      "quality_assessment": "All eight core market fields checked; source precision and unresolved publication-time metadata remain explicit. Strength/weakness, next-session conditions and risk language reviewed.",
+      "validation_level": "basic"
+    }
+  ],
+  "primary_comparison": {
+    "baseline_seconds": 711.11,
+    "final_seconds": 226.2,
+    "saved_seconds": 484.91,
+    "reduction_percent": 68.19,
+    "core_field_checks": [
+      {
+        "field": "上证指数点位",
+        "passed": true
+      },
+      {
+        "field": "上证指数涨幅",
+        "passed": true
+      },
+      {
+        "field": "深证成指点位",
+        "passed": true
+      },
+      {
+        "field": "深证成指跌幅",
+        "passed": true
+      },
+      {
+        "field": "创业板指点位",
+        "passed": true
+      },
+      {
+        "field": "创业板指跌幅",
+        "passed": true
+      },
+      {
+        "field": "沪深两市成交额约数",
+        "passed": true
+      },
+      {
+        "field": "同口径前日变化",
+        "passed": true
+      }
+    ],
+    "amount_precision_note": "Both client drafts use about CNY 1.46 trillion. The new source directly reports that rounded amount; normalized amount_yi=14600 is a unit conversion, not a new exact aggregate. Final scope notes preserve the distinction.",
+    "comparison_conditions": "Same gpt-6-luna/high, standard depth and 2026-10-20 end-of-day cutoff. Independent new runs; QA labels differ. Final request additionally makes the baseline previous-day comparison explicit. No model effort reduction or historical result reuse.",
+    "measurement_note": "Wall time from harness submission through result retrieval, including queue and up to ~3 seconds polling. Public-site/network and stochastic-model variation are not controlled; these samples are not a production percentile estimate."
+  },
+  "transport_probes": [
+    {
+      "url": "https://news.cnnb.com.cn/system/2026/10/20/030826713.shtml",
+      "title": "收评：创业板指冲高回落跌0.26% 自动化设备板块涨幅居前-新闻中心-中国宁波网",
+      "capture_method": "html_article",
+      "text_characters": 264,
+      "text_path": "D:\\项目\\LLM_research\\runtime\\verification\\closing-speed-20261106\\source-probe\\sources\\article-9b02f435d3f84cb48245c1a63dd66af0\\text.txt",
+      "publisher_declared_date": null,
+      "has_index_values": true,
+      "state": "succeeded",
+      "seconds": 0.938
+    },
+    {
+      "url": "https://m.thepaper.cn/newsDetail_forward_34289151",
+      "title": "A股三大股指涨跌互现：超3700股收涨，人形机器人概念走强_牛市点线面_澎湃新闻-The Paper",
+      "capture_method": "html_article",
+      "text_characters": 2735,
+      "text_path": "D:\\项目\\LLM_research\\runtime\\verification\\closing-speed-20261106\\source-probe\\sources\\article-772e837227264a228372e3a1d871905d\\text.txt",
+      "publisher_declared_date": "2026-10-20T07:28:39.267Z",
+      "has_index_values": true,
+      "state": "succeeded",
+      "seconds": 2.0
+    }
+  ],
+  "failed_url_probe": {
+    "url": "https://finance.eastmoney.com/a/202610203901282391.html",
+    "state": "failed_fast",
+    "error": "原文读取失败（HTTP 404），请切换其他来源。",
+    "seconds": 1.469
+  },
+  "baseline_quotes_preserved": [
+    {
+      "url": "https://m.thepaper.cn/newsDetail_forward_34289151",
+      "quote": "上证综指涨0.12%，报3735.37点；深证成指跌0.14%，报11801.29点；创业板指跌0.26%，报2739.2点。",
+      "still_uniquely_locatable": true,
+      "position": {
+        "source_type": "web",
+        "source_id": "probe",
+        "stock_code": null,
+        "page_number": 1,
+        "char_start": 261,
+        "char_end": 324,
+        "quote": "上证综指涨0.12%，报3735.37点；深证成指跌0.14%，报11801.29点；创业板指跌0.26%，报2739.2点。"
+      }
+    },
+    {
+      "url": "https://m.thepaper.cn/newsDetail_forward_34289151",
+      "quote": "两市成交14561亿元，较前一交易日的14375亿元增加186亿元。",
+      "still_uniquely_locatable": true,
+      "position": {
+        "source_type": "web",
+        "source_id": "probe",
+        "stock_code": null,
+        "page_number": 1,
+        "char_start": 366,
+        "char_end": 400,
+        "quote": "两市成交14561亿元，较前一交易日的14375亿元增加186亿元。"
+      }
+    },
+    {
+      "url": "https://news.cnnb.com.cn/system/2026/10/20/030826713.shtml",
+      "quote": "自动化设备、消费电子、半导体等板块涨幅居前，煤炭开采加工、保险、汽车整车等板块跌幅居前。",
+      "still_uniquely_locatable": true,
+      "position": {
+        "source_type": "web",
+        "source_id": "probe",
+        "stock_code": null,
+        "page_number": 1,
+        "char_start": 208,
+        "char_end": 252,
+        "quote": "自动化设备、消费电子、半导体等板块涨幅居前，煤炭开采加工、保险、汽车整车等板块跌幅居前。"
+      }
+    }
+  ],
+  "final_format_fix_replay": {
+    "real_model_failed_submission_now_schema_valid": true,
+    "factual_payload_identical_to_successfully_published_submission": true,
+    "validated_identical_fields": [
+      "items",
+      "advisor_report",
+      "title",
+      "summary"
+    ],
+    "changed_facts_quotes_dates_or_amounts": false,
+    "other_model_repair_changes": [
+      "nonfactual wording in coverage and limitations"
+    ],
+    "normalization": "null no_updates_reason becomes empty string only for reports containing actual topics",
+    "benchmark_still_includes_the_original_failed_format_attempt": true
+  },
+  "ui_checks": {
+    "checks": [
+      "dated_client_copy_matches_saved_model_draft",
+      "full_short_switch_and_reload",
+      "all_five_saved_quotes_match_immutable_evidence_endpoints",
+      "390px_without_horizontal_overflow",
+      "export_contains_same_scope_change"
+    ],
+    "page_errors": []
+  },
+  "regression_tests_passed": 179,
+  "implementation": [
+    "Closing-only static HTML article extraction through the existing public-IP-pinned TLS transport; raw HTML and exact extracted text retained.",
+    "Select a semantic article subtree for responsive duplicate templates; preserve raw bytes rather than deleting repeated facts across arbitrary contexts.",
+    "Prefer the known The Paper mobile article representation, and use a 12-second routed text-browser budget only for incomplete received HTML.",
+    "Keep terminal-failure caching, normalize URL fragments, allow one explicit temporary-error retry, and switch publishers after two failed URLs with no usable source in the run.",
+    "Return quote-backed amount/precision/change candidates and targeted search hints; date, scope, citation and numeric validators remain mandatory.",
+    "Expose citation-count and field-placement rules before submission; normalize only a non-applicable null no_updates_reason for nonempty reports. Empty reports still require a meaningful reason."
+  ],
+  "artifact_root": "D:/项目/LLM_research/runtime/verification/closing-speed-20261106",
+  "controls_verified": {
+    "same_model_effort_validation_mode_and_cutoff": true,
+    "independent_runs_without_previous_version_context": true,
+    "initial_optimized_business_request_matches_baseline": true,
+    "final_request_explicitly_requires_previous_day_comparison": true
+  }
+}

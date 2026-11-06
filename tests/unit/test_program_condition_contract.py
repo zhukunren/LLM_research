@@ -80,6 +80,18 @@ def test_program_result_must_cover_exact_universe_and_return_tristate_numeric_ev
         )
 
 
+@pytest.mark.parametrize("decision", ["true", "false", "unknown"])
+def test_model_generated_string_decisions_report_the_required_python_values(decision):
+    with pytest.raises(program_conditions.ProgramConditionError, match="True/False/None"):
+        program_conditions.validate_result({"decisions": {"600000.SH": decision}}, ["600000.SH"])
+
+
+@pytest.mark.parametrize("metric", [True, "2026-10-20", "缺少行情"])
+def test_model_generated_nonnumeric_metrics_cannot_masquerade_as_calculation_evidence(metric):
+    with pytest.raises(program_conditions.ProgramConditionError, match="不要把日期、原因文本或布尔判断"):
+        program_conditions.validate_result({"decisions": {"600000.SH": True}, "metrics": {"600000.SH": {"calculation": metric}}}, ["600000.SH"])
+
+
 def test_frames_are_cut_to_declared_history_and_reject_future_or_unsorted_data():
     value = program()
     bars = [

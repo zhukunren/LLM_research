@@ -65,7 +65,10 @@ def read_draft(draft_id: str) -> dict:
         row = connection.execute("SELECT * FROM condition_drafts WHERE id=?", (draft_id,)).fetchone()
     if not row:
         fail("找不到这份条件草稿", 404)
-    return {"id": row["id"], "prompt": row["prompt"], "created_at": row["created_at"], **json_load(row["plan_json"]), "saved": json_load(row["saved_json"]) if row["saved_json"] else None}
+    plan = json_load(row["plan_json"])
+    if plan.get("builder_version"):
+        fail("这份记录属于按类型创建的样本验证，请从可复用条件入口查看", 422)
+    return {"id": row["id"], "prompt": row["prompt"], "created_at": row["created_at"], **plan, "saved": json_load(row["saved_json"]) if row["saved_json"] else None}
 
 
 @router.post("")
@@ -114,7 +117,7 @@ def create_draft(payload: DraftRequest):
 def list_drafts(library: Literal["technical", "news", "report"] | None = None):
     with connect() as connection:
         rows = connection.execute("""SELECT id,prompt,created_at,saved_json FROM condition_drafts
-            WHERE (? IS NULL OR json_extract(plan_json,'$.library_context')=? OR
+            WHERE COALESCE(json_extract(plan_json,'$.builder_version'),0)=0 AND (? IS NULL OR json_extract(plan_json,'$.library_context')=? OR
                 (json_extract(plan_json,'$.library_context') IS NULL AND json_array_length(plan_json,'$.conditions')>0
                  AND NOT EXISTS (SELECT 1 FROM json_each(plan_json,'$.conditions') item WHERE json_extract(item.value,'$.library')!=?)))
             ORDER BY rowid DESC LIMIT 30""", (library, library, library)).fetchall()

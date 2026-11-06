@@ -15,9 +15,8 @@
 .viewport-workspace .workspace-panel-mount .page-frame .workspace-tool-page.page-content > .workspace-heading-integrated { display: contents; }
 .workspace-heading-integrated > .workspace-page-heading-copy { position: absolute; width: 1px; height: 1px; min-width: 0; min-height: 0; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* Keep a heading for assistive navigation, without repeating the tab label.
-   Only page-level feature headings are affected; document and item titles stay. */
-.workspace-panel-mount .page-frame .page-content > :is(.library-heading,.page-heading) h1 {
+/* Integrated pages use the tab as their title. Standalone tools retain their heading. */
+.workspace-panel-mount .page-frame .page-content > .workspace-heading-integrated h1 {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -30,7 +29,7 @@
   white-space: nowrap;
   border: 0;
 }
-.viewport-workspace .workspace-panel-mount .page-frame .workspace-tool-page.page-content > :is(.library-heading,.page-heading) { min-height: 0; margin-bottom: 8px; }
+.viewport-workspace .workspace-panel-mount .page-frame .workspace-tool-page.page-content > .workspace-heading-integrated { min-height: 0; margin-bottom: 8px; }
 .workspace-panel-mount .page-frame .page-content > .library-heading > .library-title { min-width: 0; }
 
 @media (max-width: 600px) {

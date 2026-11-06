@@ -75,7 +75,20 @@ it('does not offer the removed built-in reference page, including search', async
   await user.keyboard('{Enter}')
   expect(props.onNavigate).not.toHaveBeenCalled()
   await user.click(await screen.findByRole('button', { name: '清除搜索' }))
-  expect(screen.getByRole('option', { name: /研报库/ })).toBeInTheDocument()
+  expect(screen.getByRole('option', { name: /资料库/ })).toBeInTheDocument()
+})
+
+it('opens dedicated screening methods and the common composition editor without starting work', async () => {
+  vi.mocked(api).mockResolvedValue({ items: [] } as never)
+  const props = callbacks(), onScreeningMethod = vi.fn(), onScreeningCompose = vi.fn(), user = userEvent.setup()
+  render(<QuickNavigation {...props} onScreeningMethod={onScreeningMethod} onScreeningCompose={onScreeningCompose} onNewScreening={vi.fn()} />)
+  expect(screen.queryByRole('option', { name: /^形态库 / })).not.toBeInTheDocument()
+  for (const name of ['技术选股', '形态选股', '资讯选股', '研报选股', '条件组合']) expect(screen.getByRole('option', { name: new RegExp('^' + name + ' ') })).toBeInTheDocument()
+  await user.type(screen.getByRole('combobox'), '资讯选股')
+  await user.keyboard('{Enter}')
+  expect(onScreeningMethod).toHaveBeenCalledWith('news')
+  expect(onScreeningCompose).not.toHaveBeenCalled()
+  expect(vi.mocked(api).mock.calls.every(([, options]) => !options?.method)).toBe(true)
 })
 
 

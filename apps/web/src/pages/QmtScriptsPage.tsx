@@ -1,4 +1,5 @@
 import { Code2, ArrowRight } from 'lucide-react'
+import { useRef } from 'react'
 import { isText, useSessionState } from '../useSessionState'
 import QmtReferenceLibrary from '../components/QmtReferenceLibrary'
 import './qmt-scripts.css'
@@ -10,6 +11,7 @@ const examples = [
 ]
 
 export default function QmtScriptsPage({ onOpenDraft }: { onOpenDraft: (prompt: string) => void }) {
+  const requirementInput = useRef<HTMLTextAreaElement>(null)
   const [requirement, setRequirement] = useSessionState('qmt.requirement', '', isText)
   const [mode, setMode] = useSessionState('qmt.mode', 'signal', (value): value is string => ['signal', 'backtest', 'trading'].includes(String(value)))
   const [encoding, setEncoding] = useSessionState('qmt.encoding', 'gbk', (value): value is string => value === 'gbk' || value === 'utf-8')
@@ -22,18 +24,25 @@ export default function QmtScriptsPage({ onOpenDraft }: { onOpenDraft: (prompt: 
 
   return <div className="page-content workspace-tool-page qmt-scripts-page">
     <header className="page-heading"><h1><Code2 size={24} aria-hidden="true" />QMT 脚本生成</h1><p className="page-description">描述策略，生成可在 QMT 客户端内置 Python 编辑器中使用的脚本。</p></header>
+    <div className="qmt-workspace-layout">
     <form className="qmt-script-form workspace-form" onSubmit={event => { event.preventDefault(); openDraft() }}>
+      <label className="qmt-requirement" htmlFor="qmt-requirement">策略需求</label>
+      <p className="qmt-field-help">写清股票范围、触发条件、仓位与退出要求。</p>
+      <textarea ref={requirementInput} id="qmt-requirement" value={requirement} maxLength={12000} rows={8} onChange={event => setRequirement(event.target.value)} placeholder="例如：日线 5 日均线上穿 20 日均线时提示，跌破 20 日均线时退出。" aria-describedby="qmt-draft-help" className="workspace-field" />
       <div className="qmt-script-options">
         <label className="workspace-field-label">脚本用途<select value={mode} onChange={event => setMode(event.target.value)} className="workspace-field workspace-select">
           <option value="signal">信号观察</option><option value="backtest">策略回测</option><option value="trading">交易策略草稿</option>
         </select></label>
         <label className="workspace-field-label">文件编码<select value={encoding} onChange={event => setEncoding(event.target.value)} className="workspace-field workspace-select"><option value="gbk">GBK（QMT 常用）</option><option value="utf-8">UTF-8</option></select></label>
       </div>
-      <label className="qmt-requirement" htmlFor="qmt-requirement">策略需求</label>
-      <textarea id="qmt-requirement" value={requirement} maxLength={12000} rows={9} onChange={event => setRequirement(event.target.value)} placeholder="例如：日线 5 日均线上穿 20 日均线时提示，跌破 20 日均线时退出。请说明股票范围、触发条件、仓位与止损要求。" aria-describedby="qmt-draft-help" className="workspace-field" />
-      <div className="qmt-script-examples" role="group" aria-label="QMT 需求示例">{examples.map(item => <button type="button" key={item.name} onClick={() => setRequirement(item.text)} className="workspace-button">{item.name}</button>)}</div>
       <div className="qmt-script-submit"><p id="qmt-draft-help">下一步选择模型并发送。生成后可预览、下载，也可继续对话修改。</p><button type="submit" className="primary-button workspace-button" disabled={!requirement.trim()}>带入生成对话<ArrowRight size={16} /></button></div>
     </form>
+    <aside className="qmt-starting-points" aria-label="编写脚本的起点">
+      <h2>从一个例子开始</h2><p>选入需求后，可以继续修改。</p>
+      <div className="qmt-script-examples" role="group" aria-label="QMT 需求示例">{examples.map((item, index) => <button type="button" key={item.name} aria-label={item.name} onClick={() => { setRequirement(item.text); requirementInput.current?.focus() }} className="workspace-button"><span><strong>{item.name}</strong><small>{['用均线交叉定义进出信号', '结合价格突破与成交量', '带入代码和报错继续修改'][index]}</small></span><ArrowRight size={16} aria-hidden="true" /></button>)}</div>
+      <div className="qmt-delivery-note"><Code2 size={19} aria-hidden="true" /><div><strong>生成后可以做什么</strong><p>核对完整代码，下载 .py 文件；在同一对话继续调整策略。</p></div></div>
+    </aside>
+    </div>
     <QmtReferenceLibrary />
     <p className="qmt-script-note">脚本只做静态检查，工作台不会连接券商或执行交易。导入后需在你的 QMT 版本中核对并回测。</p>
   </div>

@@ -30,6 +30,56 @@ def setup_plan(client, template_id='above_sma', params=None, workflow='screening
     return cid, msg, f'/api/v1/conversations/{cid}/screening-templates/{template_id}', payload
 
 
+def test_dedicated_catalog_exposes_single_rules_without_changing_existing_starters(client):
+    existing = client.get('/api/v1/screening-templates').json()['items']
+    dedicated = client.get('/api/v1/screening-templates?include_singles=true').json()['items']
+    assert {item['id'] for item in existing} == {'trend_momentum', 'cross_confirm', 'cross_momentum'}
+    assert {item['id'] for item in dedicated} == {item['id'] for item in TEMPLATES}
+
+
+def preview_bars(count=35):
+    return [dict(trade_date=str(date(2026, 9, 14) - timedelta(days=count - i - 1)),
+                 open=10 + i, high=12 + i, low=9 + i, close=11 + i,
+                 volume=1000, quality_valid=True) for i in range(count)]
+
+
+def test_template_preview_evaluates_rules_and_chart_without_creating_work(client, monkeypatch):
+    monkeypatch.setattr(market, 'get_bars', lambda *_: preview_bars())
+    before = client.get('/api/v1/conversations').json()['items']
+    payload = dict(version=1, parameters={'ma_window': 20, 'return_window': 5, 'threshold': 3}, stock_code='600000.SH', as_of='2026-09-14')
+    response = client.post('/api/v1/screening-templates/trend_momentum/preview', json=payload)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result['state'] == 'true'
+    assert [item['state'] for item in result['details']] == ['true', 'true']
+    assert result['actual_date'] == '2026-09-14'
+    assert result['chart']['lines'][0]['label'] == 'SMA 20'
+    assert result['chart']['lines'][0]['values'][-1] == pytest.approx(sum(range(26, 46)) / 20)
+    assert client.get('/api/v1/conversations').json()['items'] == before
+    with db.connect() as connection:
+        assert connection.execute('SELECT COUNT(*) FROM jobs').fetchone()[0] == 0
+
+
+@pytest.mark.parametrize('case', ['short', 'stale', 'invalid'])
+def test_template_preview_keeps_missing_stale_and_invalid_data_unknown(client, monkeypatch, case):
+    bars = preview_bars(5 if case == 'short' else 35)
+    if case == 'stale':
+        bars[-1]['trade_date'] = '2026-09-13'
+    elif case == 'invalid':
+        bars[-1].update(close=float('nan'), quality_valid=False)
+    monkeypatch.setattr(market, 'get_bars', lambda *_: bars)
+    response = client.post('/api/v1/screening-templates/above_sma/preview', json=dict(version=1, parameters={'window': 20}, stock_code='600000.SH', as_of='2026-09-14'))
+    assert response.status_code == 200, response.text
+    assert response.json()['state'] == 'unknown'
+    assert response.json()['details'][0]['reason']
+
+
+@pytest.mark.parametrize('changes', [{'parameters': {'window': True}}, {'as_of': '2026-10-01'}, {'stock_code': 'not-a-code'}, {'parameters': {'window': 20.5}}])
+def test_template_preview_rejects_invalid_requests(client, changes):
+    payload = dict(version=1, parameters={'window': 20}, stock_code='600000.SH', as_of='2026-09-14')
+    assert client.post('/api/v1/screening-templates/above_sma/preview', json={**payload, **changes}).status_code == 422
+
+
 @pytest.mark.parametrize('template_id', ['above_sma', 'return_above', 'ma_cross', 'trend_momentum', 'cross_confirm', 'cross_momentum'])
 def test_full_deterministic_lifecycle(client, monkeypatch, template_id):
     cid, msg, url, payload = setup_plan(client, template_id)

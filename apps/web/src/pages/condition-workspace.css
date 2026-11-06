@@ -15,7 +15,7 @@
 .condition-studio .library-filters .workspace-field { min-height: 34px; font-size: 13px; }
 .condition-studio .library-filters select { width: auto; max-width: 180px; }
 .condition-studio .condition-library-overview { flex-shrink: 0; justify-content: space-between; padding: 10px 0; font-size: 12px; }
-.viewport-workspace .page-frame .condition-studio .condition-library-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; flex: 1; min-height: 0; overflow-y: auto; align-content: start; scrollbar-width: thin; }
+.viewport-workspace .page-frame .condition-studio .condition-library-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; gap: 0; flex: 1; min-height: 0; overflow-y: auto; align-content: start; scrollbar-width: thin; }
 .viewport-workspace .page-frame .condition-studio .condition-library-grid > .saved-condition-card { display: grid; grid-template-columns: minmax(0, 1fr) 80px 100px auto; align-items: center; gap: 14px; min-height: 76px; padding: 12px 4px; margin: 0; border: 0; border-bottom: 1px solid var(--ui-border-subtle); border-radius: 0; background: transparent; box-shadow: none; }
 .condition-library-open.workspace-button { display: block; min-width: 0; padding: 2px 0; border: 0; border-radius: 0; background: transparent; text-align: left; cursor: pointer; color: var(--ui-text); }
 .condition-studio .condition-library-open:hover h3 { color: var(--ui-primary); }

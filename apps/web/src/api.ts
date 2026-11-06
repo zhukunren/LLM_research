@@ -100,6 +100,7 @@ export type Pattern = {
   representation: 'price_path' | 'ohlc_sequence'
   target_bars: number
   points: number[]
+  algorithm_version?: string
   candlesticks: { open: number; high: number; low: number; close: number }[]
   params: Record<string, unknown>
   source_image?: { filename: string; mime_type: 'image/png' | 'image/jpeg' | 'image/webp'; sha256: string }

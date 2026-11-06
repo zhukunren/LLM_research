@@ -57,5 +57,6 @@
   .screening-history-filters { flex-wrap: wrap; }
   .screening-history-filters > label { flex-basis: 100%; }
   .screening-history-filters > select { width: 100%; }
-  .screening-history-row { align-items: flex-start; }
+  .screening-history-row.workspace-button { flex-direction: column; align-items: stretch; gap: 10px; padding: 16px 4px; }
+  .screening-history-row > span:last-child { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 }

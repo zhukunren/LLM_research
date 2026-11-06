@@ -113,7 +113,11 @@ class ScreeningTaskPayload(ToolArgs):
     conditions: list[Any] = Field(
         description=(
             "Condition objects. Technical conditions MUST include program with contract_version "
-            "python-screen-v1 and expression={} ; do not use indicator or formula DSL."
+            "python-screen-v1 and expression={} ; do not use indicator or formula DSL. "
+            "program.source_code defines screen(context, frames, params). Return ONLY "
+            "{decisions: {stock_code: Python True/False/None}, metrics: {stock_code: {metric: finite number or null}}, "
+            "units: {metric: unit string}}. Do not return string decisions, dates, booleans or explanatory text in metrics."
+            " Supply human-readable metric names and units for prices/percentages; label fractional returns as ratios or convert consistently to percent."
         )
     )
     references: list[Any] = Field(
@@ -126,7 +130,7 @@ class ScreeningTaskPayload(ToolArgs):
         )
     )
     scope: Any = Field(
-        description="Scope object with universe {kind: all_a_shares|watchlist|explicit}, as_of, lookbacks, price_basis, ranking."
+        description='Scope object. Explicit stocks MUST use {"universe":{"kind":"explicit","stock_codes":["000333.SZ"]},"as_of":"2026-10-20","price_basis":"unadjusted"}. Do not put stock_codes directly under scope. Other universe kinds: all_a_shares or watchlist (with watchlist_id). Optional: lookbacks and ranking.'
     )
     unresolved: list[Any]
 
@@ -892,7 +896,10 @@ def _revoke_screening_execution(args: ToolArgs, context: ToolContext) -> dict[st
 
 
 def _save_screening_plan(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
-    _current_turn_user_message(context)
+    from .execution_policy import requests_plan_save
+    message = _current_turn_user_message(context)
+    if not requests_plan_save(message["content"]):
+        raise ToolDispatchError("plan_save_not_requested", "本轮用户未要求存入方案库。生成方案和执行筛选不会自动保存为可复用方案；继续交付筛选结果即可。")
     task = conversation_store.get_task_revision(context.conversation_id, args.revision)
     try:
         with connect() as connection:
@@ -1025,7 +1032,9 @@ class ToolRegistry:
             args = registration.argument_model.model_validate(call.arguments)
         except ValidationError as exc:
             fields = [
-                {"field": ".".join(str(part) for part in error["loc"]), "reason": error["type"]}
+                {"field": ".".join(str(part) for part in error["loc"]), "reason": error["type"],
+                 "message": error["msg"], "constraints": {key: value for key, value in error.get("ctx", {}).items()
+                    if type(value) in (str, int, float, bool) or value is None}}
                 for error in exc.errors(include_url=False)
             ]
             return self._finish_call(

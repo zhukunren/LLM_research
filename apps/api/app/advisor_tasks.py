@@ -155,71 +155,40 @@ client_copy 为客户沟通短稿，full_copy 为可编辑的完整推荐理由�
 
 
 def validate_report(kind, scope, report, items, context, cutoff, validation_level="basic"):
-    """
-    Validate advisor report with configurable strictness.
+    """Block factual/identity errors in every mode; return non-blocking review hints.
 
-    Args:
-        validation_level: "off" (no validation), "basic" (default, minimal checks), "strict" (all checks)
-
-    Returns:
-        dict with validation_result: {errors: [], warnings: [], suggestions: []}
+    Strict mode additionally requires analysis dimensions. Legacy ``off`` only
+    suppresses optional editorial hints; it cannot bypass publication integrity.
     """
+    if validation_level not in {"off", "basic", "strict"}:
+        raise AdvisorTaskError("未知的投顾验证级别")
     validation_result = {"errors": [], "warnings": [], "suggestions": []}
-
-    if validation_level == "off":
-        return validation_result
-
     if kind not in ADVISOR_KINDS:
         if report is not None:
-            msg = "普通情报任务不应提交投顾报告"
-            if validation_level == "strict":
-                raise AdvisorTaskError(msg)
-            validation_result["warnings"].append(msg)
+            raise AdvisorTaskError("普通情报任务不应提交投顾报告")
         return validation_result
-
     if report is None:
-        msg = "请提交 advisor_report，包含结论、证据要点、行动条件与沟通稿"
-        if validation_level == "strict":
-            raise AdvisorTaskError(msg)
-        validation_result["warnings"].append(msg)
-        return validation_result
-
+        raise AdvisorTaskError("请提交 advisor_report，包含结论、证据要点、行动条件与沟通稿")
     if context is None:
-        msg = "本次投顾输入快照不存在，请重新创建任务"
-        if validation_level == "strict":
-            raise AdvisorTaskError(msg)
-        validation_result["errors"].append(msg)
-        return validation_result
-
+        raise AdvisorTaskError("本次投顾输入快照不存在，请重新创建任务")
     if report.effective_date > cutoff.date():
-        msg = "报告日期晚于研究截止时间"
-        if validation_level == "strict":
-            raise AdvisorTaskError(msg)
-        validation_result["warnings"].append(msg)
+        raise AdvisorTaskError("报告日期晚于研究截止时间")
 
     by_key = {item["event_key"]: item for item in items}
     for point in [*report.supporting_points, *report.contrary_points]:
         if any(key not in by_key for key in point.evidence_keys):
-            msg = "支持或反方判断引用了不属于本次成果的主题"
-            if validation_level == "strict":
-                raise AdvisorTaskError(msg)
-            validation_result["warnings"].append(msg)
-            break
+            raise AdvisorTaskError("支持或反方判断引用了不属于本次成果的主题")
 
     if kind == "closing":
-        if validation_level == "strict":
-            if report.verdict != "review" or report.session_status is None:
-                raise AdvisorTaskError("收评须使用市场复盘结论并注明收盘状态")
-        elif report.verdict != "review":
-            validation_result["warnings"].append("建议收评使用市场复盘结论")
+        if report.stock_code is not None:
+            raise AdvisorTaskError("市场收评不能绑定为单只股票报告")
+        if report.verdict != "review" or report.session_status is None:
+            raise AdvisorTaskError("收评须使用市场复盘结论并注明收盘状态")
 
         if report.effective_date.isoformat() != context["requested_trade_date"]:
-            msg = "收评日期必须与用户选择的日期一致"
-            if validation_level == "strict":
-                raise AdvisorTaskError(msg)
-            validation_result["warnings"].append(msg)
+            raise AdvisorTaskError("收评日期必须与用户选择的日期一致")
 
-        if validation_level == "strict" and report.session_status == "closed":
+        if report.session_status == "closed":
             if report.effective_date.weekday() >= 5 or context["session_status"] == "not_closed":
                 raise AdvisorTaskError("所选市场尚未收盘或日期为周末，不能交付已收盘结论")
             if context["actual_market_date"] != context["requested_trade_date"]:
@@ -232,29 +201,20 @@ def validate_report(kind, scope, report, items, context, cutoff, validation_leve
         validation_result["warnings"].extend(result.warnings)
         validation_result["suggestions"].extend(result.suggestions)
 
-        if validation_level == "strict" and result.errors:
+        if result.errors:
             raise AdvisorTaskError("\n".join(result.errors))
 
     else:  # Stock analysis or rationale
         if report.stock_code != scope.advisor.stock_code:
-            msg = "诊股或推荐理由的股票与已选对象不一致"
-            if validation_level == "strict":
-                raise AdvisorTaskError(msg)
-            validation_result["warnings"].append(msg)
+            raise AdvisorTaskError("诊股或推荐理由的股票与已选对象不一致")
 
         if report.effective_date != cutoff.date():
-            msg = "个股报告须使用冻结的研究截止日期"
-            if validation_level == "strict":
-                raise AdvisorTaskError(msg)
-            validation_result["warnings"].append(msg)
+            raise AdvisorTaskError("个股报告须使用冻结的研究截止日期")
 
-        if validation_level == "strict":
-            if report.verdict == "review":
-                raise AdvisorTaskError("个股任务需要明确的研判结论")
-        elif report.verdict == "review":
-            validation_result["suggestions"].append("建议明确研判结论")
+        if report.verdict == "review":
+            raise AdvisorTaskError("个股任务需要明确的研判结论")
 
-        if validation_level == "strict" and report.verdict == "support":
+        if report.verdict == "support":
             keys = {key for point in report.supporting_points for key in point.evidence_keys}
             if len(keys) < 2:
                 raise AdvisorTaskError("支持推荐须有至少两个独立的证据主题")
@@ -263,7 +223,7 @@ def validate_report(kind, scope, report, items, context, cutoff, validation_leve
 
     if validation_level == "strict" and any(not item.get("analysis_dimension") for item in items):
         raise AdvisorTaskError("投顾报告的每个证据主题需要注明 analysis_dimension")
-    elif any(not item.get("analysis_dimension") for item in items):
+    elif validation_level != "off" and any(not item.get("analysis_dimension") for item in items):
         validation_result["suggestions"].append("建议为每个证据主题注明分析维度")
 
     return validation_result

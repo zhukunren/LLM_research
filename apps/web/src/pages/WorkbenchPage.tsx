@@ -1,4 +1,5 @@
 import SavedScreeningPlans from './SavedScreeningPlans'
+import type { ScreeningFormMethod, ScreeningMethod } from '../screeningMethods'
 import LoadingState from '../components/LoadingState'
 import { StockText } from '../components/StockMentions'
 import { localStorage } from '../authStorage'
@@ -7,18 +8,20 @@ import ScreeningResultView from '../components/ScreeningResultView'
 import StockChartDialog from '../components/StockChartDialog'
 import './history-results-layout.css'
 import StockSearch from '../components/StockSearch'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronDown, CircleHelp, Clock3, Database, GitBranch, Library, ListOrdered, MessageCircle, Play, Plus, RefreshCw, Save, Search, SlidersHorizontal, Sparkles, TrendingUp, X } from 'lucide-react'
 import { api, type ConversationScope, type ConversationSourceReference, type DataStatus, type Filter, type Pattern, type Strategy, type WorkflowType } from '../api'
 import { ParameterNumber, type Asset, type Node } from './StrategyPage'
 import { actualLabel, applyConditionParameters, conditionParameter, conditionText, distinctConditionDescription, targetLabel } from '../conditionText'
-import { libraryCopy, writeCombination, type LibraryScope, type LibrarySeed } from '../libraryContext'
+import { COMPOSITION_UPDATED_EVENT, libraryCopy, writeCombination, type LibraryScope, type LibrarySeed } from '../libraryContext'
 import ConversationWorkspace from '../components/conversation/ConversationWorkspace'
 import type { ConversationHistoryChange } from '../components/ConversationHistoryItem'
 import { appendConditionPlan, compositionFingerprint, compositionIssues, executionDateIssue } from '../screeningWorkflow'
 import { referencedConditionKeys } from '../conditionTransfer'
 import ConditionTransferEditor from '../components/ConditionTransferEditor'
 import ConditionWorkspaceDrawer from '../components/ConditionWorkspaceDrawer'
+import ReusableConditionCreator, { ConditionSampleProof, PatternPathChart } from '../components/ReusableConditionCreator'
+import { useWorkspaceSession } from '../WorkspaceSession'
 import CompositionPicker from '../components/CompositionPicker'
 import CompositionRankingSettings from '../components/CompositionRankingSettings'
 import ConditionReferenceDetails from '../components/ConditionReferenceDetails'
@@ -60,7 +63,9 @@ function useStored<T,>(key: string, initial: T) {
   return [value, setValue] as const
 }
 
-export default function WorkbenchPage({ onReports, initialCommonIndicators, conversationUpdate, onHistoryChange, shellNavigation = false, workflowOnly = false, onOpenDataServices, onConditions, onResumeConversation, newResearchKey, onNewResearchConsumed, conversationId, onOpenProject, conversationPrompt, conversationNewDraft = false, onPromptConsumed, data, scope, view, onViewChange, onCompose, seed, screeningOnly = false, onCreateCondition, onSeedConsumed, conversationScope = 'screening', conversationWorkflowType = 'research', onLocationChange, onConversationScopeChange, onConversation, conversationSource, onConversationSourceChange }: { initialCommonIndicators?: boolean; conversationUpdate?: { id: string } & ConversationHistoryChange; onHistoryChange?: () => void; shellNavigation?: boolean; workflowOnly?: boolean; onOpenDataServices?: () => void; onConditions?: () => void; onResumeConversation?: (id: string, scope: ConversationScope, workflow?: WorkflowType, prompt?: string) => void; newResearchKey?: number; onNewResearchConsumed?: () => void; conversationId?: string; onOpenProject?: (id: string) => void; conversationPrompt?: string; conversationNewDraft?: boolean; onPromptConsumed?: () => void; data: DataStatus | null; onReports: (filter?: Filter) => void; scope?: LibraryScope; view?: Section; onViewChange?: (section: Section) => void; onCompose?: () => void; seed?: LibrarySeed; screeningOnly?: boolean; onCreateCondition?: () => void; onSeedConsumed?: () => void; conversationScope?: ConversationScope; conversationWorkflowType?: WorkflowType; onLocationChange?: (id: string, scope: ConversationScope, workflow: WorkflowType) => void; onConversationScopeChange?: (scope: ConversationScope) => void; onConversation?: (scope: LibraryScope, source?: { reference: ConversationSourceReference; label: string }, prompt?: string, workflow?: WorkflowType) => void; conversationSource?: { reference: ConversationSourceReference; label: string } | null; onConversationSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void }) {
+export default function WorkbenchPage({ onReports, screeningMethod, onScreeningMethod, onBrowseScreeningSources, initialCommonIndicators, conversationUpdate, onHistoryChange, shellNavigation = false, workflowOnly = false, onOpenDataServices, onConditions, onResumeConversation, newResearchKey, onNewResearchConsumed, conversationId, onOpenProject, conversationPrompt, conversationNewDraft = false, onPromptConsumed, data, scope, view, onViewChange, onCompose, seed, screeningOnly = false, onCreateCondition, onSeedConsumed, conversationScope = 'screening', conversationWorkflowType = 'research', onLocationChange, onConversationScopeChange, onConversation, conversationSource, onConversationSourceChange }: { screeningMethod?: ScreeningFormMethod; onScreeningMethod?: (method: ScreeningMethod) => void; onBrowseScreeningSources?: (kind: 'news' | 'reports') => void; initialCommonIndicators?: boolean; conversationUpdate?: { id: string } & ConversationHistoryChange; onHistoryChange?: () => void; shellNavigation?: boolean; workflowOnly?: boolean; onOpenDataServices?: () => void; onConditions?: () => void; onResumeConversation?: (id: string, scope: ConversationScope, workflow?: WorkflowType, prompt?: string) => void; newResearchKey?: number; onNewResearchConsumed?: () => void; conversationId?: string; onOpenProject?: (id: string) => void; conversationPrompt?: string; conversationNewDraft?: boolean; onPromptConsumed?: () => void; data: DataStatus | null; onReports: (filter?: Filter) => void; scope?: LibraryScope; view?: Section; onViewChange?: (section: Section) => void; onCompose?: () => void; seed?: LibrarySeed; screeningOnly?: boolean; onCreateCondition?: () => void; onSeedConsumed?: () => void; conversationScope?: ConversationScope; conversationWorkflowType?: WorkflowType; onLocationChange?: (id: string, scope: ConversationScope, workflow: WorkflowType) => void; onConversationScopeChange?: (scope: ConversationScope) => void; onConversation?: (scope: LibraryScope, source?: { reference: ConversationSourceReference; label: string }, prompt?: string, workflow?: WorkflowType) => void; conversationSource?: { reference: ConversationSourceReference; label: string } | null; onConversationSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void }) {
+  const workspaceSession = useWorkspaceSession()
+  const catalogRequest = useRef(0)
   const prefix = scope ? `library.${scope}` : 'workbench'
   const copy = scope ? libraryCopy[scope] : null
   const [storedSection, setStoredSection] = useStored<Section>(`${prefix}.section`, screeningOnly || workflowOnly ? 'conversation' : 'create')
@@ -68,6 +73,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   const requestedSection = view ?? (screeningOnly && !['conversation', 'compose', 'history'].includes(storedSection) ? 'conversation' : storedSection)
   const [creationOrigin, setCreationOrigin] = useState<'library' | 'compose'>(requestedSection === 'library' ? 'library' : 'compose')
   const [creationOpen, setCreationOpen] = useState(conditionTools && requestedSection === 'create')
+  const [selectedPatternCondition, setSelectedPatternCondition] = useState<Pattern | null>(null)
   const section = conditionTools && requestedSection === 'create' ? creationOrigin : requestedSection
   useEffect(() => { if (conditionTools) setCreationOpen(requestedSection === 'create') }, [conditionTools, requestedSection])
   const [advancedToolsOpen, setAdvancedToolsOpen] = useState(false)
@@ -104,10 +110,25 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   const [selectedEditing, setSelectedEditing] = useState(false)
   useEffect(() => { setSelectedEditing(false) }, [selected?.id, selected?.version])
   const [tree, setTree] = useStored<Node>('workbench.tree', emptyTree())
+  const [executionSettingsOpen, setExecutionSettingsOpen] = useState(false)
+  const executionFieldsId = useId()
   const [rankingTree, setRankingTree] = useState<Node | null>(null)
   const [referencePath, setReferencePath] = useState<number[] | null>(null)
   const [strategyName, setStrategyName] = useStored('workbench.strategyName', '我的选股组合')
   const [strategyId, setStrategyId] = useStored('workbench.strategyId', '')
+  useEffect(() => {
+    const receive = () => {
+      try {
+        const next = JSON.parse(localStorage.getItem('workbench.tree') || 'null') as Node | null
+        if (!next || typeof next.op !== 'string') return
+        setTree(next)
+        setStrategyName(JSON.parse(localStorage.getItem('workbench.strategyName') || '"我的选股组合"'))
+        setStrategyId(JSON.parse(localStorage.getItem('workbench.strategyId') || '""'))
+      } catch { /* Leave the current editable draft intact when a handoff is malformed. */ }
+    }
+    window.addEventListener(COMPOSITION_UPDATED_EVENT, receive)
+    return () => window.removeEventListener(COMPOSITION_UPDATED_EVENT, receive)
+  }, [])
   const [topNInput, setTopNInput] = useStored('workbench.topNInput', (() => { try { return String(JSON.parse(localStorage.getItem('workbench.topN') || '30')) } catch { return '30' } })())
   const topN = topNInput.trim() ? Number(topNInput) : NaN
   const setTopN = (value: number) => setTopNInput(String(value))
@@ -161,6 +182,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   const shouldFocusHistoryResult = useRef(false)
 
   async function refresh() {
+    const generation = ++catalogRequest.current
     setCatalogLoading(true)
     const results = await Promise.allSettled([
       api<{ items: Filter[] }>(`/filters?include_history=true${scope ? `&library=${scope}` : ''}`),
@@ -170,6 +192,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
       api<{ items: RunSummary[] }>(screeningOnly || workflowOnly ? '/screening-history' : '/screening-runs'),
       api<{ items: typeof draftHistory }>(`/condition-drafts${scope ? `?library=${scope}` : ''}`),
     ])
+    if (generation !== catalogRequest.current) return
     const [f,p,s,w,r,d] = results
     if(f.status === 'fulfilled') setFilters(f.value.items)
     if(p.status === 'fulfilled') setPatterns(p.value.items)
@@ -183,7 +206,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
     setResourceWarnings(results.flatMap((result,index) => result.status === 'rejected' ? [labels[index] + '：' + (result.reason as Error).message] : []))
     setCatalogLoading(false)
   }
-  useEffect(() => { void refresh().catch(e => setError(e.message)) }, [])
+  useEffect(() => { if (workspaceSession.active) void refresh().catch(e => setError(e.message)) }, [workspaceSession.active])
   useEffect(() => {
     if (!seed) return
     setDraft(null); setDraftId(''); setEdits({}); setPreview(null); setPrompt(seed.prompt ?? '')
@@ -250,6 +273,19 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   const ready = draft?.status === 'ready' && prompt.trim() === draft.prompt
   const filtered = latest.filter(item => (library === 'all' || item.library === library) && `${item.name} ${item.description} ${item.contract?.summary ?? ''} ${item.provenance?.prompt ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a, b) => conditionSort === 'name' ? a.name.localeCompare(b.name, 'zh-CN') : b.created_at.localeCompare(a.created_at))
+  const latestPatterns = patterns.filter(item => !patterns.some(other => other.id === item.id && other.version > item.version))
+  const filteredPatterns = !scope && (library === 'all' || library === 'pattern') ? latestPatterns.filter(item => `${item.name} 形态 ${item.target_bars}`.toLowerCase().includes(search.trim().toLowerCase())) : []
+  const libraryAssets: Asset[] = [...filtered.map(filter => ({ key: `filter:${filter.id}@${filter.version}`, label: filter.name, filter })), ...filteredPatterns.map(pattern => ({ key: `pattern:${pattern.id}@${pattern.version}`, label: pattern.name, pattern }))]
+    .sort((a: Asset, b: Asset) => { const first = a.filter ?? a.pattern!, second = b.filter ?? b.pattern!; return conditionSort === 'name' ? first.name.localeCompare(second.name, 'zh-CN') : second.created_at.localeCompare(first.created_at) })
+  const libraryTotal = latest.length + (!scope ? latestPatterns.length : 0)
+  function addSavedReference(reference: Node) {
+    const key = reference.op === 'pattern_ref' ? `pattern:${reference.pattern_id}@${reference.version}` : `filter:${reference.filter_id}@${reference.version}`
+    if (!compositionKeys.has(key)) changeTree(appendConditionPlan(tree, reference))
+    setSelectedPatternCondition(null); setCreationOpen(false); setSection('compose')
+  }
+  function addPatternCondition(pattern: Pattern) {
+    addSavedReference({ op: 'pattern_ref', pattern_id: pattern.id, version: pattern.version, min_similarity: Number(pattern.params.min_similarity ?? 80), match_mode: pattern.params.match_mode === 'recent' ? 'recent' : 'current', recent_bars: Number(pattern.params.recent_bars ?? 20), score_weight: 1 })
+  }
   useEffect(() => { setConditionLimit(12) }, [search, library, conditionSort])
   useEffect(() => { setHistoryLimit(15) }, [historyQuery, historyStatus])
   const selectedExpression = selected ? applyConditionParameters(selected.expression, selectedEdit.parameters) : {}
@@ -285,7 +321,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
   }
   async function generate() {
     await action('generate', async () => {
-      const next = await api<Draft>('/condition-drafts', { method: 'POST', body: JSON.stringify({ prompt, previous_draft_id: draft?.id, library: scope, source_document_id: sourceDocument?.source_document_id, source_page: sourceDocument?.source_page, start_date: scope === 'news' ? newsStart || undefined : undefined, end_date: scope === 'news' ? newsEnd || undefined : undefined }) })
+      const next = await api<Draft>('/condition-drafts', { method: 'POST', body: JSON.stringify({ prompt, previous_draft_id: conditionTools && creationOpen && draft?.conditions.some(item => item.library !== 'technical') ? undefined : draft?.id, library: conditionTools && creationOpen ? 'technical' : scope, source_document_id: conditionTools && creationOpen ? undefined : sourceDocument?.source_document_id, source_page: conditionTools && creationOpen ? undefined : sourceDocument?.source_page, start_date: scope === 'news' ? newsStart || undefined : undefined, end_date: scope === 'news' ? newsEnd || undefined : undefined }) })
       shouldScroll.current = true; setDraft(next); setDraftId(next.id); setEdits({}); setPreview(null); await refresh()
     })
   }
@@ -462,9 +498,9 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
           <div className="intent-confirm">{draft.saved ? <><span><Check size={16} />条件已保存</span><button className="primary-button workspace-button" disabled={!!busy} onClick={() => usePlan()}>用这些条件组合选股<ArrowRight size={16} /></button>{countRefs(tree) > 0 && <button className="secondary-button workspace-button" disabled={!!busy} onClick={() => usePlan(true)}>以这些条件新建组合</button>}</> : <><button className="primary-button workspace-button" disabled={!!busy || !!draftEditIssues.length} onClick={confirm}><Save size={16} />{busy === 'confirm' ? '保存中…' : `确认并保存 ${draft.conditions.length} 个条件`}</button></>}</div></>}
       </section>}
     </div>{draftHistory.length > 0 && <aside className="intent-guide"><section className="draft-history"><h3>最近的描述</h3>{draftHistory.filter((item, index, all) => all.findIndex(other => other.prompt === item.prompt) === index).slice(0, 8).map(item => <button key={item.id} disabled={!!busy} onClick={() => loadDraft(item.id)} className="workspace-button"><span>{item.prompt}</span></button>)}</section></aside>}</div>
-  const conditionInspector = selected ? <div className="condition-inspector">{!conditionTools && <div className="section-title-row"><h2>{selected.name}</h2><button className="icon-button workspace-button" aria-label="关闭条件详情" onClick={() => setSelected(null)}><X size={17} /></button></div>}<label className="history-version workspace-field-label">查看历史版本<select value={selected.version} onChange={e => { const item = filters.find(f => f.id === selected.id && f.version === Number(e.target.value)); if (item) { setSelected(item); setSelectedEdit({}) } }} className="workspace-field workspace-select">{filters.filter(f => f.id === selected.id).map(f => <option value={f.version} key={f.version}>第 {f.version} 版 · {dateText(f.created_at)}</option>)}</select></label><p className="condition-management-note">这里修改条件库资产；本组合的临时参数请在方案规则中调整。</p><p>{selectedDirty ? '修改后：' : ''}{selectedSummary}</p><ul className="contract-notes">{selected.contract?.notes.map(item => <li key={item}>{item.startsWith('涨幅 =') ? `涨幅 =（最新收盘价 ÷ ${selectedExpression.window} 个交易日前收盘价 − 1）× 100%。` : item}</li>)}</ul><Provenance value={selected.provenance} />
+  const conditionInspector = selected ? <div className="condition-inspector">{!conditionTools && <div className="section-title-row"><h2>{selected.name}</h2><button className="icon-button workspace-button" aria-label="关闭条件详情" onClick={() => setSelected(null)}><X size={17} /></button></div>}<label className="history-version workspace-field-label">查看历史版本<select value={selected.version} onChange={e => { const item = filters.find(f => f.id === selected.id && f.version === Number(e.target.value)); if (item) { setSelected(item); setSelectedEdit({}) } }} className="workspace-field workspace-select">{filters.filter(f => f.id === selected.id).map(f => <option value={f.version} key={f.version}>第 {f.version} 版 · {dateText(f.created_at)}</option>)}</select></label><p className="condition-management-note">这里修改条件库资产；本组合的临时参数请在方案规则中调整。</p><p>{selectedDirty ? '修改后：' : ''}{selectedSummary}</p><ul className="contract-notes">{selected.contract?.notes.map(item => <li key={item}>{item.startsWith('涨幅 =') ? `涨幅 =（最新收盘价 ÷ ${selectedExpression.window} 个交易日前收盘价 − 1）× 100%。` : item}</li>)}</ul><Provenance value={selected.provenance} /><ConditionSampleProof value={selected.provenance} />
         {(!conditionTools || selectedEditing) && <ParameterEditor name={selectedEdit.name ?? selected.name} parameters={selected.parameters} expression={selected.expression} edit={selectedEdit} disabled={!!busy} onChange={setSelectedEdit} />}
-        <div className="card-actions"><button className="secondary-button workspace-button" disabled={selectedDirty || !!busy || compositionKeys.has(`filter:${selected.id}@${selected.version}`)} onClick={() => addCondition(selected)}>{selectedDirty ? '先保存修改再加入组合' : compositionKeys.has(`filter:${selected.id}@${selected.version}`) ? '已加入当前组合' : '将此版本加入组合'}</button>{selectedDirty && <button className="text-button workspace-button" disabled={!!busy} onClick={() => setSelectedEdit({})}>撤销修改</button>}{selected.library === 'report' && <button className="secondary-button workspace-button" disabled={!!busy} onClick={() => { setEvaluationFilter(selected); if (conditionTools) setSelected(null) }}>核验研报证据</button>}{conditionTools && !selectedEditing ? <button type="button" className="secondary-button workspace-button" disabled={!!busy} onClick={() => setSelectedEditing(true)}>编辑条件</button> : <><button className="primary-button workspace-button" disabled={!!busy || !Object.keys(selectedEdit).length} onClick={revise}><Save size={15} />保存为新版本</button>{conditionTools && <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => { setSelectedEdit({}); setSelectedEditing(false) }}>取消编辑</button>}</>}</div><details className="technical-details"><summary>查看原始执行规则</summary><pre>{JSON.stringify(selectedExpression, null, 2)}</pre></details></div> : null
+        <div className="card-actions"><button className="secondary-button workspace-button" disabled={selectedDirty || !!busy || compositionKeys.has(`filter:${selected.id}@${selected.version}`)} onClick={() => addCondition(selected)}>{selectedDirty ? '先保存修改再加入组合' : compositionKeys.has(`filter:${selected.id}@${selected.version}`) ? '已加入当前组合' : '将此版本加入组合'}</button>{selectedDirty && <button className="text-button workspace-button" disabled={!!busy} onClick={() => setSelectedEdit({})}>撤销修改</button>}{selected.library === 'report' && selected.expression.evaluation_mode !== 'question' && <button className="secondary-button workspace-button" disabled={!!busy} onClick={() => { setEvaluationFilter(selected); if (conditionTools) setSelected(null) }}>核验研报证据</button>}{conditionTools && !selectedEditing ? <button type="button" className="secondary-button workspace-button" disabled={!!busy} onClick={() => setSelectedEditing(true)}>编辑条件</button> : <><button className="primary-button workspace-button" disabled={!!busy || !Object.keys(selectedEdit).length} onClick={revise}><Save size={15} />保存为新版本</button>{conditionTools && <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => { setSelectedEdit({}); setSelectedEditing(false) }}>取消编辑</button>}</>}</div><details className="technical-details"><summary>查看原始执行规则</summary><pre>{JSON.stringify(selectedExpression, null, 2)}</pre></details></div> : null
 
   const visibleRuns = runs.filter(item => (!historyStatus || (historyStatus === 'running' ? ['queued','running'].includes(item.status) : item.status === historyStatus)) && [item.name, item.as_of, strategies.find(value => value.id === item.strategy_id && value.version === item.strategy_version)?.name].join(' ').toLowerCase().includes(historyQuery.trim().toLowerCase())).sort((a, b) => b.created_at.localeCompare(a.created_at))
   const screeningHeading = workflowOnly ? '条件选股' : section === 'conversation' ? '对话筛选' : section === 'history' ? '筛选记录' : '组合选股'
@@ -486,7 +522,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
 
   return <StockText><div className={`page-content workbench ${workflowOnly && section !== 'conversation' ? 'workspace-tool-page screening-tool-page' : ''} ${section !== 'conversation' ? 'screening-workflow' : ''} ${workflowOnly && section !== 'conversation' ? 'condition-studio' : ''} ${section === 'conversation' ? 'workbench-conversation' : ''} ${section === 'compose' ? 'workbench-composing' : ''}`}>
     {conditionTools && ['library', 'compose'].includes(section) && <nav className="condition-workspace-location" aria-label="方案位置">
-      <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => setSection('saved')}><ArrowLeft size={15} />我的筛选方案</button>
+      <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => setSection('saved')}><ArrowLeft size={15} />我的方案</button>
       <span>{section === 'library' ? '条件资产管理' : '条件组合编辑'}</span>
       {section === 'compose' && <button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => setSection('library')}>管理条件库</button>}
     </nav>}
@@ -503,14 +539,23 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
     {error && !creationOpen && !selected && <div className="workbench-alert workspace-error" role="alert">{error}<button className="icon-button workspace-button" aria-label="关闭错误提示" onClick={() => setError('')}><X size={14} /></button></div>}
     {notice && !creationOpen && !selected && <div className="workbench-notice workspace-feedback workspace-feedback-success" role="status"><Check size={16} /><span>{notice}</span>{workflowOnly && section === 'library' && countRefs(tree) > 0 && <button className="text-button workspace-button" onClick={() => setSection('compose')}>继续编排<ArrowRight size={14} /></button>}</div>}
 
-    {section === 'conversation' && !scope && <ConversationWorkspace onStartScreening={onConversation ? () => onConversation('technical', undefined, undefined, 'screening') : undefined} onOpenReports={onReports} initialCommonIndicators={initialCommonIndicators} conversationUpdate={conversationUpdate} onHistoryChange={onHistoryChange} shellNavigation={shellNavigation} onOpenDataServices={onOpenDataServices} newResearchKey={newResearchKey} onNewResearchConsumed={onNewResearchConsumed} initialPrompt={conversationPrompt} initialNewDraft={conversationNewDraft} onPromptConsumed={onPromptConsumed} data={data} initialConversationId={resumeConversation?.conversation_id ?? conversationId} initialScope={resumeConversation?.entry_scope ?? conversationScope} initialWorkflowType={workflowOnly ? 'screening' : conversationWorkflowType} onLocationChange={onLocationChange} initialSource={conversationSource} onScopeChange={onConversationScopeChange} onSourceChange={onConversationSourceChange} onOpenProject={onOpenProject} onOpenConversation={onResumeConversation} />}
+    {section === 'conversation' && !scope && <ConversationWorkspace screeningMethod={screeningMethod} onScreeningMethod={onScreeningMethod} onScreeningSaved={() => setSection('saved')} onScreeningHistory={() => setSection('history')} onBrowseScreeningSources={onBrowseScreeningSources} onStartScreening={onConversation ? () => onConversation('technical', undefined, undefined, 'screening') : undefined} onOpenReports={onReports} initialCommonIndicators={initialCommonIndicators} conversationUpdate={conversationUpdate} onHistoryChange={onHistoryChange} shellNavigation={shellNavigation} onOpenDataServices={onOpenDataServices} newResearchKey={newResearchKey} onNewResearchConsumed={onNewResearchConsumed} initialPrompt={conversationPrompt} initialNewDraft={conversationNewDraft} onPromptConsumed={onPromptConsumed} data={data} initialConversationId={resumeConversation?.conversation_id ?? conversationId} initialScope={resumeConversation?.entry_scope ?? conversationScope} initialWorkflowType={workflowOnly ? 'screening' : conversationWorkflowType} onLocationChange={onLocationChange} initialSource={conversationSource} onScopeChange={onConversationScopeChange} onSourceChange={onConversationSourceChange} onOpenProject={onOpenProject} onOpenConversation={onResumeConversation} />}
 
     {!conditionTools && section === 'create' && conditionCreator}
-    {conditionTools && creationOpen && <ConditionWorkspaceDrawer title="新增可复用条件" closeLabel="关闭新增条件" description="描述、核对并保存条件，当前组合会保留。" className="condition-creator-drawer" onClose={() => { setCreationOpen(false); if (requestedSection === 'create') setSection(creationOrigin) }}>
+    {conditionTools && selectedPatternCondition && <ConditionWorkspaceDrawer title={selectedPatternCondition.name} closeLabel="关闭形态条件详情" onClose={() => setSelectedPatternCondition(null)}>
+      <label className="workspace-field-label">固定形态版本<select className="workspace-field" aria-label="查看形态条件版本" value={selectedPatternCondition.version} onChange={event => setSelectedPatternCondition(patterns.find(item => item.id === selectedPatternCondition.id && item.version === Number(event.target.value)) ?? null)}>{patterns.filter(item => item.id === selectedPatternCondition.id).map(item => <option key={item.version} value={item.version}>v{item.version} · {dateText(item.created_at)}</option>)}</select></label>
+      <PatternPathChart target={selectedPatternCondition.points} label={`${selectedPatternCondition.target_bars} 根K线目标`} />
+      <p>最低相似度 {Number(selectedPatternCondition.params.min_similarity ?? 80)} 分 · {selectedPatternCondition.params.match_mode === 'recent' ? `近 ${Number(selectedPatternCondition.params.recent_bars ?? 20)} 个交易日最相近窗口` : '当前窗口'}。相似度不是上涨概率。</p>
+      <ConditionSampleProof value={selectedPatternCondition.provenance} />
+      <button type="button" className="primary-button workspace-button" disabled={!!busy || compositionKeys.has(`pattern:${selectedPatternCondition.id}@${selectedPatternCondition.version}`)} onClick={() => addPatternCondition(selectedPatternCondition)}>将此版本加入组合</button>
+    </ConditionWorkspaceDrawer>}
+    {conditionTools && creationOpen && <ConditionWorkspaceDrawer title="新增可复用条件" closeLabel="关闭新增条件" description="按类型定义、核对样本并保存，当前组合会保留。" className="condition-creator-drawer" onClose={() => { setCreationOpen(false); if (requestedSection === 'create') setSection(creationOrigin) }}>
+      <ReusableConditionCreator data={data} patterns={patterns} busy={!!busy} customEditor={<>
       <div className="condition-creator-tools"><span>关闭后保留未完成的描述</span><button className="text-button workspace-button" disabled={!!busy} onClick={() => newDescription()}>新建描述</button></div>
       {error && <div className="condition-creator-feedback workspace-error" role="alert">{error}</div>}
       {notice && <div className="condition-creator-feedback workspace-feedback workspace-feedback-success" role="status">{notice}</div>}
       {conditionCreator}
+      </>} onSaved={() => { void refresh().catch(reason => setError((reason as Error).message)) }} onUse={addSavedReference} onOpenPatterns={onScreeningMethod ? () => { setCreationOpen(false); onScreeningMethod('pattern') } : undefined} />
     </ConditionWorkspaceDrawer>}
     {conditionTools && selected && <ConditionWorkspaceDrawer title={selected.name} description={libraryNames[selected.library]} onClose={() => setSelected(null)}>
       {error && <div className="condition-creator-feedback workspace-error" role="alert">{error}</div>}
@@ -519,10 +564,16 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
     </ConditionWorkspaceDrawer>}
 
     {section === 'library' && <section className="library-workspace"><div className="section-title-row"><div><h1>条件库</h1><p className="condition-management-note">管理可复用条件；加入方案时固定版本，修改条件将保存为新版本。</p></div><button className="primary-button workspace-button" disabled={!!busy} onClick={() => conditionTools ? setSection('create') : newDescription()}><Plus size={16} />新增可复用条件</button></div>
-      <div className="library-filters workspace-filters"><label className="search-input workspace-field-shell"><Search size={16} /><input aria-label="搜索我的条件" placeholder="搜索条件名称、判断口径或描述" value={search} onChange={e => setSearch(e.target.value)} className="workspace-field" />{search && <button className="icon-button workspace-button" aria-label="清除条件搜索" onClick={() => setSearch('')}><X size={14} /></button>}</label><select disabled={!!scope} aria-label="条件类型" value={library} onChange={e => setLibrary(e.target.value)} className="workspace-field workspace-select"><option value="all">全部条件</option><option value="technical">行情条件</option><option value="report">研报条件</option><option value="news">资讯条件</option></select><select aria-label="条件排序" value={conditionSort} onChange={event => setConditionSort(event.target.value)} className="workspace-field workspace-select"><option value="recent">最近保存优先</option><option value="name">按名称排序</option></select><button className="secondary-button workspace-button" disabled={!!busy} onClick={() => setSection('compose')}>查看组合 · {countRefs(tree)} 项<ArrowRight size={15} /></button></div>
-      {workflowOnly && <div className="condition-library-overview"><span>{filtered.length === latest.length ? `共 ${latest.length} 个条件` : `找到 ${filtered.length} / ${latest.length} 个条件`}</span>{(search || library !== (scope ?? 'all')) && <button className="text-button workspace-button" onClick={() => { setSearch(''); setLibrary(scope ?? 'all') }}>重置筛选</button>}</div>}
-      {catalogLoading && <p className="workbench-help">正在载入本库条件…</p>}{catalogLoaded && !filtered.length && <Empty icon={Library} title={latest.length ? '没有找到匹配的条件' : '还没有保存的条件'} action={!latest.length ? <button className="primary-button workspace-button" onClick={() => newDescription()}><Plus size={15} />描述一个条件</button> : undefined} />}
-      <div className="condition-library-grid">{filtered.slice(0, conditionLimit).map(item => {
+      <div className="library-filters workspace-filters"><label className="search-input workspace-field-shell"><Search size={16} /><input aria-label="搜索我的条件" placeholder="搜索条件名称、判断口径或描述" value={search} onChange={e => setSearch(e.target.value)} className="workspace-field" />{search && <button className="icon-button workspace-button" aria-label="清除条件搜索" onClick={() => setSearch('')}><X size={14} /></button>}</label><select disabled={!!scope} aria-label="条件类型" value={library} onChange={e => setLibrary(e.target.value)} className="workspace-field workspace-select"><option value="all">全部条件</option>{!scope && <option value="pattern">形态条件</option>}<option value="technical">行情条件</option><option value="report">研报条件</option><option value="news">资讯条件</option></select><select aria-label="条件排序" value={conditionSort} onChange={event => setConditionSort(event.target.value)} className="workspace-field workspace-select"><option value="recent">最近保存优先</option><option value="name">按名称排序</option></select><button className="secondary-button workspace-button" disabled={!!busy} onClick={() => setSection('compose')}>查看组合 · {countRefs(tree)} 项<ArrowRight size={15} /></button></div>
+      {workflowOnly && <div className="condition-library-overview"><span>{libraryAssets.length === libraryTotal ? `共 ${libraryTotal} 个条件` : `找到 ${libraryAssets.length} / ${libraryTotal} 个条件`}</span>{(search || library !== (scope ?? 'all')) && <button className="text-button workspace-button" onClick={() => { setSearch(''); setLibrary(scope ?? 'all') }}>重置筛选</button>}</div>}
+      {catalogLoading && <p className="workbench-help">正在载入本库条件…</p>}{catalogLoaded && !libraryAssets.length && <Empty icon={Library} title={libraryTotal ? '没有找到匹配的条件' : '还没有保存的条件'} action={!libraryTotal ? <button className="primary-button workspace-button" onClick={() => newDescription()}><Plus size={15} />新建条件</button> : undefined} />}
+      <div className="condition-library-grid">{libraryAssets.slice(0, conditionLimit).map(asset => {
+        if (asset.pattern) {
+          const pattern = asset.pattern, used = compositionKeys.has(asset.key)
+          return <article className="saved-condition-card" key={asset.key}><button className="condition-library-open workspace-button" aria-label={`查看形态条件 ${pattern.name}`} onClick={() => { setSelected(null); setSelectedPatternCondition(pattern) }}><h3>{pattern.name}</h3><p>{pattern.target_bars} 根K线 · 最低相似度 {Number(pattern.params.min_similarity ?? 80)} 分</p></button><span className="condition-library-kind">形态条件<small>v{pattern.version}</small></span><span className="availability market">可用日线核对形态</span><div className="card-actions"><button type="button" className="secondary-button workspace-button" disabled={!!busy || used} onClick={() => addPatternCondition(pattern)}>{used ? <><Check size={14} />已加入组合</> : <><Plus size={14} />加入组合</>}</button></div></article>
+        }
+        const item = asset.filter!
+
         const summary = distinctConditionDescription(item.name, item.contract?.summary ?? item.description)
         const inComposition = compositionKeys.has(`filter:${item.id}@${item.version}`)
         return <article className="saved-condition-card" key={item.id}>
@@ -532,7 +583,7 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
           <div className="card-actions"><button className="secondary-button workspace-button" disabled={!!busy || inComposition} onClick={() => addCondition(item)}>{inComposition ? <><Check size={14} />已加入组合</> : <><Plus size={14} />加入组合</>}</button></div>
         </article>
       })}</div>
-      {filtered.length > conditionLimit && <div className="condition-load-more"><span>已显示 {conditionLimit} / {filtered.length} 个条件</span><button className="secondary-button workspace-button" onClick={() => setConditionLimit(value => value + 12)}>显示更多条件<ChevronDown size={14} /></button></div>}
+      {libraryAssets.length > conditionLimit && <div className="condition-load-more"><span>已显示 {conditionLimit} / {libraryAssets.length} 个条件</span><button className="secondary-button workspace-button" onClick={() => setConditionLimit(value => value + 12)}>显示更多条件<ChevronDown size={14} /></button></div>}
       {!conditionTools && conditionInspector}
     </section>}
 
@@ -556,11 +607,14 @@ export default function WorkbenchPage({ onReports, initialCommonIndicators, conv
           {!!editorIssues.length && countRefs(tree) > 0 && <div className="composition-validation workspace-error" role="alert">{editorIssues.map(issue => <p key={issue}>{issue}</p>)}</div>}
         </section>
         <footer className="compose-execution" aria-label="筛选设置与执行">
-          <fieldset disabled={!!busy} className="screening-editor-fields composition-execution-fields">
+          <div className="composition-execution-config" data-open={executionSettingsOpen || !!(numericIssue || dateIssue || poolIssue)}>
+          <button type="button" className="composition-execution-toggle workspace-button" aria-expanded={executionSettingsOpen || !!(numericIssue || dateIssue || poolIssue)} aria-controls={executionFieldsId} onClick={() => setExecutionSettingsOpen(value => !value)}><SlidersHorizontal size={15} /><span>筛选设置<small>{pools.find(pool => pool.id === poolId)?.name || '全部 A 股'} · {asOf || '未选日期'} · 保留 {topNInput} 只</small></span><ChevronDown size={15} /></button>
+          <fieldset id={executionFieldsId} disabled={!!busy} className="screening-editor-fields composition-execution-fields">
             <label className="workspace-field-label">股票范围<select aria-label="筛选股票范围" aria-invalid={!!poolIssue || undefined} value={poolId} onChange={event => setPoolId(event.target.value)} className="workspace-field workspace-select"><option value="">全部 A 股</option>{pools.map(pool => <option key={pool.id} value={pool.id}>{pool.name} · {pool.items.length} 只</option>)}</select>{poolIssue && <span className="screening-field-error">{poolIssue}</span>}</label>
             <label className="workspace-field-label">截止日期<input type="date" aria-label="筛选截止日期" aria-invalid={!!dateIssue || undefined} value={asOf} max={data?.last_date} onChange={event => setAsOf(event.target.value)} className="workspace-field" />{dateIssue && <span className="screening-field-error">{dateIssue}</span>}</label>
             <label className="workspace-field-label">优先保留数量<div className="composition-quantity-field"><input aria-label="优先保留数量" type="number" min={1} max={500} value={topNInput} aria-invalid={!!numericIssue || undefined} onChange={event => setTopNInput(event.target.value)} className="workspace-field" /><span>只</span></div>{numericIssue && <span className="screening-field-error">{numericIssue}</span>}</label>
           </fieldset>
+          </div>
           <div className="compose-execution-actions">
             <button type="button" className="text-button composition-ranking-launch workspace-button" disabled={!!busy || !catalogLoaded || !countRefs(tree)} onClick={() => setRankingTree(tree)}><ListOrdered size={15} />排序设置</button>
             <button className="secondary-button workspace-button" disabled={!!busy || !catalogLoaded || !!saveIssues.length || !!currentSaved} onClick={() => saveStrategy(false)}><Save size={15} />{busy === 'strategy' ? '保存中…' : '保存组合'}</button>

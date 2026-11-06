@@ -8,7 +8,7 @@ import re
 import sqlite3
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 from . import conversation_store, financial_metrics, financial_evidence, financial_research, research_workspace, documents
 from .models import StrictModel as ToolArgs
 from .financial_contracts import timestamp, ZONE
@@ -19,13 +19,17 @@ def _tool_error(code, message):
     return ToolDispatchError(code, message)
 
 
+FinancialMetric = Literal[tuple(item["code"] for item in financial_metrics.catalog())]
+
+
 class FinancialArgs(ToolArgs):
     stock_code: str = Field(pattern=r"^\d{6}\.(SH|SZ|BJ)$")
     as_of: date
-    start_year: int | None = None
+    start_year: int | None = Field(None, ge=2000, le=2100)
     basis: Literal["annual", "cumulative", "quarter", "ttm"] = "annual"
     mode: Literal["as_of", "latest"] = "as_of"
-    metrics: list[str] = Field(default_factory=lambda: ["revenue", "parent_net_profit", "operating_cashflow"], min_length=1, max_length=8)
+    metrics: list[FinancialMetric] = Field(default_factory=lambda: ["revenue", "parent_net_profit", "operating_cashflow"], min_length=1, max_length=8,
+        description="Verified metric codes. Revenue: revenue; net profit attributable to parent: parent_net_profit; operating cash flow: operating_cashflow.")
     offset: int = Field(0, ge=0)
     limit: int = Field(6, ge=1, le=12)
 
@@ -40,17 +44,17 @@ class FinancialEvidenceArgs(ToolArgs):
 class CompareArgs(ToolArgs):
     stock_codes: list[str] = Field(min_length=3, max_length=5)
     as_of: date
-    start_year: int | None = None
+    start_year: int | None = Field(None, ge=2000, le=2100)
     basis: Literal["annual", "cumulative", "quarter", "ttm"] = "annual"
     mode: Literal["as_of", "latest"] = "as_of"
-    metrics: list[str] = Field(default_factory=lambda: ["revenue", "parent_net_profit", "operating_cashflow"], min_length=1, max_length=8)
+    metrics: list[FinancialMetric] = Field(default_factory=lambda: ["revenue", "parent_net_profit", "operating_cashflow"], min_length=1, max_length=8)
 
 
 class SearchDisclosuresArgs(ToolArgs):
     stock_code: str = Field(pattern=r"^\d{6}\.(SH|SZ|BJ)$")
     as_of: date
-    report_period: date | None = None
-    query: str = Field("", max_length=300)
+    report_period: date | None = Field(None, description="Fiscal period END DATE in YYYY-MM-DD form, e.g. 2025-12-31 or 2026-06-30; never a bare year.")
+    query: str = Field("", max_length=300, description="One literal phrase to locate in a page, e.g. 营业收入. Do not concatenate unrelated search terms. Empty lists the available reports.")
     offset: int = Field(0, ge=0)
     limit: int = Field(10, ge=1, le=30)
     mode: Literal["as_of", "latest"] = "as_of"
@@ -125,7 +129,10 @@ def _tool_evidence(payload):
 
 def get_financials(args, context):
     _scope(context, [args.stock_code], args.as_of.isoformat())
-    query = financial_metrics.FinancialQuery(**args.model_dump(exclude={"offset", "limit"}))
+    try:
+        query = financial_metrics.FinancialQuery(**args.model_dump(exclude={"offset", "limit"}))
+    except ValidationError as exc:
+        raise _tool_error("invalid_financial_query", "财务查询参数无效：" + "；".join(error["msg"] for error in exc.errors(include_url=False))) from exc
     with frozen(context) as connection:
         result = calculation(connection, query)
     financial_metrics.store_result(result)
@@ -173,7 +180,10 @@ def read_financial(args, context):
 
 def compare(args, context):
     _scope(context, args.stock_codes, args.as_of.isoformat())
-    request = financial_research.ComparisonRequest(**args.model_dump())
+    try:
+        request = financial_research.ComparisonRequest(**args.model_dump())
+    except ValidationError as exc:
+        raise _tool_error("invalid_financial_query", "财务比较参数无效：" + "；".join(error["msg"] for error in exc.errors(include_url=False))) from exc
     with frozen(context) as connection:
         results = [calculation(connection, financial_metrics.FinancialQuery(
             stock_code=code, as_of=args.as_of, start_year=args.start_year, basis=args.basis, mode=args.mode, metrics=args.metrics)) for code in args.stock_codes]

@@ -145,6 +145,16 @@ def test_source_transport_refuses_explicit_tls_disable(monkeypatch):
             session.get("https://publisher.example/", verify=False)
 
 
+def test_browser_guard_expired_budget_opens_no_http_request(monkeypatch):
+    monkeypatch.setattr(sources.time, 'monotonic', lambda: 20)
+    context = SimpleNamespace(route=lambda *_: None, route_web_socket=lambda *_: None, add_init_script=lambda *_: None)
+    transport = SimpleNamespace(request=lambda *_a, **_kw: pytest.fail('expired request opened transport'), close=lambda: None)
+    aborted = []
+    guard = sources.BrowserSourceGuard(context, transport=transport, deadline=19, request_timeout=6)
+    guard.route(SimpleNamespace(request=SimpleNamespace(resource_type='document'), abort=lambda: aborted.append(True)))
+    assert aborted == [True] and '预算' in guard.errors[-1]
+
+
 def test_dual_stack_fake_dns_still_pins_independently_verified_public_address(monkeypatch):
     monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: dns("198.18.0.5") + dns("2001:2::5"))
     target = sources.resolve_public_url("https://publisher.example/article", public_dns=lambda _: ("93.184.216.34",))

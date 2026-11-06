@@ -86,13 +86,16 @@
 .workbench-composing .condition-logic-summary p { margin: 5px 0 0; max-height: 44px; overflow: hidden; color: var(--ui-text); font-size: 11px; line-height: 1.8; }
 .workbench-composing .condition-logic-summary[data-expanded=true] { flex-shrink: 1; min-height: 90px; overflow-y: auto; }
 .workbench-composing .condition-logic-summary[data-expanded=true] p { max-height: none; overflow: visible; overflow-wrap: anywhere; }
-.workbench-composing .condition-transfer-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px 12px; min-height: 160px; color: var(--ui-text-muted); text-align: center; }
+.workbench-composing .condition-transfer-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: auto; min-height: 100%; padding: 24px 12px; color: var(--ui-text-muted); text-align: center; }
+.workbench-composing .condition-transfer-empty > * { flex-shrink: 0; }
 .workbench-composing .condition-transfer-empty strong { font-size: 13px; font-weight: 500; }
 .workbench-composing .condition-transfer-empty p, .workbench-composing .condition-transfer-empty > span { margin: 0; font-size: 11px; line-height: 1.8; }
 .workbench-composing .condition-empty-icon { color: var(--ui-primary); }
 .workbench-composing .condition-transfer-feedback { flex-shrink: 0; min-height: 0; margin: 0; padding: 5px 0; border-top: 1px solid var(--ui-border-subtle); font-size: 11px; }
 .workbench-composing .composition-validation { flex-shrink: 0; max-height: 80px; overflow-y: auto; margin: 6px 0; font-size: 12px; }
 .workbench-composing .compose-execution { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; flex-shrink: 0; gap: 8px 20px; padding: 12px 0 0; margin: 0; border: 0; border-top: 1px solid var(--ui-border-subtle); border-radius: 0; background: var(--ui-surface); }
+.composition-execution-config { min-width: 0; }
+.composition-execution-toggle { display: none; }
 .workbench-composing .composition-execution-fields { display: grid; grid-template-columns: minmax(150px,1.2fr) minmax(160px,1fr) minmax(105px,.7fr); gap: 12px; padding: 0; margin: 0; border: 0; }
 .workbench-composing .composition-execution-fields > label { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; font-size: 11px; color: var(--ui-text-muted); }
 .workbench-composing .composition-execution-fields .workspace-field { display: block; width: 100%; min-width: 0; height: 34px; min-height: 34px; padding: 5px 8px; font-size: 13px; }
@@ -152,6 +155,13 @@
   .workbench-composing .condition-logic-summary { padding-block: 6px; }
   .workbench-composing .condition-logic-summary p { max-height: 32px; line-height: 1.5; }
   .workbench-composing .compose-execution { padding-top: 8px; gap: 8px; }
+  .workbench-composing .composition-execution-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 6px 0; border: 0; background: transparent; color: var(--ui-text); text-align: left; font-size: 13px; }
+  .composition-execution-toggle > span { flex: 1; min-width: 0; }
+  .composition-execution-toggle small { display: block; margin-top: 2px; color: var(--ui-text-muted); font-size: 11px; overflow-wrap: anywhere; }
+  .composition-execution-toggle > svg { flex-shrink: 0; }
+  .composition-execution-toggle[aria-expanded=true] > svg:last-child { transform: rotate(180deg); }
+  .workbench-composing .composition-execution-config[data-open=false] > .composition-execution-fields { display: none; }
+  .workbench-composing .composition-execution-config[data-open=true] > .composition-execution-fields { padding-bottom: 6px; }
   .workbench-composing .composition-execution-fields { grid-template-columns: minmax(0,1fr) minmax(0,.7fr); gap: 8px; }
   .workbench-composing .composition-execution-fields > label:first-child { grid-column: 1 / -1; }
   .workbench-composing .composition-execution-fields .workspace-field { min-height: 36px; height: 36px; font-size: 16px; }

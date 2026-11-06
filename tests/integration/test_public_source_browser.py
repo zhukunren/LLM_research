@@ -73,6 +73,38 @@ def test_guarded_browser_keeps_redirect_base_and_dynamic_fetch_while_blocking_pr
     assert "/sw.js" not in public_page
 
 
+def test_closing_article_reader_uses_pinned_document_without_loading_subresources(public_page, tmp_path, monkeypatch):
+    from apps.api.app.article_capture import capture_article
+    monkeypatch.setattr(research_external.research_workspace, "directory", lambda _: tmp_path / "work")
+    context = SimpleNamespace(conversation_id="public", research_depth="standard", as_of="2026-10-20")
+    page = capture_article(research_external.CapturePageArgs(url="https://public-fixture.example/old"), context)
+    assert page["url"] == "https://public-fixture.example/new/page"
+    assert page["capture_method"] == "html_article"
+    assert "Fixture public text." in page["text_preview"]
+    assert public_page == ["/old", "/new/page"]
+
+
+def test_closing_article_redirect_to_private_host_is_not_fetched(public_page):
+    from apps.api.app.article_capture import capture_article
+    context = SimpleNamespace(conversation_id="public", research_depth="standard", as_of="2026-10-20")
+    with pytest.raises(public_sources.PublicSourceError, match="本机|内网"):
+        capture_article(research_external.CapturePageArgs(url="https://public-fixture.example/private-redirect"), context)
+    assert public_page == ["/private-redirect"]
+
+
+def test_text_browser_fallback_remains_guarded_and_has_no_fake_screenshot(public_page, tmp_path, monkeypatch):
+    from pathlib import Path
+    monkeypatch.setattr(research_external.research_workspace, "directory", lambda _: tmp_path / "work")
+    context = SimpleNamespace(conversation_id="public", research_depth="standard", as_of="2026-10-20")
+    page = research_external.capture_page(research_external.CapturePageArgs(url="https://public-fixture.example/old", wait_selector="#loaded"), context,
+                                          text_only=True, timeout_seconds=12)
+    assert page["capture_method"] == "browser_text"
+    assert "1499.6" in page["text_preview"]
+    assert page["image_path"] is None and page["image_sha256"] is None
+    assert not list(Path(page["html_path"]).parent.glob('*.png'))
+    assert not any("private" in path for path in public_page)
+
+
 def test_news_url_import_uses_the_same_public_browser_guard(public_page):
     page = news_library.extract_web_text("https://public-fixture.example/old")
     assert page["url"] == "https://public-fixture.example/new/page"

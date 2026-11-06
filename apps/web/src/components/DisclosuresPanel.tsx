@@ -215,12 +215,16 @@ export default function DisclosuresPanel({ stockCode, asOf, writable = true, com
       <div className="disclosure-actions"><button className="primary-button workspace-button" disabled={submitting}>{submitting ? '正在提交…' : editing === 'metadata' ? '保存分类核对' : '提交归档'}</button><button type="button" className="secondary-button workspace-button" disabled={submitting} onClick={() => setEditing(null)}>取消编辑</button></div>
     </form>}
     {!compact && <div className="disclosure-filters">
+      <div className="disclosure-primary-filters">
       <div className="disclosure-stock-field"><span>按公司筛选</span><StockSearch label="按公司筛选披露" value={code} onChange={value => { setCode(value); setOffset(0) }} /></div>
+      <form onSubmit={e => { e.preventDefault(); setQuery(queryInput); setOffset(0) }}><label>标题或原文<input value={queryInput} onChange={e => setQueryInput(e.target.value)} maxLength={300} placeholder="搜索标题或原文内容" /></label><button className="secondary-button workspace-button">查找披露</button></form>
+      </div>
+      <div className="disclosure-secondary-filters">
       <label>按报告期筛选<input type="date" value={period} onChange={e => { setPeriod(e.target.value); setOffset(0) }} /></label>
       <label>按类型筛选<select value={kind} onChange={e => { setKind(e.target.value); setOffset(0) }}><option value="">全部类型</option>{Object.entries(types).map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select></label>
       <label>全文或摘要<select value={formFilter} onChange={e => { setFormFilter(e.target.value); setOffset(0) }}><option value="">全部形式</option>{Object.entries(forms).map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select></label>
       <label>核对状态<select value={classification} onChange={e => { setClassification(e.target.value); setOffset(0) }}><option value="">全部状态</option><option value="pending">待核对</option><option value="confirmed">分类已核对</option></select></label>
-      <form onSubmit={e => { e.preventDefault(); setQuery(queryInput); setOffset(0) }}><label>标题或原文<input value={queryInput} onChange={e => setQueryInput(e.target.value)} maxLength={300} /></label><button className="secondary-button workspace-button">查找披露</button></form>
+      </div>
     </div>}
     {relevantImports.length > 0 && <details className="disclosure-imports" open={relevantImports.some(item => ['queued', 'running', 'failed'].includes(item.state))}><summary>最近导入与重试</summary>
       {relevantImports.slice(0, 10).map(item => <div className="disclosure-import" key={item.id}><strong>{item.request.metadata.title || item.filename}</strong><p>{item.message}</p>

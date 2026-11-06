@@ -6,11 +6,14 @@ import { api, conversationWorkflow, type ConversationScope, type WorkflowType } 
 import { workspaceMenus, workspaceLibraryMenus, type PageId } from '../navigation'
 import type { ResearchProjectSummary } from '../research'
 import { trapDialogTab } from '../keyboard'
+import { screeningMethods, type ScreeningMethod } from '../screeningMethods'
+import { screeningMethodIcons } from './screening/ScreeningMethodCards'
 
 type RecentConversation = { state?: 'active' | 'archived'; id: string; title: string | null; entry_scope: ConversationScope; workflow_type?: WorkflowType; research_mode?: string; task_revision?: number; updated_at: string }
 type Command = { id: string; label: string; description: string; details?: string; keywords?: string; group: string; icon: typeof Search; select: () => void }
 
-export default function QuickNavigation({ onClose, onNavigate, onProject, onConversation, onNewResearch, onSettings }: {
+export default function QuickNavigation({ onClose, onNavigate, onProject, onConversation, onNewResearch, onSettings, onScreeningMethod, onScreeningCompose, onNewScreening }: {
+  onScreeningMethod?: (method: ScreeningMethod) => void; onScreeningCompose?: () => void; onNewScreening?: () => void
   onClose: () => void; onNavigate: (page: PageId) => void; onProject: (id: string) => void
   onConversation: (id: string, scope: ConversationScope) => void; onNewResearch: () => void; onSettings: () => void
 }) {
@@ -68,11 +71,14 @@ export default function QuickNavigation({ onClose, onNavigate, onProject, onConv
 
   const commands = useMemo<Command[]>(() => [
     { id: 'new-research', label: '开始新研究', description: '打开一份新的研究草稿', group: '快捷操作', icon: Plus, select: onNewResearch },
+    ...(onNewScreening ? [{ id: 'new-screening', label: '新选股', description: '自由描述要求，或选择专用入口', group: '选股', icon: ListFilter, select: onNewScreening }] : []),
+    ...(onScreeningMethod ? screeningMethods.map(item => ({ id: 'screening-method-' + item.id, label: item.label, description: item.description, group: '选股', icon: screeningMethodIcons[item.id], select: () => onScreeningMethod(item.id) })) : []),
+    ...(onScreeningCompose ? [{ id: 'screening-compose', label: '条件组合', description: '组合已保存条件，编辑判断逻辑', group: '选股', icon: ListFilter, select: onScreeningCompose }] : []),
     ...conversations.map(item => ({ id: 'conversation-' + item.id, label: item.title?.trim() || '未命名对话', description: (item.state === 'archived' ? '已归档 · ' : '') + (conversationWorkflow(item) === 'screening' ? '继续选股对话' : '继续研究对话'), group: searchQuery ? '历史对话' : '最近对话', icon: conversationWorkflow(item) === 'screening' ? ListFilter : MessageCircle, select: () => onConversation(item.id, item.entry_scope) })),
     ...projects.map(item => ({ id: 'project-' + item.id, label: item.name, description: (item.status === 'archived' ? '已归档 · ' : '') + (item.objective || '研究项目'), details: [item.status === 'archived' ? '已归档' : '', item.objective].filter(Boolean).join(' · '), group: '研究项目', icon: FolderOpen, select: () => onProject(item.id) })),
-    ...workspaceMenus.filter(item => !['home', 'news', 'reports'].includes(item.id)).map(item => ({ ...item, id: 'page-' + item.id, keywords: item.id === 'library' ? '资讯库 研报库' : item.id === 'intelligence' ? '快捷任务 今日热点 产业动态 收评 诊股 个股分析 个股推荐理由' : '', group: '页面', select: () => onNavigate(item.id) })),
+    ...workspaceMenus.filter(item => !['home', 'news', 'reports', ...(onScreeningMethod ? ['patterns', 'conditions'] : [])].includes(item.id)).map(item => ({ ...item, id: 'page-' + item.id, keywords: item.id === 'library' ? '资讯库 研报库' : item.id === 'intelligence' ? '快捷任务 今日热点 产业动态 收评 诊股 个股分析 个股推荐理由' : '', group: '页面', select: () => onNavigate(item.id) })),
     { id: 'settings', label: '数据与服务', description: '查看数据覆盖和服务状态', group: '快捷操作', icon: Settings2, select: onSettings },
-  ], [projects, conversations, searchQuery, onNavigate, onProject, onConversation, onNewResearch, onSettings])
+  ], [projects, conversations, searchQuery, onNavigate, onProject, onConversation, onNewResearch, onSettings, onScreeningMethod, onScreeningCompose, onNewScreening])
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const results = words.length
     ? commands.filter(command => words.every(word => (command.label + ' ' + command.description + ' ' + command.group + ' ' + (command.keywords || '')).toLowerCase().includes(word)))

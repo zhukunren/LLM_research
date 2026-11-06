@@ -7,6 +7,7 @@ import json
 import math
 import os
 import socket
+import time
 import urllib.request
 from pathlib import Path
 from typing import Literal
@@ -158,7 +159,7 @@ def _write_json(path: Path, value) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
 
 
-def capture_page(args: CapturePageArgs, context) -> dict:
+def capture_page(args: CapturePageArgs, context, *, text_only=False, timeout_seconds=30) -> dict:
     from playwright.sync_api import sync_playwright
 
     url = _public_url(args.url)
@@ -168,9 +169,11 @@ def capture_page(args: CapturePageArgs, context) -> dict:
             browser = public_sources.launch_browser(playwright, research_workspace.browser_options())
             try:
                 session = browser.new_context(viewport={"width": 1440, "height": 1000}, accept_downloads=False, service_workers="block")
-                guard = public_sources.BrowserSourceGuard(session, transport=_source_session())
+                guard = public_sources.BrowserSourceGuard(session, transport=_source_session(),
+                    **({'blocked_types': {'image', 'media', 'font', 'stylesheet'}, 'request_timeout': 6,
+                        'deadline': time.monotonic() + timeout_seconds} if text_only else {}))
                 page = session.new_page()
-                response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_seconds * 1000)
                 if response is None or response.status >= 400:
                     raise ExternalSourceError(f"网页没有成功返回正文（HTTP {response.status if response else 'unknown'}）。")
                 if args.wait_selector:
@@ -190,7 +193,8 @@ def capture_page(args: CapturePageArgs, context) -> dict:
                 tables = page.evaluate("""() => Array.from(document.querySelectorAll('table')).slice(0,30).map(t => ({caption:t.caption?.innerText || '',rows:Array.from(t.rows).map(r => Array.from(r.cells).map(c => ({text:c.innerText,rowspan:c.rowSpan,colspan:c.colSpan})))}))""")
                 declared_date = page.locator('meta[property="article:published_time"],meta[name="date"],meta[name="pubdate"]')
                 publication = declared_date.first.get_attribute('content') if declared_date.count() else None
-                page.screenshot(path=str(directory / 'page.png'))
+                if not text_only:
+                    page.screenshot(path=str(directory / 'page.png'))
                 final_url = guard.final_url(page.url)
             finally:
                 if 'guard' in locals():
@@ -209,8 +213,9 @@ def capture_page(args: CapturePageArgs, context) -> dict:
                            title=title, publisher_declared_date=publication,
                            sha256=hashlib.sha256(html.encode('utf-8')).hexdigest(),
                            text_path=str(directory / 'text.txt'), html_path=str(directory / 'page.html'),
-                           image_path=str(directory / 'page.png'), tables_path=str(directory / 'tables.json'),
-                           image_sha256=_file_hash(directory/'page.png'),
+                           image_path=None if text_only else str(directory / 'page.png'), tables_path=str(directory / 'tables.json'),
+                           image_sha256=None if text_only else _file_hash(directory/'page.png'),
+                           capture_method='browser_text' if text_only else 'browser',
                            scroll_y=args.scroll_y, text_characters=len(text), links=links)
     _write_json(directory / 'metadata.json', metadata)
     prioritized = sorted(links, key=lambda link: not (link['download'] or any(ext in link['url'].lower() for ext in ('.pdf', '.csv', '.xlsx', '.png', '.jpg'))))
@@ -276,7 +281,7 @@ def download_source(args: DownloadSourceArgs, context) -> dict:
         metadata = _provenance(context,directory,kind='document',requested_url=args.url,url=url,
                                content_type=content_type,path=str(target),bytes=target.stat().st_size,sha256=digest)
         _write_json(directory / 'metadata.json',metadata)
-        return {**metadata,'note':'原文件已保存，不自动导入业务资料库。PDF 用 inspect_research_pdf 检查；图像用 inspect_research_image 和原生图像工具读取。引用来源网址与原 PDF 页码。'}
+        return {**metadata,'note':'原文件已保存，不自动导入业务资料库。PDF 用 inspect_research_pdf 检查；图像用 inspect_research_image 和原生图像工具读取。PDF 链接 #page=N 必须是含封面的从1开始物理页；检查原页后使用返回的 citation_url，不能把印刷页码直接放进链接。未核对物理页时只引用文档网址。'}
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -292,6 +297,8 @@ def inspect_pdf(args: InspectPdfArgs, context) -> dict:
             raise ExternalSourceError("来源不是 PDF 文件。")
     directory = _new_source(context,'pdf-inspection')
     source_hash=_file_hash(source)
+    origin = _original_provenance(source)
+    source_url = origin.get('source_url')
     results = []
     try:
         with pdfplumber.open(source) as pdf:
@@ -331,7 +338,9 @@ def inspect_pdf(args: InspectPdfArgs, context) -> dict:
                     extracted.append({'table_index':index,'bbox':list(table.bbox),'strategy':strategy,
                                       'row_count':len(rows),'column_count':columns,'rows_preview':[row[:12] for row in rows[:12]],
                                       'csv_path':str(csv_path),'extraction_is_candidate':True,'visual_verified':False})
-                results.append({'page_number':number,'full_page_size_points':full_size,'bbox':args.bbox,
+                results.append({'page_number':number,'page_number_basis':'one_based_physical_including_cover',
+                                'citation_url':urlsplit(source_url)._replace(fragment=f'page={number}').geturl() if isinstance(source_url,str) else None,
+                                'full_page_size_points':full_size,'bbox':args.bbox,
                                 'text_path':str(text_path),'text_preview':text[:6000],'text_characters':len(text),
                                 'text_truncated':len(text)>6000,'image_path':str(image_path),'dpi':args.dpi,
                                 'raster_image_count':len(page.images),'tables':extracted,
@@ -344,7 +353,7 @@ def inspect_pdf(args: InspectPdfArgs, context) -> dict:
         raise ExternalSourceError(f"PDF 检查失败（可能加密或损坏）：{str(exc)[:200]}") from exc
     if _file_hash(source)!=source_hash:
         raise ExternalSourceError("原 PDF 在检查期间发生变化，请重新检查。")
-    metadata=_provenance(context,directory,kind='pdf-inspection',source_path=str(source),sha256=source_hash,page_count=total,pages=results,ocr=False,**_original_provenance(source))
+    metadata=_provenance(context,directory,kind='pdf-inspection',source_path=str(source),sha256=source_hash,page_count=total,pages=results,ocr=False,**origin)
     _write_json(directory/'metadata.json',metadata)
     preview_pages=[{**page,'tables':page['tables'][:5],'tables_total':len(page['tables'])} for page in results]
     return {**metadata,'pages':preview_pages,'inspection_metadata_path':str(directory/'metadata.json'),

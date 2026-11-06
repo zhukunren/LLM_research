@@ -22,7 +22,7 @@ export default function ResearchTaskEntry({ disabled, onPrompt, onScreening, onR
     onPrompt(`请帮我看懂${stock.name}（${stock.stock_code}）：${request}区分事实与推断，标明报告期、数据日期和来源。`)
   }
   return <div className="research-task-entry">
-    <p className="research-task-intro">选一件想做的事，也可以直接在下方提问。</p>
+    <p className="research-task-intro">选择一个方向，或直接输入你的问题。</p>
     <div className="research-task-options" role="group" aria-label="开始投资研究">
       <button type="button" className="research-task-option workspace-button" disabled={disabled} aria-expanded={companyOpen} onClick={() => setCompanyOpen(value => !value)}><Building2 size={22} aria-hidden="true" /><span><strong>看懂一只股票</strong><small>了解经营变化、依据与风险</small></span><ArrowUpRight size={16} aria-hidden="true" /></button>
       <button type="button" className="research-task-option workspace-button" disabled={disabled || !onScreening} onClick={onScreening}><ListFilter size={22} aria-hidden="true" /><span><strong>按条件找股票</strong><small>描述要求，查看符合规则的名单</small></span><ArrowUpRight size={16} aria-hidden="true" /></button>

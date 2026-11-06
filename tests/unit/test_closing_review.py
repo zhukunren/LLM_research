@@ -31,9 +31,16 @@ def evidence_items():
              "evidence": [{"quote": "Wednesday, October 21, 11 a.m.–1 p.m. CEST. Keynote at the Berlin conference."}]}]
 
 
-def validate(data=None, items=None):
+def review_result(data=None, items=None, level="basic"):
     report = AdvisorReport.model_validate(data or report_data())
-    closing_review.validate(report, items or evidence_items(), closing_review.policy_snapshot(), "client")
+    result = closing_review.validate(report, items if items is not None else evidence_items(), closing_review.policy_snapshot(), "client", level=level)
+    return report, result
+
+
+def validate(data=None, items=None, level="basic"):
+    report, result = review_result(data, items, level)
+    if result.errors:
+        raise ValueError("\n".join(result.errors))
     return report
 
 
@@ -64,21 +71,18 @@ def test_delta_direction_is_checked_against_the_source_and_unchanged_is_allowed(
     validate(data, items)
 
 
+@pytest.mark.parametrize("level", ["basic", "strict", "off"])
 @pytest.mark.parametrize(("old", "new", "message"), [
     ("1.46万亿元", "1.47万亿元", "金额不一致"),
     ("1.46万亿元", "1.46亿元", "金额不一致"),
     ("增加约186亿元", "增加约227亿元", "比较不一致"),
     ("沪深两市成交额", "沪深京三市成交额", "标注沪深两市"),
-    ("超过3700只", "3734只", "精确分项"),
-    ("上涨股票数量", "个股宽度", "易懂表达"),
-    ("明日观察", "接下来", "三段"),
-    ("市场有风险，投资需谨慎。", "", "简短风险提示"),
 ])
-def test_client_copy_rejects_known_editorial_regressions(old, new, message):
+def test_client_copy_blocks_factual_errors_in_every_mode(old, new, message, level):
     data = report_data()
     data["client_copy"] = data["client_copy"].replace(old, new)
     with pytest.raises(ValueError, match=message):
-        validate(data)
+        validate(data, level=level)
 
 
 @pytest.mark.parametrize("quote", [
@@ -172,8 +176,8 @@ def test_unconfirmed_time_stays_explicit_and_legacy_runs_keep_their_contract():
     data["closing_review"] = None
     legacy = AdvisorReport.model_validate(data)
     closing_review.validate(legacy, evidence_items(), None, "client")
-    with pytest.raises(ValueError, match="closing_review"):
-        closing_review.validate(legacy, evidence_items(), closing_review.policy_snapshot(), "client")
+    result = closing_review.validate(legacy, evidence_items(), closing_review.policy_snapshot(), "client")
+    assert any("closing_review" in error for error in result.errors)
 
 
 @pytest.mark.parametrize("risk", [
@@ -192,3 +196,86 @@ def test_policy_snapshot_is_independent_of_later_default_changes():
     saved = deepcopy(first)
     first["plain_language"].clear()
     assert closing_review.policy_snapshot() == saved
+
+
+@pytest.mark.parametrize("level", ["basic", "strict"])
+@pytest.mark.parametrize(("old", "new", "message"), [
+    ("超过3700只", "3734只", "家数使用约数"),
+    ("上涨股票数量", "个股宽度", "易懂表达"),
+    ("明日观察", "接下来", "三段"),
+])
+def test_editorial_suggestions_never_block(old, new, message, level):
+    data = report_data()
+    data["client_copy"] = data["client_copy"].replace(old, new)
+    _, result = review_result(data, level=level)
+    assert not result.errors and not result.warnings
+    assert any(message in suggestion for suggestion in result.suggestions)
+
+
+@pytest.mark.parametrize("level", ["basic", "strict", "off"])
+def test_missing_client_risk_sentence_is_a_nonblocking_review_warning(level):
+    data = report_data()
+    data["client_copy"] = CLIENT_COPY.replace("市场有风险，投资需谨慎。", "")
+    _, result = review_result(data, level=level)
+    assert not result.errors
+    assert any("简短风险提示" in warning for warning in result.warnings)
+
+
+@pytest.mark.parametrize("level", ["basic", "strict"])
+def test_long_copy_is_an_editorial_suggestion(level):
+    data = report_data()
+    data["client_copy"] += "后续仍需核对正式资料。" * 90
+    _, result = review_result(data, level=level)
+    assert not result.errors
+    assert any("建议精简" in suggestion for suggestion in result.suggestions)
+
+
+def test_legacy_off_suppresses_only_optional_editorial_suggestions():
+    data = report_data()
+    data["client_copy"] = CLIENT_COPY.replace("明日观察", "后续关注").replace("上涨股票数量", "个股宽度")
+    _, result = review_result(data, level="off")
+    assert not result.errors and not result.suggestions
+
+
+@pytest.mark.parametrize("level", ["basic", "strict", "off"])
+@pytest.mark.parametrize("change", ["missing_turnover", "missing_comparison", "wrong_date", "wrong_chinese_clock", "invented_clock"])
+def test_missing_provenance_or_conflicting_event_facts_block_every_mode(level, change):
+    data = report_data()
+    if change == "missing_turnover":
+        data["closing_review"]["turnover"] = None
+    elif change == "missing_comparison":
+        data["closing_review"]["turnover"]["comparison"] = None
+    else:
+        event = data["closing_review"]["events"][0]
+        if change == "wrong_date":
+            excerpt = EVENT_COPY.replace("10月21日", "2025年10月21日")
+        elif change == "wrong_chinese_clock":
+            excerpt = EVENT_COPY.replace("17:00", "下午3点")
+        else:
+            event.update(local_start=None, source_timezone=None)
+            excerpt = EVENT_COPY
+        event["client_copy_excerpt"] = excerpt
+        data["client_copy"] = CLIENT_COPY.replace(EVENT_COPY, excerpt)
+    _, result = review_result(data, level=level)
+    assert result.errors
+
+
+@pytest.mark.parametrize("level", ["basic", "strict"])
+def test_omitted_time_label_is_a_warning_in_basic_and_required_in_strict(level):
+    data = report_data()
+    excerpt = EVENT_COPY.replace("北京时间", "")
+    data["closing_review"]["events"][0]["client_copy_excerpt"] = excerpt
+    data["client_copy"] = CLIENT_COPY.replace(EVENT_COPY, excerpt)
+    _, result = review_result(data, level=level)
+    assert bool(result.errors) == (level == "strict")
+    assert bool(result.warnings) == (level == "basic")
+
+
+@pytest.mark.parametrize("phrase", ["时间待确认", "具体时刻待确认", "具体时间尚未确认"])
+def test_equivalent_unconfirmed_time_wording_does_not_trigger_editorial_repair(phrase):
+    data = report_data()
+    excerpt = "产业活动的" + phrase + "，后续以正式安排为准。"
+    data["closing_review"]["events"][0].update(local_start=None, source_timezone=None, client_copy_excerpt=excerpt)
+    data["client_copy"] = CLIENT_COPY.replace(EVENT_COPY, excerpt)
+    _, result = review_result(data)
+    assert not result.errors and not result.warnings

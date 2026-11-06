@@ -108,8 +108,9 @@
 
 /* Research and screening share the same rows, including space for optional context. */
 .chat-page .research-studio .conversation-main { gap:0; }
-.chat-page .research-studio .conversation-workspace-empty .conversation-composer { min-height:200px; }
+.chat-page .research-studio .conversation-workspace-empty .conversation-composer { min-height:176px; }
 .chat-page .research-studio .conversation-composer-footer { margin-top:auto; }
+.chat-page .research-studio .conversation-composer-footer > button[type=submit] { margin-left:auto; }
 .chat-page .research-studio .conversation-workspace-empty .conversation-empty { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(40px,auto); gap:16px; flex:none; align-content:start; justify-items:stretch; }
 .conversation-composer-tools { display:flex; align-items:center; gap:8px; flex:0 0 146px; min-width:0; }
 .conversation-composer-tools > .research-composer-addons { flex:0 1 auto; min-width:0; max-width:100%; }
@@ -117,13 +118,12 @@
 .conversation-composer-tools > .screening-settings { flex-shrink:0; }
 .conversation-composer-tools .screening-settings-trigger { display:inline-flex; align-items:center; justify-content:center; gap:5px; box-sizing:border-box; width:104px; height:34px; min-height:34px; padding:3px 5px; border:1px solid var(--ui-border); border-radius:20px; color:var(--ui-primary); background:var(--ui-surface); font-size:12px; white-space:nowrap; }
 @media(max-width:700px) {
-  .chat-page .research-studio .conversation-workspace-empty .conversation-composer { min-height:260px; }
-  .chat-page .research-studio .conversation-composer-footer { display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-rows:minmax(36px,auto) minmax(40px,auto); gap:8px; }
-  .conversation-composer-tools { grid-column:1; grid-row:1; width:146px; min-height:46px; }
+  .chat-page .research-studio .conversation-workspace-empty .conversation-composer { min-height:176px; }
+  .chat-page .research-studio .conversation-composer-footer { display:flex; flex-wrap:wrap; gap:6px; }
+  .conversation-composer-tools { flex:0 0 auto; width:146px; min-height:46px; }
   .conversation-composer-tools .screening-settings-trigger { min-height:46px; height:46px; }
-  .chat-page .research-studio .conversation-composer-footer > .my-indicators-trigger { grid-column:2; grid-row:1; justify-self:end; }
-  .chat-page .research-studio .conversation-composer-model { grid-column:1; grid-row:2; justify-self:start; min-width:0; margin-left:0; }
-  .chat-page .research-studio .conversation-composer-footer > button[type=submit] { grid-column:2; grid-row:2; justify-self:end; }
+  .chat-page .research-studio .conversation-composer-footer > .my-indicators-trigger { margin-left:auto; padding-inline:4px; }
+  .chat-page .research-studio .conversation-composer-footer > button[type=submit] { margin-left:auto; }
 }
 
 /* Long conversations keep navigation outside the independently scrolling log. */

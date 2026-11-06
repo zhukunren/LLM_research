@@ -12,7 +12,7 @@ import { WorkspaceSessionPane } from './WorkspaceSession'
 import { useWorkspaceTabs, type WorkspaceSeed } from './workspaceTabs'
 import { isText, useSessionState } from './useSessionState'
 import type { PageId } from './navigation'
-import { parseWorkspaceRoute, workspaceRouteHash, storedConversationScope, storedScreeningView, type WorkspaceRoute } from './workspaceRoute'
+import { parseWorkspaceRoute, workspaceRouteHash, screeningMethodRoute, storedConversationScope, storedScreeningView, type WorkspaceRoute } from './workspaceRoute'
 import { useAssistantLaunch } from './useAssistantLaunch'
 import './workspace-switch.css'
 
@@ -43,7 +43,7 @@ export default function App() {
   useEffect(() => { setWorkspacePreference(workspaceArea) }, [workspaceArea])
   useEffect(() => {
     if (page === 'screening') setResearchLocation(workspaceRouteHash(route))
-    if (page === 'conditions') setScreeningLocation(workspaceRouteHash(route))
+    if (page === 'conditions' || page === 'patterns' && route.screeningMethod === 'pattern') setScreeningLocation(workspaceRouteHash(route))
   }, [route])
   useEffect(() => { ++conversationNavigation.current }, [workspaces.activeId])
 
@@ -59,7 +59,7 @@ export default function App() {
     if (next === workspaceArea) return
     setWorkspacePreference(next)
     const saved = parseWorkspaceRoute(next === 'research' ? researchLocation : screeningLocation)
-    openRoute(saved?.page === (next === 'research' ? 'screening' : 'conditions') ? saved : { page: next === 'research' ? 'screening' : 'conditions', newDraft: true })
+    openRoute(saved && (saved.page === (next === 'research' ? 'screening' : 'conditions') || next === 'screening' && saved.page === 'patterns' && saved.screeningMethod === 'pattern') ? saved : { page: next === 'research' ? 'screening' : 'conditions', newDraft: true })
   }
   function newResearch(workflow: WorkflowType = 'research') {
     openRoute({ page: workflow === 'research' ? 'screening' : 'conditions', scope: 'screening', newDraft: true, ...(workflow === 'screening' ? { view: 'conversation' } : {}) }, { fresh: true })
@@ -132,7 +132,7 @@ export default function App() {
       setConversationUpdate({ id, ...changes })
       if (changes.title) workspaces.tabs.filter(tab => tab.route.conversationId === id).forEach(tab => workspaces.rename(tab.id, changes.title!))
       if (changes.deleted || changes.state === 'archived') { workspaces.forgetClosedConversation(id); workspaces.tabs.filter(tab => tab.route.conversationId === id).forEach(tab => workspaces.close(tab.id, { remember: false })) }
-    }} workspace={workspaceArea} screeningView={route.view ?? 'conversation'} onWorkspaceChange={switchWorkspace} onScreeningView={view => openRoute({ page: 'conditions', view })} busy={assistantLaunch.state.loading} onAssistant={launchAssistant} page={page} conversationId={route.conversationId} revision={sidebarRevision} mobileOpen={mobileNavigationOpen} onClose={() => setMobileNavigationOpen(false)} onNavigate={navigateFromMenu} onNewResearch={() => newResearch()} onNewScreening={() => newResearch('screening')} onConversation={resumeResearch} onSearch={() => { setMobileNavigationOpen(false); setQuickNavigationOpen(true) }} onSettings={() => { setMobileNavigationOpen(false); setSystemOpen(true) }} />
+    }} workspace={workspaceArea} screeningView={route.view ?? 'conversation'} screeningMethod={route.screeningMethod} onScreeningMethod={method => openRoute(screeningMethodRoute(method))} onWorkspaceChange={switchWorkspace} onScreeningView={view => openRoute({ page: 'conditions', view })} busy={assistantLaunch.state.loading} onAssistant={launchAssistant} page={page} conversationId={route.conversationId} revision={sidebarRevision} mobileOpen={mobileNavigationOpen} onClose={() => setMobileNavigationOpen(false)} onNavigate={navigateFromMenu} onNewResearch={() => newResearch()} onNewScreening={() => newResearch('screening')} onConversation={resumeResearch} onSearch={() => { setMobileNavigationOpen(false); setQuickNavigationOpen(true) }} onSettings={() => { setMobileNavigationOpen(false); setSystemOpen(true) }} />
     <main id="workspace-main" tabIndex={-1} className="main-shell" aria-busy={isNavigating}>
       {isNavigating && <div className="page-navigation-progress" role="status" aria-label="正在切换页面" />}
       <header className="research-header workspace-tab-header" aria-label="工作区导航与全局操作">
@@ -148,6 +148,6 @@ export default function App() {
       </WorkspaceSessionPane>)}
     </main>
     {systemOpen && <SystemDrawer data={data} onClose={() => setSystemOpen(false)} onRefresh={refreshStatus} onOpenCompanyResearch={() => openProject('')} />}
-    {quickNavigationOpen && <QuickNavigation onClose={() => setQuickNavigationOpen(false)} onNavigate={navigateFromMenu} onProject={openProject} onConversation={resumeResearch} onNewResearch={() => newResearch()} onSettings={() => setSystemOpen(true)} />}
+    {quickNavigationOpen && <QuickNavigation onScreeningMethod={method => openRoute(screeningMethodRoute(method))} onScreeningCompose={() => openRoute({ page: 'conditions', view: 'compose' })} onNewScreening={() => newResearch('screening')} onClose={() => setQuickNavigationOpen(false)} onNavigate={navigateFromMenu} onProject={openProject} onConversation={resumeResearch} onNewResearch={() => newResearch()} onSettings={() => setSystemOpen(true)} />}
   </div>
 }

@@ -156,7 +156,7 @@ function EarningsExpectations() {
   return <>
     <header className="investment-panel-heading"><div><h2>业绩预期</h2><p>记录自己的指标预期；财务数据到达后显示实际值和差额。</p></div></header>
     <form className="investment-entry-form workspace-form" onSubmit={event => void save(event)}>
-      <div className="workspace-field-label"><span>股票</span><StockSearch label="业绩预期股票" value={stockCode} onSelectionPending={() => setStockCode('')} onChange={setStockCode} /></div>
+      <div className="workspace-field-label investment-entry-stock"><span>股票</span><StockSearch label="业绩预期股票" value={stockCode} onSelectionPending={() => setStockCode('')} onChange={setStockCode} /></div>
       <label className="workspace-field-label">报告期<input className="workspace-field" type="date" value={period} onChange={event => setPeriod(event.target.value)} required /></label>
       <label className="workspace-field-label">比较口径<select className="workspace-field workspace-select" value={basis} onChange={event => setBasis(event.target.value)}><option value="annual">年度</option><option value="quarter">单季</option><option value="cumulative">年内累计</option><option value="ttm">滚动十二个月</option></select></label>
       <label className="workspace-field-label">指标<select className="workspace-field workspace-select" value={metric} onChange={event => setMetric(event.target.value)}>{metrics.map(item => <option key={item.code} value={item.code}>{item.label}（{item.unit}）</option>)}</select></label>
@@ -226,7 +226,7 @@ function Portfolio() {
     <form className="investment-entry-form workspace-form" onSubmit={event => void save(event)}>
       <label className="workspace-field-label">方向<select className="workspace-field workspace-select" value={side} onChange={event => setSide(event.target.value as 'buy' | 'sell')}><option value="buy">买入</option><option value="sell">卖出</option></select></label>
       <label className="workspace-field-label">交易日期<input className="workspace-field" type="date" max={localDate()} value={tradeDate} onChange={event => setTradeDate(event.target.value)} required /></label>
-      <div className="workspace-field-label"><span>股票</span><StockSearch label="投资组合股票" value={stockCode} onSelectionPending={() => setStockCode('')} onChange={setStockCode} /></div>
+      <div className="workspace-field-label investment-entry-stock"><span>股票</span><StockSearch label="投资组合股票" value={stockCode} onSelectionPending={() => setStockCode('')} onChange={setStockCode} /></div>
       <label className="workspace-field-label">数量<input className="workspace-field" type="number" min="0.0001" step="any" value={quantity} onChange={event => setQuantity(event.target.value)} required /></label>
       <label className="workspace-field-label">成交价<input className="workspace-field" type="number" min="0.0001" step="any" value={price} onChange={event => setPrice(event.target.value)} required /></label>
       <label className="workspace-field-label">费用<input className="workspace-field" type="number" min="0" step="any" value={fees} onChange={event => setFees(event.target.value)} required /></label>

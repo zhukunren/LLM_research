@@ -7,7 +7,8 @@ from pydantic import Field, field_validator
 
 from . import conversation_store, market
 from .db import connect, json_load
-from .rules import validate_filter
+from .rules import combine, evaluate_filter, validate_filter
+from .indicators import values
 from .screening_contracts import ContractModel, ScreeningTaskRevision, UniverseScope, validate_executable_task
 
 router = APIRouter()
@@ -122,8 +123,72 @@ def template_program(template, expression, parameters):
 
 
 @router.get("/screening-templates")
-def list_templates():
-    return {"items": [item for item in TEMPLATES if item["id"] in COMBINATIONS]}
+def list_templates(include_singles: bool = False, singles_only: bool = False):
+    return {"items": [item for item in TEMPLATES if (item["id"] not in COMBINATIONS if singles_only else include_singles or item["id"] in COMBINATIONS)]}
+
+
+class TemplatePreviewRequest(ContractModel):
+    version: int = Field(ge=1)
+    parameters: dict[str, int | float]
+    stock_code: str = Field(pattern=r"^\d{6}\.(SH|SZ|BJ)$")
+    as_of: date
+
+    @field_validator("parameters", mode="before")
+    @classmethod
+    def numeric_parameters(cls, value):
+        return ApplyTemplateRequest.numeric_parameters(value)
+
+
+@router.post("/screening-templates/{template_id}/preview")
+def preview_template(template_id: str, payload: TemplatePreviewRequest):
+    """Read-only single-security calculation; never publishes a task or starts a run."""
+    try:
+        template, expression, description = compile_template(template_id, payload.version, payload.parameters)
+        as_of = payload.as_of.isoformat()
+        profile = market.cached_profile()
+        if profile.get("last_date") and as_of > profile["last_date"]:
+            raise ValueError(f"行情只更新到 {profile['last_date']}。")
+        bars = market.get_bars(payload.stock_code, as_of, 500)
+        expected_date = profile.get("last_date") if as_of == profile.get("last_date") else market.latest_market_date(as_of)
+        stale = bool(bars and expected_date and bars[-1]["trade_date"] != expected_date)
+        specifications = COMBINATIONS.get(template_id, [(template_id, {key: key for key in payload.parameters})])
+        details, windows = [], set()
+        for component_id, mapping in specifications:
+            params = {key: payload.parameters[value] for key, value in mapping.items()}
+            component, leaf, label = compile_template(component_id, 1, params)
+            required = template_program(component, leaf, params)["required_history_bars"]
+            span = bars[-required:]
+            if len(span) < required:
+                result = {"state": "unknown", "reason": f"需要 {required} 根日线，当前只有 {len(span)} 根。"}
+            elif stale:
+                result = {"state": "unknown", "reason": "该证券在所选市场交易日没有行情，不能用更早的价格代替判断。"}
+            elif any(not bar.get("quality_valid", True) or type(bar.get("close")) not in (int, float) or not math.isfinite(bar["close"]) or bar["close"] <= 0 for bar in span):
+                result = {"state": "unknown", "reason": "计算窗口内行情缺失或异常。"}
+            else:
+                result = evaluate_filter(leaf, span)
+            details.append({"name": label, "required_history_bars": required, **result})
+            if component_id == "above_sma":
+                windows.add(int(params["window"]))
+            elif component_id == "ma_cross":
+                windows.update([int(params["fast"]), int(params["slow"])])
+        colors = ["#0079c2", "#bc8241", "#208575"]
+        chart = {"placement": "overlay", "histogram": None, "reference_lines": [], "bars": bars[-120:],
+                 "lines": [{"id": f"sma-{window}", "label": f"SMA {window}", "color": colors[index % len(colors)],
+                            "values": values(bars, "sma", window)[-120:]} for index, window in enumerate(sorted(windows))]}
+
+        def safe(value):
+            if isinstance(value, dict):
+                return {key: safe(item) for key, item in value.items()}
+            if isinstance(value, list):
+                return [safe(item) for item in value]
+            return None if isinstance(value, float) and not math.isfinite(value) else value
+
+        return safe({"stock_code": payload.stock_code, "requested_as_of": as_of,
+                     "actual_date": bars[-1]["trade_date"] if bars else None,
+                     "state": combine("all", [item["state"] for item in details]), "details": details,
+                     "description": description, "chart": chart, "price_basis": market.PRICE_BASIS})
+    except ValueError as exc:
+        raise HTTPException(422, {"code": "invalid_template_preview", "message": str(exc)}) from exc
 
 
 @router.post("/conversations/{conversation_id}/screening-templates/{template_id}", status_code=201)

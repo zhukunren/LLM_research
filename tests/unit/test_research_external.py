@@ -100,6 +100,25 @@ def test_pdf_crop_is_bounded_and_retains_original_page_number(workspace):
     with pytest.raises(external.ExternalSourceError,match='页码'): external.inspect_pdf(external.InspectPdfArgs(path=str(source),pages=[3]),context)
 
 
+def test_pdf_citation_uses_physical_page_including_cover_from_hash_bound_source(workspace):
+    import json
+    work, context = workspace
+    source = _pdf(work)
+    (work / 'metadata.json').write_text(json.dumps({'path': str(source), 'sha256': external._file_hash(source),
+        'source_id': 'original-filing', 'url': 'https://publisher.example/annual.pdf#page=99'}), encoding='utf-8')
+    result = external.inspect_pdf(external.InspectPdfArgs(path=str(source), pages=[2]), context)
+    page = result['pages'][0]
+    assert page['citation_url'] == 'https://publisher.example/annual.pdf#page=2'
+    assert page['page_number_basis'] == 'one_based_physical_including_cover'
+    assert page['requires_visual_review'] is True
+
+
+def test_pdf_without_hash_bound_source_does_not_invent_citation_url(workspace):
+    work, context = workspace
+    result = external.inspect_pdf(external.InspectPdfArgs(path=str(_pdf(work)), pages=[1]), context)
+    assert result['pages'][0]['citation_url'] is None
+
+
 def test_files_outside_this_conversation_cannot_be_inspected(workspace,tmp_path):
     work,context=workspace
     other=tmp_path/'other.pdf'; other.write_bytes(b'%PDF-1.7')

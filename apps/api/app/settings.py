@@ -161,12 +161,12 @@ AVAILABLE_VALIDATION_LEVELS = [
     {
         "value": "basic",
         "label": "基础级别",
-        "description": "只检查必填字段和基本格式，适合人工审核后交付的场景。"
+        "description": "拦截股票、日期、引用、金额和事件时间错误；表达问题只提示，交付前由投顾核对。"
     },
     {
         "value": "strict",
         "label": "严格级别",
-        "description": "自动检查成交额口径、时区格式、术语规范等所有细节，确保输出质量。"
+        "description": "保留基础校验，并要求分析维度及客户稿口径、时间标注完整；术语、篇幅和段落仍只提示。"
     }
 ]
 
@@ -176,7 +176,8 @@ def advisor_validation_level() -> str:
     Get advisor report validation strictness level.
 
     Returns:
-        "off" (no validation), "basic" (default, completeness only), "strict" (all checks)
+        "basic" (integrity checks), "strict" (additional provenance requirements).
+        Legacy "off" suppresses editorial hints only; integrity checks remain.
     """
     config = _read_config()
     section = config["advisor"] if config.has_section("advisor") else {}

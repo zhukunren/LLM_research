@@ -6,10 +6,14 @@ import { api, conversationWorkflow, type ConversationScope, type WorkflowType } 
 import { workspaceMenus, type PageId } from '../navigation'
 import { trapDialogTab } from '../keyboard'
 import ConversationHistoryItem, { type RecentConversation, type ConversationHistoryChange } from './ConversationHistoryItem'
+import { screeningMethods, type ScreeningMethod } from '../screeningMethods'
+import { screeningMethodIcons } from './screening/ScreeningMethodCards'
+import { localStorage } from '../authStorage'
 
-const toolMenus = workspaceMenus.filter(item => ['patterns', 'qmt'].includes(item.id))
+const toolMenus = workspaceMenus.filter(item => ['qmt'].includes(item.id))
 
-export default function ResearchSidebar({ page, conversationId, revision, mobileOpen, onClose, onNavigate, onNewResearch, onNewScreening, onSearch, onConversation, onSettings, workspace, screeningView, onWorkspaceChange, onScreeningView, onConversationChange }: {
+export default function ResearchSidebar({ page, conversationId, revision, mobileOpen, onClose, onNavigate, onNewResearch, onNewScreening, onSearch, onConversation, onSettings, workspace, screeningView, screeningMethod, onScreeningMethod, onWorkspaceChange, onScreeningView, onConversationChange }: {
+  screeningMethod?: ScreeningMethod; onScreeningMethod?: (method: ScreeningMethod) => void
   workspace?: WorkflowType; screeningView?: string; onWorkspaceChange?: (area: WorkflowType) => void; onScreeningView?: (view: 'saved' | 'history' | 'library' | 'compose') => void
   page: PageId; conversationId?: string; revision: number; mobileOpen: boolean; onClose: () => void
   onNavigate: (page: PageId) => void; onNewResearch: () => void; onNewScreening: () => void; onSearch: () => void
@@ -19,14 +23,20 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
 }) {
   const area = workspace ?? (page === 'conditions' ? 'screening' : 'research')
   const isResearch = area === 'research'
+  const activeMethod = screeningMethod ?? (!isResearch && page === 'patterns' ? 'pattern' : undefined)
+  const [methodsOpen, setMethodsOpen] = useState(() => {
+    try { return !!activeMethod || localStorage.getItem('screening.methodsOpen') === 'true' } catch { return !!activeMethod }
+  })
+  useEffect(() => { if (activeMethod) setMethodsOpen(true) }, [activeMethod])
+  useEffect(() => { try { localStorage.setItem('screening.methodsOpen', String(methodsOpen)) } catch { /* Navigation remains usable without storage. */ } }, [methodsOpen])
   const [items, setItems] = useState<RecentConversation[]>([])
   const [archived, setArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
   const [limit, setLimit] = useState(12)
-  const [advancedOpen, setAdvancedOpen] = useState(toolMenus.some(item => item.id === page) || page === 'conditions' && ['library'].includes(screeningView || ''))
-  useEffect(() => { if (toolMenus.some(item => item.id === page) || page === 'conditions' && ['library'].includes(screeningView || '')) setAdvancedOpen(true) }, [page, screeningView])
+  const [advancedOpen, setAdvancedOpen] = useState(toolMenus.some(item => item.id === page))
+  useEffect(() => { if (toolMenus.some(item => item.id === page)) setAdvancedOpen(true) }, [page])
   const close = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!mobileOpen) return
@@ -70,17 +80,22 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
         <button type="button" aria-label="切换到选股" data-tooltip="选股" aria-pressed={!isResearch} onClick={() => changeArea('screening')} className="workspace-button"><ListFilter size={16} /><span>选股</span></button>
       </div>
       <nav className="chat-navigation" aria-label="主菜单">
-        <button className="chat-nav-button chat-new workspace-button" aria-label={isResearch ? '开始新研究' : '开始选股'} data-tooltip={isResearch ? '开始新研究' : '开始选股'} aria-current={!isResearch && page === 'conditions' && (!screeningView || screeningView === 'conversation') ? 'page' : undefined} onClick={isResearch ? onNewResearch : onNewScreening}><Plus size={19} /><span>{isResearch ? '新研究' : '新选股'}</span></button>
-        <button className="chat-nav-button workspace-button" aria-label="搜索页面、项目或对话" data-tooltip="搜索与跳转" onClick={onSearch}><Search size={18} /><span>搜索与跳转</span><kbd>Ctrl K</kbd></button>
+        <button className="chat-nav-button chat-new workspace-button" aria-label={isResearch ? '开始新研究' : '开始选股'} data-tooltip={isResearch ? '开始新研究' : '开始选股'} aria-current={!isResearch && !activeMethod && page === 'conditions' && (!screeningView || screeningView === 'conversation') ? 'page' : undefined} onClick={isResearch ? onNewResearch : onNewScreening}><Plus size={19} /><span>{isResearch ? '新研究' : '新选股'}</span></button>
         {isResearch && <>
+        <button className="chat-nav-button workspace-button" aria-label="搜索页面、项目或对话" data-tooltip="搜索与跳转" onClick={onSearch}><Search size={18} /><span>搜索与跳转</span><kbd>Ctrl K</kbd></button>
         <button className="chat-nav-button workspace-button" aria-label="研究项目" data-tooltip="研究项目" aria-current={page === 'research' ? 'page' : undefined} onClick={() => onNavigate('research')}><FolderOpen size={18} /><span>研究项目</span></button>
         </>}
         {!isResearch && <>
-          <button className="chat-nav-button workspace-button" aria-label="我的筛选方案" aria-current={page === 'conditions' && ['saved', 'compose', 'create'].includes(screeningView || '') ? 'page' : undefined} onClick={() => onScreeningView?.('saved')}><Bookmark size={18} /><span>我的筛选方案</span></button>
+          <button type="button" className="chat-nav-button chat-tools-toggle workspace-button" aria-label="选股方式" aria-expanded={methodsOpen} aria-controls="screening-method-links" onClick={() => setMethodsOpen(value => !value)}><ListFilter size={18} /><span>选股方式</span><ChevronDown size={14} /></button>
+          <div id="screening-method-links" className="chat-tool-links" role="group" aria-label="选股方式入口" hidden={!methodsOpen}>
+            {screeningMethods.map(method => { const Icon = screeningMethodIcons[method.id]; return <button type="button" key={method.id} className="chat-nav-button workspace-button" aria-label={method.label} aria-current={activeMethod === method.id ? 'page' : undefined} onClick={() => onScreeningMethod ? onScreeningMethod(method.id) : method.id === 'pattern' ? onNavigate('patterns') : onNewScreening()}><Icon size={16} /><span>{method.label}</span></button> })}
+          </div>
+          <button className="chat-nav-button workspace-button" aria-label="我的方案" aria-current={page === 'conditions' && ['saved', 'compose', 'create', 'library'].includes(screeningView || '') ? 'page' : undefined} onClick={() => onScreeningView?.('saved')}><Bookmark size={18} /><span>我的方案</span></button>
+          <button className="chat-nav-button workspace-button" aria-label="筛选记录" aria-current={page === 'conditions' && screeningView === 'history' ? 'page' : undefined} onClick={() => onScreeningView?.('history')}><History size={18} /><span>筛选记录</span></button>
         </>}
-        {!isResearch && <><button className="chat-nav-button chat-tools-toggle workspace-button" aria-label="策略工具" aria-expanded={advancedOpen} aria-controls="screening-advanced-links" onClick={() => setAdvancedOpen(value => !value)}><Wrench size={18} /><span>策略工具</span><ChevronDown size={14} /></button>
+        {!isResearch && <button className="chat-nav-button workspace-button" aria-label="搜索页面、项目或对话" data-tooltip="搜索与跳转" onClick={onSearch}><Search size={18} /><span>搜索与跳转</span><kbd>Ctrl K</kbd></button>}
+        {!isResearch && <><button className="chat-nav-button chat-tools-toggle workspace-button" aria-label="更多工具" aria-expanded={advancedOpen} aria-controls="screening-advanced-links" onClick={() => setAdvancedOpen(value => !value)}><Wrench size={18} /><span>更多工具</span><ChevronDown size={14} /></button>
           <div id="screening-advanced-links" className="chat-tool-links" hidden={!advancedOpen}>
-          <button className="chat-nav-button workspace-button" aria-label="条件库管理" aria-current={page === 'conditions' && ['library'].includes(screeningView || '') ? 'page' : undefined} onClick={() => onScreeningView?.('library')}><ListFilter size={18} /><span>条件库管理</span></button>
           {toolMenus.map(({ id, label, icon: Icon }) => <button className="chat-nav-button workspace-button" key={id} aria-label={label} aria-current={page === id ? 'page' : undefined} onClick={() => onNavigate(id)}><Icon size={16} /><span>{label}</span></button>)}
           </div></>}
         <div className="workspace-shared-label">共享资料</div>
@@ -92,7 +107,6 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
         {loading && !visibleItems.length ? <LoadingState compact label="正在读取…" /> : !error && !visibleItems.length ? <p>{archived ? '暂无已归档对话' : '新对话会保存在这里'}</p> : null}
         {visibleItems.slice(0, limit).map(item => <ConversationHistoryItem key={item.id} item={item} current={conversationId === item.id} onOpen={() => onConversation(item.id, item.entry_scope, conversationWorkflow(item))} onChange={changeConversation} />)}
         {limit < visibleItems.length && <button className="chat-history-more workspace-button" onClick={() => setLimit(value => value + 12)}>更多记录</button>}
-        {!isResearch && <button className="chat-nav-button workspace-button" aria-label="全部筛选记录" data-tooltip="查看全部筛选运行记录" aria-current={page === 'conditions' && screeningView === 'history' ? 'page' : undefined} onClick={() => onScreeningView?.('history')}><History size={16} /><span>全部筛选记录</span></button>}
       </section>
       <button className="chat-settings chat-nav-button workspace-button" aria-label="数据与服务" data-tooltip="数据与服务" onClick={onSettings}><Settings2 size={18} /><span>数据与服务</span></button>
     </aside>

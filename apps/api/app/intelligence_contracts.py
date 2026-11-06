@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from .models import StrictModel
 from .advisor_contracts import AdvisorScope, AdvisorReport, STOCK_KINDS, ADVISOR_KINDS
@@ -81,6 +81,7 @@ class StartBrief(StrictModel):
 
 class CaptureBriefSource(StrictModel):
     url: str = Field(min_length=8, max_length=4000)
+    retry: bool = Field(default=False, description="Retry a temporary connection/timeout failure once. Do not retry HTTP 4xx, blocked pages or invalid sources; switch source instead.")
 
 
 class ReadBriefSource(StrictModel):
@@ -124,7 +125,7 @@ class BriefItem(StrictModel):
     policy_stage: str | None = Field(default=None, max_length=120)
     industry_dimension: str | None = Field(default=None, max_length=120)
     analysis_dimension: Literal["market", "business", "financial", "valuation", "technical", "catalyst", "risk"] | None = None
-    evidence: list[BriefCitation] = Field(min_length=1, max_length=4)
+    evidence: list[BriefCitation] = Field(min_length=1, max_length=4, description="Each topic allows 1–4 exact continuous source quotes. Split different topics into separate items if more evidence is needed.")
 
     @field_validator("affected", "uncertainties")
     @classmethod
@@ -142,6 +143,13 @@ class PublishBrief(StrictModel):
     limitations: list[str] = Field(default_factory=list, max_length=10)
     no_updates_reason: str = Field(default="", max_length=800)
     advisor_report: AdvisorReport | None = None
+
+    @field_validator("no_updates_reason", mode="before")
+    @classmethod
+    def unused_reason_for_nonempty_report(cls, value, info: ValidationInfo):
+        # No-update explanations are inapplicable when actual topics exist.
+        # Normalize only that null; empty reports still require a real reason.
+        return "" if value is None and info.data.get("items") else value
 
     @model_validator(mode="after")
     def valid_items(self):

@@ -43,11 +43,12 @@ PROMPT = """收评默认复核规则（不能用补充要求代替这些默认�
    另行核对事件当日是否休市；常规交易时段分类不代替交易日历，遇休市须在稿件中说明。
    若只有日期或时间未确认，local_start留空；提到事件时明确写"时间待确认"，或从客户稿省略，仅在完整稿说明。
    只放内部记录、没有在客户稿出现的事件，client_copy_excerpt留空。所有事件仍须关联已引用的证据主题。
-3. 客户表达：client_copy 默认约350—650字，最多1000字符，按"盘面回顾—热点板块—明日观察"三段自然段写。
+3. 客户表达建议：client_copy 默认约350—650字，建议不超过1000字符，按"盘面回顾—热点板块—明日观察"三段自然段写。
    休市前可用"下一交易日观察"。用"上涨股票数量""部分板块回暖"等易懂表达，避免个股宽度、宽度背离、
    结构性修复、分母端、分子端、右侧确认、催化兑现等术语。不要在客户稿中解释终端技术细节、校验过程和工具错误。
    明日观察给可核对的条件，不保证涨跌，不把产业事件等同于个股盈利改善，不附无依据的目标价或仓位指令。
    客户稿保留简短风险提示；来源、精确统计、口径差异和缺口放完整稿、scope_notes及证据主题。
+   术语、篇幅、段落和家数约数属于非阻塞建议，不必为表达建议反复重试发布。
 4. 必须提交 advisor_report.closing_review，即使无可用成交额或事件也提交 {turnover:null,events:[],scope_notes:"实际缺口"}。
    校验失败仅修正指出的口径、时刻或稿件字段，不删除已经核对的可靠证据。"""
 
@@ -138,7 +139,7 @@ def _compact(text):
     return re.sub(r"\s+", "", text)
 
 
-def _clock_in_quotes(value, quotes):
+def _clocks_in_text(quotes):
     clocks = {(int(h), int(m)) for h, m in re.findall(r"(?<!\d)(\d{1,2}):(\d{2})(?!\d)", quotes)}
     for hour, minute, ampm in re.findall(r"(?<!\d)(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)(?!\w)", quotes, re.I):
         clocks.add((int(hour) % 12 + (12 if ampm.lower().startswith("p") else 0), int(minute or 0)))
@@ -147,7 +148,11 @@ def _clock_in_quotes(value, quotes):
         if period in {"下午", "晚上"} and number < 12:
             number += 12
         clocks.add((number, int(minute or 0)))
-    return (value.hour, value.minute) in clocks
+    return clocks
+
+
+def _clock_in_quotes(value, quotes):
+    return (value.hour, value.minute) in _clocks_in_text(quotes)
 
 
 def _zone_in_quotes(event, quotes):
@@ -176,28 +181,19 @@ class ValidationResult:
 
 
 def validate(report, items, policy, audience, level="basic"):
-    """
-    Validate advisor report with configurable strictness.
+    """Return factual errors separately from review warnings and editorial hints.
 
-    Args:
-        level: "off" (no validation), "basic" (completeness only), "strict" (all checks)
-
-    Returns:
-        ValidationResult with errors/warnings/suggestions
+    Every mode checks amounts, evidence and stated event times. Strict mode
+    additionally requires explicit scope/time provenance in the client draft.
+    Legacy off suppresses editorial hints, not factual validation.
     """
+    if level not in {"off", "basic", "strict"}:
+        raise ValueError("未知的投顾验证级别")
     result = ValidationResult()
-
-    if level == "off":
-        return result
-
     if not policy:  # Older frozen runs retain their original publication contract.
         return result
-
     review = report.closing_review
     if review is None:
-        if level == "basic":
-            result.warnings.append("建议提交 closing_review 以记录行情口径和事件时间")
-            return result
         result.errors.append("收评需提交closing_review，记录统一的行情口径和事件北京时间核对结果")
         return result
 
@@ -205,17 +201,12 @@ def validate(report, items, policy, audience, level="basic"):
 
     def bound(keys, market=False):
         if any(key not in by_key for key in keys):
-            if level == "strict":
-                result.errors.append("收评复核引用了不属于本次成果的证据主题")
-            else:
-                result.warnings.append("部分证据主题引用可能有误，请核对")
+            result.errors.append("收评复核引用了不属于本次成果的证据主题")
             return []
         selected = [by_key[key] for key in keys]
         if market and any(item.get("analysis_dimension") != "market" or item["event_date"] != report.effective_date.isoformat() for item in selected):
-            if level == "strict":
-                result.errors.append("成交额口径须关联所选交易日的市场表现证据主题")
-            else:
-                result.warnings.append("建议成交额证据使用所选交易日的市场表现主题")
+            result.errors.append("成交额口径须关联所选交易日的市场表现证据主题")
+            return []
         return selected
 
     def money_evidence(keys, scope, amount, comparison=False):
@@ -226,31 +217,23 @@ def validate(report, items, policy, audience, level="basic"):
         scope_pattern = r"沪深两市|沪深市场|沪深成交|两市" if scope == "SH_SZ" else r"沪深京|三市"
         scoped = [quote for quote in quotes if re.search(scope_pattern, re.sub(r"沪深京", "三市", quote) if scope == "SH_SZ" else quote)]
         if not scoped:
-            if level == "strict":
-                result.errors.append("成交额引文未明确所选统计范围，请补充同口径来源；不能把全市场自动写成沪深两市")
-            else:
-                result.warnings.append("成交额引文建议明确统计范围（沪深两市或沪深京三市）")
+            result.errors.append("成交额引文未明确所选统计范围，请补充同口径来源；不能把全市场自动写成沪深两市")
             return
         unchanged = comparison and amount == 0 and any(re.search(r"持平|不变", quote) for quote in scoped)
         quoted_values = []
         for quote in scoped:
             for match in re.finditer(r"([0-9][0-9,]*(?:\.[0-9]+)?)\s*(万亿|亿)(?:元)?", quote):
                 if re.search(r"(?:超过|不足|高于|低于|少于|逾|超)\s*$", quote[max(0, match.start() - 8):match.start()]):
-                    continue  # A threshold such as 'over 1.4 trillion' is not an observed total.
+                    continue  # A threshold is not an observed total.
                 quoted_values.append(Decimal(match[1].replace(",", "")) * (10000 if match[2] == "万亿" else 1))
         if not unchanged and not any(abs(Decimal(str(abs(amount))) - value) < Decimal("0.000001") for value in quoted_values):
-            if level == "strict":
-                result.errors.append("同口径引文未支持所记录的成交金额或变化值，请登记来源直接披露的总额及精度，分项计算另放完整稿说明")
-            elif level == "basic":
-                result.warnings.append("成交额数值与引文存在差异，建议核对")
+            available = "、".join(dict.fromkeys(f"{value:g}亿元" for value in quoted_values))
+            result.errors.append("同口径引文未支持所记录的成交金额或变化值，请登记来源直接披露的总额及精度，分项计算另放完整稿说明" + (f"；该口径引文出现的金额为{available[:160]}，请按总额/前日值/变化值的原文含义选择，不自动互换" if available else ""))
         if comparison and not unchanged:
             changes = [(Decimal(number.replace(",", "")) * (10000 if unit == "万亿" else 1) * (-1 if verb in {"减少", "缩量", "下降", "少", "-"} else 1))
                        for quote in scoped for verb, number, unit in re.findall(r"(放量|缩量|增加|减少|增长|下降|多|少|[+-])\s*(?:了\s*)?(?:约|为)?\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(万亿|亿)(?:元)?", quote)]
             if not any(abs(Decimal(str(amount)) - value) < Decimal("0.000001") for value in changes):
-                if level == "strict":
-                    result.errors.append("同口径引文未支持所记录的成交变化方向，请核对放量、缩量和正负号")
-                elif level == "basic":
-                    result.warnings.append("成交额变化方向建议与引文核对")
+                result.errors.append("同口径引文未支持所记录的成交变化方向，请核对放量、缩量和正负号")
 
     if review.turnover:
         money_evidence(review.turnover.evidence_keys, review.turnover.market_scope, review.turnover.amount_yi)
@@ -265,103 +248,84 @@ def validate(report, items, policy, audience, level="basic"):
         if event.local_start:
             quotes = "\n".join(c["quote"] for item in selected for c in item["evidence"])
             if not _clock_in_quotes(event.local_start, quotes) or not _zone_in_quotes(event, quotes):
-                if level == "strict":
-                    result.errors.append("事件引文须支持原始日程时刻与时区；只有日期时不可编造具体时刻，请补读官方日程或标记时间待确认")
-                else:
-                    result.warnings.append(f"事件「{event.title}」建议补充原始日程时刻与时区的来源")
+                result.errors.append("事件引文须支持原始日程时刻与时区；只有日期时不可编造具体时刻，请补读官方日程或标记时间待确认")
         excerpt = _compact(event.client_copy_excerpt)
         if not excerpt:
-            if event.title in report.client_copy and level == "strict":
-                result.warnings.append(f"客户稿提到的事件「{event.title}」建议填写 client_copy_excerpt，以核对北京时间")
+            if event.title in report.client_copy:
+                message = f"客户稿提到的事件「{event.title}」需补充对应摘录，以核对北京时间"
+                (result.errors if level == "strict" else result.warnings).append(message)
             continue
         if excerpt not in _compact(report.client_copy):
-            if level == "strict":
-                result.errors.append("事件client_copy_excerpt不是客户稿中的连续原文")
-            else:
-                result.warnings.append("事件摘录与客户稿不完全一致，请核对")
+            result.errors.append("事件client_copy_excerpt不是客户稿中的连续原文")
             continue
+        clocks = _clocks_in_text(excerpt)
         if event.beijing_start is None:
-            if level == "strict" and ("时间待确认" not in excerpt or re.search(r"\d{1,2}:\d{2}", excerpt)):
-                result.warnings.append(f"未确认时刻的事件「{event.title}」建议在客户稿中写明时间待确认")
+            if clocks:
+                result.errors.append(f"未确认时刻的事件「{event.title}」不能在客户稿写入具体时刻")
+            elif not re.search(r"(?:时间|时刻)(?:尚)?(?:待确认|未确认|不确定)", excerpt):
+                result.warnings.append(f"未确认时刻的事件「{event.title}」建议在客户稿写明时间待确认")
             continue
         start = event.beijing_start
-        dates = (f"{start.month}月{start.day}日", start.date().isoformat())
-        clocks = (start.strftime("%H:%M"), f"{start.hour}:{start.minute:02}")
-        if level == "strict":
-            if "北京时间" not in excerpt or not any(day in excerpt for day in dates) or not any(clock in excerpt for clock in clocks):
-                result.warnings.append(f"事件「{event.title}」建议在客户稿明确写出北京时间、日期和时刻")
-            labels = {"before_open": ("盘前", "开盘前"), "during_session": ("盘中",), "midday_break": ("午间", "午休"),
-                      "after_close": ("收盘后", "盘后"), "non_trading_day": ("非交易日", "周末")}
-            if not any(label in excerpt for label in labels[event.session_relation]):
-                result.warnings.append(f"事件「{event.title}」建议注明盘前、盘中或收盘后关系")
+        dates = re.findall(r"(?:\d{4}年)?(\d{1,2})月(\d{1,2})日|\d{4}-(\d{2})-(\d{2})", excerpt)
+        dated = [(int(month or iso_month), int(day or iso_day)) for month, day, iso_month, iso_day in dates]
+        years = re.findall(r"(\d{4})(?:年\d{1,2}月\d{1,2}日|-\d{2}-\d{2})", excerpt)
+        if (dated and (start.month, start.day) not in dated) or (years and str(start.year) not in years) or (clocks and (start.hour, start.minute) not in clocks):
+            result.errors.append(f"事件「{event.title}」客户稿北京时间与记录的日期或时刻不一致")
+        labels = {"before_open": ("盘前", "开盘前"), "during_session": ("盘中",), "midday_break": ("午间", "午休"),
+                  "after_close": ("收盘后", "盘后"), "non_trading_day": ("非交易日", "周末")}
+        stated = {slot for slot, names in labels.items() if any(name in excerpt for name in names)}
+        if stated and event.session_relation not in stated:
+            result.errors.append(f"事件「{event.title}」客户稿盘前、盘中或盘后关系与北京时间不一致")
+        if "北京时间" not in excerpt or not dated or not clocks or not stated:
+            message = f"事件「{event.title}」请在客户稿明确注明北京时间、日期、时刻及交易时段"
+            (result.errors if level == "strict" else result.warnings).append(message)
 
     if audience != "client":
         return result
 
     copy = report.client_copy
-    if len(copy) > policy["client_max_characters"]:
-        if level == "strict":
-            result.warnings.append("客户收评较长，建议保留盘面、热点和明日观察，精确统计移至完整稿")
-        else:
+    if level != "off":
+        if len(copy) > policy["client_max_characters"]:
             result.suggestions.append(f"客户收评共 {len(copy)} 字符，建议精简至 {policy['client_max_characters']} 字符以内")
-
-    if level == "strict":
         if "盘面回顾" not in copy or "热点板块" not in copy or not any(label in copy for label in ("明日观察", "下一交易日观察")):
             result.suggestions.append("建议客户收评包含盘面回顾、热点板块和明日观察三段")
-
-        if not re.search(r"(?:市场|股市)有风险|投资[需须应].{0,12}(?:谨慎|审慎)|(?:市场|股价|行情).{0,12}(?:波动|回撤|风险)|风险提示|不构成.{0,30}(?:建议|推荐)|仅供.{0,15}参考", copy):
-            result.suggestions.append("建议保留一句简短风险提示")
-
-    # Terminology suggestions (never block)
-    for term, replacement in policy["plain_language"].items():
-        if term in copy:
-            result.suggestions.append(f"建议将「{term}」改为「{replacement}」等易懂表达")
-
-    if level == "strict":
+        for term, replacement in policy["plain_language"].items():
+            if term in copy:
+                result.suggestions.append(f"建议将「{term}」改为「{replacement}」等易懂表达")
         for match in re.finditer(r"(?:上涨|下跌)(?:的)?(?:股票|个股)?(?:数量|家数)?(?:为|有|达到)?\s*([1-9]\d*)\s*只", copy):
             if int(match[1]) % 100:
-                result.suggestions.append("建议上涨、下跌家数使用约数（如\"超过 XX00 只\"）")
+                result.suggestions.append('建议上涨、下跌家数使用约数（如“超过 XX00 只”）')
                 break
+    if not re.search(r"(?:市场|股市)有风险|投资[需须应].{0,12}(?:谨慎|审慎)|(?:市场|股价|行情).{0,12}(?:波动|回撤|风险)|风险提示|不构成.{0,30}(?:建议|推荐)|仅供.{0,15}参考", copy):
+        result.warnings.append("建议保留一句简短风险提示，交付前由投顾核对")
 
     amount_pattern = r"(?:成交额|成交金额|成交)\s*(?:约为|为|约|达到|合计)?\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(万亿|亿)(?:元)?"
     amounts = list(re.finditer(amount_pattern, copy))
     if amounts and review.turnover is None:
-        if level == "basic":
-            result.warnings.append("客户稿写有成交金额，建议补充 closing_review.turnover 记录统计范围")
-        elif level == "strict":
-            result.errors.append("客户稿写有成交金额，须补充closing_review.turnover及所选统计范围，或省略未确认数字")
-
+        result.errors.append("客户稿写有成交金额，须补充closing_review.turnover及所选统计范围，或省略未确认数字")
     if review.turnover:
         turnover = review.turnover
         label = MARKET_SCOPES[turnover.market_scope]
-        if amounts and label not in copy and level == "strict":
-            result.suggestions.append(f"建议在客户稿成交额处明确标注「{label}」")
-
+        if amounts and label not in copy:
+            message = f"客户稿成交额请明确标注「{label}」"
+            (result.errors if level == "strict" else result.warnings).append(message)
         scope_aliases = {"沪深两市": "SH_SZ", "两市": "SH_SZ", "沪深京三市": "SH_SZ_BJ", "沪深京": "SH_SZ_BJ", "三市": "SH_SZ_BJ", "全市场": "unknown"}
         for match in re.finditer(r"(沪深京三市|沪深两市|沪深京|全市场|两市|三市)(?:全天|当日|今日)?成交", _compact(copy)):
             if scope_aliases[match[1]] != turnover.market_scope:
-                if level == "strict":
-                    result.warnings.append("客户稿成交额出现不同统计范围，建议统一口径")
+                result.errors.append(f"客户稿成交额统计范围与记录不一致，应标注{label}")
                 break
-
         if any(not _rounded_match(match[1], match[2], turnover.amount_yi) for match in amounts):
-            if level == "basic":
-                result.warnings.append("客户稿成交额与记录值存在差异，建议核对")
-            elif level == "strict":
-                result.errors.append("客户稿成交额与所记录的同口径金额不一致，亿元与万亿元换算及取整须一致")
-
+            result.errors.append("客户稿成交额与所记录的同口径金额不一致，亿元与万亿元换算及取整须一致")
         for sentence in re.split(r"[。；;\n]", copy):
             if not re.search(r"成交|放量|缩量", sentence):
                 continue
             for match in re.finditer(r"(放量|缩量|增加|减少)(?:了)?\s*(?:约)?\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(万亿|亿)(?:元)?", sentence):
                 if turnover.comparison is None:
-                    if level == "strict":
-                        result.warnings.append("客户稿含前日成交变化，建议提供同一统计口径的 comparison")
-                elif level == "strict":
+                    result.errors.append("客户稿含前日成交变化，须提供同一统计口径的comparison或省略未确认数字")
+                else:
                     sign = -1 if match[1] in {"减少", "缩量"} else 1
                     if not _rounded_match(match[2], match[3], turnover.comparison.change_yi * sign):
-                        result.warnings.append("客户稿放量或缩量金额与记录的前日比较存在差异")
-                break
+                        result.errors.append("客户稿放量或缩量金额与记录的前日比较不一致")
 
     return result
 

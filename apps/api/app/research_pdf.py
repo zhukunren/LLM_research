@@ -35,6 +35,7 @@ from .settings import PROJECT_ROOT, research_mode_settings
 from .storage import application_paths
 
 TEMPLATE_VERSION = "soochow-zhangjiagang-research-v2"
+TURN_COVER_VERSION = "concise-answer-title-v1"
 ASSETS = PROJECT_ROOT / "apps" / "api" / "assets" / "research-pdf"
 LOGO = ASSETS / "soochow-blue.png"
 BRANCH = "张家港营业部"
@@ -413,6 +414,23 @@ def pdf_path(conversation_id: str, filename: str, *, project=False) -> tuple[Pat
     return path, item["name"]
 
 
+def _answer_title(content: str, question: str) -> str:
+    nodes = _markdown(content)
+    heading = next((_plain(node.get("children", [])) for node in nodes if node["type"] == "heading"), "")
+    if heading and len(heading) <= 100:
+        return heading
+    first = next((node for node in nodes if node["type"] == "paragraph"), {})
+    children = first.get("children", [])
+    if len(children) == 1 and children[0]["type"] == "strong":
+        lead = _plain(children)
+        if 0 < len(lead) <= 80:
+            return lead
+    # Long instructions are a question, not a report title. Never truncate a
+    # prompt halfway through a sentence and print it as the branded cover.
+    short_question = re.split(r"[。！？!?\n]", question.strip(), maxsplit=1)[0]
+    return short_question if 0 < len(short_question) <= 60 else "研究报告"
+
+
 def export_turn(conversation_id: str, turn_id: str, *, response_text: str | None = None, source_snapshot: dict | None = None) -> dict:
     turn = source_snapshot or conversation_store.get_turn(conversation_id, turn_id)
     if turn.get("workflow_type") != "research":
@@ -424,7 +442,7 @@ def export_turn(conversation_id: str, turn_id: str, *, response_text: str | None
     content = append_citations(content)
     if not content.strip():
         raise PDFError("研究答复为空")
-    identity = sha256((TEMPLATE_VERSION + content).encode()).hexdigest()
+    identity = sha256((TEMPLATE_VERSION + TURN_COVER_VERSION + content).encode()).hexdigest()
     memo = _root(conversation_id) / f"turn-{turn_id}.json"
     with _lock:
         if memo.is_symlink() or (memo.exists() and memo.stat().st_nlink != 1):
@@ -439,12 +457,11 @@ def export_turn(conversation_id: str, turn_id: str, *, response_text: str | None
                     pass
     with db.connect() as connection:
         question = connection.execute("SELECT content FROM conversation_messages WHERE id=?", (turn["user_message_id"],)).fetchone()
-    heading = next((_plain(node.get("children", [])) for node in _markdown(content) if node["type"] == "heading"), "")
-    title = heading or (question[0].strip().splitlines()[0][:120] if question else "研究报告")
+    title = _answer_title(content, question[0] if question else "")
     meta = _metadata(conversation_id, turn=turn)
     meta["成果编号"] = turn_id[:8]
     name = f"研究报告-{_beijing_stamp(turn['created_at'])[:10].replace('-', '')}-{turn_id[:8]}.pdf"
-    signature = json.dumps({"turn": turn_id, "content": content, "metadata": meta}, ensure_ascii=False).encode()
+    signature = json.dumps({"turn": turn_id, "content": content, "metadata": meta, "title": title, "cover_revision": TURN_COVER_VERSION}, ensure_ascii=False).encode()
     with _lock:
         resolver = _frozen_image_resolver(conversation_id, source_snapshot.get("images", {})) if source_snapshot else _image_resolver(conversation_id)
         item = _cached(conversation_id, name, signature, lambda path: render_document(path, title=title, content=content, metadata=meta, image_resolver=resolver))

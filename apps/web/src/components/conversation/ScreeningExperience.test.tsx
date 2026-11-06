@@ -138,7 +138,7 @@ it('opens saved schemes directly from the new screening entry and closes with Es
   const user = userEvent.setup()
   render(<ConversationWorkspace initialWorkflowType="screening" />)
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
-  const reuseButton = screen.getByRole('button', { name: '复用已保存方案' })
+  const reuseButton = screen.getByRole('button', { name: '打开我的方案' })
   await user.click(reuseButton)
   const library = screen.getByRole('dialog', { name: '历史与方案' })
   expect(within(library).getByRole('button', { name: '已保存方案' })).toHaveAttribute('aria-pressed', 'true')

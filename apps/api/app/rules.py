@@ -163,6 +163,15 @@ def validate_filter(library: str, expression: dict[str, Any]) -> list[str]:
         else:
             errors.append("技术条件只支持指标比较、均线穿越或行情数值比较")
     elif library in {"news", "report"}:
+        if expression.get("evaluation_mode") == "question":
+            from .evidence_analysis import EvidenceRequest
+            try:
+                EvidenceRequest.model_validate({key: value for key, value in expression.items() if key not in {"op", "evaluation_mode", "lookback_calendar_days"}})
+                if op != "evidence_query" or type(expression.get("lookback_calendar_days")) is not int or not 1 <= expression["lookback_calendar_days"] <= 3650:
+                    errors.append("证据条件需要有效的查询类型与 1–3650 日窗口")
+            except ValueError:
+                errors.append("证据判断要求或事实口径无效")
+            return errors
         if op != "evidence_query":
             errors.append("资讯和研报条件必须使用 evidence_query")
         lookback = expression.get("lookback_calendar_days", 30)

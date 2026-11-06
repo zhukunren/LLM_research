@@ -21,6 +21,16 @@ def _parameter_summary(summary: str, parameters: dict[str, Any], specs: dict[str
 
 
 def describe_filter(library: str, expression: dict[str, Any]) -> dict[str, Any]:
+    if library in {"news", "report"} and expression.get("evaluation_mode") == "question":
+        basis = {"actual": "实际发生的事实", "forecast": "预测与未来判断", "any": "事实与预测均可，分别标明"}[expression["fact_requirement"]]
+        notes = [f"回看近 {expression['lookback_calendar_days']} 个自然日的原文。", f"事实口径：{basis}。",
+                 "判断范围：" + ("全部已核对资料均满足。" if expression.get("quantifier") == "all" else "至少有一项充分依据。")]
+        if library == "news":
+            notes.append("事件状态：" + {"any": "按问题判断", "planned": "计划阶段", "in_progress": "实施中", "completed": "已经完成"}[expression.get("event_requirement", "any")] + "。")
+            notes.append(f"至少 {expression.get('minimum_independent_events', 1)} 项独立事件；同一事件的转载不重复计数。")
+        notes.append("按原文核对，资料不足时保留未知。")
+        return {"summary": expression["question"], "notes": notes,
+                "availability": "evidence", "availability_label": "执行时逐公司核对原始证据"}
     op = expression.get("op")
     comparator = OPERATORS.get(expression.get("operator"), "比较")
     window = expression.get("window", 0)

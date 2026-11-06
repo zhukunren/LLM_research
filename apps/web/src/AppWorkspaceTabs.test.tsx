@@ -219,7 +219,7 @@ it('restores an edited seeded QMT draft without replaying the original prompt', 
   const user = userEvent.setup()
   render(<App />)
   await user.click(screen.getByRole('button', { name: '切换到选股' }))
-  await user.click(screen.getByRole('button', { name: '策略工具' }))
+  await user.click(screen.getByRole('button', { name: '更多工具' }))
   await user.click(screen.getByRole('button', { name: 'QMT 脚本生成' }))
   await user.click(await screen.findByRole('button', { name: '均线交叉' }))
   await user.click(screen.getByRole('button', { name: '带入生成对话' }))

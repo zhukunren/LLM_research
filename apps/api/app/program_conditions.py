@@ -54,13 +54,13 @@ def validate_result(
     result: Any, stock_codes: list[str]
 ) -> tuple[dict[str, bool | None], dict[str, dict[str, Any]], dict[str, str]]:
     if not isinstance(result, dict) or set(result) - {"decisions", "metrics", "units"}:
-        raise ProgramConditionError("自定义程序返回值字段不符合固定合同")
+        raise ProgramConditionError('自定义程序返回值字段不符合固定合同：顶层只允许 decisions、metrics、units；返回 {"decisions": {证券代码: True/False/None}, "metrics": {证券代码: {指标名: 数值}}, "units": {指标名: 单位}}，不要返回逐股对象列表或其他顶层字段')
     decisions = result.get("decisions")
     metrics = result.get("metrics", {})
     if not isinstance(decisions, dict) or set(decisions) != set(stock_codes):
         raise ProgramConditionError("自定义程序必须且只能返回冻结范围内每只证券的判断")
     if any(value is not None and type(value) is not bool for value in decisions.values()):
-        raise ProgramConditionError("逐股判断只能是 true、false 或 null（数据不足）")
+        raise ProgramConditionError("逐股判断只能是 true、false 或 null（数据不足）；Python 使用 True/False/None，不能使用 'true'/'false'/'unknown' 字符串")
     if not isinstance(metrics, dict) or set(metrics) - set(stock_codes):
         raise ProgramConditionError("计算指标只能对应本次冻结证券范围")
     units = result.get("units", {})
@@ -82,7 +82,7 @@ def validate_result(
             or not _valid_metric_value(value)
             for name, value in stock_metrics.items()
         ):
-            raise ProgramConditionError("计算指标只允许有限数值、null或最多20个值的时序")
+            raise ProgramConditionError("计算指标只允许有限数值、null或最多20个值的时序；不要把日期、原因文本或布尔判断放入metrics，布尔判断只放decisions")
         normalized[stock_code] = stock_metrics
     if set(units) - {name for values in normalized.values() for name in values}:
         raise ProgramConditionError("计算指标单位只能说明实际返回的指标")

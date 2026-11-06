@@ -1,6 +1,7 @@
 import { openResearchSettings } from './test/openResearchSettings'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentProps } from 'react'
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
 
@@ -16,6 +17,37 @@ const assistants = [
 
 beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => window.history.replaceState(null, '', '/'))
+
+it('opens dedicated screening workspaces without executing and restores their independent form drafts', async () => {
+  window.history.replaceState(null, '', '#/screening/method/news')
+  const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input), 'http://localhost').pathname
+    if (path === '/api/v1/data/status') return new Response(JSON.stringify({ available: true, last_date: '2026-10-20' }))
+    if (path === '/api/v1/watchlists') return new Response(JSON.stringify({ items: [{ id: 'pool-1', name: '重点股票' }] }))
+    return new Response(JSON.stringify({ items: [] }))
+  })
+  vi.stubGlobal('fetch', fetcher)
+  const user = userEvent.setup(), view = render(<App />)
+  await waitFor(() => expect(screen.getByLabelText('专用选股要求')).toBeEnabled())
+  await user.type(screen.getByLabelText('专用选股要求'), '近30日实际实施回购')
+  await user.selectOptions(screen.getByLabelText('选股股票范围'), 'pool-1')
+  fireEvent.change(screen.getByLabelText('资讯发布窗口天数'), { target: { value: '90' } })
+  fireEvent.change(screen.getByLabelText('选股截止日期'), { target: { value: '2026-10-15' } })
+  await user.click(screen.getByRole('button', { name: '开始选股' }))
+  await user.click(within(await screen.findByRole('region', { name: '选择选股方式' })).getByRole('button', { name: /研报选股/ }))
+  await waitFor(() => expect(window.location.hash).toBe('#/screening/method/report'))
+  expect(screen.getByLabelText('专用选股要求')).toHaveValue('')
+  await user.click(screen.getByRole('button', { name: '开始选股' }))
+  await user.click(within(await screen.findByRole('region', { name: '选择选股方式' })).getByRole('button', { name: /资讯选股/ }))
+  expect(screen.getByLabelText('专用选股要求')).toHaveValue('近30日实际实施回购')
+  view.unmount()
+  render(<App />)
+  await waitFor(() => expect(screen.getByLabelText('专用选股要求')).toBeEnabled())
+  expect(screen.getByLabelText('资讯发布窗口天数')).toHaveValue(90)
+  expect(screen.getByLabelText('选股截止日期')).toHaveValue('2026-10-15')
+  expect(screen.getByLabelText('选股股票范围')).toHaveValue('pool-1')
+  expect(fetcher.mock.calls.every(call => !((call as unknown as [unknown, RequestInit])[1]?.method))).toBe(true)
+})
 
 it('keeps mobile navigation open when a late conversation load only publishes its current URL', async () => {
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
@@ -43,11 +75,11 @@ it('switches whole sidebars while preserving independent drafts and shared-page 
   const user = userEvent.setup(), view = render(<App />)
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
   await user.type(screen.getByLabelText('研究要求'), '研究公司订单兑现情况')
-  expect(screen.queryByRole('button', { name: '我的筛选方案' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '我的方案' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '切换到选股' }))
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
   expect(screen.queryByRole('button', { name: '研究项目' })).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: '我的筛选方案' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '我的方案' })).toBeInTheDocument()
   await user.type(screen.getByLabelText('选股要求'), '收盘价高于20日均线')
   await user.click(screen.getByRole('button', { name: '切换到研究' }))
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('研究公司订单兑现情况'))
@@ -68,7 +100,7 @@ vi.mock('./pages/LibraryWorkspace', () => ({ default: () => <h1>资料阅读</h1
 vi.mock('./pages/ObservationPage', () => ({ default: ({ initialRunId, initialCandidateId, onLocationChange }: { initialRunId?: string; initialCandidateId?: string; onLocationChange: (tab: 'candidates' | 'batches', id: string) => void }) => <><h1>观察定位：{initialRunId || initialCandidateId || '目录'}</h1><button onClick={() => onLocationChange('candidates', 'candidate-two')}>选择第二候选</button><button onClick={() => onLocationChange('batches', 'run-two')}>选择第二批次</button></> }))
 vi.mock('./pages/WorkbenchPage', async () => {
   const { default: Workspace } = await import('./components/conversation/ConversationWorkspace')
-  return { default: ({ conversationId, conversationPrompt, onPromptConsumed, newResearchKey, onNewResearchConsumed, conversationWorkflowType, workflowOnly, onLocationChange, conversationNewDraft, onOpenDataServices }: { onOpenDataServices?: () => void; conversationId?: string; conversationPrompt?: string; onPromptConsumed?: () => void; newResearchKey?: number; onNewResearchConsumed?: () => void; conversationWorkflowType?: 'research' | 'screening'; workflowOnly?: boolean; conversationNewDraft?: boolean; onLocationChange?: (id: string, scope: 'technical' | 'news' | 'report' | 'pattern' | 'screening', workflow: 'research' | 'screening') => void }) => <Workspace onOpenDataServices={onOpenDataServices} initialWorkflowType={workflowOnly ? 'screening' : conversationWorkflowType} initialConversationId={conversationId} initialNewDraft={conversationNewDraft} initialPrompt={conversationPrompt} onPromptConsumed={onPromptConsumed} newResearchKey={newResearchKey} onNewResearchConsumed={onNewResearchConsumed} onLocationChange={onLocationChange} /> }
+  return { default: ({ screeningMethod, onScreeningMethod, conversationScope, data, conversationId, conversationPrompt, onPromptConsumed, newResearchKey, onNewResearchConsumed, conversationWorkflowType, workflowOnly, onLocationChange, conversationNewDraft, onOpenDataServices }: ComponentProps<typeof import('./pages/WorkbenchPage').default>) => <Workspace screeningMethod={screeningMethod} onScreeningMethod={onScreeningMethod} initialScope={conversationScope} data={data} onOpenDataServices={onOpenDataServices} initialWorkflowType={workflowOnly ? 'screening' : conversationWorkflowType} initialConversationId={conversationId} initialNewDraft={conversationNewDraft} initialPrompt={conversationPrompt} onPromptConsumed={onPromptConsumed} newResearchKey={newResearchKey} onNewResearchConsumed={onNewResearchConsumed} onLocationChange={onLocationChange} /> }
 })
 
 it('opens research by default and moves projects and optional tools into the sidebar without starting jobs', async () => {

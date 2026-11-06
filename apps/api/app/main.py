@@ -29,6 +29,7 @@ from .screening_api import router as screening_router
 from .news_api import router as news_router
 from .saved_screening_api import router as saved_screening_router
 from .condition_api import router as condition_router
+from .condition_builder import router as condition_builder_router
 from .dynamic_indicator_api import router as dynamic_indicator_router
 from .pattern_language import router as pattern_language_router
 from .pattern_research import router as pattern_research_router, save_search
@@ -108,6 +109,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="LLM 投研工作平台", version="0.1.0", lifespan=lifespan, dependencies=[Depends(authorization.authorize_route)])
 app.include_router(auth.router)
 app.include_router(condition_router)
+app.include_router(condition_builder_router)
 app.include_router(dynamic_indicator_router)
 app.include_router(conversation_router)
 app.include_router(research_scan_router)
@@ -323,8 +325,9 @@ def get_advisor_validation_level():
     from .settings import advisor_validation_level, AVAILABLE_VALIDATION_LEVELS
     level = advisor_validation_level()
     descriptions = {
-        "basic": "基础级别 - 只检查必填字段和基本格式",
-        "strict": "严格级别 - 检查成交额口径、时区格式、术语规范等所有细节"
+        "basic": "基础级别 - 拦截事实和证据错误，表达问题只提示",
+        "strict": "严格级别 - 增加分析维度、客户稿口径与时间标注完整性要求",
+        "off": "兼容级别 - 保留事实和证据校验，关闭可选表达建议"
     }
     return {
         "level": level,
@@ -609,7 +612,10 @@ def validate_saved_filter(filter_id: str, version: int | None = None):
     item = get_filter(filter_id, version)
     errors = validate_filter(item["library"], item["expression"])
     blockers = []
-    if item["library"] == "news":
+    if item["expression"].get("evaluation_mode") == "question":
+        if not llm_settings()["configured"]:
+            blockers.append("未配置资料核验模型，执行时将保留为数据不足")
+    elif item["library"] == "news":
         blockers.append("此旧版条件尚未接入本地资讯执行，请在对话中重新定义资讯口径")
     elif item["library"] == "report":
         if item["expression"].get("evaluation_mode") == "rubric":
@@ -629,6 +635,15 @@ def validate_saved_filter(filter_id: str, version: int | None = None):
 @app.post(f"{API_PREFIX}/filters/{{filter_id}}/preview")
 def preview_filter(filter_id: str, payload: PreviewInput, version: int | None = None):
     item = get_filter(filter_id, version)
+    if item["expression"].get("evaluation_mode") == "question":
+        from .condition_builder import evaluate_question
+        if not payload.stock_code or not re.fullmatch(r"\d{6}\.(SH|SZ|BJ)", payload.stock_code) or not payload.as_of:
+            _bad_request("证据试算需要明确证券代码和日期")
+        try:
+            date.fromisoformat(payload.as_of)
+            return evaluate_question(item["library"], item["expression"], payload.stock_code, payload.as_of)
+        except ValueError as exc:
+            _bad_request(str(exc))
     if item["library"] == "news":
         return {"state": "blocked_dependency", "reason": "请通过对话筛选执行本地资讯条件，此旧版试算入口暂不支持"}
     if item["library"] == "technical":
@@ -740,7 +755,7 @@ def _strategy_blockers(strategy: dict[str, Any], mode: str) -> list[str]:
     for filter_id, version in references(strategy["tree"]):
         item = get_filter(filter_id, version)
         if item["library"] == "news":
-            blockers.append("此旧版条件尚未接入本地资讯执行，请在对话中重新定义资讯口径")
+            blockers.append("资讯证据不能证明全市场覆盖完整，请使用探索筛选" if item["expression"].get("evaluation_mode") == "question" else "此旧版条件尚未接入本地资讯执行，请在对话中重新定义资讯口径")
         elif item["library"] == "report":
             blockers.append("本地研报评估不能证明全市场研报覆盖完整")
     if pattern_references(strategy["tree"]):

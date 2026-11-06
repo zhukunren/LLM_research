@@ -134,7 +134,7 @@
   .library-heading-actions:not(.library-actions-expanded) > button:not(.library-main-action):not(.library-more-action) { display: none; }
   .library-heading-actions .library-more-action { display: inline-flex; }
   .library-heading-actions .secondary-button { min-height: 44px; font-size: 13px; }
-  .library-shell .library-viewbar { display: none; }
+  .library-shell .library-viewbar { display: flex; flex-shrink: 0; }
   .library-mobile-tools { display: flex; align-items: center; gap: 12px; font-size: 13px; margin-bottom: 12px; }
   .library-mobile-tools select { flex: 1; min-width: 0; min-height: 44px; font-size: 14px; }
   .library-shell:has(.local-news[data-mobile-view="reader"]) .library-heading,

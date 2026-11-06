@@ -1,8 +1,8 @@
 .workspace-mode-switch { display: flex; flex-shrink: 0; gap: 4px; margin: 0 0 14px; padding: 4px; border: 1px solid var(--ui-sidebar-border); border-radius: 11px; background: white; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
 .workspace-mode-switch button { display: flex; justify-content: center; align-items: center; gap: 7px; flex: 1; min-width: 0; min-height: 34px; padding: 6px 10px; border: 0; border-radius: 8px; color: var(--ui-text-muted); background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.18s ease; }
-.workspace-mode-switch button[aria-pressed="true"] { background: var(--ui-primary); color: white; box-shadow: 0 2px 4px rgba(0, 74, 153, 0.15); }
+.workspace-mode-switch button[aria-pressed="true"] { background: var(--ui-primary); color: var(--ui-on-primary); box-shadow: 0 2px 4px rgba(0, 74, 153, 0.15); }
 .workspace-mode-switch button:focus-visible { outline: 2px solid var(--ui-primary); outline-offset: 2px; }
-.workspace-mode-switch button:hover { color: var(--ui-primary); }
+.workspace-mode-switch button:hover:not([aria-pressed="true"]) { color: var(--ui-primary); }
 .workspace-shared-label { padding: 16px 12px 6px; color: var(--ui-sidebar-muted); font-size: 11px; font-weight: 500; }
 .saved-screening-page { width: 100%; max-width: 920px; margin-inline: auto; }
 .saved-screening-page .saved-task-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); align-content: start; align-items: start; gap: 12px; max-height: none; padding: 2px 2px 16px; }

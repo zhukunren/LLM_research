@@ -1,0 +1,214 @@
+{
+  "scope": {
+    "as_of": "2026-10-20",
+    "model": "gpt-6-luna",
+    "reasoning_effort": "high",
+    "sample": "one task per workflow; reruns assess observed fixes, not population accuracy"
+  },
+  "company_initial": {
+    "core_financial_amount_checks": 6,
+    "amounts_match_official_reports": true,
+    "growth_rate_checks": 6,
+    "cash_coverage_ratio_checks": 2,
+    "source_locator_issues": 5,
+    "manual_edits": [
+      {
+        "issue": "PDF links use unverified printed page numbers",
+        "action": "Verify physical pages from original PDF; use document-only URL if a physical locator cannot be established"
+      },
+      {
+        "issue": "TEKA and US OBM figures described as annual-report disclosure",
+        "action": "Change attribution to 2026 interim report"
+      }
+    ],
+    "tool_failures": {
+      "wrong_metric_codes": 2,
+      "invalid_report_period": 1
+    },
+    "wall_seconds": 208.95,
+    "conversation_id": "dec90cd2-ee7f-40af-9ae7-f257c6b028eb",
+    "turn_id": "834f648e-c553-45d2-a5e1-35facc083bb9"
+  },
+  "screening_initial": {
+    "states_checked": 10,
+    "numeric_values_checked": 30,
+    "all_match_independent_calculation": true,
+    "true_codes": [
+      "000333.SZ",
+      "600519.SH"
+    ],
+    "manual_edits": [
+      {
+        "issue": "Stored explanatory metrics have missing units and English identifier labels",
+        "action": "Supply price and return units and readable labels in generated programs; final narrative already expresses return percentages correctly"
+      }
+    ],
+    "flow_issues": [
+      "Model revised the task five times and repaired invalid Python output contract",
+      "Model saved a reusable plan without a save request; server guard added"
+    ],
+    "wall_seconds": 356.17,
+    "conversation_id": "0f4d5600-8e9c-45bb-b54f-c4a58e0aefbd",
+    "turn_id": "923139f2-7256-4203-bf4c-35a43be24311"
+  },
+  "closing_initial": {
+    "seconds": 711.11,
+    "state": "partial",
+    "client_characters": 401,
+    "core_index_and_turnover_facts_match_saved_sources": true,
+    "validation": {
+      "errors": [],
+      "warnings": [],
+      "suggestions": [
+        "建议客户收评包含盘面回顾、热点板块和明日观察三段"
+      ]
+    },
+    "limitations": [
+      "冻结行情快照没有2026-10-20三大指数数据，以当日已读取的公开收盘报道核对。",
+      "沪深成交额来源分别使用整亿元总额和带小数分项，存在取整差异。",
+      "其他约1.47万亿元报道市场范围未明且原文读取失败，未纳入成交字段。",
+      "未核实下一交易日具体会议或发布会时刻。"
+    ],
+    "manual_edits": [
+      {
+        "issue": "客户稿列举较多板块并保留了来源核验措辞",
+        "action": "群发前按客户理解程度精简板块清单，将“尚无核实的次日会议或发布时刻”移到内部完整稿；事实数字无需改动"
+      }
+    ],
+    "flow_issues": [
+      "Multiple public pages timed out or were unavailable",
+      "First submission exceeded four citations for one item",
+      "Second submission recorded a computed fractional turnover total absent from the bound quote; validation rejected it; corrected total 14561 yi accepted"
+    ],
+    "wall_seconds": 711.11,
+    "conversation_id": "e0be9d44-2f59-406d-bea4-f86e966cc121",
+    "turn_id": "d2ae3c08-ef0a-4d49-a03c-e9b171100876",
+    "brief_id": "3545e962-d612-43bf-b604-9119cef86c23",
+    "failed_source_fetches": 4,
+    "failed_source_fetch_seconds": 191.0,
+    "all_source_fetch_seconds": 296.0,
+    "publication_rejections_before_success": 2
+  },
+  "ui": {
+    "checks": [
+      {
+        "case": "company",
+        "answer_visible": true,
+        "pdf_download": true,
+        "pdf_bytes": 91700
+      },
+      {
+        "case": "screening",
+        "result_drawer_visible": true,
+        "export_contains_selected_stocks": true
+      },
+      {
+        "case": "closing",
+        "short_full_switch": true,
+        "copy": true,
+        "reload_preserves_result": true
+      }
+    ],
+    "page_errors": []
+  },
+  "verification_date": "2026-11-06",
+  "manual_review_time": "No real user editing time measured; listed edits are reviewer recommendations.",
+  "regression": {
+    "workflow_tests_passed": 209,
+    "pdf_tests_passed": 31,
+    "total_distinct_related_tests_passed": 240
+  },
+  "fixes": [
+    {
+      "area": "financial tools",
+      "change": "Expose verified metric names in the model schema; add reporting-period examples and actionable query validation errors."
+    },
+    {
+      "area": "PDF evidence",
+      "change": "Expose hash-bound physical-page citation URLs, define #page semantics in the runtime instructions, and forbid guessed page fragments."
+    },
+    {
+      "area": "screening generation",
+      "change": "Specify scope and Python result contracts, human-readable metric labels/units, and exact validation constraints for repair."
+    },
+    {
+      "area": "plan library",
+      "change": "Require a save request in the current user message before a model can persist a reusable plan."
+    },
+    {
+      "area": "PDF cover",
+      "change": "Use concise answer headings/standalone bold headings instead of a truncated long prompt; version the cover cache and snapshot."
+    }
+  ],
+  "company_fixed": {
+    "wall_seconds": 414.09,
+    "estimated_queue_seconds": 3.04,
+    "estimated_processing_seconds": 410.21,
+    "conversation_id": "aacbeff8-c213-42b5-8fa7-9d60de7bb0c5",
+    "turn_id": "f825f9fd-4735-414d-891e-758bbe92b8cd",
+    "state": "succeeded",
+    "business_tool_calls": 21,
+    "failed_calls": [],
+    "core_financial_amount_checks_passed": 6,
+    "growth_rate_checks_passed": 6,
+    "cash_coverage_ratio_checks_passed": 2,
+    "explicit_pdf_page_fragments_checked": 3,
+    "explicit_pdf_page_fragments_correct": true,
+    "remaining_editorial_work": [
+      {
+        "issue": "巴西税务争议数字在原文可查，但风险段未就近附引用；未交代原股东赔付承诺",
+        "edit": "补充半年报物理第195页链接，说明7.35亿元为子公司税务纠纷最大潜在总额，并补原股东最高约1.73亿元赔付承诺，区分潜在总额与集团最终损失。"
+      }
+    ]
+  },
+  "screening_fixed": {
+    "wall_seconds": 468.83,
+    "estimated_queue_seconds": 275.83,
+    "estimated_processing_seconds": 192.75,
+    "conversation_id": "f8498dde-0465-4592-8b4f-0c4419bacf8a",
+    "turn_id": "4fa76be6-326f-42df-bb2f-245d49509781",
+    "state": "succeeded",
+    "business_tool_calls": 11,
+    "failed_calls": [
+      {
+        "tool": "propose_screening_task",
+        "result": {
+          "ok": false,
+          "error": {
+            "code": "invalid_task_revision",
+            "message": "无法识别组合逻辑运算符，不能替换为默认关系"
+          }
+        }
+      }
+    ],
+    "all_10_states_match_independent_calculation": true,
+    "all_30_numerical_values_match": true,
+    "metric_names_and_units_readable": true,
+    "program_previews": 1,
+    "program_preview_failed": 0,
+    "reusable_plan_saved_without_request": false,
+    "remaining_editorial_work": []
+  },
+  "pdf": {
+    "title": "美的集团（000333.SZ）研究结论｜截至2026年10月20日",
+    "page_count": 2,
+    "prompt_not_used_as_title": true,
+    "branded_footer_on_all_pages": true
+  },
+  "remaining_external_limitations": [
+    "Market watermark is 2026-10-20; current-day acceptance was not claimed.",
+    "Volume/amount units and historical classification metadata still need confirmed data contracts; this case used explicit securities and price-only predicates.",
+    "Several public media URLs timed out or returned 404; collecting replacement sources dominated closing latency.",
+    "One repaired screening logic-tree input error remained in the rerun; it was rejected and corrected before a formal run.",
+    "These are single workflow examples and follow-up runs, not a statistical model accuracy estimate."
+  ],
+  "completed_at": "2026-11-06T03:30:45.333093+00:00",
+  "artifacts": {
+    "raw_run_root": "runtime/verification/live-workflows-20261106",
+    "manual_edit_log": "runtime/verification/live-workflows-20261106/manual-edits.csv",
+    "reviewed_company_text": "runtime/verification/live-workflows-20261106/company-fixed/reviewed-response.txt",
+    "reviewed_closing_text": "runtime/verification/live-workflows-20261106/closing-initial/reviewed-client-copy.txt",
+    "final_pdf": "runtime/verification/live-workflows-20261106/company-fixed/report.pdf",
+    "final_ui_checks": "runtime/verification/live-workflows-20261106/ui-result-fixed.json"
+  }
+}

@@ -9,7 +9,7 @@ import time as monotonic_time
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from . import conversation_store, research_turn_service
+from . import conversation_store, research_turn_service, settings
 from .db import connect, json_dump, json_load, utc_now
 from .intelligence_contracts import (
     BriefScope, CaptureBriefSource, ReadBriefSource, PublishBrief, StartBrief, KIND_DEFINITIONS, MARKETS,
@@ -60,6 +60,12 @@ def _prompt(kind, scope, cutoff, start, previous, advisor_context=None):
 时间窗口：{start.isoformat()} 至 {cutoff.isoformat()}，时区 Asia/Shanghai。
 来源策略：{'优先官方发布、公司公告及原始披露' if scope.source_preference == 'primary' else '原始披露与可信报道交叉核对'}。
 最多 {scope.max_items} 项；可靠资料不足时按实际数量交付，不填充重复资讯。
+{'''收评执行节奏：先读取冻结行情。以指数、明确统计范围的成交额、用户要求的前日同口径变化和板块的事实覆盖作为停止条件，不以读取固定篇数作为停止条件；核心行情用不同原始媒体交叉核对，不为凑满条目反复抓取。
+若缺沪深两市成交额或用户要求的前日变化，至少补一轮“指定交易日 沪深两市 成交额 较前一交易日”定向检索并读取候选原文，再判断是否确有缺口。capture返回的closing_evidence只提示实际原文中的金额候选，不是独立核验结论。
+同一网址失败不重复调用；HTTP 4xx、拦截页直接换媒体，临时连接/超时最多retry=true重试一次。已有充分事实时停止扩展检索并交付，抓取失败记录为覆盖限制。
+首次提交前检查：每个条目最多4条连续引文，更多证据拆成不同主题；published_at只放evidence[]内，不放items[]顶层。成交额字段只登记绑定引文直接写出的同口径总额及精度，分项相加留完整稿，不把推算的小数值冒充原文披露值。
+同一篇报道的桌面与移动页面属于同一来源，不算独立交叉验证。客户稿出现的次日事件须在所关联主题的引文中有日期依据，不能用板块引文代替事件依据；可省略非必要的未确认事件，留完整稿说明。
+客户短稿只留盘面、热点和下一交易日观察，来源故障和方法细节放完整稿及limitations。''' if kind == 'closing' else ''}
 
 执行契约：
 1. 使用真实网页检索发现来源。随后通过 capture_intelligence_source 读取并保存要引用的网页；
@@ -296,12 +302,38 @@ def _bound(connection, context):
     return row
 
 
+def _source_host(url):
+    host = (urlsplit(url).hostname or '').lower()
+    return 'thepaper.cn' if host in {'thepaper.cn', 'www.thepaper.cn', 'm.thepaper.cn'} else host.removeprefix('www.')
+
+
+def _retryable_source_error(message):
+    return not re.search(r'HTTP\s*4\d\d|本机|内网|保留地址|验证或拦截|编码|预算|跳转次数', message, re.I) and bool(
+        re.search(r'timeout|timed out|超时|连接失败|无法解析|connection|HTTP\s*5\d\d', message, re.I))
+
+
+def _captured_response(connection, source, run):
+    result = _source_chunk(source)
+    if run['kind'] == 'closing':
+        from .article_capture import turnover_candidates
+        rows = connection.execute('SELECT * FROM intelligence_sources WHERE run_id=? ORDER BY rowid DESC LIMIT 10', (run['id'],)).fetchall()
+        result['closing_evidence'] = {'turnover_candidates': turnover_candidates(rows),
+            'targeted_query_if_missing': run['cutoff_at'][:10] + ' 沪深两市 成交额 较前一交易日',
+            'field_mapping': 'amount_yi/change_yi用于advisor_report.closing_review.turnover；quote和source_id用于items[].evidence。不要把候选对象整体提交为条目或引文。',
+            'note': '仅提取本轮实际原文候选。引用仍须绑定本轮主题、唯一定位并通过日期/口径/金额校验；没有候选请定向补查，不能把全市场当成沪深两市。'}
+    return result
+
+
 def capture_source(args: CaptureBriefSource, context):
     """Read public sources in the data worker, not in the reasoning sandbox.
 
     The worker retains pinned destination/TLS checks. Only a typed URL and the
     current run cross this boundary; arbitrary commands or files never do.
     """
+    try:
+        args = args.model_copy(update={"url": urlsplit(args.url)._replace(fragment='').geturl()})
+    except ValueError as exc:
+        raise IntelligenceError("来源网址格式无效。") from exc
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         row = _bound(connection, context)
@@ -309,9 +341,22 @@ def capture_source(args: CaptureBriefSource, context):
             raise IntelligenceError("本版成果已保存，更新资料请新建版本。", 409)
         source = connection.execute("SELECT * FROM intelligence_sources WHERE run_id=? AND url=?", (row["id"], args.url)).fetchone()
         if source:
-            return _source_chunk(source)
-        request = connection.execute("SELECT * FROM intelligence_source_requests WHERE run_id=? AND url=?", (row["id"], args.url)).fetchone()
+            return _captured_response(connection, source, row)
+        request = connection.execute("SELECT r.*,j.state,j.attempts FROM intelligence_source_requests r JOIN jobs j ON j.id=r.job_id WHERE r.run_id=? AND r.url=?", (row["id"], args.url)).fetchone()
+        if request and request["state"] in {"failed", "cancelled"}:
+            if args.retry and request["state"] == "failed" and request["attempts"] < 2 and _retryable_source_error(request["error"] or ''):
+                connection.execute("UPDATE intelligence_source_requests SET error=NULL WHERE id=?", (request["id"],))
+                connection.execute("UPDATE jobs SET state='queued',message='重试读取公开原文',updated_at=?,lease_owner=NULL,lease_expires_at=NULL WHERE id=?", (utc_now(), request["job_id"]))
+                _activity(connection, row["id"], "collect", "临时读取故障重试一次；已保存的证据保留。")
+            else:
+                raise IntelligenceError((request["error"] or "原文读取未完成。") + " 此结果已记录，不会重复抓取；请切换来源。仅临时连接或超时故障可用retry=true重试一次。")
         if not request:
+            if row["kind"] == "closing":
+                failed = connection.execute("SELECT r.url FROM intelligence_source_requests r JOIN jobs j ON j.id=r.job_id WHERE r.run_id=? AND j.state='failed'", (row["id"],)).fetchall()
+                successful = connection.execute("SELECT url FROM intelligence_sources WHERE run_id=?", (row["id"],)).fetchall()
+                host = _source_host(args.url)
+                if sum(_source_host(item["url"]) == host for item in failed) >= 2 and not any(_source_host(item["url"]) == host for item in successful):
+                    raise IntelligenceError("该来源域名在本轮已连续失败两次，请换用其他媒体或官方原文；不会把读取失败当作没有更新。")
             count = connection.execute("SELECT COUNT(*) FROM intelligence_source_requests WHERE run_id=?", (row["id"],)).fetchone()[0]
             if count >= 60:
                 raise IntelligenceError("本次已请求60个来源，请使用现有证据并说明覆盖限制。")
@@ -323,14 +368,14 @@ def capture_source(args: CaptureBriefSource, context):
             connection.execute("INSERT INTO intelligence_source_requests(id,run_id,url,job_id,created_at) VALUES(?,?,?,?,?)",
                                (request_id, row["id"], args.url, job_id, utc_now()))
             request = connection.execute("SELECT * FROM intelligence_source_requests WHERE id=?", (request_id,)).fetchone()
-    deadline = monotonic_time.monotonic() + 90
+    deadline = monotonic_time.monotonic() + (45 if row["kind"] == "closing" else 90)
     while monotonic_time.monotonic() < deadline:
         with connect() as connection:
             _bound(connection, context)
             current = connection.execute("""SELECT r.*,j.state FROM intelligence_source_requests r
                 JOIN jobs j ON j.id=r.job_id WHERE r.id=?""", (request["id"],)).fetchone()
             if current["source_id"]:
-                return _source_chunk(connection.execute("SELECT * FROM intelligence_sources WHERE id=?", (current["source_id"],)).fetchone())
+                return _captured_response(connection, connection.execute("SELECT * FROM intelligence_sources WHERE id=?", (current["source_id"],)).fetchone(), row)
             if current["state"] in {"failed", "cancelled"}:
                 raise IntelligenceError(current["error"] or "原文读取未完成，请选择其他公开来源。")
         monotonic_time.sleep(.4)
@@ -379,7 +424,11 @@ def _capture_source(args: CaptureBriefSource, context):
             captured, text = _capture_pdf_source(args.url, context)
         else:
             try:
-                captured = research_external.capture_page(research_external.CapturePageArgs(url=args.url), context)
+                if row["kind"] == "closing":
+                    from .article_capture import capture_article
+                    captured = capture_article(research_external.CapturePageArgs(url=args.url), context)
+                else:
+                    captured = research_external.capture_page(research_external.CapturePageArgs(url=args.url), context)
                 text = research_external._source_file(context, captured["text_path"]).read_text(encoding="utf-8")
             except research_external.ExternalSourceError as exc:
                 if "download is starting" not in str(exc).lower():
@@ -583,9 +632,6 @@ def publish(args: PublishBrief, context):
         try:
             validation_level = settings.advisor_validation_level()
             validation_result = advisor_tasks.validate_report(row["kind"], scope, args.advisor_report, items, advisor_context, cutoff, validation_level)
-            # Store validation result for UI display
-            if validation_result and any(validation_result.values()):
-                result["validation_result"] = validation_result
         except advisor_tasks.AdvisorTaskError as exc:
             raise IntelligenceError(str(exc)) from exc
         previous = _row(connection, row["previous_id"]) if row["previous_id"] else None
@@ -600,7 +646,10 @@ def publish(args: PublishBrief, context):
         result = {**submission, "items": items, "submission_hash": submission_hash, "outcome": outcome,
                   "not_in_current": missing, "comparison": "按同范围上个成功版本的事件标识比较；本期未列入不代表事件已解决。",
                   "verification_note": "系统核对了引用是否位于保存原文及日期范围；分析由 AI 生成，引用定位不代表结论已获独立证实。"}
-        status = "partial" if outcome == "evidence_gap" or args.limitations or any(item["verification"] != "quoted" for item in items) else "succeeded"
+        if row["kind"] in ADVISOR_KINDS:
+            result["validation_result"] = validation_result
+            result["validation_level"] = validation_level
+        status = "partial" if outcome == "evidence_gap" or args.limitations or validation_result["warnings"] or any(item["verification"] != "quoted" for item in items) else "succeeded"
         if args.advisor_report and (args.advisor_report.verdict == "insufficient" or args.advisor_report.session_status in {"not_closed", "data_missing"}):
             status = "partial"
         noun = "证据主题" if row["kind"] in ADVISOR_KINDS else "事件"

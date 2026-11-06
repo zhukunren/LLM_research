@@ -276,3 +276,45 @@ it('shows closing defaults and Beijing event timing, and copies only the dated c
   expect(screen.getByRole('note')).toHaveTextContent('默认优先沪深两市成交额')
   expect(vi.mocked(api).mock.calls.every(([, init]) => !init?.method)).toBe(true)
 })
+
+it('reads persisted nested validation hints after a reload and keeps draft editing and copying available', async () => {
+  const user = userEvent.setup(), copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+  const report: AdvisorReport = { stock_code: null, verdict: 'review', conclusion: '目前盘面仍有分化，后续需要核对量能与公开资料。', effective_date: '2026-10-20', session_status: 'not_closed',
+    supporting_points: [], contrary_points: [], risks: ['市场波动可能较大'], invalidation_conditions: ['成交持续回落'], action_conditions: ['核对正式行情'], suitability: '普通客户的公开资讯交流',
+    client_copy: '盘面回顾：当前尚未收盘，个股宽度需要核对。热点板块：等待正式数据。明日观察：继续核对公告。', full_copy: '完整稿：等待正式行情，核对板块分化及原始公告，记录未确认数据与风险。' }
+  const validation = { errors: [], warnings: ['建议保留一句简短风险提示，交付前由投顾核对'], suggestions: ['建议将「个股宽度」改为「上涨股票数量」等易懂表达'] }
+  const data: BriefDetail = { ...completed, kind: 'closing', result: { ...completed.result!, advisor_report: report, validation_level: 'basic', validation_result: validation } }
+  vi.mocked(api).mockImplementation(async path => path.includes('/runs/') ? data as never : { ...catalog, items: [data], latest_result_id: data.id } as never)
+  const view = render(<IntelligencePage {...callbacks()} kind="closing" runId={data.id} />)
+  const hints = await screen.findByRole('region', { name: '投顾校验提示' })
+  expect(within(hints).getByText('交付前请核对')).toBeVisible()
+  expect(within(hints).getByText(validation.warnings[0])).toBeVisible()
+  expect(within(hints).getByText(validation.suggestions[0])).toBeVisible()
+  expect(within(hints).getByText('以下提示不阻止保存和复制，交付前请由投顾核对。')).toBeVisible()
+  const draft = screen.getByRole('textbox', { name: '客户短稿正文' })
+  await user.clear(draft)
+  await user.type(draft, '投顾已核对并修改的客户短稿，仍需注意市场波动。')
+  await user.click(screen.getByRole('button', { name: '复制短稿' }))
+  expect(copy).toHaveBeenLastCalledWith(expect.stringContaining('投顾已核对并修改的客户短稿'))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  view.unmount()
+  render(<IntelligencePage {...callbacks()} kind="closing" runId={data.id} />)
+  const reloaded = await screen.findByRole('region', { name: '投顾校验提示' })
+  expect(within(reloaded).getByText(validation.warnings[0])).toBeVisible()
+  expect(within(reloaded).getByText(validation.suggestions[0])).toBeVisible()
+  expect(vi.mocked(api).mock.calls.every(([, init]) => !init?.method)).toBe(true)
+})
+
+it('changes validation hints with the selected historical version and supports older results without hints', async () => {
+  const oldData: BriefDetail = { ...completed, id: 'older', kind: 'stock-analysis' }
+  const data: BriefDetail = { ...completed, kind: 'stock-analysis', result: { ...completed.result!, validation_result: { errors: [], warnings: [], suggestions: ['建议为每个证据主题注明分析维度'] } } }
+  vi.mocked(api).mockImplementation(async path => path.endsWith('/runs/older') ? oldData as never : path.includes('/runs/') ? data as never : { ...catalog, items: [data, oldData], latest_result_id: data.id } as never)
+  const view = render(<IntelligencePage {...callbacks()} kind="stock-analysis" runId={data.id} />)
+  expect(await screen.findByRole('region', { name: '投顾校验提示' })).toHaveTextContent('建议为每个证据主题注明分析维度')
+  expect(screen.getByText('表达建议')).toBeVisible()
+  view.rerender(<IntelligencePage {...callbacks()} kind="stock-analysis" runId="older" />)
+  await waitFor(() => expect(vi.mocked(api)).toHaveBeenCalledWith('/intelligence/runs/older', expect.anything()))
+  await waitFor(() => expect(screen.queryByRole('region', { name: '投顾校验提示' })).not.toBeInTheDocument())
+  view.rerender(<IntelligencePage {...callbacks()} kind="stock-analysis" runId={data.id} />)
+  expect(await screen.findByRole('region', { name: '投顾校验提示' })).toHaveTextContent('建议为每个证据主题注明分析维度')
+})

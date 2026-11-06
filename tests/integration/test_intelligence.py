@@ -12,6 +12,7 @@ from apps.api.app.intelligence_contracts import PublishBrief, StartBrief
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("LLMR_ADVISOR_VALIDATION_LEVEL", "basic")
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "intelligence.db")
     monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
     monkeypatch.setattr(intelligence, "research_web_search_mode", lambda: "live")
@@ -326,7 +327,9 @@ def test_stock_report_accepts_historical_fundamental_evidence_and_exports_drafts
     assert saved["advisor_context"]["advisor"]["stock_code"] == "600519.SH"
 
 
-def test_report_requires_bound_stock_and_real_support_references(client):
+@pytest.mark.parametrize("level", ["basic", "strict", "off"])
+def test_report_requires_bound_stock_and_real_support_references(client, monkeypatch, level):
+    monkeypatch.setenv("LLMR_ADVISOR_VALIDATION_LEVEL", level)
     run = advisor_run(client, kind="stock-rationale")
     context, _ = running(run)
     source(run)
@@ -334,6 +337,9 @@ def test_report_requires_bound_stock_and_real_support_references(client):
     payload["items"][0]["analysis_dimension"] = "business"
     for report, message in [
         (advisor_result(stock_code="600000.SH"), "股票与已选对象不一致"),
+        (advisor_result(effective_date="2026-10-21"), "晚于研究截止"),
+        (advisor_result(effective_date="2026-10-19"), "冻结的研究截止日期"),
+        (advisor_result(verdict="review"), "明确的研判结论"),
         (advisor_result(supporting_points=[{"title": "伪造支持理由", "explanation": "这个理由没有任何本轮核验的证据主题可以支持。", "evidence_keys": ["invented"]}]), "不属于本次成果"),
     ]:
         payload["advisor_report"] = report
@@ -453,3 +459,205 @@ def test_new_closing_task_freezes_default_review_and_requires_it_before_publicat
     assert intelligence.publish(PublishBrief.model_validate(payload), context)["idempotent_replay"] is True
     exported = client.get(f"/api/v1/intelligence/runs/{run['id']}/export").text
     assert "行情口径与事件北京时间" in exported and "未确认收盘成交额" in exported
+
+
+@pytest.mark.parametrize("level", ["basic", "strict", "off"])
+def test_analysis_dimension_requirements_and_nonblocking_suggestions(client, monkeypatch, level):
+    monkeypatch.setenv("LLMR_ADVISOR_VALIDATION_LEVEL", level)
+    run = advisor_run(client)
+    context, _ = running(run)
+    source(run)
+    payload = deliverable().model_dump(mode="json")
+    payload["advisor_report"] = advisor_result()
+    if level == "strict":
+        with pytest.raises(intelligence.IntelligenceError, match="分析维度|analysis_dimension"):
+            intelligence.publish(PublishBrief.model_validate(payload), context)
+        assert intelligence.detail(run["id"])["result"] is None
+        payload["items"][0]["analysis_dimension"] = "business"
+    submitted = PublishBrief.model_validate(payload)
+    intelligence.publish(submitted, context)
+    saved = client.get(f"/api/v1/intelligence/runs/{run['id']}").json()
+    result = saved["result"]
+    assert result["validation_level"] == level
+    assert not result["validation_result"]["errors"]
+    assert bool(result["validation_result"]["suggestions"]) == (level == "basic")
+    assert saved["state"] == "succeeded"  # Editorial hints do not imply unreliable data.
+    monkeypatch.setenv("LLMR_ADVISOR_VALIDATION_LEVEL", "strict" if level == "basic" else "basic")
+    assert intelligence.publish(submitted, context)["idempotent_replay"] is True
+    assert client.get(f"/api/v1/intelligence/runs/{run['id']}").json()["result"] == result
+
+
+@pytest.mark.parametrize("level", ["basic", "strict"])
+def test_closing_warnings_and_suggestions_are_saved_and_survive_detail_reload(client, monkeypatch, level):
+    monkeypatch.setenv("LLMR_ADVISOR_VALIDATION_LEVEL", level)
+    monkeypatch.setattr(intelligence, "now", lambda: datetime.fromisoformat("2026-10-20T16:00:00+08:00"))
+    run = advisor_run(client, kind="closing")
+    context, _ = running(run)
+    source(run)
+    payload = deliverable().model_dump(mode="json")
+    payload["items"][0]["analysis_dimension"] = "market"
+    payload["advisor_report"] = advisor_result(stock_code=None, verdict="review", session_status="closed",
+        closing_review={"turnover": None, "events": [], "scope_notes": "成交金额未确认，客户稿省略数字。"},
+        client_copy="盘面回顾：已有资料仅作初步观察，个股宽度仍需继续核对。热点板块：板块变化需核对正式披露。明日观察：等待新增公告后继续跟踪。")
+    submitted = PublishBrief.model_validate(payload)
+    published = intelligence.publish(submitted, context)
+    assert published["state"] == "partial"
+    saved = client.get(f"/api/v1/intelligence/runs/{run['id']}").json()
+    validation = saved["result"]["validation_result"]
+    assert not validation["errors"]
+    assert any("简短风险提示" in warning for warning in validation["warnings"])
+    assert any("个股宽度" in suggestion for suggestion in validation["suggestions"])
+    assert intelligence.publish(submitted, context)["idempotent_replay"] is True
+    assert intelligence.detail(run["id"])["result"]["validation_result"] == validation
+    with db.connect() as connection:
+        stored = db.json_load(connection.execute("SELECT result_json FROM intelligence_runs WHERE id=?", (run["id"],)).fetchone()[0])
+    assert stored["validation_result"] == validation
+    assert client.get(f"/api/v1/intelligence/runs/{run['id']}/export").status_code == 200
+
+
+def test_missing_adviser_snapshot_blocks_publication(client, monkeypatch):
+    run = advisor_run(client)
+    context, _ = running(run)
+    source(run)
+    payload = deliverable().model_dump(mode="json")
+    payload["advisor_report"] = advisor_result()
+    monkeypatch.setattr(intelligence.advisor_tasks, "read_context", lambda *args: None)
+    with pytest.raises(intelligence.IntelligenceError, match="快照不存在"):
+        intelligence.publish(PublishBrief.model_validate(payload), context)
+    assert client.get(f"/api/v1/intelligence/runs/{run['id']}").json()["result"] is None
+
+
+@pytest.mark.parametrize("level", ["basic", "strict", "off"])
+def test_invalid_closing_amount_is_rejected_without_saving_and_can_be_corrected(client, monkeypatch, level):
+    monkeypatch.setenv("LLMR_ADVISOR_VALIDATION_LEVEL", level)
+    run = advisor_run(client, kind="closing")
+    context, _ = running(run)
+    source(run)
+    payload = deliverable().model_dump(mode="json")
+    payload["items"][0]["analysis_dimension"] = "market"
+    payload["advisor_report"] = advisor_result(stock_code=None, verdict="review", session_status="not_closed",
+        closing_review={"turnover": None, "events": [], "scope_notes": "无法确认成交金额，应在客户稿中省略。"},
+        client_copy="盘面回顾：沪深两市成交额1.46万亿元。热点板块：仍需等待正式行情。明日观察：继续核对原始披露。市场有风险，投资需谨慎。")
+    with pytest.raises(intelligence.IntelligenceError, match="客户稿写有成交金额"):
+        intelligence.publish(PublishBrief.model_validate(payload), context)
+    assert client.get(f"/api/v1/intelligence/runs/{run['id']}").json()["result"] is None
+    payload["advisor_report"]["client_copy"] = "盘面回顾：当前尚未收盘，成交金额未确认，暂不列示。热点板块：等待正式行情。明日观察：继续核对原始披露。市场有风险，投资需谨慎。"
+    submitted = PublishBrief.model_validate(payload)
+    assert intelligence.publish(submitted, context)["state"] == "partial"
+    saved = client.get(f"/api/v1/intelligence/runs/{run['id']}").json()["result"]
+    assert not saved["validation_result"]["errors"]
+    assert saved["advisor_report"]["client_copy"] == payload["advisor_report"]["client_copy"]
+
+
+def _capture_via_worker(args, context):
+    from concurrent.futures import ThreadPoolExecutor
+    from time import sleep
+    from apps.api.app import worker
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(intelligence.capture_source, args, context)
+        for _ in range(200):
+            if worker.execute_job(kinds=("intelligence_source",)):
+                break
+            sleep(.01)
+        return future.result(timeout=5)
+
+
+@pytest.mark.parametrize("failure", ["原文连接失败或超时", "原文读取失败（HTTP 503）"])
+def test_temporary_source_failure_has_one_explicit_retry_and_keeps_same_job(client, monkeypatch, failure):
+    from apps.api.app.intelligence_contracts import CaptureBriefSource
+    run = advisor_run(client, kind="closing")
+    context, _ = running(run)
+    attempts = []
+    def capture(args, _context):
+        attempts.append(args.url)
+        if len(attempts) == 1:
+            raise intelligence.IntelligenceError(failure)
+        source(run, source_id="recovered-source")
+        with db.connect() as connection:
+            return intelligence._source_chunk(connection.execute("SELECT * FROM intelligence_sources WHERE id='recovered-source'").fetchone())
+    monkeypatch.setattr(intelligence, "_capture_source", capture)
+    args = CaptureBriefSource(url="https://publisher.example/article")
+    with pytest.raises(intelligence.IntelligenceError, match="连接失败|503"):
+        _capture_via_worker(args, context)
+    with pytest.raises(intelligence.IntelligenceError, match="不会重复抓取"):
+        intelligence.capture_source(args, context)
+    assert len(attempts) == 1
+    recovered = _capture_via_worker(args.model_copy(update={"retry": True}), context)
+    assert recovered["source_id"] == "recovered-source"
+    assert intelligence.capture_source(args, context)["source_id"] == "recovered-source"
+    with db.connect() as connection:
+        requests = connection.execute("SELECT j.attempts,j.state FROM intelligence_source_requests r JOIN jobs j ON j.id=r.job_id WHERE r.run_id=?", (run['id'],)).fetchall()
+    assert len(requests) == 1 and requests[0]['attempts'] == 2 and requests[0]['state'] == 'succeeded'
+
+
+@pytest.mark.parametrize("failure", ["原文读取失败（HTTP 404）", "网页返回访问验证或拦截页"])
+def test_permanent_source_failure_cannot_be_requeued(client, monkeypatch, failure):
+    from apps.api.app.intelligence_contracts import CaptureBriefSource
+    run = advisor_run(client, kind="closing")
+    context, _ = running(run)
+    def fail(*_):
+        raise intelligence.IntelligenceError(failure)
+    monkeypatch.setattr(intelligence, "_capture_source", fail)
+    args = CaptureBriefSource(url="https://publisher.example/dead")
+    with pytest.raises(intelligence.IntelligenceError):
+        _capture_via_worker(args, context)
+    with pytest.raises(intelligence.IntelligenceError, match="不会重复抓取"):
+        intelligence.capture_source(args.model_copy(update={"retry": True}), context)
+    with db.connect() as connection:
+        assert connection.execute("SELECT attempts FROM jobs WHERE kind='intelligence_source'").fetchone()[0] == 1
+
+
+def test_retry_budget_is_exhausted_after_second_failure(client, monkeypatch):
+    from apps.api.app.intelligence_contracts import CaptureBriefSource
+    run = advisor_run(client, kind="closing")
+    context, _ = running(run)
+    def fail(*_):
+        raise intelligence.IntelligenceError("原文连接失败或超时")
+    monkeypatch.setattr(intelligence, "_capture_source", fail)
+    args = CaptureBriefSource(url="https://publisher.example/transient")
+    for attempt in (False, True):
+        with pytest.raises(intelligence.IntelligenceError, match="超时"):
+            _capture_via_worker(args.model_copy(update={"retry": attempt}), context)
+    with pytest.raises(intelligence.IntelligenceError, match="不会重复抓取"):
+        intelligence.capture_source(args.model_copy(update={"retry": True}), context)
+    with db.connect() as connection:
+        assert connection.execute("SELECT attempts FROM jobs WHERE kind='intelligence_source'").fetchone()[0] == 2
+
+
+def test_closing_switches_publisher_after_two_failures_and_normalizes_fragments(client, monkeypatch):
+    from apps.api.app.intelligence_contracts import CaptureBriefSource
+    run = advisor_run(client, kind="closing")
+    context, _ = running(run)
+    def fail(*_):
+        raise intelligence.IntelligenceError("原文读取失败（HTTP 404）")
+    monkeypatch.setattr(intelligence, "_capture_source", fail)
+    for url in ['https://publisher.example/one', 'https://publisher.example/two']:
+        with pytest.raises(intelligence.IntelligenceError):
+            _capture_via_worker(CaptureBriefSource(url=url), context)
+    with pytest.raises(intelligence.IntelligenceError, match="连续失败两次"):
+        intelligence.capture_source(CaptureBriefSource(url='https://publisher.example/three'), context)
+    with pytest.raises(intelligence.IntelligenceError, match="不会重复抓取"):
+        intelligence.capture_source(CaptureBriefSource(url='https://publisher.example/one#fragment'), context)
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM intelligence_source_requests WHERE run_id=?", (run['id'],)).fetchone()[0] == 2
+    source(run, source_id='other-publisher')
+    assert intelligence.capture_source(CaptureBriefSource(url='https://example.com/other-publisher'), context)['source_id'] == 'other-publisher'
+
+
+def test_null_unused_no_updates_reason_does_not_force_a_model_repair():
+    payload = deliverable().model_dump(mode="json")
+    payload['no_updates_reason'] = None
+    normalized = PublishBrief.model_validate(payload)
+    assert normalized.no_updates_reason == ''
+    assert normalized.items == deliverable().items
+
+
+@pytest.mark.parametrize("items,reason", [([], None), (None, 42)])
+def test_missing_update_explanations_and_invalid_reason_types_still_fail(items, reason):
+    from pydantic import ValidationError
+    payload = deliverable().model_dump(mode="json")
+    if items is not None:
+        payload['items'] = items
+    payload['no_updates_reason'] = reason
+    with pytest.raises(ValidationError):
+        PublishBrief.model_validate(payload)

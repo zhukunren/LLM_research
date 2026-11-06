@@ -39,7 +39,10 @@ export type BriefItem = {
   analysis_dimension?: string | null
   evidence: BriefCitation[]; verification: 'quoted' | 'time_pending'; change: 'new' | 'updated' | 'unchanged'
 }
+export type AdvisorValidationResult = { errors: string[]; warnings: string[]; suggestions: string[] }
 export type BriefResult = {
+  validation_result?: AdvisorValidationResult
+  validation_level?: 'off' | 'basic' | 'strict'
   advisor_report?: AdvisorReport | null
   outcome?: 'events' | 'no_updates' | 'evidence_gap'
   title: string; summary: string; items: BriefItem[]; coverage: string; limitations: string[]
@@ -55,7 +58,7 @@ export type BriefRun = {
 export type BriefDetail = BriefRun & {
   advisor_context?: AdvisorContext | null
   result: BriefResult | null; source_count: number; search_count: number
-  validation_result?: { errors: string[]; warnings: string[]; suggestions: string[] } | null
+  validation_result?: AdvisorValidationResult | null
   activity: { id: number | string; stage: string; message: string; created_at: string }[]
   sources: { id: string; url: string; title: string; retrieved_at: string; sha256: string }[]
 }

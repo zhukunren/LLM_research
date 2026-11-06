@@ -60,7 +60,7 @@ export function AdvisorValidationSettings() {
         投顾任务验证级别
       </h3>
       <p style={{ margin: "0 0 20px", fontSize: "14px", lineHeight: "1.6", color: "var(--ui-text-soft)" }}>
-        设置投顾任务（收评/个股分析/推荐理由）提交时的验证严格程度。人工审核后交付时，建议使用基础级别。
+        两种级别都会拦截股票、日期、引用、金额和已确认事件时间错误。表达建议不阻止提交，交付前仍需投顾核对。
       </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -142,8 +142,8 @@ export function AdvisorValidationSettings() {
       >
         <strong style={{ color: "var(--ui-text)" }}>说明：</strong>
         <ul style={{ margin: "8px 0 0", paddingLeft: "20px" }}>
-          <li>基础级别：只检查必填字段和基本格式，适合人工审核后交付的场景</li>
-          <li>严格级别：自动检查成交额口径、时区格式、术语规范等所有细节</li>
+          <li>基础级别：保留事实和证据校验，缺少客户稿口径或时间标注时给出核验提示</li>
+          <li>严格级别：额外要求分析维度、客户稿口径与时间标注完整；术语、篇幅、段落仍只提示</li>
           <li>设置立即生效，影响所有新提交的投顾任务</li>
         </ul>
       </div>

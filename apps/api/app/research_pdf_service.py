@@ -124,6 +124,7 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, connection=None, discove
             raise ExportError("只能为已完成的研究正文生成报告。", 409)
         snapshot = {key: row[key] for key in ("id", "user_message_id", "workflow_type", "state", "response_text", "created_at")}
         snapshot["research_scope"] = db.json_load(row["research_scope_json"])
+        snapshot["cover_revision"] = research_pdf.TURN_COVER_VERSION
         previous = conn.execute("SELECT snapshot_json FROM research_pdf_exports WHERE owner_type='conversation' AND owner_id=? AND source_kind='turn' AND source_id=? ORDER BY rowid LIMIT 1", (conversation_id, turn_id)).fetchone()
         snapshot["images"] = db.json_load(previous[0]).get("images", {}) if previous else _capture_images(conversation_id, row["response_text"])
         stamp = research_pdf._beijing_stamp(row["created_at"])[:10].replace("-", "")

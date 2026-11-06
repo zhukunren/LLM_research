@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { api, type Filter, type Strategy } from '../api'
 import WorkbenchPage from './WorkbenchPage'
 import type { Node } from './StrategyPage'
+import { appendCombination } from '../libraryContext'
 
 vi.mock('../api', () => ({ api: vi.fn() }))
 vi.mock('../components/StockSearch', async importOriginal => ({ ...await importOriginal<typeof import('../components/StockSearch')>(), default: () => <span>股票选择</span>, StockName: ({ code }: { code: string }) => <span>{code}</span> }))
@@ -29,6 +30,26 @@ beforeEach(() => {
     if (path === '/screening-runs/run1') return { id: 'run1', strategy_id: 's1', strategy_version: 1, as_of: '2026-09-28', status: 'queued', created_at: filter.created_at, result: {}, job: { message: '等待筛选', progress: 0 } } as never
     return { items: [] } as never
   })
+})
+
+async function openCustomConditionInput(user = userEvent.setup()) {
+  const control = screen.queryByRole('button', { name: '描述自定义条件' })
+  if (control) await user.click(control)
+}
+
+it('receives a shape from another mounted workspace without dropping existing rules or the execution date', async () => {
+  localStorage.setItem('workbench.tree', JSON.stringify(tree))
+  localStorage.setItem('workbench.asOf', JSON.stringify('2026-09-22'))
+  const previous = vi.mocked(api).getMockImplementation()!
+  vi.mocked(api).mockImplementation(async (path, options) => path.startsWith('/patterns?') ? { items: [{ id: 'shape-1', version: 2, name: '30日双底', input_type: 'drawing', representation: 'price_path', target_bars: 30, points: [1, .5, 1], params: { min_similarity: 88 }, created_at: filter.created_at }] } as never : previous(path, options))
+  render(<WorkbenchPage data={data} onReports={vi.fn()} workflowOnly view="compose" />)
+  await waitFor(() => expect(screen.getByRole('button', { name: '保存组合' })).toBeEnabled())
+  act(() => appendCombination({ op: 'pattern_ref', pattern_id: 'shape-1', version: 2, min_similarity: 88, match_mode: 'current', recent_bars: 20, score_weight: 1 }))
+  await screen.findByText('30日双底', { exact: true })
+  expect(screen.getByLabelText('筛选截止日期')).toHaveValue('2026-09-22')
+  await userEvent.click(screen.getByRole('button', { name: '保存组合' }))
+  await waitFor(() => expect(savedBodies).toHaveLength(1))
+  expect(savedBodies[0].tree).toMatchObject({ op: 'all', children: [{ op: 'filter_ref', filter_id: 'f1', version: 1 }, { op: 'pattern_ref', pattern_id: 'shape-1', version: 2 }] })
 })
 function mountCompose() {
   localStorage.setItem('workbench.section', JSON.stringify('compose'))
@@ -58,6 +79,7 @@ it('creates reusable conditions from the condition library and retains the descr
   await user.click(screen.getByRole('button', { name: '新增可复用条件' }))
   expect(screen.getByRole('heading', { name: '新增可复用条件' })).toBeInTheDocument()
   expect(within(screen.getByRole('navigation', { name: '条件选股流程' })).getByRole('button', { name: /我的条件/ })).toHaveAttribute('aria-current', 'page')
+  await openCustomConditionInput()
   await user.type(screen.getByRole('textbox', { name: '选股条件描述' }), '收盘价高于20日均线')
   await user.click(screen.getByRole('button', { name: '关闭新增条件' }))
   expect(screen.getByRole('heading', { name: '价格条件' })).toBeInTheDocument()
@@ -65,6 +87,26 @@ it('creates reusable conditions from the condition library and retains the descr
   await user.click(screen.getByRole('button', { name: '新增可复用条件' }))
   expect(screen.getByRole('textbox', { name: '选股条件描述' })).toHaveValue('收盘价高于20日均线')
   expect(vi.mocked(api).mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
+})
+
+it('lists shape conditions with other reusable types and adds the explicitly selected historical version', async () => {
+  const original = vi.mocked(api).getMockImplementation()!
+  const first = { id: 'shape-condition', name: '固定形态条件', version: 1, input_type: 'drawing', representation: 'price_path', target_bars: 20, points: [1, .5, 1], candlesticks: [], params: { min_similarity: 75, match_mode: 'recent', recent_bars: 10 }, created_at: '2026-09-01T00:00:00Z' }
+  vi.mocked(api).mockImplementation(async (path, options) => path === '/patterns?include_history=true' ? { items: [first, { ...first, version: 2, params: { ...first.params, min_similarity: 90 } }] } as never : original(path, options))
+  localStorage.setItem('workbench.section', JSON.stringify('library'))
+  const user = userEvent.setup()
+  render(<WorkbenchPage workflowOnly shellNavigation data={data} onReports={vi.fn()} />)
+  await screen.findByRole('button', { name: '查看形态条件 固定形态条件' })
+  await user.selectOptions(screen.getByLabelText('条件类型'), 'pattern')
+  expect(screen.queryByRole('heading', { name: '价格条件' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '查看形态条件 固定形态条件' }))
+  const drawer = screen.getByRole('dialog', { name: '固定形态条件' })
+  expect(within(drawer).getByLabelText('查看形态条件版本')).toHaveValue('2')
+  await user.selectOptions(within(drawer).getByLabelText('查看形态条件版本'), '1')
+  await user.click(within(drawer).getByRole('button', { name: '将此版本加入组合' }))
+  expect(await screen.findByRole('heading', { name: '条件组合编辑' })).toBeInTheDocument()
+  expect(JSON.parse(localStorage.getItem('workbench.tree')!)).toMatchObject({ op: 'all', children: [{ op: 'pattern_ref', pattern_id: 'shape-condition', version: 1, min_similarity: 75, match_mode: 'recent', recent_bars: 10 }] })
+  expect(vi.mocked(api).mock.calls.every(([, options]) => !options?.method)).toBe(true)
 })
 
 it('blocks invalid quantities, future dates and empty groups before submitting', async () => {
@@ -194,6 +236,7 @@ it('appends a confirmed plan to the existing composition and can restore it', as
   vi.mocked(api).mockImplementation(async (path, options) => path === '/condition-drafts/d1' ? { id: 'd1', prompt: '收盘价大于10', original_prompt: '收盘价大于10', source: 'local_parser', status: 'ready', assumptions: [], issues: [], conditions: [], tree: null, saved: { filters: [filter], tree } } as never : original(path, options))
   const user = userEvent.setup()
   render(<WorkbenchPage workflowOnly data={data} onReports={vi.fn()} />)
+  await openCustomConditionInput()
   await user.click(await screen.findByRole('button', { name: '用这些条件组合选股' }))
   await screen.findByRole('heading', { name: '条件组合编辑' })
   expect(JSON.parse(localStorage.getItem('workbench.tree')!).children[0]).toEqual(existing)
@@ -273,6 +316,7 @@ it('creates a condition in a drawer while retaining the composition and unfinish
   await user.click(await screen.findByRole('button', { name: '添加条件' }))
   await user.click(screen.getByRole('button', { name: '描述新条件并核对' }))
   const drawer = screen.getByRole('dialog', { name: '新增可复用条件' })
+  await openCustomConditionInput()
   await user.type(within(drawer).getByLabelText('选股条件描述'), '近5日涨幅大于3%')
   await user.click(within(drawer).getByRole('button', { name: '关闭新增条件' }))
   expect(screen.getByRole('region', { name: '构建选股组合' })).toBe(editor)
@@ -427,6 +471,19 @@ it('retries a failed history result read without treating it as zero matches', a
   expect(requests).toBe(2)
 })
 
+it('enters composition editing and condition management through the shared plan center without executing', async () => {
+  localStorage.setItem('workbench.section', JSON.stringify('saved'))
+  const user = userEvent.setup()
+  render(<WorkbenchPage workflowOnly shellNavigation data={data} onReports={vi.fn()} />)
+  await screen.findByRole('heading', { name: '我的方案' })
+  await user.click(screen.getByRole('button', { name: '管理条件库' }))
+  await screen.findByRole('heading', { name: '价格条件' })
+  await user.click(screen.getByRole('button', { name: '我的方案' }))
+  await user.click(screen.getAllByRole('button', { name: '新建条件组合' })[0])
+  expect(await screen.findByRole('heading', { name: '条件组合编辑' })).toBeInTheDocument()
+  expect(vi.mocked(api).mock.calls.every(([, options]) => !options?.method)).toBe(true)
+})
+
 it('returns to the scheme center and continues the same unsaved composition without running', async () => {
   localStorage.setItem('workbench.section', JSON.stringify('compose'))
   localStorage.setItem('workbench.tree', JSON.stringify(tree))
@@ -434,8 +491,8 @@ it('returns to the scheme center and continues the same unsaved composition with
   render(<WorkbenchPage workflowOnly shellNavigation data={data} onReports={vi.fn()} />)
   await waitFor(() => expect(screen.getByRole('button', { name: '保存组合' })).toBeEnabled())
   fireEvent.change(screen.getByLabelText('组合名称'), { target: { value: '我的未保存研究草稿' } })
-  await user.click(screen.getByRole('button', { name: '我的筛选方案' }))
-  expect(await screen.findByRole('heading', { name: '我的筛选方案' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '我的方案' }))
+  expect(await screen.findByRole('heading', { name: '我的方案' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: '当前组合草稿' })).toHaveTextContent('我的未保存研究草稿')
   await user.click(screen.getByRole('button', { name: '继续编辑草稿' }))
   expect(screen.getByLabelText('组合名称')).toHaveValue('我的未保存研究草稿')
@@ -451,7 +508,7 @@ it('opens historical compositions from the center and undo restores the previous
   render(<WorkbenchPage workflowOnly shellNavigation data={data} onReports={vi.fn()} />)
   await user.click(await screen.findByRole('button', { name: '打开编辑 固定版本方案 第 2 版' }))
   expect(screen.getByText('已保存 · v2')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '我的筛选方案' }))
+  await user.click(screen.getByRole('button', { name: '我的方案' }))
   await user.click(screen.getByText('历史版本 · 1'))
   await user.click(screen.getByRole('button', { name: '打开编辑 固定版本方案 第 1 版' }))
   expect(screen.getByText('已保存 · v1')).toBeInTheDocument()
@@ -505,6 +562,7 @@ it('keeps a confirmed AI condition append on the current strategy identity until
   vi.mocked(api).mockImplementation(async (path, options) => path === '/condition-drafts/confirmed' ? { id: 'confirmed', prompt: '价格条件', original_prompt: '价格条件', source: 'local_parser', status: 'ready', assumptions: [], issues: [], conditions: [], tree: null, saved: { filters: [filter], tree } } as never : original(path, options))
   const user = userEvent.setup()
   render(<WorkbenchPage workflowOnly shellNavigation data={data} onReports={vi.fn()} />)
+  await openCustomConditionInput()
   await user.click(await screen.findByRole('button', { name: '用这些条件组合选股' }))
   expect(await screen.findByRole('heading', { name: '条件组合编辑' })).toBeInTheDocument()
   expect(JSON.parse(localStorage.getItem('workbench.strategyId')!)).toBe('existing-strategy')
@@ -514,6 +572,7 @@ it('keeps a confirmed AI condition append on the current strategy identity until
 it('does not submit generated conditions on an IME composing shortcut from a legacy create link', async () => {
   const onViewChange = vi.fn()
   render(<WorkbenchPage workflowOnly shellNavigation view="create" onViewChange={onViewChange} data={data} onReports={vi.fn()} />)
+  await openCustomConditionInput()
   const input = screen.getByRole('textbox', { name: '选股条件描述' })
   fireEvent.change(input, { target: { value: '最近二十日涨幅' } })
   fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true, isComposing: true })

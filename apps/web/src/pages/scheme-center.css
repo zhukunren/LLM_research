@@ -27,5 +27,10 @@
   .scheme-center-actions button { flex: 1; min-height: 36px; }
   .scheme-center-types { flex-wrap: wrap; }
   .scheme-center-types button { min-height: 36px; }
+  .scheme-center .scheme-center-toolbar { flex-wrap: nowrap; gap: 8px; }
+  .scheme-center .scheme-center-toolbar .conversation-search { flex: 1 1 0; min-width: 0; }
+  .scheme-center-toolbar > .icon-button { flex: 0 0 44px; width: 44px; height: 44px; }
+  .scheme-center .composition-plan-entry > .saved-plan-row { grid-template-columns: minmax(0,1fr) auto; }
+  .scheme-center .composition-plan-entry .saved-plan-reuse { grid-column: 2; grid-row: 1; margin-left: 0; }
   .composition-plan-version { flex-wrap: wrap; }
 }

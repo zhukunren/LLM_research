@@ -56,7 +56,9 @@ textarea.workspace-field { line-height: 1.8; resize: vertical; }
 .research-model-effort-options .workspace-menu-option.workspace-menu-option { justify-content: center; border: 1px solid var(--ui-border); }
 .research-model-effort-options .workspace-menu-option[aria-checked=true] { border-color: var(--ui-primary-border); }
 .workspace-options.stock-search-options { min-width: 0; width: 100%; max-height: min(320px,48dvh); padding: 6px; }
-.workspace-field-shell.stock-search-control { min-width: 0; }
+.workspace-field-shell.stock-search-control { min-width: 0; padding-inline: 10px; border: 1px solid var(--ui-field-border,var(--ui-composer-border)); border-radius: var(--ui-radius-sm); }
+.viewport-workspace .page-frame .workspace-tool-page.page-content .stock-search-control > input.workspace-field,
+.workspace-tool-dialog .workspace-field-shell.stock-search-control > input.workspace-field { --ui-field-padding: 7px 0; border: 0; border-radius: 0; }
 .workspace-options.stock-search-options .workspace-menu-option { display: grid; justify-items: start; gap: 2px; }
 
 .workspace-status.workspace-status { --ui-status-fill: var(--ui-surface-subtle); --ui-status-ink: var(--ui-text-muted); --ui-status-border: var(--ui-border-subtle); display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 24px; padding: 2px 7px; border: 1px solid var(--ui-status-border); border-radius: 6px; color: var(--ui-status-ink); background: var(--ui-status-fill); font-size: 12px; font-weight: 500; line-height: 1.5; vertical-align: middle; overflow-wrap: anywhere; }

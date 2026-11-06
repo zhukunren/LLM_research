@@ -11,6 +11,7 @@ from functools import lru_cache
 import ipaddress
 import os
 import socket
+import time
 import urllib.request
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
@@ -196,10 +197,12 @@ class BrowserSourceGuard:
     otherwise miss later redirect hops). A base element keeps relative resources
     correct for HTML delivered from the final URL.
     """
-    def __init__(self, context, *, transport=None, max_response_bytes=20 * 1024 * 1024, blocked_types=()):
+    def __init__(self, context, *, transport=None, max_response_bytes=20 * 1024 * 1024, blocked_types=(), request_timeout=30, deadline=None):
         self.transport = transport or source_session()
         self.maximum = max_response_bytes
         self.blocked_types = set(blocked_types)
+        self.request_timeout = request_timeout
+        self.deadline = deadline
         self.navigation_urls = {}
         self.errors = []
         context.route("**/*", self.route)
@@ -218,13 +221,18 @@ class BrowserSourceGuard:
             route.abort()
             return
         try:
+            remaining = self.deadline - time.monotonic() if self.deadline is not None else self.request_timeout
+            if remaining <= 0:
+                raise PublicSourceError("网页读取时间预算已用尽，请切换其他来源。")
             headers = {name: value for name, value in request.all_headers().items()
                        if name.lower() not in {"host", "content-length", "connection", "accept-encoding", "proxy-authorization"}}
             with self.transport.request(request.method, request.url, headers=headers,
-                                        data=request.post_data_buffer, timeout=30,
+                                        data=request.post_data_buffer, timeout=min(self.request_timeout, remaining),
                                         stream=True, allow_redirects=True) as response:
                 data = bytearray()
                 for chunk in response.iter_content(64 * 1024):
+                    if self.deadline is not None and time.monotonic() >= self.deadline:
+                        raise PublicSourceError("网页读取时间预算已用尽，请切换其他来源。")
                     data.extend(chunk)
                     if len(data) > self.maximum:
                         raise PublicSourceError("网页资源超过读取大小预算。")

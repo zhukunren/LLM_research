@@ -70,7 +70,7 @@ function ResultItem({ item, index, hasPrevious, onEvidence, onResearch }: { item
     <div className="intelligence-event-number">{String(index + 1).padStart(2, '0')}</div>
     <div className="intelligence-event-body">
       <div className="intelligence-event-heading"><h3>{item.title}</h3>{hasPrevious && <span className={`intelligence-change is-${item.change}`}>{changes[item.change]}</span>}</div>
-      <div className="intelligence-event-meta"><span>{item.event_date}</span><EvidenceDimension dimension={item.analysis_dimension} />{item.policy_stage && <span>{item.policy_stage}</span>}{item.industry_dimension && <span>{item.industry_dimension}</span>}{item.verification === 'time_pending' && <span className="intelligence-pending">来源时间待核验</span>}</div>
+      <div className="intelligence-event-meta"><span>{!item.event_date || item.event_date === 'unknown' ? '日期待核对' : item.event_date}</span><EvidenceDimension dimension={item.analysis_dimension} />{item.policy_stage && <span>{item.policy_stage}</span>}{item.industry_dimension && <span>{item.industry_dimension}</span>}{item.verification === 'time_pending' && <span className="intelligence-pending">来源时间待核验</span>}</div>
       <p className="intelligence-facts">{item.facts}</p>
       <div className="intelligence-analysis"><span>影响分析</span><p>{item.analysis}</p></div>
       {item.affected.length > 0 && <div className="intelligence-affected">{item.affected.map(value => <span key={value}>{value}</span>)}</div>}
@@ -223,6 +223,7 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
     finally { setMoreBusy(false) }
   }
   const result = detail?.result
+  const validation = result?.validation_result ?? detail?.validation_result
   const visibleItems = result?.items.filter(item => (!onlyChanges || item.change !== 'unchanged') &&
     (!query.trim() || `${item.title} ${item.facts} ${item.affected.join(' ')}`.toLowerCase().includes(query.trim().toLowerCase()))) || []
   const active = detail && briefActive(detail.state)
@@ -255,10 +256,8 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
       </section>}
       {result && <>
         <div className="intelligence-result-heading"><div><h2>{result.title}</h2><p>{result.summary}</p></div><a className="secondary-button workspace-button" href={`/api/v1/intelligence/runs/${detail.id}/export`} download><Download size={15} />{advisor ? '导出稿件' : '导出简报'}</a></div>
+        {advisor && validation && <ValidationResult validation={validation} />}
         {advisor && <AdvisorResult key={detail.id} run={detail} onItem={openEvidenceItem} />}
-        {advisor && detail.validation_result && (detail.validation_result.errors.length > 0 || detail.validation_result.warnings.length > 0 || detail.validation_result.suggestions.length > 0) && (
-          <ValidationResult validation={detail.validation_result} />
-        )}
         <div className="intelligence-result-toolbar"><span>{result.items.length} {advisor ? '个证据主题' : '项事件'} · {detail.source_count} {advisor ? '份证据材料' : '份原文'}</span>{detail.previous_id && <><label><input type="checkbox" checked={onlyChanges} onChange={event => setOnlyChanges(event.target.checked)} />只看新增和变化</label><button className="text-button workspace-button" onClick={() => { setSelected(detail.previous_id!); onLocation(kind, detail.previous_id!) }}>查看上期</button></>}<label className="intelligence-result-search"><Search size={15} /><input aria-label="搜索简报事件" placeholder="搜索事件或关联对象" value={query} onChange={event => setQuery(event.target.value)} /></label></div>
         {result.items.length === 0 ? <div className="intelligence-no-updates"><Check size={20} /><h3>{result.outcome === 'evidence_gap' ? '本次未能取得可核验证据' : advisor ? '本次未形成可引用的证据主题' : '本次未发现可靠的实质更新'}</h3><p>{result.no_updates_reason}</p>{result.outcome === 'evidence_gap' && <button className="secondary-button workspace-button" disabled={busy || !!pending || !!ongoing} onClick={() => void submit(detail)}>按原范围重试</button>}</div>
           : visibleItems.length === 0 ? <p className="intelligence-caption">当前筛选下没有事件。<button className="text-button workspace-button" onClick={() => { setQuery(''); setOnlyChanges(false) }}>查看全部</button></p>

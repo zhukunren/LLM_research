@@ -1,12 +1,23 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { legacyWorkspaceRoute, parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
+import { legacyWorkspaceRoute, parseWorkspaceRoute, persistWorkspaceRoute, screeningMethodRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
 import { useWorkspaceRoute } from './useWorkspaceRoute'
 
 beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => window.history.replaceState(null, '', '/'))
 
 describe('stable workspace URLs', () => {
+  it.each(['technical', 'news', 'report', 'pattern'] as const)('round-trips the dedicated %s entry without confusing it with a conversation id', method => {
+    const route = screeningMethodRoute(method)
+    expect(workspaceRouteHash(route)).toBe(`#/screening/method/${method}`)
+    expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route)
+    expect(parseWorkspaceRoute('#/screening/technical')).toMatchObject({ page: 'conditions', conversationId: 'technical' })
+  })
+  it('preserves the method when a first submission becomes a saved conversation', () => {
+    const route: WorkspaceRoute = { page: 'conditions', view: 'conversation', scope: 'news', screeningMethod: 'news', conversationId: 'conversation-1' }
+    expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route)
+    expect(parseWorkspaceRoute('#/screening/method/invalid')).toBeNull()
+  })
   it.each(['research', 'screening'] as const)('redirects old indicator bookmarks into the %s conversation drawer', workspace => {
     const route = parseWorkspaceRoute('#/library/technical?workspace=' + workspace)!
     expect(route).toMatchObject({ page: workspace === 'research' ? 'screening' : 'conditions', newDraft: true, scope: 'technical', indicators: 'common' })

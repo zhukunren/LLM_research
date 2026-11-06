@@ -69,7 +69,7 @@ it('discovers both types in one center and opens a composition for editing witho
   const onOpen = vi.fn(), fetcher = vi.fn(), user = userEvent.setup()
   vi.stubGlobal('fetch', fetcher)
   render(<SavedScreeningPlans strategies={[{ id: 'strategy', version: 3, name: '价值组合', tree: { op: 'all', children: [] }, top_n: 20, created_at: '2026-11-01T00:00:00Z' }]} onOpenComposition={onOpen} />)
-  expect(screen.getByRole('heading', { name: '我的筛选方案' })).toBeVisible()
+  expect(screen.getByRole('heading', { name: '我的方案' })).toBeVisible()
   await user.click(screen.getByRole('button', { name: '条件组合' }))
   expect(screen.queryByRole('button', { name: '复用方案' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '打开编辑' }))

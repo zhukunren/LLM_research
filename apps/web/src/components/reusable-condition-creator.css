@@ -1,0 +1,23 @@
+.reusable-condition-creator { display: grid; gap: 20px; min-width: 0; }
+.reusable-condition-types { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
+.reusable-condition-types > button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 9px 6px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-text-muted); font-size: 13px; cursor: pointer; }
+.reusable-condition-types > button[aria-pressed=true] { border-color: var(--ui-primary-border); background: var(--ui-primary-soft); color: var(--ui-primary); }
+.condition-creator-intro, .condition-creator-note { margin: 0; color: var(--ui-text-muted); font-size: 13px; line-height: 1.75; }
+.condition-creator-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,210px),1fr)); gap: 12px; }
+.condition-pattern-fields, .condition-evidence-fields { display: grid; gap: 14px; }
+.condition-creator-fields .stock-search-control { width: 100%; }
+.condition-numeric-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.condition-sample-check { padding: 16px 0; border-top: 1px solid var(--ui-border); border-bottom: 1px solid var(--ui-border); display: grid; gap: 14px; }
+.condition-sample-check h3 { margin: 0; font-size: 15px; }
+.condition-sample-check > button { justify-self: start; }
+.condition-trial-result { font-size: 13px; line-height: 1.75; overflow-wrap: anywhere; }
+.condition-trial-result p { margin: 7px 0; }
+.condition-trial-result blockquote { margin: 12px 0; padding: 12px; border-left: 2px solid var(--ui-primary-border); background: var(--ui-surface-subtle); }
+.condition-creator-save { display: grid; gap: 12px; }
+.condition-creator-save > div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.condition-creator-save [role=status] { display: inline-flex; gap: 6px; align-items: center; color: var(--ui-success); font-size: 13px; }
+.condition-path-chart { margin: 8px 0; min-width: 0; }
+.condition-path-chart svg { width: 100%; max-height: 160px; }
+.condition-path-chart svg text { fill: var(--ui-text-muted); font-size: 10px; }
+.condition-path-chart figcaption { color: var(--ui-text-muted); font-size: 12px; line-height: 1.6; }
+@media (max-width: 600px) { .reusable-condition-types { grid-template-columns: repeat(2,minmax(0,1fr)); } .reusable-condition-types > button { min-height: 44px; } .condition-creator-fields { grid-template-columns: 1fr; } }

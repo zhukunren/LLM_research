@@ -4,6 +4,18 @@ from __future__ import annotations
 import re
 
 
+def requests_plan_save(text: str) -> bool:
+    """Persisting a reusable asset requires a save request in this turn."""
+    text = _unquoted(text)
+    if re.search(r'(?:不要|不用|不必|无需|不需要|先不|暂不|别|禁止|不)[^，,。；;\n]{0,16}(?:保存|收藏|存入|存下|存为|留存)|\b(?:do\s+not|don\x27t|never)\s+(?:save|bookmark)\b', text, re.IGNORECASE):
+        return False
+    if re.search(r'如何|怎么|怎样|是否|能否|要不要|[?？]|\b(?:how|whether)\b', text, re.IGNORECASE):
+        return False
+    # Reading an existing saved plan is not a new save request.
+    text = re.sub(r'已保存|保存的|已收藏|收藏的', '', text)
+    return bool(re.search(r'保存|收藏|存入(?:方案|条件|策略)库|(?:方案|条件|策略).{0,8}(?:存下|存为|存起来|留存)|\b(?:save|bookmark)\b', text, re.IGNORECASE))
+
+
 def _unquoted(text: str) -> str:
     # Mentioning a command is not issuing it. Leave the surrounding request intact.
     return re.sub(r'“[^”]*”|「[^」]*」|『[^』]*』|"[^"\n]*"|\'[^\'\n]*\'|`[^`]*`', '', text).strip()

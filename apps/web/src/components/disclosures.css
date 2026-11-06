@@ -3,7 +3,14 @@
 .disclosure-heading, .disclosure-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 10px 0; }
 .disclosure-heading { justify-content: space-between; }
 .disclosure-editor { padding: 16px; margin: 16px 0; border: 1px solid var(--ui-border); border-radius: 8px; }
-.disclosure-fields, .disclosure-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; gap: 12px; margin: 12px 0; }
+.disclosure-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; gap: 12px; margin: 12px 0; }
+.disclosure-filters { display: grid; gap: 16px; margin: 16px 0; padding: 18px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface-subtle); }
+.disclosure-primary-filters { display: grid; grid-template-columns: minmax(220px,1fr) minmax(0,2fr); align-items: end; gap: 16px; }
+.disclosure-primary-filters > form { display: flex; align-items: end; gap: 8px; min-width: 0; }
+.disclosure-primary-filters > form > label { flex: 1; min-width: 0; }
+.disclosure-primary-filters > form > button { flex-shrink: 0; }
+.disclosure-secondary-filters { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.disclosure-filters :is(label,.disclosure-stock-field) { font-size: 12px; color: var(--ui-text-muted); }
 .disclosures-panel label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .disclosure-stock-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .disclosures-panel label.disclosure-check { flex-direction: row; align-items: center; margin: 12px 0; }
@@ -26,4 +33,11 @@
 .disclosure-page-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; font: inherit; }
 .disclosure-reader details { margin-top: 12px; overflow-wrap: anywhere; }
 .disclosure-hit { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; white-space: normal; width: 100%; padding: 8px; }
-@media(max-width: 600px) { .disclosure-fields, .disclosure-filters { grid-template-columns: 1fr; } .disclosure-editor { padding: 10px; } }
+@media(max-width: 900px) { .disclosure-secondary-filters { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width: 600px) {
+  .disclosure-fields, .disclosure-primary-filters { grid-template-columns: minmax(0,1fr); }
+  .disclosure-filters { padding: 12px; gap: 14px; }
+  .disclosure-primary-filters { gap: 12px; }
+  .disclosure-secondary-filters { gap: 12px 8px; }
+  .disclosure-editor { padding: 10px; }
+}

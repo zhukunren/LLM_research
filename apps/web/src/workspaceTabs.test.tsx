@@ -4,6 +4,21 @@ import { useWorkspaceTabs } from './workspaceTabs'
 
 beforeEach(() => window.history.replaceState(null, '', '#/research/new'))
 
+it('updates old plan and history tab labels without losing routes or stored drafts', () => {
+  window.history.replaceState(null, '', '#/screening?view=saved')
+  const plans = { id: 'old-plans', title: '我的筛选方案', route: { page: 'conditions', view: 'saved' } }
+  const history = { id: 'old-history', title: '选股记录', route: { page: 'conditions', view: 'history' } }
+  sessionStorage.setItem('conversation.drafts', JSON.stringify({ 'screening:screening:new': '保留原筛选条件' }))
+  sessionStorage.setItem('app.workspaceTabs.v1', JSON.stringify({ tabs: [plans], activeId: plans.id, closedTabs: [{ tab: history, index: 1, order: [plans.id, history.id] }] }))
+  const { result } = renderHook(useWorkspaceTabs)
+  expect(result.current.activeTab.title).toBe('我的方案')
+  expect(result.current.activeTab.route).toMatchObject({ page: 'conditions', view: 'saved' })
+  act(() => result.current.reopenClosed())
+  expect(result.current.activeTab.title).toBe('筛选记录')
+  expect(result.current.activeTab.route).toMatchObject({ page: 'conditions', view: 'history' })
+  expect(sessionStorage.getItem('conversation.drafts')).toContain('保留原筛选条件')
+})
+
 it('migrates active and closed indicator-library tabs while preserving other tabs and drafts', () => {
   window.history.replaceState(null, '', '#/library/technical')
   const legacy = { id: 'old-indicators', title: '内置指标参考', route: { page: 'technical' } }
@@ -337,9 +352,9 @@ it('preserves legacy condition routes and the current draft while naming the sch
   localStorage.setItem('workbench.tree', JSON.stringify({ op: 'any', children: [{ op: 'filter_ref', filter_id: 'fixed', version: 2 }] }))
   const { result } = renderHook(useWorkspaceTabs)
   act(() => result.current.open({ page: 'conditions', view: 'saved' }))
-  expect(result.current.activeTab.title).toBe('我的筛选方案')
+  expect(result.current.activeTab.title).toBe('我的方案')
   act(() => result.current.open({ page: 'conditions', view: 'compose' }))
-  expect(result.current.activeTab.title).toBe('方案规则')
+  expect(result.current.activeTab.title).toBe('条件组合')
   expect(window.location.hash).toBe('#/screening?view=compose')
   act(() => result.current.open({ page: 'conditions', view: 'library' }))
   expect(result.current.activeTab.title).toBe('条件库管理')

@@ -4,6 +4,7 @@ import { expect, it } from 'vitest'
 import { WorkspaceSessionPane } from './WorkspaceSession'
 import type { WorkspaceTab } from './workspaceTabs'
 import WorkspacePageHeading from './components/WorkspacePageHeading'
+import ConditionWorkspaceDrawer from './components/ConditionWorkspaceDrawer'
 
 it('restores nested reading positions even when the browser clears detached scroll offsets', async () => {
   const tab: WorkspaceTab = { id: 'one', route: { page: 'screening', newDraft: true }, title: '新研究' }
@@ -42,4 +43,26 @@ it('shows only active-page actions in the shared toolbar and retains each page s
   expect(within(target).getAllByRole('button')).toHaveLength(1)
   expect(calls).toEqual(['one:保留当前资料', 'two:'])
   view.unmount(); expect(target).toBeEmptyDOMElement(); target.remove()
+})
+
+it('removes a condition drawer from inactive workspaces and restores its unfinished draft on return', () => {
+  const tab: WorkspaceTab = { id: 'conditions', route: { page: 'conditions', view: 'library' }, title: '条件库' }
+  const originalOverflow = document.body.style.overflow
+  const content = (active: boolean) => <WorkspaceSessionPane tab={tab} active={active} onTitle={() => {}}>
+    <ConditionWorkspaceDrawer title="新增条件" onClose={() => {}}><textarea aria-label="条件描述" defaultValue="" /></ConditionWorkspaceDrawer>
+  </WorkspaceSessionPane>
+  const view = render(content(true))
+  const draft = screen.getByLabelText('条件描述')
+  fireEvent.change(draft, { target: { value: '保留尚未提交的条件' } })
+  expect(document.body.style.overflow).toBe('hidden')
+  view.rerender(content(false))
+  expect(screen.queryByRole('dialog', { name: '新增条件' })).not.toBeInTheDocument()
+  expect(document.body.style.overflow).toBe(originalOverflow)
+  view.rerender(content(true))
+  expect(screen.getByRole('dialog', { name: '新增条件' })).toBeInTheDocument()
+  expect(screen.getByLabelText('条件描述')).toBe(draft)
+  expect(draft).toHaveValue('保留尚未提交的条件')
+  expect(screen.getByRole('button', { name: '关闭条件详情' })).toHaveFocus()
+  view.unmount()
+  expect(document.body.style.overflow).toBe(originalOverflow)
 })

@@ -267,3 +267,31 @@ def test_trading_day_news_window_is_blocked_before_execution():
     import pytest
     with pytest.raises(ValueError, match="自然日"):
         validate_executable_task(task)
+
+
+@pytest.mark.parametrize("message", ["请生成方案后直接开始筛选", "不要保存方案，只筛选一次", "读取已保存的方案并运行", "Do not save this plan, just run it", "Don't bookmark this plan"])
+def test_model_cannot_save_a_reusable_asset_for_a_run_only_request(turn_context, message):
+    context = turn_context(message, ready=True)
+    result = screening_tools.registry.dispatch(ToolCall("unrequested-save", "save_screening_plan", {"revision": 1, "name": "不应创建的方案"}), context)
+    assert result["ok"] is False
+    assert result["error"]["code"] == "plan_save_not_requested"
+    assert screening_tools.saved_screening_tasks.list_tasks() == []
+    assert conversation_store.get_conversation(context.conversation_id)["task_revision"] == 1
+
+
+@pytest.mark.parametrize("message", ["保存当前方案", "只保存方案，先不要执行", "将这个策略存入方案库", "请把这个方案存下来", "Save this screening plan"])
+def test_explicit_plan_save_requests_are_recognized(message):
+    from apps.api.app.execution_policy import requests_plan_save
+    assert requests_plan_save(message)
+
+
+def test_invalid_tool_arguments_include_actionable_limits_without_echoing_input(turn_context):
+    context = turn_context("只讨论，不执行", ready=True)
+    result = screening_tools.registry.dispatch(ToolCall("overlong-name", "save_screening_plan", {"revision": 1, "name": "private-input-marker" * 20}), context)
+    assert result["ok"] is False
+    assert result["error"]["code"] == "invalid_tool_arguments"
+    field = result["error"]["fields"][0]
+    assert field["field"] == "name"
+    assert field["constraints"]["max_length"] == 120
+    assert "120" in field["message"]
+    assert "private-input-marker" not in str(result)

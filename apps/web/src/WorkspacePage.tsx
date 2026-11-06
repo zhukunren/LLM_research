@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { api, conversationWorkflow, type Conversation, type ConversationScope, type ConversationSourceReference, type DataStatus, type WorkflowType } from './api'
 import type { ConversationHistoryChange } from './components/ConversationHistoryItem'
 import type { Section } from './pages/WorkbenchPage'
-import type { WorkspaceRoute } from './workspaceRoute'
+import { screeningMethodRoute, type WorkspaceRoute } from './workspaceRoute'
 import type { WorkspaceSeed, WorkspaceTab } from './workspaceTabs'
 import { useWorkspaceSession } from './WorkspaceSession'
 
@@ -30,6 +30,7 @@ export default function WorkspacePage({ tab, data, workspace, conversationUpdate
   const { route } = tab, { page } = route
   const session = useWorkspaceSession()
   const scope = route.scope ?? 'screening', view = route.view ?? 'conversation'
+  const screeningMethod = route.screeningMethod && route.screeningMethod !== 'pattern' ? route.screeningMethod : undefined
   const [prompt, setPrompt] = useState(tab.seed?.prompt)
   const [assistant, setAssistant] = useState(tab.seed?.assistantId)
   const [source, setSource] = useState(tab.seed?.source ?? null)
@@ -49,14 +50,14 @@ export default function WorkspacePage({ tab, data, workspace, conversationUpdate
       if (controller.signal.aborted) return
       const workflow = conversationWorkflow(current)
       setResolved({ id, scope: current.entry_scope, workflow })
-      updateRef.current({ page: workflow === 'screening' ? 'conditions' : 'screening', conversationId: id, scope: current.entry_scope, ...(workflow === 'screening' ? { view: 'conversation' as const } : {}) })
+      updateRef.current({ page: workflow === 'screening' ? 'conditions' : 'screening', conversationId: id, scope: current.entry_scope, ...(workflow === 'screening' ? { view: 'conversation' as const, ...(screeningMethod ? { screeningMethod } : {}) } : {}) })
     }).catch(reason => { if (!controller.signal.aborted) setError((reason as Error).message) })
     return () => controller.abort()
   }, [needsConversation, route.conversationId, resolved?.id, retry])
 
   function location(id: string, entryScope: ConversationScope, workflow: WorkflowType) {
     if (id) setResolved({ id, scope: entryScope, workflow })
-    onUpdate({ page: workflow === 'screening' ? 'conditions' : 'screening', scope: entryScope, ...(id ? { conversationId: id } : { newDraft: true }), ...(workflow === 'screening' ? { view: 'conversation' as const } : {}) })
+    onUpdate({ page: workflow === 'screening' ? 'conditions' : 'screening', scope: entryScope, ...(id ? { conversationId: id } : { newDraft: true }), ...(workflow === 'screening' ? { view: 'conversation' as const, ...(screeningMethod ? { screeningMethod } : {}) } : {}) })
   }
   function openConversation(entryScope: ConversationScope, entrySource?: { reference: ConversationSourceReference; label: string }, entryPrompt?: string, workflow: WorkflowType = 'research', assistantId?: string) {
     onOpen({ page: workflow === 'screening' ? 'conditions' : 'screening', scope: entryScope, newDraft: true, ...(workflow === 'screening' ? { view: 'conversation' } : {}) }, { prompt: entryPrompt, assistantId, source: entrySource, fresh: true })
@@ -77,8 +78,8 @@ export default function WorkspacePage({ tab, data, workspace, conversationUpdate
       {page === 'screening' && (ready ? <ResearchWorkspace onStartScreening={() => openConversation('screening', undefined, undefined, 'screening')} onOpenReports={() => onOpen({ page: 'reports', workspace })} initialCommonIndicators={route.indicators === 'common'} onStartIndicatorScreening={value => openConversation('technical', undefined, value, 'screening')} conversationUpdate={conversationUpdate} initialAssistantId={assistant} shellNavigation={session.active} onHistoryChange={onHistoryChange} data={data} initialConversationId={route.conversationId} initialNewDraft={route.newDraft} onOpenProject={project} newResearchKey={newResearchKey} onNewResearchConsumed={() => { setNewResearchKey(0); setAssistant(undefined) }} initialPrompt={prompt} onPromptConsumed={() => setPrompt(undefined)} initialScope={scope} onScopeChange={changeScope} initialSource={source} onSourceChange={setSource} onOpenConversation={onConversation} onLocationChange={location} /> : loading)}
     </div></div>}
     {page === 'watchlist' && <ObservationPage initialRunId={route.runId} initialCode={route.observationCode} initialCandidateId={route.candidateId} initialTab={route.observationTab} onLocationChange={(observationTab, id, userNavigation = true, code) => onUpdate({ page: 'watchlist', workspace, ...(observationTab ? { observationTab } : {}), ...(id ? observationTab === 'batches' ? { runId: id, ...(code ? { observationCode: code } : {}) } : { candidateId: id } : {}) }, userNavigation)} onStartResearch={onNewResearch} data={data} onNavigateScreening={() => openConversation('screening', undefined, undefined, 'screening')} onOpenResearch={id => onConversation(id, 'screening', 'research')} />}
-    {page === 'conditions' && (ready ? <ScreeningWorkspace initialCommonIndicators={route.indicators === 'common'} conversationUpdate={conversationUpdate} onHistoryChange={onHistoryChange} shellNavigation={session.active} onOpenDataServices={onSettings} conversationId={route.conversationId} conversationNewDraft={route.newDraft} newResearchKey={newResearchKey} onNewResearchConsumed={() => setNewResearchKey(0)} conversationPrompt={prompt} onPromptConsumed={() => setPrompt(undefined)} conversationScope={scope} conversationSource={source} onConversationScopeChange={changeScope} onConversationSourceChange={setSource} onLocationChange={location} data={data} view={view} onViewChange={(section: Section) => onOpen({ page: 'conditions', view: section, scope, ...(section === 'conversation' && route.conversationId ? { conversationId: route.conversationId } : {}) })} onReports={() => onOpen({ page: 'reports', workspace })} onCompose={compose} onCreateCondition={() => onOpen({ page: 'conditions', view: 'create' })} onResumeConversation={onConversation} onConversation={openConversation} /> : loading)}
-    {page === 'patterns' && <PatternPage onCompose={compose} onDiscuss={(id, version, name) => openConversation('pattern', { reference: { kind: 'pattern', source_id: id, version }, label: name })} />}
+    {page === 'conditions' && (ready ? <ScreeningWorkspace screeningMethod={screeningMethod} onScreeningMethod={method => onOpen(screeningMethodRoute(method))} onBrowseScreeningSources={kind => onOpen({ page: 'library', libraryTab: kind, workspace: 'screening' })} initialCommonIndicators={route.indicators === 'common'} conversationUpdate={conversationUpdate} onHistoryChange={onHistoryChange} shellNavigation={session.active} onOpenDataServices={onSettings} conversationId={route.conversationId} conversationNewDraft={route.newDraft} newResearchKey={newResearchKey} onNewResearchConsumed={() => setNewResearchKey(0)} conversationPrompt={prompt} onPromptConsumed={() => setPrompt(undefined)} conversationScope={scope} conversationSource={source} onConversationScopeChange={changeScope} onConversationSourceChange={setSource} onLocationChange={location} data={data} view={view} onViewChange={(section: Section) => onOpen({ page: 'conditions', view: section, scope, ...(section === 'conversation' && route.conversationId ? { conversationId: route.conversationId } : {}) })} onReports={() => onOpen({ page: 'reports', workspace })} onCompose={compose} onCreateCondition={() => onOpen({ page: 'conditions', view: 'create' })} onResumeConversation={onConversation} onConversation={openConversation} /> : loading)}
+    {page === 'patterns' && <PatternPage screeningMode={route.screeningMethod === 'pattern'} onScreeningHistory={() => onOpen({ page: 'conditions', view: 'history' })} onCompose={compose} onDiscuss={(id, version, name) => openConversation('pattern', { reference: { kind: 'pattern', source_id: id, version }, label: name })} />}
     {(page === 'library' || page === 'news' || page === 'reports') && <LibraryWorkspace scope={page === 'reports' || route.libraryTab === 'reports' ? 'report' : 'news'} data={data} onCompose={compose} onConversation={openConversation} onSettings={onSettings}
       onBrowseChange={libraryTab => onUpdate({ page: 'library', libraryTab, workspace }, true)} onHistoryChange={onHistoryChange} />}
   </Suspense>

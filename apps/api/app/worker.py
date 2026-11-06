@@ -28,13 +28,21 @@ def _eval_tree(
     patterns: dict[tuple[str, int], dict[str, Any]],
     report_assessments: dict[tuple[str, int], dict[str, Any]],
     path: str = "root",
+    *, as_of: str | None = None, active=lambda: True,
 ) -> tuple[str, list[dict[str, Any]], float]:
     op = node.get("op")
     if op == "filter_ref":
         key = (node["filter_id"], node["version"])
         item = filters[key]
         library = item["library"]
-        if library == "technical":
+        if library in {"news", "report"} and item["expression"].get("evaluation_mode") == "question":
+            from .condition_builder import evaluate_question
+            cached = report_assessments.setdefault(key, {})
+            if stock_code not in cached:
+                cutoff = as_of or (bars[-1]["trade_date"] if bars else None)
+                cached[stock_code] = evaluate_question(library, item["expression"], stock_code, cutoff, active=active) if cutoff else {"state": "unknown", "reason": "缺少明确的研究截止日期"}
+            detail = dict(cached[stock_code])
+        elif library == "technical":
             expression = resolve_filter_expression(library, item["expression"], node.get("parameter_overrides"))
             detail = evaluate_filter(expression, bars)
             detail["effective_expression"] = expression
@@ -53,7 +61,7 @@ def _eval_tree(
         detail["score_weight"] = weight
         detail["score_contribution"] = weight if detail["state"] == "true" else 0.0
         detail.update({"filter_id": item["id"], "version": item["version"], "name": item["name"], "node_path": path,
-                       "provenance": item.get("provenance", {}), "data_date": bars[-1].get("trade_date") if bars else None})
+                       "provenance": item.get("provenance", {}), "data_date": as_of if item["expression"].get("evaluation_mode") == "question" else bars[-1].get("trade_date") if bars else None})
         return detail["state"], [detail], detail["score_contribution"]
     if op == "pattern_ref":
         key = (node["pattern_id"], node["version"])
@@ -72,7 +80,7 @@ def _eval_tree(
         child_states: list[str] = []
         details: list[dict[str, Any]] = []
         for index, child in enumerate(node["children"]):
-            state, child_detail, _ = _eval_tree(child, stock_code, bars, filters, patterns, report_assessments, f"{path}.{index}")
+            state, child_detail, _ = _eval_tree(child, stock_code, bars, filters, patterns, report_assessments, f"{path}.{index}", as_of=as_of, active=active)
             child_states.append(state)
             details.extend(child_detail)
         combined = combine(op, child_states)
@@ -130,9 +138,11 @@ def _load_report_assessments(
     with connect() as connection:
         for filter_id, version in references(strategy["tree"]):
             item = connection.execute(
-                "SELECT library FROM filters WHERE id=? AND version=?", (filter_id, version)
+                "SELECT library,dsl_json FROM filters WHERE id=? AND version=?", (filter_id, version)
             ).fetchone()
             if not item or item[0] != "report":
+                continue
+            if json_load(item[1])["expression"].get("evaluation_mode") == "question":
                 continue
             row = connection.execute(
                 """SELECT id,status,coverage_json,result_json FROM report_evaluation_runs
@@ -388,7 +398,7 @@ def _execute_screening(lease: JobLease) -> None:
                     break
                 lease.progress(min(0.98, counts["evaluated"] / max(1, profile.get("securities", 6000))), f"已评估 {counts['evaluated']:,} 只证券")
             counts["evaluated"] += 1
-            state, details, score = _eval_tree(strategy["tree"], stock_code, bars, filter_map, pattern_map, report_assessments)
+            state, details, score = _eval_tree(strategy["tree"], stock_code, bars, filter_map, pattern_map, report_assessments, as_of=run[1], active=lease.active)
             stale_reason = None
             if context.get("effective_market_date") and bars[-1]["trade_date"] != context["effective_market_date"]:
                 stale_reason = "该证券在所选市场交易日没有行情；不能用更早的价格代替当前判断"
@@ -414,7 +424,7 @@ def _execute_screening(lease: JobLease) -> None:
             elif state == "unknown" and len(unknown_samples) < 30:
                 unknown_samples.append(item)
         for code in sorted((selected_codes or set()) - seen_codes):
-            state, details, _ = _eval_tree(strategy["tree"], code, [], filter_map, pattern_map, report_assessments)
+            state, details, _ = _eval_tree(strategy["tree"], code, [], filter_map, pattern_map, report_assessments, as_of=run[1], active=lease.active)
             for detail in details:
                 detail.update({"state": "unknown", "reason": "股票池内该证券在截止日前没有可用 A 股行情", "score_contribution": 0.0})
             item = {"stock_code": code, "market": code.rsplit(".", 1)[-1], "as_of": None, "close": None, "state": "unknown", "score": 0, "details": details, "logic": logic_trace(strategy["tree"], details), "reason": "没有可用行情"}

@@ -2,6 +2,7 @@ import { briefKinds, type BriefKind } from './intelligence'
 import type { ConversationScope, WorkflowType } from './api'
 import { localStorage, sessionStorage } from './authStorage'
 import { isPageId, type PageId } from './navigation'
+import { isScreeningMethod, type ScreeningMethod } from './screeningMethods'
 
 export type ScreeningView = 'conversation' | 'create' | 'library' | 'compose' | 'history' | 'saved'
 export type ObservationTab = 'all' | 'candidates' | 'batches' | 'updates' | 'expectations' | 'portfolio'
@@ -21,6 +22,7 @@ export type WorkspaceRoute = {
   briefKind?: BriefKind
   briefId?: string
   libraryTab?: 'news' | 'reports'
+  screeningMethod?: ScreeningMethod
 }
 const scopes: ConversationScope[] = ['screening', 'technical', 'news', 'report', 'pattern']
 const views: ScreeningView[] = ['conversation', 'create', 'library', 'compose', 'history', 'saved']
@@ -51,6 +53,11 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   const sharedWorkspace = workspace === 'screening' ? { workspace: 'screening' as const } : {}
   const scope = params.get('scope')
   if (scope && !scopes.includes(scope as ConversationScope)) return null
+  const method = params.get('method')
+  if (method && !isScreeningMethod(method)) return null
+  if (parts[0] === 'screening' && parts[1] === 'method' && parts.length === 3) {
+    return isScreeningMethod(parts[2]) ? screeningMethodRoute(parts[2]) : null
+  }
   if (parts[0] === 'intelligence' && parts.length <= 3) {
     if (parts[1] && !briefKinds.some(item => item.id === parts[1]) || parts[2] && !objectId.test(parts[2])) return null
     return { page: 'intelligence', briefKind: (parts[1] || 'market') as WorkspaceRoute['briefKind'], ...(parts[2] ? { briefId: parts[2] } : {}) }
@@ -74,7 +81,7 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
     if (view && !views.includes(view as ScreeningView)) return null
     const page = parts[0] === 'research' ? 'screening' : 'conditions'
     return { page, ...(parts[1] === 'new' ? { newDraft: true } : parts[1] ? { conversationId: parts[1] } : {}),
-      ...(scope ? { scope: scope as ConversationScope } : {}), ...(params.get('indicators') === 'common' ? { indicators: 'common' as const } : {}), ...(page === 'conditions' ? { view: parts[1] ? 'conversation' : (view as ScreeningView || 'conversation') } : {}) }
+      ...(scope ? { scope: scope as ConversationScope } : {}), ...(params.get('indicators') === 'common' ? { indicators: 'common' as const } : {}), ...(page === 'conditions' ? { view: parts[1] ? 'conversation' : (view as ScreeningView || 'conversation'), ...(method && method !== 'pattern' ? { screeningMethod: method as ScreeningMethod } : {}) } : {}) }
   }
   if (parts[0] === 'projects' && parts.length <= 2 && (!parts[1] || objectId.test(parts[1]))) return { page: 'research', ...(parts[1] ? { projectId: parts[1] } : {}) }
   if (parts[0] === 'observation') {
@@ -91,12 +98,14 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
 
 export function workspaceRouteHash(input: WorkspaceRoute): string {
   const route = normalizeWorkspaceRoute(input)
+  if (route.screeningMethod && !route.conversationId && (route.page === 'patterns' && route.screeningMethod === 'pattern' || route.page === 'conditions' && (route.view ?? 'conversation') === 'conversation')) return `#/screening/method/${route.screeningMethod}`
   if (route.page === 'intelligence') return `#/intelligence/${route.briefKind || 'market'}${route.briefId ? '/' + encodeURIComponent(route.briefId) : ''}`
   if (route.page === 'library') return `#/library?type=${route.libraryTab || 'news'}${route.workspace === 'screening' ? '&workspace=screening' : ''}`
   const params = new URLSearchParams()
   if (route.workspace === 'screening' && ['news', 'patterns', 'reports', 'watchlist', 'qmt'].includes(route.page)) params.set('workspace', 'screening')
   if ((route.page === 'screening' || route.page === 'conditions') && route.scope && route.scope !== 'screening') params.set('scope', route.scope)
   if ((route.page === 'screening' || route.page === 'conditions') && route.indicators === 'common') params.set('indicators', 'common')
+  if (route.page === 'conditions' && route.conversationId && route.screeningMethod && route.screeningMethod !== 'pattern') params.set('method', route.screeningMethod)
   if (route.page === 'conditions' && !route.conversationId && !route.newDraft && route.view && route.view !== 'conversation') params.set('view', route.view)
   const id = route.conversationId ? encodeURIComponent(route.conversationId) : route.newDraft ? 'new' : ''
   const path = route.page === 'screening' ? `research${id ? '/' + id : ''}`
@@ -105,6 +114,11 @@ export function workspaceRouteHash(input: WorkspaceRoute): string {
         : route.page === 'watchlist' ? `observation${route.runId ? '/batches/' + encodeURIComponent(route.runId) + (route.observationCode ? '/' + encodeURIComponent(route.observationCode) : '') : route.candidateId ? '/candidates/' + encodeURIComponent(route.candidateId) : route.observationTab ? '/' + route.observationTab : ''}`
           : simplePaths[route.page] || 'home'
   return '#/' + path + (params.size ? '?' + params.toString() : '')
+}
+
+export function screeningMethodRoute(method: ScreeningMethod): WorkspaceRoute {
+  return method === 'pattern' ? { page: 'patterns', workspace: 'screening', screeningMethod: method }
+    : { page: 'conditions', view: 'conversation', scope: method, newDraft: true, screeningMethod: method }
 }
 
 function stored<T>(key: string, fallback: T): T {

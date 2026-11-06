@@ -4,13 +4,24 @@
   gap: 16px;
 }
 
+.viewport-workspace .page-frame .investment-tracking-page {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.investment-tracking-page > * { flex-shrink: 0; }
+
 .investment-tabs {
   display: flex;
+  flex-shrink: 0;
+  min-height: 44px;
   gap: 18px;
   overflow-x: auto;
   border-bottom: 1px solid var(--ui-border);
   scrollbar-width: thin;
 }
+
+.investment-tabs.workspace-view-toolbar { flex-wrap: nowrap; }
 
 .investment-tabs [role="tab"] {
   flex: 0 0 auto;
@@ -86,11 +97,13 @@
 
 .investment-entry-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: end;
-  gap: 12px;
-  padding: 14px 0;
-  border-block: 1px solid var(--ui-border);
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface-subtle);
 }
 
 .investment-entry-form .workspace-field-label {
@@ -104,6 +117,7 @@
 .investment-entry-form > button {
   min-height: 38px;
   justify-content: center;
+  grid-column: -2;
 }
 
 .investment-event-list {
@@ -268,6 +282,11 @@
   line-height: 1.55;
 }
 
+@media (max-width: 1100px) {
+  .investment-entry-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .investment-entry-form .investment-entry-stock { grid-column: 1 / -1; }
+}
+
 @media (max-width: 700px) {
   .investment-tabs {
     gap: 14px;
@@ -285,6 +304,7 @@
   .investment-entry-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    padding: 14px;
   }
 
   .investment-entry-form .investment-entry-note {
@@ -292,7 +312,7 @@
   }
 
   .investment-entry-form > button {
-    grid-column: span 2;
+    grid-column: 1 / -1;
   }
 
   .investment-event-row {
@@ -316,12 +336,9 @@
     flex-direction: column;
   }
 
-  .investment-entry-form {
-    grid-template-columns: minmax(0, 1fr);
-  }
+}
 
-  .investment-entry-form .investment-entry-note,
-  .investment-entry-form > button {
-    grid-column: auto;
-  }
+@media (max-width: 360px) {
+  .investment-entry-form { grid-template-columns: minmax(0, 1fr); }
+  .investment-entry-form .investment-entry-note, .investment-entry-form > button { grid-column: 1; }
 }

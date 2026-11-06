@@ -125,6 +125,6 @@
 }
 
 .workspace-pagination-jump { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.workspace-pagination-jump label { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--ui-text-muted); }
-.workspace-pagination-jump input { width: 5em; min-width: 0; }
+.workspace-pagination .workspace-pagination-jump label { display: flex; flex-direction: row; align-items: center; gap: 6px; white-space: nowrap; color: var(--ui-text-muted); }
+.workspace-pagination .workspace-pagination-jump input { flex: 0 0 4em; width: 4em; min-width: 0; text-align: center; }
 @media (max-width: 640px) { .workspace-pagination-jump { grid-column: 1 / -1; flex-wrap: wrap; } }

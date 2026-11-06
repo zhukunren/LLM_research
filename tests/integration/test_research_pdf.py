@@ -240,3 +240,23 @@ def test_note_save_queues_pdf_without_waiting_and_keeps_earlier_versions(researc
         changed['pdf'] = client.get(f"/api/v1/research-projects/{project['id']}").json()['notes'][0]['pdf']
         assert note['pdf']['url'] != changed['pdf']['url']
         assert client.get(note['pdf']['url']).status_code == 200
+
+
+@pytest.mark.parametrize("body,expected_title", [
+    ("**美的集团财务与海外业务研究**\n\n事实与推断分开，收入和经营现金流需要按原文复核。", "美的集团财务与海外业务研究"),
+    ("本研究保留全部财务依据，并区分事实、推断及待核验事项。", "研究报告"),
+])
+def test_long_user_instructions_are_not_truncated_into_pdf_cover_title(research, body, expected_title):
+    cid = store.create_conversation("screening", workflow_type="research")["id"]
+    prompt = "请核对收入、归母净利润、经营现金流以及海外业务的机会和风险，同时说明每项计算的单位、报告期、来源和判断局限" * 4
+    message = store.add_user_message(cid, "long-request", 0, prompt)
+    store.start_turn(cid, message["turn_id"])
+    store.finish_turn(cid, message["turn_id"], 0, "succeeded", body, {})
+    item = pdf.export_turn(cid, message["turn_id"])
+    reader = read(item, cid)
+    assert reader.metadata.title == expected_title
+    cover = reader.pages[0].extract_text()
+    assert expected_title in cover
+    assert prompt[:80] not in cover
+    assert "事实" in "".join(page.extract_text() for page in reader.pages[1:]) or "本研究" in "".join(page.extract_text() for page in reader.pages[1:])
+    assert pdf.export_turn(cid, message["turn_id"]) == item
