@@ -16,6 +16,31 @@
 .stock-action-notice { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1601; max-width: calc(100vw - 24px); padding: 10px 14px; border: 1px solid var(--ui-border); border-radius: 10px; background: white; box-shadow: 0 4px 24px #00000014; font-size: 13px; }
 .stock-action-notice button { margin-left: 14px; border: 0; background: none; cursor: pointer; }
 .stock-quote-layer { position: fixed; inset: 0; z-index: 1700; }
-.stock-quote-layer .stock-chart-backdrop { justify-content: flex-end; padding: 0; }
-.stock-quote-layer .stock-chart-dialog { width: min(900px, 100vw); height: 100dvh; max-height: none; border-radius: 0; }
+.stock-quote-layer .stock-chart-backdrop { justify-content: flex-end; align-items: stretch; padding: 0; }
+.stock-quote-layer .stock-chart-dialog { width: min(900px, 100vw); height: 100%; min-height: 0; max-height: none; border-radius: 0; }
 .stock-chart-dialog .stock-identity strong, .stock-chart-dialog .stock-identity small { color: var(--ui-link, #0079c2); }
+.stock-signal-marker.buy, .indicator-chart-legend .signal-key.buy { color: var(--ui-market-up); }
+.stock-signal-marker.sell, .indicator-chart-legend .signal-key.sell { color: var(--ui-market-down); }
+.stock-signal-marker circle { fill: currentColor; }
+.stock-signal-marker line { stroke: currentColor; stroke-dasharray: 2 2; stroke-width: 1; }
+.indicator-market-chart .stock-signal-marker text { fill: white; font-size: 9px; font-weight: 600; }
+.stock-chart-dialog .stock-signal-context { margin: 10px 0; font-size: 11px; color: var(--ui-text-muted); }
+.trade-explanation { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ui-border); }
+.trade-explanation > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.trade-explanation h3 { margin: 0; font-size: 15px; font-weight: 500; }
+.trade-explanation [role=group] { display: flex; gap: 4px; }
+.trade-explanation [role=group] button { border: 1px solid var(--ui-border); border-radius: 6px; padding: 5px 10px; background: transparent; color: var(--ui-text-muted); font-size: 12px; cursor: pointer; }
+.trade-explanation [role=group] button[aria-pressed=true] { color: var(--ui-primary); border-color: var(--ui-primary-border); background: var(--ui-primary-soft); }
+.trade-explanation-intro { margin: 8px 0 12px; font-size: 12px; color: var(--ui-text-muted); }
+.trade-explanation-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+.trade-explanation-editor { display: block; width: 100%; min-height: 160px; margin-top: 12px; resize: vertical; font-size: 14px; line-height: 1.9; }
+.trade-explanation-copy { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }
+.trade-explanation-copy > span { font-size: 12px; color: var(--ui-text-muted); }
+.trade-explanation-analysis, .trade-explanation-limitations { margin: 12px 0 0; font-size: 12px; line-height: 1.8; color: var(--ui-text-muted); }
+.trade-explanation-sources { padding-left: 18px; margin: 12px 0 0; font-size: 12px; line-height: 1.8; }
+.trade-explanation-sources a { color: var(--ui-link); overflow-wrap: anywhere; }
+.trade-explanation-sources time { display: inline-block; margin-left: 8px; color: var(--ui-text-muted); white-space: nowrap; }
+@media (max-width: 600px) {
+ .trade-explanation-editor { font-size: 16px; }
+ .trade-explanation [role=group] button { min-height: 36px; }
+}

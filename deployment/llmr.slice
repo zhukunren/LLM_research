@@ -1,0 +1,14 @@
+[Unit]
+Description=LLM Research shared resource budget
+
+[Slice]
+CPUAccounting=true
+CPUQuota=80%
+CPUWeight=20
+MemoryAccounting=true
+MemoryHigh=1G
+MemoryMax=1280M
+MemorySwapMax=256M
+TasksMax=160
+IOAccounting=true
+IOWeight=20

@@ -611,15 +611,26 @@ def run_worker(poll_seconds: float = 1.0, *, stop_event: Event | None = None) ->
                 logging.getLogger(__name__).exception("Worker lane failed")
                 stop.wait(poll_seconds)
 
+    def schedule_client_cards():
+        from .client_service import scheduler_tick
+        while not stop.is_set():
+            try:
+                scheduler_tick()
+            except Exception:
+                logging.getLogger(__name__).exception('Client service scheduler failed')
+            stop.wait(20)
+
     # A Codex turn can wait for a scan, so its consumer must run independently.
     research = Thread(target=consume, kwargs={"kinds": ("research_turn",)}, name="research-turn-worker", daemon=True)
     pdf = Thread(target=consume, kwargs={"kinds": ("research_pdf",)}, name="research-pdf-worker", daemon=True)
     matrix = Thread(target=consume, kwargs={"kinds": ("research_matrix",)}, name="research-matrix-worker", daemon=True)
     intelligence_sources = Thread(target=consume, kwargs={"kinds": ("intelligence_source",)}, name="intelligence-source-worker", daemon=True)
+    client_cards = Thread(target=schedule_client_cards, name='client-service-scheduler', daemon=True)
     research.start()
     pdf.start()
     matrix.start()
     intelligence_sources.start()
+    client_cards.start()
     try:
         consume(exclude_kinds=("research_turn", "research_pdf", "research_matrix", "intelligence_source"))
     finally:
@@ -628,6 +639,7 @@ def run_worker(poll_seconds: float = 1.0, *, stop_event: Event | None = None) ->
         pdf.join(timeout=2)
         matrix.join(timeout=2)
         intelligence_sources.join(timeout=2)
+        client_cards.join(timeout=2)
 
 
 if __name__ == "__main__":

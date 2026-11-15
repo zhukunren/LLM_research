@@ -51,6 +51,11 @@ def trusted_write_request(request: Request) -> bool:
     if candidate is None:
         return False
     allowed = set()
+    # Explicit server-owned origin for a single-user workbench behind an
+    # authenticating reverse proxy. Never infer this from request headers.
+    public_origin = _origin(os.environ.get("LLMR_TRUSTED_ORIGIN", ""))
+    if public_origin:
+        allowed.add(public_origin)
     from .security_context import auth_mode
     if auth_mode() == "oidc":
         from .auth import settings

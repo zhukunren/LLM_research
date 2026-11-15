@@ -11,6 +11,7 @@ import tempfile
 import threading
 from contextvars import copy_context
 import time
+import tomllib
 import urllib.request
 from urllib.parse import urlsplit
 from datetime import datetime, timedelta, timezone
@@ -147,6 +148,43 @@ def availability() -> dict[str, Any]:
     }
 
 
+def _search_probe_evidence(item: dict[str, Any]) -> tuple[int, bool]:
+    """Read native tool evidence, including opaque standalone page results."""
+    item_type = re.sub(r"[^a-z]", "", str(item.get("type", "")).lower())
+    if item_type not in {"websearch", "websearchcall"} or item.get("status") in {"failed", "cancelled"} or item.get("error"):
+        return 0, False
+
+    def official(url: Any) -> bool:
+        try:
+            parsed = urlsplit(url) if isinstance(url, str) else None
+            host = (parsed.hostname or "").lower() if parsed else ""
+            return bool(parsed and parsed.scheme in {"http", "https"} and (host == "sec.gov" or host.endswith(".sec.gov")))
+        except ValueError:
+            return False
+
+    results = item.get("results")
+    results = results if isinstance(results, list) else []
+    action = item.get("action") or {}
+    opened = action.get("type") in {"openPage", "open_page"} and official(action.get("url"))
+    count = 0
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        reference = str(result.get("ref_id", ""))
+        if re.fullmatch(r"turn\d+search\d+", reference):
+            count += 1
+        # Standalone web search can encode open as action=other; a view
+        # reference plus extracted page lines distinguishes it from a hit.
+        if (action.get("type") == "other"
+                and re.fullmatch(r"turn\d+view\d+", reference)
+                and re.search(r"Total lines:\s*[1-9]\d*", str(result.get("snippet", "")))
+                and official(result.get("url")) and not result.get("error")):
+            opened = True
+    if action.get("type") == "search" and not count:
+        count = len(results)
+    return count, bool(opened)
+
+
 def probe_web_search() -> dict[str, Any]:
     runtime = availability()
     if not runtime["available"]:
@@ -177,7 +215,7 @@ def probe_web_search() -> dict[str, Any]:
                 codex_bin=os.environ.get("LLMR_CODEX_BIN", "").strip() or None,
                 config_overrides=(
                     _provider_overrides(settings)
-                    + ("model_providers.llmr.stream_idle_timeout_ms=45000",)
+                    + (f"model_providers.{codex_provider_name()}.stream_idle_timeout_ms=45000",)
                     + _workspace_overrides(workspace)
                 ),
                 cwd=str(workspace),
@@ -193,7 +231,7 @@ def probe_web_search() -> dict[str, Any]:
                 codex._client._approval_handler = _codex_approval_handler
                 thread = codex.thread_start(
                     model=str(settings["model"]),
-                    model_provider="llmr",
+                    model_provider=codex_provider_name(),
                     cwd=str(workspace),
                     sandbox=Sandbox.workspace_write,
                     approval_mode=ApprovalMode.deny_all,
@@ -223,20 +261,9 @@ def probe_web_search() -> dict[str, Any]:
                     if event.method != "item/completed":
                         continue
                     item = payload.get("item") or {}
-                    item_type = re.sub(r"[^a-z]", "", str(item.get("type", "")).lower())
-                    if item_type not in {"websearch", "websearchcall"} or item.get("status") in {"failed", "cancelled"} or item.get("error"):
-                        continue
-                    results = item.get("results")
-                    if isinstance(results, list):
-                        search_results += len(results)
-                    action = item.get("action") or {}
-                    opened_url = action.get("url")
-                    if action.get("type") in {"openPage", "open_page"} and isinstance(opened_url, str):
-                        try:
-                            host = (urlsplit(opened_url).hostname or "").lower()
-                        except ValueError:
-                            host = ""
-                        opened_page = opened_page or host == "sec.gov" or host.endswith(".sec.gov")
+                    count, opened = _search_probe_evidence(item)
+                    search_results += count
+                    opened_page = opened_page or opened
             verified = turn_status == "completed" and search_results > 0 and opened_page
             return {
                 "connected": turn_status == "completed",
@@ -377,6 +404,32 @@ def _migrate_thread_rollout(thread_id: str, environment: dict[str, str]) -> Path
     return destination
 
 
+def _codex_profile() -> dict[str, Any]:
+    path = os.environ.get("LLMR_CODEX_CONFIG_FILE", "")
+    if not path:
+        return {}
+    with Path(path).open("rb") as stream:
+        return tomllib.load(stream)
+
+
+def codex_provider_name() -> str:
+    name = str(_codex_profile().get("model_provider", "llmr"))
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise CodexRuntimeError("Codex provider 名称无效")
+    return name
+
+
+def _profile_overrides(profile: dict[str, Any], prefix: str = "") -> tuple[str, ...]:
+    result = []
+    for key, value in profile.items():
+        path = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            result.extend(_profile_overrides(value, path))
+        else:
+            result.append(f"{path}={json.dumps(value, ensure_ascii=False)}")
+    return tuple(result)
+
+
 def _provider_overrides(settings: dict[str, Any]) -> tuple[str, ...]:
     base_url = str(settings.get("base_url") or "").rstrip("/")
     if not base_url:
@@ -394,18 +447,21 @@ def _provider_overrides(settings: dict[str, Any]) -> tuple[str, ...]:
     # Network access alone does not register Codex's native web tool. The pinned
     # runtime requires both its standalone feature and the provider capability.
     standalone_search = supports_search and search_mode != "disabled"
-    overrides = (
-        "model_provider=\"llmr\"",
+    profile = _codex_profile()
+    provider_name = codex_provider_name()
+    provider_key = f"model_providers.{provider_name}"
+    overrides = _profile_overrides(profile) + (
+        f"model_provider={_toml_string(provider_name)}",
         f"model={_toml_string(model)}",
-        'model_providers.llmr.name="LLM Research provider"',
-        f"model_providers.llmr.base_url={_toml_string(base_url)}",
-        'model_providers.llmr.wire_api="responses"',
-        'model_providers.llmr.env_key="LLMR_CODEX_API_KEY"',
+        f'{provider_key}.name={_toml_string(provider_name if profile else "LLM Research provider")}',
+        f"{provider_key}.base_url={_toml_string(base_url)}",
+        f'{provider_key}.wire_api="responses"',
+        f'{provider_key}.env_key="LLMR_CODEX_API_KEY"',
         f"web_search={_toml_string(search_mode)}",
         f"features.standalone_web_search={str(standalone_search).lower()}",
-        f"model_providers.llmr.supports_standalone_web_search={str(supports_search).lower()}",
-        "model_providers.llmr.request_max_retries=2",
-        f"model_providers.llmr.stream_idle_timeout_ms={research_mode_settings('research')['model_request_timeout_seconds'] * 1000}",
+        f"{provider_key}.supports_standalone_web_search={str(supports_search).lower()}",
+        f"{provider_key}.request_max_retries=2",
+        f"{provider_key}.stream_idle_timeout_ms={research_mode_settings('research')['model_request_timeout_seconds'] * 1000}",
     )
     effort = settings.get("reasoning_effort")
     return overrides + ((f"model_reasoning_effort={_toml_string(str(effort))}",) if effort else ())
@@ -413,6 +469,10 @@ def _provider_overrides(settings: dict[str, Any]) -> tuple[str, ...]:
 
 def _workspace_overrides(workspace: Path) -> tuple[str, ...]:
     overrides = (
+        # Research uses its own skills and MCP bridge; avoid downloading the
+        # unrelated curated plugin marketplace into every isolated session.
+        'features.plugins=false',
+        'features.plugin_discovery_prefetch=false',
         'sandbox_mode="workspace-write"',
         'approval_policy="never"',
         'project_root_markers=[".research-root"]',
@@ -433,7 +493,9 @@ def _workspace_overrides(workspace: Path) -> tuple[str, ...]:
 
 
 def _mcp_overrides(environment: dict[str, str] | None = None) -> tuple[str, ...]:
-    python_executable = str(Path(sys.executable).resolve())
+    # Resolving a venv symlink selects the system interpreter and loses its
+    # site-packages, causing the MCP process to exit before initialize.
+    python_executable = os.path.abspath(sys.executable)
     project_root = str(PROJECT_ROOT)
     environment = environment or os.environ
     overrides = [
@@ -663,7 +725,7 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                 thread = codex.thread_resume(
                     existing["thread_id"],
                     model=str(settings["model"]),
-                    model_provider="llmr",
+                    model_provider=codex_provider_name(),
                     cwd=str(workspace),
                     sandbox=Sandbox.workspace_write,
                     approval_mode=ApprovalMode.deny_all,
@@ -672,7 +734,7 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
             else:
                 thread = codex.thread_start(
                     model=str(settings["model"]),
-                    model_provider="llmr",
+                    model_provider=codex_provider_name(),
                     cwd=str(workspace),
                     sandbox=Sandbox.workspace_write,
                     approval_mode=ApprovalMode.deny_all,
@@ -804,6 +866,9 @@ def process_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, A
         state = "awaiting_user" if clarification and not ready_to_execute else "succeeded"
         from .intelligence import require_deliverable
         is_intelligence = require_deliverable(conversation_id, turn_id)
+        from .trade_explanations import is_explanation
+        from .client_service import is_client_card
+        skip_pdf = is_intelligence or is_explanation(conversation_id, turn_id) or is_client_card(conversation_id, turn_id)
         # Publishing research text never waits for document layout. Original inputs stay in the workspace.
         files = result.get("files", []) if is_screening else []
         with conversation_store.connect() as connection:
@@ -827,7 +892,7 @@ def process_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, A
                     "files": files,
                     **({"research_summary": result["research_summary"]} if not is_screening and result.get("research_summary") else {}),
                     "pdf_error": None,
-                    "pdf_status": None if is_screening or is_intelligence else "queued",
+                    "pdf_status": None if is_screening or skip_pdf else "queued",
                     "intent": intent,
                     "task_revision": active_revision if is_screening else 0,
                     "research_scope_revision": turn.get("research_scope_revision", 0) if not is_screening else None,
@@ -840,7 +905,7 @@ def process_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, A
                 pending_execute_message_id=pending_message_id,
                 _connection=connection,
             )
-            if not is_screening and not is_intelligence:
+            if not is_screening and not skip_pdf:
                 from . import research_pdf_service
                 connection.execute("SAVEPOINT pdf_queue")
                 try:

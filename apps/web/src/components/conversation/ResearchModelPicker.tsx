@@ -86,13 +86,14 @@ export default function ResearchModelPicker({ value, disabled, onChange, onAvail
       const viewportHeight = viewport?.height || window.innerHeight
       const viewportLeft = viewport?.offsetLeft || 0
       const viewportTop = viewport?.offsetTop || 0
-      const width = Math.min(348, Math.max(0, viewportWidth - 24))
-      const maxHeight = Math.max(120, viewportHeight - 24)
-      const height = Math.min(popup.current?.scrollHeight || 480, maxHeight)
+      const zoom = Number.parseFloat(getComputedStyle(document.body).zoom) || 1
+      const width = Math.min(348 * zoom, Math.max(0, viewportWidth - 24))
+      const maxHeight = Math.max(120 * zoom, Math.min(560 * zoom, viewportHeight - 24))
+      const height = Math.min((popup.current?.scrollHeight || 480) * zoom, maxHeight)
       const left = Math.max(viewportLeft + 12, Math.min(anchor.left, viewportLeft + viewportWidth - width - 12))
       const below = anchor.bottom + 8
       const top = Math.max(viewportTop + 12, Math.min(below + height <= viewportTop + viewportHeight - 12 ? below : anchor.top - height - 8, viewportTop + viewportHeight - height - 12))
-      setPosition({ left, top, width, maxHeight })
+      setPosition({ left: left / zoom, top: top / zoom, width: width / zoom, maxHeight: maxHeight / zoom })
     }
     reposition()
     window.addEventListener('resize', reposition)
@@ -160,17 +161,17 @@ export default function ResearchModelPicker({ value, disabled, onChange, onAvail
     {portalTarget ? createPortal(button, portalTarget) : button}
     {open && createPortal(<div id={id} ref={popup} role="menu" aria-label="模型与推理设置" tabIndex={-1}
       className="research-model-popover workspace-tool-dialog workspace-popover workspace-menu" style={position} onKeyDown={navigate}>
-      <div className="research-model-popover-heading"><span>研究模型</span>{catalog && <span className="research-model-tier">{catalog.account_tier === 'free' ? 'Free' : catalog.account_tier}</span>}</div>
+      <div className="research-model-popover-heading"><span>研究模型</span>{catalog && <span className="research-model-count">{catalog.models.length} 个模型</span>}</div>
       {loading && <LoadingState compact label="正在读取可用模型…" />}
       {error && <div className="research-model-state workspace-error" role="alert"><p>{error}</p><button type="button" onClick={() => setAttempt(current => current + 1)} className="workspace-button"><RefreshCw size={14} aria-hidden="true" />重新加载</button></div>}
       {!loading && !error && catalog && <>
-        <div role="group" aria-label="模型">
+        <div className="research-model-options" role="group" aria-label="模型">
           {catalog.models.map(model => <button key={model.id} type="button" role="menuitemradio" aria-checked={selectedId === model.id}
             className="research-model-option workspace-button workspace-menu-option" disabled={!model.available} onClick={() => {
               const effort = model.reasoning_efforts.some(item => item.id === selectedEffort) ? selectedEffort! : model.default_reasoning_effort
               choose(model.id, effort)
             }}>
-            <span><strong>{model.label}</strong><small>{model.available ? model.description : model.unavailable_reason || '当前账户不可用'}</small></span>
+            <span><strong>{model.label}</strong>{(!model.available || model.description !== 'Codex 可用模型') && <small>{model.available ? model.description : model.unavailable_reason || '当前账户不可用'}</small>}</span>
             {!model.available ? <LockKeyhole size={15} aria-hidden="true" /> : selectedId === model.id ? <Check size={17} aria-hidden="true" /> : null}
           </button>)}
         </div>

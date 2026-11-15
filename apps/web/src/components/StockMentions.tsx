@@ -5,17 +5,19 @@ import { api } from '../api'
 import { createStockMatcher, type StockMatcher } from '../stockMentions'
 import { useSecurities } from './StockSearch'
 import './stock-mentions.css'
+import type { StockSignalContext } from '../stockSignalContext'
 
 const StockChartDialog = lazy(() => import('./StockChartDialog'))
-type Target = { code: string; element: HTMLElement; asOf?: string; originalHref?: string }
-type Actions = { matcher: StockMatcher; show: (target: Target, fromFocus?: boolean) => void; hideSoon: () => void; dismiss: () => void; open: (code: string, asOf?: string, origin?: HTMLElement) => void }
+type Target = { code: string; element: HTMLElement; asOf?: string; signalContext?: StockSignalContext; originalHref?: string }
+type Actions = { matcher: StockMatcher; show: (target: Target, fromFocus?: boolean) => void; hideSoon: () => void; dismiss: () => void; open: (code: string, asOf?: string, origin?: HTMLElement, signalContext?: StockSignalContext) => void }
 const Context = createContext<Actions | null>(null)
 
 export function StockInteractionsProvider({ children }: { children: ReactNode }) {
   const { items } = useSecurities()
+  const viewportZoom = Number.parseFloat(getComputedStyle(document.body).zoom) || 1
   const matcher = useMemo(() => createStockMatcher(items), [items])
   const [hover, setHover] = useState<Target | null>(null)
-  const [quote, setQuote] = useState<{ code: string; asOf?: string } | null>(() => {
+  const [quote, setQuote] = useState<{ code: string; asOf?: string; signalContext?: StockSignalContext } | null>(() => {
     const parameters = new URLSearchParams(window.location.hash.split('?')[1] || '')
     const code = parameters.get('quote')
     return code && /^\d{6}\.(SH|SZ|BJ)$/.test(code) ? { code } : null
@@ -37,16 +39,17 @@ export function StockInteractionsProvider({ children }: { children: ReactNode })
     if (fromFocus && suppressFocus.current) return
     clearTimer(); setError(null); setHover(target)
     const box = target.element.getBoundingClientRect()
-    const width = Math.min(284, window.innerWidth - 24)
+    const zoom = Number.parseFloat(getComputedStyle(document.body).zoom) || 1
+    const width = Math.min(284 * zoom, window.innerWidth - 24)
     setPosition({ left: Math.max(12, Math.min(box.left, window.innerWidth - width - 12)), top: Math.max(12, Math.min(box.bottom + 8, window.innerHeight - 170)) })
   }, [clearTimer])
-  const open = useCallback((code: string, asOf?: string, origin?: HTMLElement) => { clearTimer(); quoteOrigin.current = origin || document.activeElement as HTMLElement; setHover(null); setQuote({ code, asOf }) }, [clearTimer])
+  const open = useCallback((code: string, asOf?: string, origin?: HTMLElement, signalContext?: StockSignalContext) => { clearTimer(); quoteOrigin.current = origin || document.activeElement as HTMLElement; setHover(null); setQuote({ code, asOf, signalContext }) }, [clearTimer])
   const closeQuote = () => { const origin = quoteOrigin.current; setQuote(null); requestAnimationFrame(() => restoreFocus(origin)) }
   useEffect(() => () => clearTimer(), [clearTimer])
   useLayoutEffect(() => {
     if (!hover || !popover.current) return
-    const anchor = hover.element.getBoundingClientRect(), height = popover.current.getBoundingClientRect().height
-    setPosition({ left: Math.max(12, Math.min(anchor.left, window.innerWidth - popover.current.offsetWidth - 12)), top: Math.max(12, Math.min(anchor.bottom + 8, window.innerHeight - height - 12)) })
+    const anchor = hover.element.getBoundingClientRect(), box = popover.current.getBoundingClientRect()
+    setPosition({ left: Math.max(12, Math.min(anchor.left, window.innerWidth - box.width - 12)), top: Math.max(12, Math.min(anchor.bottom + 8, window.innerHeight - box.height - 12)) })
   }, [hover, error])
   useEffect(() => {
     const changed = (event: Event) => {
@@ -81,30 +84,33 @@ export function StockInteractionsProvider({ children }: { children: ReactNode })
   const identity = hover && matcher.codes.get(hover.code)
   return <Context.Provider value={{ matcher, show, hideSoon, dismiss, open }}>{children}
     {notice && <div className="stock-action-notice workspace-feedback workspace-feedback-success" role="status">{notice}<button type="button" aria-label="关闭观察提示" onClick={() => setNotice('')} className="workspace-button">×</button></div>}
-    {hover && createPortal(<div ref={popover} className="stock-action-popover workspace-tool-dialog workspace-popover" role="dialog" aria-label={`${identity?.name || hover.code}股票操作`} style={position}
+    {hover && createPortal(<div ref={popover} className="stock-action-popover workspace-tool-dialog workspace-popover" role="dialog" aria-label={`${identity?.name || hover.code}股票操作`} style={{ left: position.left / viewportZoom, top: position.top / viewportZoom }}
       onPointerEnter={clearTimer} onPointerLeave={hideSoon} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setHover(null); restoreFocus(hover.element) } }}>
-      <button className="stock-action-title workspace-button" type="button" aria-label={`查看${identity?.name || hover.code}行情`} onClick={() => open(hover.code, hover.asOf, hover.element)}><strong>{identity?.name || hover.code}</strong><small>{hover.code}</small></button>
-      <button type="button" onClick={() => open(hover.code, hover.asOf, hover.element)} className="workspace-button"><TrendingUp size={15} />查看行情</button>
+      <button className="stock-action-title workspace-button" type="button" aria-label={`查看${identity?.name || hover.code}行情`} onClick={() => open(hover.code, hover.asOf, hover.element, hover.signalContext)}><strong>{identity?.name || hover.code}</strong><small>{hover.code}</small></button>
+      <button type="button" onClick={() => open(hover.code, hover.asOf, hover.element, hover.signalContext)} className="workspace-button"><TrendingUp size={15} />查看行情</button>
       {matcher.codes.has(hover.code) && <button type="button" disabled={busy.has(hover.code) || added.has(hover.code)} onClick={() => void add(hover.code)} className="workspace-button">
         {busy.has(hover.code) ? <LoaderCircle size={15} className="spin" /> : added.has(hover.code) ? <Check size={15} /> : <Star size={15} />}{busy.has(hover.code) ? '加入中…' : added.has(hover.code) ? '已加入观察池' : '加入观察池'}
       </button>}{hover.originalHref && <a href={hover.originalHref} target="_blank" rel="noopener noreferrer">查看原文</a>}{error?.code === hover.code && <p role="alert" className="workspace-error">{error.message}</p>}
     </div>, hover.element.closest('[aria-modal="true"]') || document.body)}
-    {quote && <div className="stock-quote-layer"><Suspense fallback={<div className="stock-action-notice workspace-feedback workspace-feedback-info" role="status">正在打开行情…</div>}><StockChartDialog code={quote.code} asOf={quote.asOf} onClose={closeQuote}
+    {quote && <div className="stock-quote-layer"><Suspense fallback={<div className="stock-action-notice workspace-feedback workspace-feedback-info" role="status">正在打开行情…</div>}><StockChartDialog code={quote.code} asOf={quote.asOf} signalContext={quote.signalContext} onClose={closeQuote}
       onAddToWatchlist={matcher.codes.has(quote.code) ? () => void add(quote.code) : undefined} watchBusy={busy.has(quote.code)} watched={added.has(quote.code)} actionError={error?.code === quote.code ? error.message : undefined} /></Suspense></div>}
   </Context.Provider>
 }
 
-export function StockMention({ code, children, embedded = false, asOf }: { code: string; children: ReactNode; embedded?: boolean; asOf?: string }) {
+export function StockMention({ code, children, embedded = false, asOf, signalContext }: { code: string; children: ReactNode; embedded?: boolean; asOf?: string; signalContext?: StockSignalContext }) {
   const actions = useContext(Context)
   const ref = useRef<HTMLAnchorElement | HTMLSpanElement>(null)
+  const touchFocus = useRef(false)
   function target() {
     const href = embedded ? ref.current?.closest('a')?.getAttribute('href') : null
-    return { code, element: ref.current!, asOf, originalHref: href && /^(https?:\/\/|\/api\/v1\/(documents|news)\/)/i.test(href) ? href : undefined }
+    return { code, element: ref.current!, asOf, signalContext, originalHref: href && /^(https?:\/\/|\/api\/v1\/(documents|news)\/)/i.test(href) ? href : undefined }
   }
   const content = { className: 'stock-mention', 'data-stock-code': code,
-    onClick: (event: ReactMouseEvent<HTMLElement>) => { if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || !actions) return; event.preventDefault(); event.stopPropagation(); actions.open(code, asOf, ref.current || undefined) },
+    onClick: (event: ReactMouseEvent<HTMLElement>) => { if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || !actions) return; event.preventDefault(); event.stopPropagation(); actions.open(code, asOf, ref.current || undefined, signalContext) },
     onPointerEnter: (event: React.PointerEvent<HTMLElement>) => { if (actions && event.pointerType !== 'touch') actions.show(target()) },
-    onPointerLeave: () => actions?.hideSoon(), onFocus: () => actions?.show(target(), true),
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => { touchFocus.current = event.pointerType === 'touch' },
+    onPointerLeave: () => actions?.hideSoon(), onFocus: () => { if (!touchFocus.current) actions?.show(target(), true) },
+    onBlur: () => { touchFocus.current = false },
     onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => { if (!actions) return; if (event.key === 'ArrowDown' || event.key === ' ') { event.preventDefault(); actions.show(target()); setTimeout(() => document.querySelector<HTMLButtonElement>('.stock-action-popover button')?.focus(), 0) } },
   }
   if (embedded) return <span ref={ref as React.Ref<HTMLSpanElement>} tabIndex={-1} {...content}>{children}</span>

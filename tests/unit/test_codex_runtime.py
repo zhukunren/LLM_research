@@ -393,3 +393,77 @@ def test_expired_turn_recovers_without_overwriting_live_or_completed_turns(tmp_p
     assert conversation_store.recover_expired_turns() == 0
     assert len(conversation_store.get_conversation(cid)["messages"]) == 2
     assert conversation_store.add_user_message(cid, "resumed", 1, "继续")["state"] == "awaiting_agent"
+
+
+def test_search_probe_recognizes_standalone_official_page_result():
+    search = {"type": "webSearch", "action": {"type": "search"}, "results": [
+        {"ref_id": "turn0search0", "url": "https://www.sec.gov/edgar"}]}
+    page = {"type": "webSearch", "action": {"type": "other"}, "results": [
+        {"type": "text_result", "ref_id": "turn1view0", "snippet": "Total lines: 370",
+         "url": "https://www.sec.gov/submit-filings/edgar-filer-manual"}]}
+    assert codex_runtime._search_probe_evidence(search) == (1, False)
+    assert codex_runtime._search_probe_evidence(page) == (0, True)
+
+
+@pytest.mark.parametrize('change', [
+    {"ref_id": "turn1search0"},
+    {"snippet": "Failed to fetch page"},
+    {"snippet": "Total lines: 0"},
+    {"url": "https://www.sec.gov.evil.example/edgar"},
+    {"url": "https://unofficial.example/edgar"},
+    {"error": "fetch failed"},
+])
+def test_search_probe_does_not_accept_unread_or_unofficial_page(change):
+    result = {"ref_id": "turn1view0", "snippet": "Total lines: 370",
+              "url": "https://www.sec.gov/edgar", **change}
+    _, opened = codex_runtime._search_probe_evidence({
+        "type": "webSearch", "action": {"type": "other"}, "results": [result]})
+    assert not opened
+
+
+def test_search_probe_keeps_legacy_open_events_and_rejects_failed_items():
+    item = {"type": "webSearch", "action": {"type": "openPage", "url": "https://sec.gov/edgar"}}
+    assert codex_runtime._search_probe_evidence(item) == (0, True)
+    assert codex_runtime._search_probe_evidence({**item, "status": "failed"}) == (0, False)
+
+
+def test_mcp_preserves_virtualenv_python_symlink(tmp_path, monkeypatch):
+    import sys
+    venv_python = tmp_path / '.venv' / 'bin' / 'python'
+    venv_python.parent.mkdir(parents=True)
+    venv_python.symlink_to(sys.executable)
+    monkeypatch.setattr(codex_runtime.sys, 'executable', str(venv_python))
+    command = next(value for value in codex_runtime._mcp_overrides({})
+                   if value.startswith('mcp_servers.llm_research.command='))
+    assert str(venv_python) in command
+
+
+def test_project_codex_profile_reaches_sdk_without_overriding_frozen_turn_model(tmp_path, monkeypatch):
+    profile = tmp_path / 'codex.toml'
+    profile.write_text('''model_provider = "OpenAI"
+model = "gpt-6-luna"
+review_model = "gpt-6-luna"
+disable_response_storage = true
+network_access = "enabled"
+[model_providers.OpenAI]
+model_catalog_url = "https://relay.invalid/v1/models"
+requires_openai_auth = true
+[features]
+api_key_model_discovery = true
+goals = true
+''')
+    monkeypatch.setenv('LLMR_CODEX_CONFIG_FILE', str(profile))
+    overrides = codex_runtime._provider_overrides({
+        'base_url': 'https://relay.invalid/v1', 'model': 'selected-model',
+        'api_key': 'private-test-secret', 'reasoning_effort': 'high',
+        'supports_standalone_web_search': True,
+    })
+    assert codex_runtime.codex_provider_name() == 'OpenAI'
+    assert 'model_providers.OpenAI.requires_openai_auth=true' in overrides
+    assert 'model_providers.OpenAI.model_catalog_url="https://relay.invalid/v1/models"' in overrides
+    assert 'review_model="gpt-6-luna"' in overrides
+    assert 'disable_response_storage=true' in overrides
+    assert 'features.api_key_model_discovery=true' in overrides
+    assert 'features.goals=true' in overrides
+    assert [item for item in overrides if item.startswith('model=')][-1] == 'model="selected-model"'
+    assert 'private-test-secret' not in '\n'.join(overrides)

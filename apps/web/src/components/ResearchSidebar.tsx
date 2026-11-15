@@ -1,7 +1,7 @@
 import LoadingState from './LoadingState'
 import { StockText } from './StockMentions'
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, ChevronDown, Bookmark, History, FolderOpen, ListFilter, MessageCircle, Plus, Search, Settings2, Star, Wrench, X } from 'lucide-react'
+import { BookOpen, ChevronDown, Bookmark, History, FolderOpen, ListFilter, MessageCircle, Plus, Radio, Search, Settings2, Star, Wrench, X } from 'lucide-react'
 import { api, conversationWorkflow, type ConversationScope, type WorkflowType } from '../api'
 import { workspaceMenus, type PageId } from '../navigation'
 import { trapDialogTab } from '../keyboard'
@@ -10,7 +10,7 @@ import { screeningMethods, type ScreeningMethod } from '../screeningMethods'
 import { screeningMethodIcons } from './screening/ScreeningMethodCards'
 import { localStorage } from '../authStorage'
 
-const toolMenus = workspaceMenus.filter(item => ['qmt'].includes(item.id))
+const toolMenus = workspaceMenus.filter(item => ['qmt', 'client-service'].includes(item.id))
 
 export default function ResearchSidebar({ page, conversationId, revision, mobileOpen, onClose, onNavigate, onNewResearch, onNewScreening, onSearch, onConversation, onSettings, workspace, screeningView, screeningMethod, onScreeningMethod, onWorkspaceChange, onScreeningView, onConversationChange }: {
   screeningMethod?: ScreeningMethod; onScreeningMethod?: (method: ScreeningMethod) => void
@@ -74,7 +74,7 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
       trapDialogTab(event)
     }}>
       <div className="chat-brand"><img className="chat-brand-full" src="/brand/soochow-blue.png" alt="东吴证券 SOOCHOW SECURITIES" /><img className="chat-brand-symbol" src="/brand/soochow-symbol-blue.png" alt="东吴证券" /><button ref={close} className="icon-button chat-sidebar-close workspace-button" aria-label="关闭工作导航" onClick={onClose}><X size={19} /></button></div>
-      <div className="chat-workspace-name">投研工作台</div>
+      <div className="chat-workspace-name">张家港营业部投研工作台</div>
       <div className="workspace-mode-switch" role="group" aria-label="研究与选股切换">
         <button type="button" aria-label="切换到研究" data-tooltip="研究" aria-pressed={isResearch} onClick={() => changeArea('research')} className="workspace-button"><MessageCircle size={16} /><span>研究</span></button>
         <button type="button" aria-label="切换到选股" data-tooltip="选股" aria-pressed={!isResearch} onClick={() => changeArea('screening')} className="workspace-button"><ListFilter size={16} /><span>选股</span></button>
@@ -94,13 +94,14 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
           <button className="chat-nav-button workspace-button" aria-label="筛选记录" aria-current={page === 'conditions' && screeningView === 'history' ? 'page' : undefined} onClick={() => onScreeningView?.('history')}><History size={18} /><span>筛选记录</span></button>
         </>}
         {!isResearch && <button className="chat-nav-button workspace-button" aria-label="搜索页面、项目或对话" data-tooltip="搜索与跳转" onClick={onSearch}><Search size={18} /><span>搜索与跳转</span><kbd>Ctrl K</kbd></button>}
-        {!isResearch && <><button className="chat-nav-button chat-tools-toggle workspace-button" aria-label="更多工具" aria-expanded={advancedOpen} aria-controls="screening-advanced-links" onClick={() => setAdvancedOpen(value => !value)}><Wrench size={18} /><span>更多工具</span><ChevronDown size={14} /></button>
-          <div id="screening-advanced-links" className="chat-tool-links" hidden={!advancedOpen}>
-          {toolMenus.map(({ id, label, icon: Icon }) => <button className="chat-nav-button workspace-button" key={id} aria-label={label} aria-current={page === id ? 'page' : undefined} onClick={() => onNavigate(id)}><Icon size={16} /><span>{label}</span></button>)}
-          </div></>}
         <div className="workspace-shared-label">共享资料</div>
         <button className="chat-nav-button workspace-button" aria-label="观察池" data-tooltip="观察池" aria-current={page === 'watchlist' ? 'page' : undefined} onClick={() => onNavigate('watchlist')}><Star size={18} /><span>观察池</span></button>
         <button className="chat-nav-button workspace-button" aria-label="资料库" aria-current={['library', 'news', 'reports'].includes(page) ? 'page' : undefined} onClick={() => onNavigate('library')}><BookOpen size={18} /><span>资料库</span></button>
+        <button className="chat-nav-button workspace-button" aria-label="每日信号汇总" data-tooltip="每日信号汇总" aria-current={page === 'daily-signals' ? 'page' : undefined} onClick={() => onNavigate('daily-signals')}><Radio size={18} /><span>每日信号汇总</span></button>
+        <><button className="chat-nav-button chat-tools-toggle workspace-button" aria-label="更多工具" aria-expanded={advancedOpen} aria-controls="screening-advanced-links" onClick={() => setAdvancedOpen(value => !value)}><Wrench size={18} /><span>更多工具</span><ChevronDown size={14} /></button>
+          <div id="screening-advanced-links" className="chat-tool-links" hidden={!advancedOpen}>
+          {toolMenus.map(({ id, label, icon: Icon }) => <button className="chat-nav-button workspace-button" key={id} aria-label={label} aria-current={page === id ? 'page' : undefined} onClick={() => onNavigate(id)}><Icon size={16} /><span>{label}</span></button>)}
+          </div></>
       </nav>
       <section className="chat-history" aria-label={isResearch ? "最近对话" : "最近选股"}><div className="chat-history-heading"><h2>{archived ? '已归档对话' : isResearch ? '最近研究' : '最近选股'}</h2><button type="button" className="chat-history-archive-toggle workspace-button" aria-pressed={archived} onClick={() => { setItems([]); setArchived(value => !value) }}>{archived ? '返回最近' : '已归档'}</button></div>
         {error && <div className="chat-history-error workspace-error" role="alert"><span>对话记录暂不可用</span><button className="text-button workspace-button" data-tooltip={error} onClick={() => setRetry(value => value + 1)}>重试</button></div>}

@@ -1,0 +1,85 @@
+.client-service-page { max-width: 1600px; margin-inline: auto; }
+.viewport-workspace .page-frame > .page-content.client-service-page { display: block; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+.client-service-heading, .client-preview-panel > header, .client-schedule > header { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.client-service-heading h1, .client-preview-panel h2, .client-schedule h2 { display: flex; align-items: center; gap: 9px; margin: 0; }
+.client-service-heading p, .client-preview-panel header p, .client-schedule header p { margin: 8px 0 0; color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
+.client-service-heading > label { display: grid; gap: 6px; font-size: 12px; color: var(--ui-text-muted); }
+.client-service-heading input { min-height: 38px; }
+.client-slot-tabs { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 10px; margin: 22px 0 18px; }
+.client-slot-tabs > button { display: grid; justify-items: start; gap: 5px; padding: 12px 15px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-surface); text-align: left; color: var(--ui-text); cursor: pointer; }
+.client-slot-tabs > button[aria-current=page] { background: var(--ui-primary-soft); border-color: var(--ui-primary); color: var(--ui-primary); }
+.client-slot-tabs time { font-size: 17px; font-variant-numeric: tabular-nums; }
+.client-slot-tabs strong { font-size: 13px; font-weight: 500; }
+.client-slot-tabs small { font-size: 11px; color: var(--ui-text-muted); }
+.client-slot-tabs small.is-ready { color: #247260; }
+.client-service-studio { display: grid; grid-template-columns: minmax(300px,360px) minmax(0,1fr); gap: 22px; align-items: start; }
+.client-card-editor, .client-preview-panel, .client-schedule { min-width: 0; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface); }
+.client-card-editor { padding: 18px; }
+.client-editor-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.client-editor-title h2, .client-preview-panel h2, .client-schedule h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.client-editor-title > span { color: var(--ui-text-muted); font-size: 11px; }
+.client-market-control { padding: 14px; margin: 16px 0; border-radius: 9px; background: var(--ui-primary-soft); }
+.client-market-control > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+.client-market-control span { color: var(--ui-primary); font-size: 11px; }
+.client-market-control p { color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; margin: 8px 0 12px; overflow-wrap: anywhere; }
+.client-market-control button { width: 100%; justify-content: center; min-height: 38px; font-size: 12px; }
+.client-content-fields { display: grid; gap: 13px; }
+.client-content-fields > label { display: grid; gap: 6px; }
+.client-content-fields label > span { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+.client-content-fields small { color: var(--ui-text-muted); font-size: 10px; }
+.client-content-fields input, .client-content-fields textarea { width: 100%; min-width: 0; font: inherit; font-size: 12px; line-height: 1.7; padding: 8px 10px; }
+.client-content-fields textarea { resize: vertical; }
+.client-editor-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+.client-editor-actions button { min-height: 38px; font-size: 12px; }
+.client-preview-panel { overflow: hidden; }
+.client-preview-panel > header { flex-wrap: wrap; padding: 17px 20px; border-bottom: 1px solid var(--ui-border); }
+.client-preview-panel > header > div:last-child { display: flex; gap: 8px; }
+.client-preview-panel button { font-size: 12px; min-height: 36px; }
+.client-card-canvas { display: flex; justify-content: center; min-height: 500px; padding: 28px; background: #e9eff5; transition: opacity .12s; }
+.client-card-canvas[aria-busy=true] img { opacity: .7; }
+.client-card-canvas img { display: block; width: min(100%,540px); height: auto; align-self: start; border-radius: 8px; box-shadow: 0 10px 35px #193a5524; }
+.client-preview-panel > [role=alert] { padding: 14px 20px; }
+.client-market-evidence { padding: 18px 20px; color: var(--ui-text-muted); font-size: 12px; }
+.client-market-evidence h3 { margin: 0 0 9px; color: var(--ui-text); font-size: 13px; }
+.client-market-evidence p { line-height: 1.8; }
+.client-market-evidence dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.client-market-evidence dl > div { padding: 9px 12px; background: var(--ui-surface-subtle); border-radius: 6px; }
+.client-market-evidence dd { margin: 5px 0 0; color: var(--ui-text); }
+.client-market-evidence small { display: block; margin-top: 4px; color: var(--ui-text-muted); }
+.client-market-evidence li { margin-block: 7px; overflow-wrap: anywhere; }
+.client-schedule { padding: 20px; margin-block: 22px; }
+.client-schedule header > label { display: flex; align-items: center; gap: 7px; font-size: 13px; white-space: nowrap; }
+.client-schedule input[type=checkbox] { accent-color: var(--ui-primary); }
+.client-weekdays { display: flex; flex-wrap: wrap; gap: 14px; margin: 20px 0; }
+.client-weekdays label, .client-schedule-times label > span { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.client-schedule-times { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 12px; margin-bottom: 20px; }
+.client-schedule-times > label { display: grid; gap: 8px; min-width: 0; }
+.client-schedule-times input[type=time] { width: 100%; min-width: 0; min-height: 36px; }
+.client-service-feedback { display: flex; align-items: center; gap: 8px; padding: 12px 14px; font-size: 12px; line-height: 1.7; border-radius: 8px; }
+.client-service-feedback > span { flex: 1; }
+.client-mobile-jump { display: none; }
+@media (max-width: 1050px) {
+  .client-service-studio { grid-template-columns: minmax(265px,310px) minmax(0,1fr); gap: 14px; }
+  .client-slot-tabs { gap: 7px; }
+  .client-slot-tabs > button { padding: 10px; }
+  .client-schedule-times { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .client-card-canvas { padding: 15px; }
+}
+@media (max-width: 700px) {
+  .client-mobile-jump { display: inline-flex; font-size: 12px; white-space: nowrap; }
+  .client-service-heading, .client-schedule > header { align-items: start; flex-wrap: wrap; }
+  .client-slot-tabs { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 18px; }
+  .client-service-studio { grid-template-columns: minmax(0,1fr); }
+  .client-card-editor { padding: 14px; }
+  .client-content-fields { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  .client-content-fields label:has(textarea) { grid-column: 1 / -1; }
+  .client-content-fields input { min-height: 42px; }
+  .client-preview-panel > header { padding: 15px; gap: 12px; }
+  .client-preview-panel > header > div:last-child { width: 100%; }
+  .client-preview-panel > header button { flex: 1; min-height: 42px; }
+  .client-schedule { padding: 15px; }
+  .client-schedule-times { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .client-market-evidence { padding: 15px; }
+  .client-market-evidence dl { grid-template-columns: minmax(0,1fr); }
+  .client-card-canvas { min-height: 300px; padding: 12px; }
+}

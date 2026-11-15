@@ -15,6 +15,8 @@ const PatternPage = lazy(() => import('./pages/PatternPage'))
 const LibraryWorkspace = lazy(() => import('./pages/LibraryWorkspace'))
 const QmtScriptsPage = lazy(() => import('./pages/QmtScriptsPage'))
 const IntelligencePage = lazy(() => import('./pages/IntelligencePage'))
+const DailySignalsPage = lazy(() => import('./pages/DailySignalsPage'))
+const ClientServicePage = lazy(() => import('./pages/ClientServicePage'))
 
 type Props = {
   tab: WorkspaceTab; data: DataStatus | null; workspace: WorkflowType
@@ -72,6 +74,8 @@ export default function WorkspacePage({ tab, data, workspace, conversationUpdate
       onLocation={(briefKind, briefId) => onUpdate({ page: 'intelligence', briefKind, ...(briefId ? { briefId } : {}) }, true)}
       onResearch={(id, value) => onConversation(id, 'news', 'research', value)} onSettings={onSettings} />}
     {page === 'qmt' && <QmtScriptsPage onOpenDraft={value => openConversation('screening', undefined, value, 'research', 'qmt-script')} />}
+    {page === 'daily-signals' && <DailySignalsPage />}
+    {page === 'client-service' && <ClientServicePage />}
     {(page === 'screening' || page === 'research') && <div className="research-space"><div className={'research-space-panel research-space-panel-' + page}>
       {page === 'research' && <ResearchProjectsPage initialProjectId={route.projectId} onLocationChange={(id, userNavigation = true) => userNavigation ? project(id) : onUpdate({ page: 'research', projectId: id })} onOpenConversation={onConversation} />}
       {page === 'screening' && homeDraft.trim() && <div className="legacy-draft-notice"><span>还有一个之前保存的问题</span><button className="text-button workspace-button" onClick={onLegacyDraft}>继续未发送的问题</button></div>}

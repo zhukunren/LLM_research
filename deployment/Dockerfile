@@ -15,6 +15,7 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
     && python -c 'from pathlib import Path; Path("/etc/apt/apt.conf.d/80-llmr-retries").write_text("Acquire::Retries \"3\";\n")'
 RUN --mount=type=cache,target=/root/.cache/pip python -m pip install --timeout 120 --retries 3 --target /opt/python-deps -r /build/requirements.lock \
     && PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=120000 python -m playwright install --with-deps chromium \
+    && apt-get update && apt-get install -y --no-install-recommends fonts-noto-cjk \
     && chmod -R a+rX /opt/playwright \
     && useradd --uid 10001 --create-home research \
     && mkdir -p /var/lib/llmr/state /var/lib/llmr/uploads /var/lib/llmr/artifacts /var/lib/llmr/sandbox /var/lib/llmr/data \

@@ -48,6 +48,8 @@ from .financial_data_api import router as financial_data_router
 from .investment_tracking import router as investment_tracking_router
 from .financial_research_api import router as financial_research_router
 from .disclosure_api import router as disclosure_router
+from .daily_signals_api import router as daily_signals_router
+from .client_service_api import router as client_service_router
 from .condition_contract import filter_object
 from .db import connect, init_db, json_dump, json_load, utc_now
 from .indicators import INDICATORS, chart_display, values
@@ -133,6 +135,8 @@ app.include_router(financial_data_router)
 app.include_router(investment_tracking_router)
 app.include_router(financial_research_router)
 app.include_router(disclosure_router)
+app.include_router(daily_signals_router)
+app.include_router(client_service_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

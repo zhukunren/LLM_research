@@ -103,3 +103,33 @@ it('does not intercept composing, modified or descendant key events', () => {
   expect(event.defaultPrevented).toBe(false)
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })
+
+it('renders volume direction by the candle and preserves zero and missing volume in inspection', () => {
+  const chart = { placement: 'pane' as const, lines: [], reference_lines: [],
+    histogram: { id: 'volume', label: '成交量（手）', color: '#208575', values: [100, 0, null] },
+    bars: bars.map((bar, index) => index === 1 ? { ...bar, close: 10, open: 10.5 } : bar),
+  }
+  const { container } = render(<MarketIndicatorChart chart={chart} containerWidth={600} />)
+  const columns = container.querySelectorAll('.indicator-histogram')
+  expect(columns).toHaveLength(2)
+  expect(columns[0]).toHaveClass('positive')
+  expect(columns[1]).toHaveClass('negative')
+  expect(columns[1]).toHaveAttribute('height', '0')
+  expect(screen.getByRole('group', { name: '行情数据' })).toHaveTextContent('成交量（手） —')
+  const image = screen.getByRole('img')
+  fireEvent.keyDown(image, { key: 'Home' })
+  expect(screen.getByRole('status')).toHaveTextContent('成交量（手） 100')
+  fireEvent.keyDown(image, { key: 'ArrowRight' })
+  expect(screen.getByRole('status')).toHaveTextContent('成交量（手） 0')
+})
+
+it('places confirmed buy and sell signals only on matching trading bars', () => {
+  const { container } = render(<MarketIndicatorChart chart={preview('sma', 'overlay').chart} signals={[
+    { date: bars[0].trade_date, side: 'buy', label: '策略' },
+    { date: bars[2].trade_date, side: 'sell', label: '策略' },
+    { date: '2026-09-15', side: 'sell' },
+  ]} />)
+  expect(container.querySelectorAll('.stock-signal-marker')).toHaveLength(2)
+  expect(container.querySelector('.stock-signal-marker.buy')).toHaveAttribute('data-signal-date', bars[0].trade_date)
+  expect(container.querySelector('.stock-signal-marker.sell')).toHaveAttribute('data-signal-date', bars[2].trade_date)
+})

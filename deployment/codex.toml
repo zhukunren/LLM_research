@@ -1,0 +1,17 @@
+model_provider = "OpenAI"
+model = "gpt-6-luna"
+review_model = "gpt-6-luna"
+disable_response_storage = true
+network_access = "enabled"
+windows_wsl_setup_acknowledged = true
+
+[model_providers.OpenAI]
+name = "OpenAI"
+base_url = "http://111.229.72.145:8081/v1"
+model_catalog_url = "http://111.229.72.145:8081/v1/models"
+wire_api = "responses"
+requires_openai_auth = true
+
+[features]
+api_key_model_discovery = true
+goals = true

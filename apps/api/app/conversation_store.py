@@ -279,7 +279,8 @@ def list_conversations(entry_scope: str | None = None, limit: int = 50, active_o
                WHERE (? IS NULL OR c.entry_scope=?)
                  AND (? IS NULL OR c.workflow_type=?)
                  AND c.deleted_at IS NULL AND (? IS NULL OR c.state=?)
-                 AND (?=0 OR NOT EXISTS (SELECT 1 FROM intelligence_runs ir WHERE ir.conversation_id=c.id))
+                 AND (?=0 OR (NOT EXISTS (SELECT 1 FROM intelligence_runs ir WHERE ir.conversation_id=c.id)
+                      AND NOT EXISTS (SELECT 1 FROM client_service_turns sc WHERE sc.conversation_id=c.id)))
                  AND (?=0 OR EXISTS (SELECT 1 FROM conversation_turns t WHERE t.conversation_id=c.id AND t.state IN ('awaiting_agent','running'))
                       OR EXISTS (SELECT 1 FROM screening_task_runs r WHERE r.conversation_id=c.id AND r.status IN ('queued','running')))
                ) SELECT * FROM history WHERE {search}

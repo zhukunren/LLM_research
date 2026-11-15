@@ -51,6 +51,8 @@ it.each([false, true])('keeps three primary screening destinations and moves too
   await user.click(navigation.getByRole('button', { name: '更多工具' }))
   await user.click(navigation.getByRole('button', { name: 'QMT 脚本生成' }))
   expect(callbacks.onNavigate).toHaveBeenLastCalledWith('qmt')
+  await user.click(navigation.getByRole('button', { name: '对客服务' }))
+  expect(callbacks.onNavigate).toHaveBeenLastCalledWith('client-service')
 })
 
 it('keeps pinned history and archive recovery, excluding desk runs before pagination', async () => {

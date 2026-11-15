@@ -43,6 +43,7 @@ import './control-states.css'
 import './chart-feedback.css'
 import './library-layout.css'
 import './workspace-chrome.css'
+import './deployment-layout.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

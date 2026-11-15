@@ -153,7 +153,7 @@ def probe_models(timeout_seconds: int = 12) -> dict[str, Any]:
     if not config["configured"]:
         return {"reachable": False, "authenticated": False, "models": [], "reason": "model_not_configured"}
     request = urllib.request.Request(
-        f"{config['base_url']}/v1/models",
+        str(config['base_url']).rstrip('/') + ('/models' if str(config['base_url']).rstrip('/').endswith('/v1') else '/v1/models'),
         headers={"Authorization": f"Bearer {config['api_key']}", "Accept": "application/json"},
         method="GET",
     )

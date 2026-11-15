@@ -1,0 +1,8 @@
+Use case: ads-marketing
+Asset type: reusable portrait background for a Chinese securities client-service market snapshot card; 1024 x 1536 pixels.
+Primary request: Create a refined financial editorial card BACKGROUND, with all text to be added separately by software. Calm, trustworthy, precise visual style suitable for an established securities investment advisory team.
+Composition: The upper 24% is a deep navy and cobalt blue header with a restrained flowing ribbon and a subtle luminous blue horizon. Keep a large dark, quiet area in the upper-left for a white brand and title. The lower 76% is very pale blue-white paper with exceptionally low-contrast cool-blue abstract waves at the outer edges, leaving a clean, nearly white center for several information sections. The transition between the dark header and light body is smooth and elegantly curved. Keep the bottom 10% pale and uncluttered for a professional signature and small risk text. No boxes or text placeholders are required; software will draw the information panels.
+Style/medium: premium understated editorial illustration, fine matte paper, subtle layered translucent curves, crisp high-resolution finish. Mostly white body, restrained deep blue header. Avoid busy visual effects.
+Color palette: navy #092d57, securities blue #075da8, pale blue #eaf3fa, white #ffffff, tiny silver highlights.
+Text: absolutely no text, no letters, no numerals, no faux writing, no watermark, no logos.
+Avoid: coins, gold bars, rockets, bulls, bears, people, buildings, candlesticks, chart axes, upward profit arrows, stock tickers, graphs containing apparent market data. The background is decorative and must not imply market performance.

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { chartAxisValue } from '../chartTheme'
+import type { StockSignalMarker } from '../stockSignalContext'
 
 type ChartLine = { id: string; label: string; color: string; values: (number | null)[] }
 export type ChartBar = { trade_date: string; open: number; high: number; low: number; close: number; volume?: number; quality_valid?: boolean }
@@ -7,8 +8,8 @@ export type IndicatorChart = { placement: 'overlay' | 'pane'; lines: ChartLine[]
 
 const fmt = (v: number | null) => v == null || !Number.isFinite(v) ? '—' : Number(v.toFixed(4)).toLocaleString('zh-CN', { maximumFractionDigits: 4 })
 
-type MarketChartPresentation = { height?: number; minHeight?: number; showLegend?: boolean; referenceDate?: string }
-export function ResponsiveMarketIndicatorChart({ chart, height, minHeight, showLegend, referenceDate }: { chart: IndicatorChart } & MarketChartPresentation) {
+type MarketChartPresentation = { height?: number; minHeight?: number; showLegend?: boolean; referenceDate?: string; signals?: StockSignalMarker[] }
+export function ResponsiveMarketIndicatorChart({ chart, height, minHeight, showLegend, referenceDate, signals }: { chart: IndicatorChart } & MarketChartPresentation) {
   const frame = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   useEffect(() => {
@@ -17,10 +18,10 @@ export function ResponsiveMarketIndicatorChart({ chart, height, minHeight, showL
     observer.observe(frame.current)
     return () => observer.disconnect()
   }, [])
-  return <div ref={frame} className="responsive-market-chart workspace-chart-frame"><MarketIndicatorChart chart={chart} containerWidth={width || undefined} height={height} minHeight={minHeight} showLegend={showLegend} referenceDate={referenceDate} /></div>
+  return <div ref={frame} className="responsive-market-chart workspace-chart-frame"><MarketIndicatorChart chart={chart} containerWidth={width || undefined} height={height} minHeight={minHeight} showLegend={showLegend} referenceDate={referenceDate} signals={signals} /></div>
 }
 
-export function MarketIndicatorChart({ chart, containerWidth, height, minHeight = 160, showLegend = true, referenceDate }: { chart: IndicatorChart; containerWidth?: number } & MarketChartPresentation) {
+export function MarketIndicatorChart({ chart, containerWidth, height, minHeight = 160, showLegend = true, referenceDate, signals }: { chart: IndicatorChart; containerWidth?: number } & MarketChartPresentation) {
   const hintId = useId()
   const [focused, setFocused] = useState(false)
   const [hover, setHover] = useState<{ index: number; y: number; keyboard: boolean } | null>(null)
@@ -76,7 +77,7 @@ export function MarketIndicatorChart({ chart, containerWidth, height, minHeight 
       setHover({ index: Math.max(0, Math.min(bars.length - 1, Math.round((px - pad.left) * (bars.length - 1) / (width - pad.left - pad.right)))), y: py, keyboard: false })
   }
   return <div className={`indicator-market-chart workspace-chart ${chart.placement}`}>
-    {showLegend && <div className="indicator-chart-legend"><span className="price-key">K线</span>{chart.lines.map(line => <span key={line.id} style={{ '--series-color': line.color } as CSSProperties}><i />{line.label}</span>)}{chart.histogram && <span style={{ '--series-color': chart.histogram.color } as CSSProperties}><i />{chart.histogram.label}</span>}</div>}
+    {showLegend && <div className="indicator-chart-legend"><span className="price-key">K线</span>{chart.lines.map(line => <span key={line.id} style={{ '--series-color': line.color } as CSSProperties}><i />{line.label}</span>)}{signals?.some(s => s.side === 'buy') && <span className="signal-key buy">买入信号</span>}{signals?.some(s => s.side === 'sell') && <span className="signal-key sell">卖出信号</span>}{chart.histogram && <span style={{ '--series-color': chart.histogram.color } as CSSProperties}><i />{chart.histogram.label}</span>}</div>}
     <svg tabIndex={0} aria-describedby={hintId} aria-keyshortcuts="ArrowLeft ArrowRight Home End" onFocus={event => { if (event.target === event.currentTarget) setFocused(true) }} onBlur={() => { setHover(null); setFocused(false) }} onKeyDown={event => {
       if (event.target !== event.currentTarget || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -88,8 +89,15 @@ export function MarketIndicatorChart({ chart, containerWidth, height, minHeight 
       {[0, 0.25, 0.5, 0.75, 1].map(ratio => <line key={`price-grid-${ratio}`} x1={pad.left} x2={width - pad.right} y1={pad.top + ratio * (priceHeight - pad.top - pad.bottom)} y2={pad.top + ratio * (priceHeight - pad.top - pad.bottom)} className="indicator-grid" />)}
       {referenceIndex >= 0 && <g className="news-chart-reference" pointerEvents="none"><line x1={x(referenceIndex)} x2={x(referenceIndex)} y1={pad.top} y2={priceHeight - pad.bottom} /><rect x={referenceLabelX} y="1" width="54" height="19" rx="4" /><text x={referenceLabelX + 27} y="14" textAnchor="middle">资讯日</text></g>}
       {bars.map((bar, index) => ![bar.open, bar.high, bar.low, bar.close].every(Number.isFinite) ? null : <g key={bar.trade_date}><line x1={x(index)} x2={x(index)} y1={priceY(bar.high)} y2={priceY(bar.low)} className={bar.close >= bar.open ? 'candle-wick positive' : 'candle-wick negative'} /><rect x={x(index) - candleWidth / 2} y={Math.min(priceY(bar.open), priceY(bar.close))} width={candleWidth} height={Math.max(1.5, Math.abs(priceY(bar.open) - priceY(bar.close)))} className={bar.close >= bar.open ? 'candle-body positive' : 'candle-body negative'} /></g>)}
+      {signals?.map((signal, markerIndex) => {
+        const index = bars.findIndex(bar => bar.trade_date === signal.date)
+        if (index < 0 || !Number.isFinite(bars[index].close)) return null
+        const buy = signal.side === 'buy'
+        const y = Math.max(12, Math.min(priceHeight - 12, priceY(buy ? bars[index].low : bars[index].high) + (buy ? 14 : -14)))
+        return <g key={`${signal.date}:${signal.side}:${markerIndex}`} className={`stock-signal-marker ${signal.side}`} data-signal-date={signal.date} aria-label={`${signal.date}${buy ? '买入' : '卖出'}信号`} pointerEvents="none"><title>{signal.date} {buy ? '买入' : '卖出'} · {signal.label || ''}</title><line x1={x(index)} x2={x(index)} y1={y} y2={priceY(bars[index].close)} /><circle cx={x(index)} cy={y} r={9} /><text x={x(index)} y={y + 3} textAnchor="middle">{buy ? '买' : '卖'}</text></g>
+      })}
       {chart.placement === 'overlay' && chart.lines.map(line => <path key={line.id} d={path(line.values, priceY)} fill="none" stroke={line.color} strokeWidth="1.8" className="indicator-series-line" />)}
-      {chart.placement === 'pane' && <><line x1={pad.left} x2={width - pad.right} y1={paneTop - 4} y2={paneTop - 4} className="indicator-pane-divider" />{chart.reference_lines.map(value => <g key={`ref-${value}`}><line x1={pad.left} x2={width - pad.right} y1={paneY(value)} y2={paneY(value)} className="indicator-reference-line" /><text x={width - pad.right} y={paneY(value) - 3} textAnchor="end">{value}</text></g>)}{chart.histogram?.values.map((value, index) => value === null || !Number.isFinite(value) ? null : <rect key={`hist-${index}`} x={x(index) - candleWidth / 2} width={candleWidth} y={Math.min(zeroY, paneY(value))} height={Math.max(1, Math.abs(zeroY - paneY(value)))} className={value >= 0 ? 'indicator-histogram positive' : 'indicator-histogram negative'} />)}{chart.lines.map(line => <path key={line.id} d={path(line.values, paneY)} fill="none" stroke={line.color} strokeWidth="1.7" className="indicator-series-line" />)}</>}
+      {chart.placement === 'pane' && <><line x1={pad.left} x2={width - pad.right} y1={paneTop - 4} y2={paneTop - 4} className="indicator-pane-divider" />{chart.reference_lines.map(value => <g key={`ref-${value}`}><line x1={pad.left} x2={width - pad.right} y1={paneY(value)} y2={paneY(value)} className="indicator-reference-line" /><text x={width - pad.right} y={paneY(value) - 3} textAnchor="end">{value}</text></g>)}{chart.histogram?.values.map((value, index) => value === null || !Number.isFinite(value) ? null : <rect key={`hist-${index}`} x={x(index) - candleWidth / 2} width={candleWidth} y={Math.min(zeroY, paneY(value))} height={chart.histogram?.id === 'volume' && value === 0 ? 0 : Math.max(1, Math.abs(zeroY - paneY(value)))} className={(chart.histogram?.id === 'volume' ? bars[index]?.close >= bars[index]?.open : value >= 0) ? 'indicator-histogram positive' : 'indicator-histogram negative'} />)}{chart.lines.map(line => <path key={line.id} d={path(line.values, paneY)} fill="none" stroke={line.color} strokeWidth="1.7" className="indicator-series-line" />)}</>}
       <text x={pad.left} y={totalHeight - 4}>{axisDate(bars[0]?.trade_date)}</text><text x={width - pad.right} y={totalHeight - 4} textAnchor="end">{axisDate(bars.at(-1)?.trade_date)}</text><text x="4" y={pad.top + 9}>{chartAxisValue(priceMax)}</text><text x="4" y={priceHeight - pad.bottom}>{chartAxisValue(priceMin)}</text>
       {hover && <g className="indicator-crosshair" pointerEvents="none"><line x1={x(activeIndex)} x2={x(activeIndex)} y1={pad.top} y2={totalHeight - 20} /><line x1={pad.left} x2={width - pad.right} y1={hover.y} y2={hover.y} /><rect x={Math.max(44, Math.min(width - 100, x(activeIndex) - 42))} y={totalHeight - 19} width="88" height="19" /><text x={Math.max(88, Math.min(width - 56, x(activeIndex)))} y={totalHeight - 5} textAnchor="middle">{bars[activeIndex]?.trade_date}</text></g>}
     </svg>

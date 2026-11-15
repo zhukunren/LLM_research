@@ -1,4 +1,4 @@
-import { BookOpen, Code2, FileText, FolderOpen, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Shapes, Star } from 'lucide-react'
+import { BookOpen, Code2, FileText, FolderOpen, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Radio, Send, Shapes, Star } from 'lucide-react'
 
 export const workspaceMenus = [
   { id: 'intelligence', label: '情报台', mobileLabel: '情报', description: '市场简报、政策追踪与产业跟踪，核对证据和历史版本', icon: Newspaper },
@@ -12,6 +12,8 @@ export const workspaceMenus = [
   { id: 'patterns', label: '形态库', mobileLabel: '形态', description: '用真实 K 线核对目标走势', icon: Shapes },
   { id: 'reports', label: '研报库', mobileLabel: '研报', description: '阅读原文，核对公司研究证据', icon: FileText },
   { id: 'qmt', label: 'QMT 脚本生成', mobileLabel: 'QMT', description: '用自然语言生成 QMT 客户端内置 Python 策略，检查并下载脚本', icon: Code2 },
+  { id: 'daily-signals', label: '每日信号汇总', mobileLabel: '信号', description: '查看每日策略买卖信号、近期胜率与回测收益', icon: Radio },
+  { id: 'client-service', label: '对客服务', mobileLabel: '对客', description: '定时采集市场状态，编辑时点卡模板并下载对客图片', icon: Send },
 ] as const
 
 export const workspaceLibraryMenus = workspaceMenus.filter(item => ['library'].includes(item.id))

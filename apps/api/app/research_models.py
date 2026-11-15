@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+from pathlib import Path
 import re
 import threading
 import time
@@ -64,6 +66,16 @@ def catalog() -> dict[str, Any]:
     discovered, discovery_state = _discover(settings)
     configured = str(settings.get("model") or "gpt-6-luna")
     definitions = dict(MODEL_DEFINITIONS)
+    catalog_path = os.environ.get("LLMR_CODEX_MODEL_CATALOG", "")
+    if catalog_path:
+        # This file is provisioned by the operator from the local Codex catalog.
+        # Only metadata is imported; provider discovery still verifies access.
+        entries = json.loads(Path(catalog_path).read_text(encoding="utf-8"))["models"]
+        definitions = {
+            entry["id"]: (entry["label"], "Codex 可用模型", tuple(entry["efforts"]), True)
+            for entry in entries
+        }
+    disabled_models = set(os.environ.get("LLMR_DISABLED_MODELS", "").split(","))
     # A custom configured model is explicit operator support, with only its
     # configured effort exposed until the operator declares further capabilities.
     for model_id in dict.fromkeys([configured, *policy["allowed_models"]]):
@@ -76,7 +88,9 @@ def catalog() -> dict[str, Any]:
         if default_effort not in efforts:
             default_effort = "high" if "high" in efforts else efforts[0]
         reason = None
-        if policy["account_tier"] == "free" and (re.search(r"(?:^|-)(astra|sol)(?:-|$)", model_id, re.I) or not free_supported):
+        if model_id in disabled_models:
+            reason = "管理员已禁用 Sol / Astra 模型"
+        elif policy["account_tier"] == "free" and (re.search(r"(?:^|-)(astra|sol)(?:-|$)", model_id, re.I) or not free_supported):
             reason = "当前 Free 账户不可用"
         elif policy["allowed_models"] and model_id not in policy["allowed_models"]:
             reason = "管理员未启用此模型"

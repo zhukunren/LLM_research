@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import { api } from '../api'
@@ -76,4 +76,17 @@ it('dismisses stock actions when the containing card is activated', async () => 
   await user.keyboard('{Enter}')
   expect(select).toHaveBeenCalledOnce()
   expect(screen.queryByRole('dialog', { name: '贵州茅台股票操作' })).not.toBeInTheDocument()
+})
+
+
+it('does not open a hover popup when touch focus precedes the stock click', async () => {
+  setup(<StockText><p>600519.SH</p></StockText>)
+  const link = await screen.findByRole('link', { name: '查看600519.SH行情' })
+  const event = new Event('pointerdown', { bubbles: true })
+  Object.defineProperty(event, 'pointerType', { value: 'touch' })
+  fireEvent(link, event)
+  act(() => link.focus())
+  expect(screen.queryByRole('dialog', { name: '贵州茅台股票操作' })).not.toBeInTheDocument()
+  fireEvent.click(link)
+  expect(await screen.findByRole('dialog', { name: '股票行情' })).toBeInTheDocument()
 })

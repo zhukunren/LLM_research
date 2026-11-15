@@ -78,3 +78,13 @@ def test_host_header_cannot_expand_same_origin_allowlist(client):
     assert response.status_code == 403
     with db.connect() as connection:
         assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_server_configured_proxy_origin(client, monkeypatch):
+    monkeypatch.setenv("LLMR_TRUSTED_ORIGIN", "https://zjg.dwzq.top")
+    response = client.post("/api/v1/watchlists", json={"name": "proxy"},
+                           headers={"Origin": "https://zjg.dwzq.top"})
+    assert response.status_code == 200
+    response = client.post("/api/v1/watchlists", json={"name": "forged"},
+                           headers={"Origin": "https://zjg.dwzq.top.evil.example"})
+    assert response.status_code == 403

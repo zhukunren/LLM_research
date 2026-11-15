@@ -1,0 +1,133 @@
+.daily-signals-page { max-width: 1500px; margin-inline: auto; }
+.viewport-workspace .page-frame > .page-content.daily-signals-page {
+  display: block;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+.daily-signals-page:focus-visible { outline: 2px solid var(--ui-focus-outline); outline-offset: -2px; }
+.daily-signals-page .page-heading h1 { display: flex; align-items: center; gap: 10px; }
+.daily-signal-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 18px; margin-block: 20px 26px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface); }
+.daily-signal-controls label { display: grid; gap: 7px; font-size: 13px; color: var(--ui-text-muted); }
+.daily-signal-controls input { min-height: 38px; width: 180px; }
+.daily-signal-controls input[type=number] { width: 140px; }
+.daily-signal-controls > p { flex-basis: 100%; margin: 0; color: var(--ui-text-muted); font-size: 12px; }
+.daily-signal-error { display: flex; align-items: center; gap: 10px; padding: 14px; margin-block: 16px; }
+.daily-signal-error > span { flex: 1; }
+.daily-signal-result-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 18px; }
+.daily-signal-result-heading h2 { margin: 0 0 6px; font-size: 19px; font-weight: 600; }
+.daily-signal-result-heading p { margin: 0; color: var(--ui-text-muted); font-size: 12px; }
+.daily-signal-result-heading > label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.daily-signal-result-heading input { accent-color: var(--ui-primary); }
+.daily-signal-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 0 0 20px; }
+.daily-signal-summary > div { padding: 16px 18px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 10px; }
+.daily-signal-summary dt { font-size: 12px; color: var(--ui-text-muted); }
+.daily-signal-summary dd { margin: 8px 0 0; font-size: 26px; font-weight: 600; color: var(--ui-primary); font-variant-numeric: tabular-nums; }
+.daily-signal-summary dd small { font-size: 14px; color: var(--ui-text-muted); font-weight: 400; }
+.daily-signal-summary .daily-summary-buy dd { color: var(--ui-market-up); }
+.daily-signal-summary .daily-summary-sell dd { color: var(--ui-market-down); }
+.daily-signal-coverage { padding: 12px 14px; border-radius: 8px; background: #fff8e8; color: #775824; font-size: 13px; line-height: 1.7; }
+.daily-signal-results { display: grid; gap: 14px; }
+.daily-signal-card { min-width: 0; padding: 18px 20px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface); }
+.daily-signal-card > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.daily-signal-card h2 { min-width: 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 600; margin: 0; }
+.daily-signal-status { flex-shrink: 0; border-radius: 5px; padding: 4px 8px; background: var(--ui-primary-soft); color: var(--ui-primary); font-size: 11px; }
+.daily-signal-status.unavailable { color: #775824; background: #fff8e8; }
+.daily-signal-card-body { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(280px,1.3fr); gap: 22px; }
+.daily-signal-direction h3 { display: flex; gap: 5px; align-items: center; margin: 0 0 10px; font-size: 12px; font-weight: 500; color: var(--ui-text-muted); }
+.daily-signal-direction h3 > span { margin-left: 3px; font-variant-numeric: tabular-nums; }
+.daily-signal-buy h3 { color: var(--ui-market-up); }
+.daily-signal-sell h3 { color: var(--ui-market-down); }
+.daily-signal-direction > p { margin: 0; font-size: 13px; color: var(--ui-text-muted); }
+.daily-signal-direction ul { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.daily-signal-direction li { border: 1px solid transparent; border-radius: 5px; font-size: 13px; overflow-wrap: anywhere; }
+.daily-signal-buy li { color: var(--ui-market-up); border-color: var(--ui-market-up-border); background: var(--ui-market-up-soft); }
+.daily-signal-sell li { color: var(--ui-market-down); border-color: var(--ui-market-down-border); background: var(--ui-market-down-soft); }
+.daily-signal-direction li .stock-mention { display: inline-flex; flex-wrap: wrap; gap: 4px 7px; padding: 5px 8px; border-radius: 4px; color: inherit; }
+.daily-signal-direction code { color: inherit; font-size: 12px; }
+.daily-signal-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 0; padding-left: 20px; border-left: 1px solid var(--ui-border); }
+.daily-signal-metrics dt { color: var(--ui-text-muted); font-size: 11px; }
+.daily-signal-metrics dd { margin: 10px 0 0; font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.daily-signal-win-rate.is-above-half { color: var(--ui-market-up); }
+.daily-signal-win-rate.is-below-half { color: var(--ui-market-down); }
+.daily-signal-details { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--ui-border-subtle); font-size: 12px; color: var(--ui-text-muted); }
+.daily-signal-details h3 { margin: 0 0 14px; font-size: 12px; font-weight: 500; }
+.daily-signal-detail-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 14px 20px; margin: 0; }
+.daily-signal-detail-grid > div { min-width: 0; }
+.daily-signal-detail-grid dt { font-size: 11px; color: var(--ui-text-muted); }
+.daily-signal-detail-grid dd { margin: 6px 0 0; font-size: 13px; line-height: 1.6; color: var(--ui-text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.daily-signal-detail-grid .date-range { grid-column: span 2; }
+.daily-signal-day-count { display: inline-block; color: var(--ui-text-muted); font-size: 12px; }
+.daily-signal-method { margin-block: 22px; padding: 18px 20px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-surface-subtle); color: var(--ui-text-muted); font-size: 12px; }
+.daily-signal-method h2 { margin: 0; font-size: 13px; font-weight: 500; color: var(--ui-text); }
+.daily-signal-method p { line-height: 1.8; margin-block: 10px 0; }
+.daily-signal-empty { padding: 36px 20px; text-align: center; color: var(--ui-text-muted); border: 1px dashed var(--ui-border); border-radius: 12px; }
+.daily-signal-empty h3 { margin: 0 0 10px; font-size: 16px; font-weight: 500; color: var(--ui-text); }
+.daily-signal-empty p { margin: 0; font-size: 13px; line-height: 1.7; }
+@media (max-width: 1100px) {
+  .daily-signal-card-body { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+  .daily-signal-metrics { grid-column: 1 / -1; padding: 14px 0 0; border-left: 0; border-top: 1px solid var(--ui-border-subtle); }
+}
+@media (max-width: 600px) {
+  .daily-signal-controls { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 14px; gap: 12px 10px; }
+  .daily-signal-controls label { min-width: 0; }
+  .daily-signal-controls > p { grid-column: 1 / -1; }
+  .daily-signal-controls input, .daily-signal-controls input[type=number] { width: 100%; min-width: 0; min-height: 44px; }
+  .daily-signal-controls button { min-height: 44px; }
+  .daily-signal-summary { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .daily-signal-summary > div { padding: 14px; }
+  .daily-signal-card { padding: 16px; }
+  .daily-signal-card > header { align-items: start; }
+  .daily-signal-metrics dd { font-size: 16px; }
+  .daily-signal-detail-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+  .daily-signal-method { padding: 16px; }
+  .daily-signal-result-heading > label { min-height: 44px; }
+}
+
+/* A compact, always-expanded signal list that scales to more strategies. */
+.daily-signal-controls { padding: 12px 16px; gap: 8px 12px; margin-block: 14px 18px; }
+.daily-signal-summary { gap: 10px; margin-bottom: 14px; }
+.daily-signal-summary > div { padding: 10px 14px; }
+.daily-signal-summary dd { margin-top: 4px; font-size: 21px; }
+.daily-signal-card { padding: 12px 16px; }
+.daily-signal-card > header { gap: 14px; margin-bottom: 10px; }
+.daily-strategy-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.daily-signal-card h2 { font-size: 15px; }
+.daily-signal-metrics { width: 390px; flex-shrink: 0; gap: 12px; padding: 0; border: 0; }
+.daily-signal-metrics dd { margin-top: 4px; font-size: 16px; }
+.daily-signal-card-body { grid-template-columns: minmax(0,1fr); gap: 6px; }
+.daily-signal-direction { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 8px; align-items: start; }
+.daily-signal-direction h3 { margin: 5px 0; white-space: nowrap; }
+.daily-signal-direction h3 > svg { flex-shrink: 0; }
+.daily-signal-direction > p { margin-block: 4px; font-size: 12px; }
+.daily-signal-direction ul { gap: 5px; }
+.daily-signal-direction li { display: inline-flex; align-items: center; flex-wrap: wrap; max-width: 100%; }
+.daily-signal-direction li .stock-mention { min-width: 0; padding: 4px 6px; gap: 4px; }
+.daily-signal-volume { padding-right: 6px; font-size: 12px; white-space: nowrap; opacity: .9; }
+.daily-signal-details { margin-top: 9px; padding-top: 8px; }
+.daily-signal-detail-grid { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.daily-signal-detail-grid > div { display: flex; align-items: baseline; gap: 5px; max-width: 100%; }
+.daily-signal-detail-grid dt { flex-shrink: 0; white-space: nowrap; }
+.daily-signal-detail-grid dd { min-width: 0; }
+.daily-signal-detail-grid dt, .daily-signal-detail-grid dd { margin: 0; font-size: 12px; }
+.daily-signal-day-count { font-size: 11px; }
+.daily-signal-result-heading { gap: 10px; margin-bottom: 12px; }
+.daily-signal-result-heading .daily-signal-search { margin-left: auto; gap: 8px; }
+.daily-signal-search input { width: 210px; min-height: 34px; }
+@media (max-width: 900px) {
+  .daily-signal-card > header { flex-wrap: wrap; }
+  .daily-signal-metrics { width: min(390px,100%); }
+}
+@media (max-width: 600px) {
+  .daily-signal-card > header { flex-direction: column; align-items: stretch; gap: 10px; }
+  .daily-signal-controls { padding: 12px; }
+  .daily-signal-card { padding: 12px; }
+  .daily-signal-metrics { width: 100%; }
+  .daily-signal-direction { grid-template-columns: 76px minmax(0,1fr); gap: 6px; }
+  .daily-signal-result-heading .daily-signal-search { margin-left: 0; width: 100%; }
+  .daily-signal-search input { flex: 1; width: 0; min-width: 0; min-height: 40px; }
+  .daily-signal-detail-grid { gap: 4px 12px; }
+}
+.metric-sort-button { padding: 0; border: 0; background: transparent; color: var(--ui-text-muted); font: inherit; font-size: 11px; cursor: pointer; }
+.metric-sort-button[aria-pressed=true], .metric-sort-button:hover { color: var(--ui-primary); }
+.daily-signal-result-heading > .text-button { font-size: 11px; }
