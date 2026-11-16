@@ -132,6 +132,19 @@ def test_text_byte_limit_is_checked_without_truncating_customer_copy(setup, monk
     assert response.status_code == 422 and not calls
 
 
+def test_robot_text_always_includes_full_fixed_disclosure_for_legacy_cards():
+    from apps.api.app.client_service_contracts import default_settings
+    from apps.api.app.client_service_disclosure import disclosure_lines
+    template = default_settings().templates[2].model_dump()
+    card = {'service_date': '2026-11-16', 'template': template,
+            'content': {**template['content'], 'risk': '旧风险提示', 'adviser': '旧姓名', 'license': '', 'institution': ''},
+            'market': {'summary': '文案排版测试', 'metrics': [], 'sources': []}}
+    text = robots.card_text(card)
+    assert text.endswith('\n'.join(disclosure_lines()))
+    assert text.count('风险提示：') == 1
+    assert '旧风险提示' not in text and '旧姓名' not in text
+
+
 def test_robot_data_is_isolated_between_workspaces(setup, tmp_path):
     from apps.api.app.security_context import ActorContext, actor_scope
     from apps.api.app.storage import storage_paths

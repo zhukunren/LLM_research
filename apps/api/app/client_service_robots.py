@@ -124,20 +124,21 @@ def archive_robot(robot_id: str, payload: RobotRevision):
 
 
 def card_text(card):
+    from .client_service_disclosure import disclosure_lines
     content, template = card['content'], card['template']
     market = display_market(card)
     lines = [f"【{content['brand']} · {content.get('headline') or template['title']}】",
              f"{card['service_date']} {template['time']}（北京时间）", market.get('summary', '')]
     lines += [f"{item['label']}：{item['value']}" for item in market.get('metrics', [])]
-    for key, label in [('conclusion', '今日判断'), ('action', '行动安排'), ('focus', '观察重点'), ('service', '服务说明'), ('risk', '风险提示')]:
+    for key, label in [('conclusion', '今日判断'), ('action', '行动安排'), ('focus', '观察重点'), ('service', '服务说明')]:
         if content.get(key):
             lines.append(f"{label}：{content[key]}")
-    lines.append(' · '.join(value for value in (content.get('adviser'), content.get('license')) if value))
     if market.get('limitations'):
         lines.append('数据说明：' + '；'.join(market['limitations']))
     lines += [f"来源：{item['title']} {item['url']}" for item in market.get('sources', [])]
     if content.get('market_overrides'):
         lines.append('展示说明：市场展示文字含手工编辑，原始采集记录可在工作台来源中核对。')
+    lines.extend(disclosure_lines())
     return '\n'.join(line for line in lines if line)
 
 

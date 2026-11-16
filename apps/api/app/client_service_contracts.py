@@ -5,6 +5,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 import re
 
+from .client_service_disclosure import FIXED_DISCLOSURE, with_fixed_disclosure
+
 SLOTS = {
     'preopen': ('盘前简报', '08:45'),
     'opening': ('开盘观察', '09:45'),
@@ -31,9 +33,15 @@ class CardContent(StrictModel):
     action: str = Field(default='', max_length=180)
     focus: str = Field(default='', max_length=140)
     service: str = Field(default='个别持仓与调仓问题，请联系您的投顾。', max_length=80)
-    risk: str = Field(default='市场有风险，投资需谨慎。', max_length=100)
-    adviser: str = Field(default='徐晔', max_length=30)
-    license: str = Field(default='S0600620060002', max_length=30)
+    risk: str = Field(default=FIXED_DISCLOSURE['risk'], max_length=300)
+    adviser: str = Field(default=FIXED_DISCLOSURE['adviser'], max_length=30)
+    license: str = Field(default=FIXED_DISCLOSURE['license'], max_length=30)
+    institution: str = Field(default=FIXED_DISCLOSURE['institution'], max_length=80)
+
+    @model_validator(mode='before')
+    @classmethod
+    def fixed_disclosure(cls, value):
+        return with_fixed_disclosure(value) if isinstance(value, dict) else value
 
 
     @field_validator('market_overrides')

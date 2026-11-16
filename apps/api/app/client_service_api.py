@@ -1,5 +1,6 @@
 from datetime import date
 import base64
+import hashlib
 import struct
 
 from fastapi import APIRouter
@@ -7,7 +8,7 @@ from fastapi.responses import Response
 
 from . import client_service as service
 from .client_service_contracts import GenerateCard, InstantBrief, PreviewCard, SaveCard, ServiceSettings
-from .client_service_images import render_card
+from .client_service_images import render_card, display_market
 
 router = APIRouter(prefix='/api/v1/client-service', tags=['对客服务'])
 
@@ -61,7 +62,9 @@ def preview(payload: PreviewCard):
     regions = []
     data = render_card(value, regions=regions)
     width, height = struct.unpack('>II', data[16:24])
-    return {'image': 'data:image/png;base64,' + base64.b64encode(data).decode('ascii'), 'width': width, 'height': height, 'regions': regions}
+    from .client_service_quality import layout_checks
+    checks = layout_checks(display_market(value))
+    return {'checks': checks, 'image': 'data:image/png;base64,' + base64.b64encode(data).decode('ascii'), 'width': width, 'height': height, 'regions': regions, 'image_hash': hashlib.sha256(data).hexdigest()}
 
 
 @router.post('/briefs', status_code=202)
@@ -71,3 +74,6 @@ def instant_brief(payload: InstantBrief):
 
 from .client_service_robots import router as robots_router
 router.include_router(robots_router)
+
+from .client_service_reviews import router as review_router
+router.include_router(review_router)

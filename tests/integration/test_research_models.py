@@ -36,7 +36,7 @@ def test_catalog_free_and_capability_discovery_fail_closed(client, monkeypatch):
     assert "fake-model" not in str(data)
 
 
-@pytest.mark.parametrize("model", ["gpt-6-astra", "gpt-6-sol", "unknown"])
+@pytest.mark.parametrize("model", ["gpt-6-astra", "gpt-6-sol", "gpt-6.1-sol", "unknown"])
 def test_unavailable_model_cannot_be_selected_or_substituted(client, model):
     assert create(client, model_id=model).status_code == 422
     original = create(client).json()

@@ -597,6 +597,7 @@ def _current_shanghai_time() -> str:
 
 def _prompt(conversation_id: str, turn_id: str, workspace: dict | None = None) -> str:
     from . import research_summary
+    from .client_service_market import read as read_client_market
     from .research_projects import conversation_context
     turn = conversation_store.get_turn(conversation_id, turn_id)
     message = conversation_store.get_user_message(conversation_id, turn["user_message_id"])
@@ -632,6 +633,7 @@ def _prompt(conversation_id: str, turn_id: str, workspace: dict | None = None) -
     return json.dumps(
         {
             "current_user_request": message["content"],
+            "client_market_snapshot": read_client_market(conversation_id,turn_id),
             "conversation_history": history,
             "confirmed_screening_task": task,
             "task_revision": revision,
@@ -683,7 +685,9 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
     try:
         ApprovalMode, Codex, CodexConfig, Sandbox, SkillInput, TextInput = _sdk()
         settings = llm_settings()
-        manifest = research_workspace.prepare(conversation_id, turn_id)
+        from . import client_service_runtime
+        brief = client_service_runtime.prepare(conversation_id, turn_id)
+        manifest = brief or research_workspace.prepare(conversation_id, turn_id)
         workspace = Path(manifest["workspace"])
         (workspace / ".research-root").touch()
         conversation = conversation_store.get_conversation(conversation_id, message_limit=20)
@@ -702,16 +706,18 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
         task_revision = conversation["task_revision"]
         environment = _runtime_environment(conversation_id, turn_id, task_revision, settings, task_timeout=int(budget["turn_timeout_seconds"]))
         configured_binary = os.environ.get("LLMR_CODEX_BIN", "").strip() or None
+        tool_overrides = client_service_runtime.overrides() if brief else _mcp_overrides(environment)
+        instructions = client_service_runtime.INSTRUCTIONS if brief else CODEX_DEVELOPER_INSTRUCTIONS
         config = CodexConfig(
             codex_bin=configured_binary,
-            config_overrides=_provider_overrides(settings) + _mcp_overrides(environment) + _workspace_overrides(workspace),
+            config_overrides=_provider_overrides(settings) + tool_overrides + _workspace_overrides(workspace),
             cwd=str(workspace),
             env=environment,
             client_name="llm_research_web",
             client_title="LLM Research Web",
         )
         from .research_assistants import materialize_skill, turn_snapshot
-        skill_path = materialize_skill(workspace, turn_snapshot(conversation_id, turn_id))
+        skill_path = None if brief else materialize_skill(workspace, turn_snapshot(conversation_id, turn_id))
         existing = codex_store.get_thread(conversation_id)
         if existing:
             _migrate_thread_rollout(existing["thread_id"], environment)
@@ -729,7 +735,8 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                     cwd=str(workspace),
                     sandbox=Sandbox.workspace_write,
                     approval_mode=ApprovalMode.deny_all,
-                    developer_instructions=CODEX_DEVELOPER_INSTRUCTIONS,
+                    developer_instructions=instructions,
+                    **({'base_instructions': client_service_runtime.BASE_INSTRUCTIONS} if brief else {}),
                 )
             else:
                 thread = codex.thread_start(
@@ -738,8 +745,9 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                     cwd=str(workspace),
                     sandbox=Sandbox.workspace_write,
                     approval_mode=ApprovalMode.deny_all,
-                    developer_instructions=CODEX_DEVELOPER_INSTRUCTIONS,
+                    developer_instructions=instructions,
                     service_name="llm_research_web",
+                    **({'base_instructions': client_service_runtime.BASE_INSTRUCTIONS} if brief else {}),
                 )
                 codex_store.bind_thread(
                     conversation_id,
@@ -750,7 +758,8 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                     else None,
                 )
 
-            inputs = [SkillInput(name="investment-research", path=str(skill_path)), TextInput(text=_prompt(conversation_id, turn_id, manifest))]
+            inputs = ([TextInput(text=client_service_runtime.prompt(conversation_id, turn_id))] if brief else
+                      [SkillInput(name="investment-research", path=str(skill_path)), TextInput(text=_prompt(conversation_id, turn_id, manifest))])
             if any(item.get("model_image_path") for item in manifest.get("attachments", [])):
                 from openai_codex import LocalImageInput
                 inputs.extend(LocalImageInput(path=item["model_image_path"]) for item in manifest["attachments"] if item.get("model_image_path"))
@@ -823,9 +832,9 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                 "event_count": event_count,
                 "model": str(settings["model"]),
                 "reasoning_effort": settings.get("reasoning_effort"),
-                "files": research_workspace.list_outputs(conversation_id),
+                "files": [] if brief else research_workspace.list_outputs(conversation_id),
                 "response": response,
-                "research_summary": research_summary.read(conversation_id, turn_id) if app_turn.get("workflow_type", conversation.get("workflow_type", "research")) == "research" else None,
+                "research_summary": research_summary.read(conversation_id, turn_id) if not brief and app_turn.get("workflow_type", conversation.get("workflow_type", "research")) == "research" else None,
             }
     except CodexRuntimeError:
         raise

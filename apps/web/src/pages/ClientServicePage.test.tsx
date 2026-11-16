@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { api } from '../api'
-import { beijingDate, type CardContent, type ServiceCard, type ServiceSettings } from '../clientService'
+import { beijingDate, cardText, disclosureLines, fixedDisclosure, type CardContent, type ServiceCard, type ServiceSettings } from '../clientService'
 import ClientServicePage from './ClientServicePage'
 
 vi.mock('../api', () => ({ api: vi.fn() }))
@@ -56,6 +56,24 @@ it('loads the six time slots and source-checked market state without starting a 
   expect(screen.getByRole('link', { name: '交易所原文' })).toHaveAttribute('href', 'https://www.sse.com.cn')
   expect(screen.queryByRole('textbox', { name: '市场状态' })).not.toBeInTheDocument()
   expect(vi.mocked(api).mock.calls.some(([path, init]) => path === '/client-service/cards' && init?.method === 'POST')).toBe(false)
+})
+
+it('replaces legacy disclosure in previews and exports while keeping the fixed block read-only', async () => {
+  const user = userEvent.setup(); setup()
+  await user.click(await screen.findByText('服务落款与风险提示', { selector: 'summary', exact: false }))
+  const block = screen.getByRole('region', { name: '固定风险提示与投顾信息' })
+  expect(block).toHaveTextContent(fixedDisclosure.risk)
+  for (const line of disclosureLines.slice(1)) expect(block).toHaveTextContent(line)
+  expect(within(block).queryByRole('textbox')).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.getByRole('button', { name: '下载 PNG' })).toBeEnabled())
+  const previews = vi.mocked(api).mock.calls.filter(([path]) => path === '/client-service/preview')
+  expect(JSON.parse(String(previews.at(-1)?.[1]?.body)).content).toMatchObject(fixedDisclosure)
+  expect(screen.getByRole('button', { name: '保存本次卡片' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: '文案' }))
+  const text = screen.getByLabelText('文案预览').textContent!
+  expect(text.endsWith(disclosureLines.join('\n'))).toBe(true)
+  expect(text).not.toContain('测试投顾')
+  expect(cardText(config.templates[2], content, initialCard, beijingDate())).toBe(text)
 })
 
 it('syncs edited copy into the image preview and saves it without changing the collected market', async () => {
@@ -249,7 +267,7 @@ it('merges generated fields into an in-progress draft without replacing user edi
   await screen.findByRole('region', { name: '即时简报记录' })
   await user.type(screen.getByRole('textbox', { name: '今日判断' }), '用户正在写的判断')
   completed = true
-  await waitFor(() => expect(screen.getByRole('textbox', { name: '行动安排' })).toHaveValue('自动观察安排'), { timeout: 6500 })
+  await waitFor(() => expect(screen.getByRole('textbox', { name: '盘面主线' })).toHaveValue('自动观察安排'), { timeout: 6500 })
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('用户正在写的判断')
   expect(screen.getByRole('textbox', { name: '卡片标题' })).toHaveValue('自动生成标题')
 }, 8000)

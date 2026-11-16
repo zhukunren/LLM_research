@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .client_service_disclosure import FIXED_DISCLOSURE, disclosure_lines
 from .settings import PROJECT_ROOT
 from .storage import application_paths
 
@@ -36,35 +37,35 @@ def _font(size: int, bold: bool = False):
 
 
 def _lines(text: str, font, width: int):
+    """Wrap Chinese text while keeping dates, times and numeric tokens intact."""
     lines = []
     for paragraph in str(text).split('\n'):
-        line = ''
-        for character in paragraph:
-            if line and font.getlength(line + character) > width:
-                lines.append(line)
-                line = ''
-            line += character
-        lines.append(line)
+        line = []
+        tokens = re.findall(r'[+-]?\d+(?:[.,:/-]\d+)*(?:年\d{1,2}月\d{1,2}日(?:\d{1,2}时(?:\d{1,2}分)?)?)?[%％]?|[A-Za-z]+|.', paragraph)
+        for token in tokens:
+            if font.getlength(token) > width:
+                if line: lines.append(''.join(line)); line=[]
+                # A pathological token wider than a column still needs bounded
+                # wrapping; ordinary dates and quoted prices never reach here.
+                for character in token:
+                    if line and font.getlength(''.join(line)+character)>width:
+                        lines.append(''.join(line));line=[]
+                    line.append(character)
+            elif line and font.getlength(''.join(line)+token)>width:
+                carry=[]
+                if len(line)>1 and (token[0] in '，。；：！？、）》】』」…' or line[-1] in '（《【『「'):
+                    carry=[line.pop()]
+                lines.append(''.join(line));line=carry+[token]
+            else:line.append(token)
+        lines.append(''.join(line))
     return lines or ['']
 
 
 def _metric_lines(text, font, width):
     """Keep a quoted number and its percent sign together when wrapping narrow columns."""
-    output = []
-    for paragraph in str(text).split('\n'):
-        line = ''
-        for token in re.findall(r'[+-]?\d+(?:[.,:]\d+)*(?:[%％])?|[A-Za-z]+|.', paragraph):
-            if font.getlength(token) > width:
-                if line:
-                    output.append(line); line = ''
-                wrapped = _lines(token, font, width)
-                output.extend(wrapped[:-1]); line = wrapped[-1]
-            elif line and font.getlength(line + token) > width:
-                output.append(line); line = token
-            else:
-                line += token
-        output.append(line)
-    return output or ['']
+    index_value=re.fullmatch(r'([0-9,.]+点)\s+([+\-]\d+(?:\.\d+)?%)',str(text).strip())
+    if index_value and all(font.getlength(value)<=width for value in index_value.groups()):return [index_value[1],index_value[2]]
+    return _lines(text, font, width)
 
 
 # The legacy jade identifier now renders the technology collection, preserving saved choices.
@@ -132,21 +133,23 @@ def render_card(card: dict, *, regions: list | None = None) -> bytes:
         row_height = max(128, *(24 + len(labels) * 29 + len(values) * 38 + (36 if item.get('observed_at') else 18)
                                 for labels, values, item in group))
         rows.append((group, row_height))
-    if content.get('market_overrides'):
-        market.setdefault('limitations', []).append('市场展示文字含手工编辑，原始采集记录可在工作台来源中核对。')
-    limits = _lines('数据说明 / ' + '；'.join(market['limitations']), small, 936) if market.get('limitations') else []
-    service = _lines(content.get('service', ''), _font(23), 936) if content.get('service') else []
-    signature = '  ·  '.join(value for value in (content.get('adviser'), content.get('license')) if value)
-    adviser = _lines(signature, _font(25, True), 936) if signature else []
-    risk = _lines(content.get('risk', ''), small, 936) if content.get('risk') else []
-    sources_text = '来源 / ' + ' · '.join(source['title'][:28] + ('…' if len(source['title']) > 28 else '') for source in market.get('sources', [])[:3])
-    sources = _lines(sources_text, _font(19), 936) if market.get('sources') else []
+    from .client_service_quality import publication_notes, publisher
+    notes=publication_notes(market)
+    if content.get('market_overrides'):notes.append('市场展示文字含手工编辑，原始记录见来源面板。')
+    footer_font = _font(24)
+    limits = _lines('数据 / ' + '；'.join(notes), footer_font, 936) if notes else []
+    service = _lines(content.get('service', ''), footer_font, 936) if content.get('service') else []
+    risk = _lines(FIXED_DISCLOSURE['risk'], _font(26), 936)
+    identity = [line for text in disclosure_lines()[1:] for line in _lines(text, _font(25), 936)]
+    sources_text = '来源 / ' + ' · '.join(list(dict.fromkeys(publisher(source) for source in market.get('sources', [])))[:4])
+    sources = _lines(sources_text, _font(23), 936) if market.get('sources') else []
     conclusion_height = 114 + len(conclusion) * 53
     market_height = 116 + len(summary) * 43 + sum(height for _, height in rows)
     action_height = 124 + len(action) * 47
     focus_height = 115 + len(focus) * 44
-    footer_height = 142 + len(limits) * 33 + len(service) * 35 + len(adviser) * 40 + len(risk) * 32 + len(sources) * 29
-    height = max(1660, 414 + conclusion_height + market_height + action_height + focus_height + footer_height)
+    disclosure_height = 76 + len(risk) * 42 + 38 + len(identity) * 39 + 24
+    footer_height = 159 + len(limits) * 38 + len(service) * 37 + len(sources) * 35 + disclosure_height
+    height = max(1660, 422 + conclusion_height + market_height + action_height + focus_height + footer_height)
     def region(key, label, x, y, width, block_height, max_length, value, color=ink):
         if regions is not None:
             regions.append({'key': key, 'label': label, 'x': x, 'y': y, 'width': width,
@@ -235,9 +238,9 @@ def render_card(card: dict, *, regions: list | None = None) -> bytes:
     # A full-bleed band creates a strong focal point for the practical takeaway.
     draw.rectangle((0, y, WIDTH, y + action_height), fill=ink)
     draw.rectangle((0, y, 12, y + action_height), fill=accent)
-    section_label('03', '行动安排', 'NEXT STEPS', y + 25, 'white')
+    section_label('03', '盘面主线' if template['id'].startswith('live-') else '行动安排', 'MARKET DRIVERS' if template['id'].startswith('live-') else 'NEXT STEPS', y + 25, 'white')
     draw.text((940, y + 16), '”', font=_font(82), fill=accent)
-    region('action', '行动安排', 92, y + 96, 884, len(action) * 47 + 6, 180, content.get('action', ''), '#f4f5ef')
+    region('action', '盘面主线' if template['id'].startswith('live-') else '行动安排', 92, y + 96, 884, len(action) * 47 + 6, 180, content.get('action', ''), '#f4f5ef')
     lines_at(action, 92, y + 98, _font(30), '#f4f5ef', 47)
     y += action_height
     section_label('04', '观察重点', 'ON THE RADAR', y + 30)
@@ -246,17 +249,24 @@ def render_card(card: dict, *, regions: list | None = None) -> bytes:
     y += focus_height
     draw.line((72, y + 8, 1008, y + 8), fill=accent, width=2)
     y += 33
-    region('service', '服务说明', 72, y, 936, max(1, len(service)) * 35, 80, content.get('service', ''))
-    y = lines_at(service, 72, y, _font(23), muted, 35)
-    y += 10
-    region('signature', '投顾姓名与执业编号', 72, y, 936, max(1, len(adviser)) * 40, 60, signature)
-    y = lines_at(adviser, 72, y, _font(25, True), ink, 40)
-    region('risk', '风险提示', 72, y, 936, max(1, len(risk)) * 32, 100, content.get('risk', ''))
-    y = lines_at(risk, 72, y, small, muted, 32)
+    region('service', '服务说明', 72, y, 936, max(1, len(service)) * 37, 80, content.get('service', ''))
+    y = lines_at(service, 72, y, footer_font, ink, 37)
     y += 18
-    y = lines_at(limits, 72, y, small, muted, 33)
+    y = lines_at(limits, 72, y, footer_font, ink, 38)
     y += 12
-    lines_at(sources, 72, y, _font(19), muted, 29)
+    y = lines_at(sources, 72, y, _font(23), ink, 35)
+    y += 24
+    # Reserve a measured, read-only disclosure panel on every theme and every slot.
+    # Never take these strings from legacy card content or editable image regions.
+    draw.rectangle((48, y, 1032, y + disclosure_height), fill=palette['action'])
+    draw.rectangle((48, y, 1032, y + 3), fill=accent)
+    draw.text((72, y + 22), '风险提示', font=_font(28, True), fill=ink)
+    audience = 'R4 · 仅供已签约客户参考'
+    draw.text((1008 - _font(23, True).getlength(audience), y + 26), audience, font=_font(23, True), fill=ink)
+    y = lines_at(risk, 72, y + 76, _font(26), ink, 42)
+    y += 20
+    draw.line((72, y, 1008, y), fill=accent, width=1)
+    lines_at(identity, 72, y + 18, _font(25), ink, 39)
     draw.text((72, height - 47), 'S E R V I C E   N O T E S', font=_font(14), fill=muted)
     draw.text((795, height - 47), card['service_date'].replace('-', '.') + f'  /  {edition:02}', font=_font(14), fill=muted)
     draw.rectangle((0, height - 8, WIDTH, height), fill=ink)

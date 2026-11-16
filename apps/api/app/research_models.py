@@ -23,6 +23,7 @@ class ResearchModelError(ValueError):
 MODEL_DEFINITIONS = {
     "gpt-6-luna": ("GPT-6 Luna", "日常研究与资料分析", ("none", "low", "medium", "high", "xhigh", "max"), True),
     "gpt-5.6-luna": ("GPT-5.6 Luna", "轻量研究与快速问答", ("low", "medium", "high", "max"), True),
+    "gpt-6.1-sol": ("GPT-6.1 Sol", "对客简评与复杂研究", ("low", "medium", "high", "xhigh", "max"), False),
     "gpt-6-astra": ("GPT-6 Astra", "复杂研究与深入分析", ("low", "medium", "high", "xhigh", "max"), False),
     "gpt-6-sol": ("GPT-6 Sol", "综合研究与推理", ("low", "medium", "high", "xhigh", "max"), False),
 }

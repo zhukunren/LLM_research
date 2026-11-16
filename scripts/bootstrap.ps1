@@ -8,7 +8,7 @@ $PythonExe = Get-SystemPython312
 
 $PythonDeps = Get-LlmPythonDeps $ProjectRoot
 New-Item -ItemType Directory -Path $PythonDeps -Force | Out-Null
-& $PythonExe -m pip install --disable-pip-version-check --target $PythonDeps -r (Join-Path $ProjectRoot 'requirements.lock')
+& $PythonExe -m pip install --disable-pip-version-check --upgrade --target $PythonDeps -r (Join-Path $ProjectRoot 'requirements.lock')
 if ($LASTEXITCODE -ne 0) { throw 'Python dependency installation failed.' }
 
 # URL imports use an isolated headless Edge when present; otherwise install Chromium.
