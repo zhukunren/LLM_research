@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 
 from . import client_service as service
-from .client_service_contracts import GenerateCard, PreviewCard, SaveCard, ServiceSettings
+from .client_service_contracts import GenerateCard, InstantBrief, PreviewCard, SaveCard, ServiceSettings
 from .client_service_images import render_card
 
 router = APIRouter(prefix='/api/v1/client-service', tags=['对客服务'])
@@ -58,6 +58,16 @@ def preview(payload: PreviewCard):
         service.error(422, '预览日期或时点与市场数据不一致。')
     value = {'template': payload.template.model_dump(mode='json'), 'service_date': payload.date.isoformat(),
              'content': payload.content.model_dump(mode='json'), 'market': card['market'] if card else None}
-    data = render_card(value)
+    regions = []
+    data = render_card(value, regions=regions)
     width, height = struct.unpack('>II', data[16:24])
-    return {'image': 'data:image/png;base64,' + base64.b64encode(data).decode('ascii'), 'width': width, 'height': height}
+    return {'image': 'data:image/png;base64,' + base64.b64encode(data).decode('ascii'), 'width': width, 'height': height, 'regions': regions}
+
+
+@router.post('/briefs', status_code=202)
+def instant_brief(payload: InstantBrief):
+    return service.start_instant(payload)
+
+
+from .client_service_robots import router as robots_router
+router.include_router(robots_router)

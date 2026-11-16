@@ -46,12 +46,14 @@ def request(identifier='generate-1', **values):
     return GenerateCard(request_id=identifier, slot_id='checkpoint', date=DAY, **values)
 
 
-def finish(card, *, opened=True, published=None, observed=None):
+def finish(card, *, opened=True, published=None, observed=None, commentary=None):
     with db.connect() as connection:
         row = dict(connection.execute('SELECT * FROM client_service_cards WHERE id=?', (card['id'],)).fetchone())
         body = {'summary': '市场震荡，成交较为活跃，板块走势分化。',
                 'metrics': [{'label': '上证指数', 'value': '3600.00（+0.20%）', 'observed_at': observed or WHEN.isoformat(), 'source_url': URL}],
                 'sources': [{'title': '交易所市场数据', 'url': URL, 'published_at': published or WHEN.isoformat()}], 'limitations': []}
+        if commentary is not None:
+            body['commentary'] = commentary
         connection.execute("UPDATE conversation_turns SET state='succeeded',response_text=? WHERE id=?", (json.dumps(body), row['turn_id']))
     events = [{'type': 'webSearch', 'action': {'type': 'search'}, 'results': [{'ref_id': 'turn0search0', 'url': URL}]}]
     if opened:
@@ -198,3 +200,154 @@ def test_other_workspace_cannot_read_or_preview_a_card(configured, tmp_path):
             service.detail(card['id'])
         assert error.value.status_code == 404
         assert service.settings()['revision'] == 0
+
+
+def test_renderer_keeps_maximum_length_copy_and_sources_inside_image(monkeypatch):
+    from apps.api.app.client_service_contracts import default_settings
+    content = CardContent(brand='服' * 20, headline='题' * 20, conclusion='判' * 160,
+                          action='行' * 180, focus='观' * 140, service='服' * 80,
+                          adviser='顾' * 30, license='A' * 30, risk='险' * 100).model_dump()
+    template = default_settings().templates[2].model_dump()
+    card = {'template': template, 'content': content, 'service_date': DAY,
+            'market': {'summary': '行情数据需核实。' * 50, 'cutoff': WHEN.isoformat(),
+                       'metrics': [{'label': '很长的指标名称' * 4, 'value': '+123.45% ' * 12,
+                                    'observed_at': WHEN.isoformat()}] * 6,
+                       'limitations': ['待核实信息' * 50] * 8,
+                       'sources': [{'title': '数据来源' * 20}] * 3}}
+    bounds = []
+    original = images.ImageDraw.ImageDraw.text
+    def track(draw, xy, text, *args, **kwargs):
+        bounds.append(draw.textbbox(xy, text, font=kwargs.get('font')))
+        return original(draw, xy, text, *args, **kwargs)
+    monkeypatch.setattr(images.ImageDraw.ImageDraw, 'text', track)
+    image = Image.open(BytesIO(images.render_card(card)))
+    assert image.width == 1080 and image.height > 1440
+    assert all(0 <= left <= right < image.width and 0 <= top <= bottom < image.height - 8
+               for left, top, right, bottom in bounds)
+
+
+COMMENTARY = {'headline': '即时市场观察', 'conclusion': '市场表现分化，需继续核实成交变化。',
+              'action': '与客户核对关注事项，等待后续公开信息。', 'focus': '关注量能、市场广度与重要公告。'}
+
+
+def test_instant_briefs_use_current_cutoff_and_do_not_replace_scheduled_cards(configured, monkeypatch):
+    client, calls = configured
+    monkeypatch.setattr(service, 'now', lambda: WHEN.replace(hour=9, minute=12))
+    first = client.post('/api/v1/client-service/briefs', json={'request_id': 'live-one'})
+    assert first.status_code == 202
+    first = first.json()
+    assert first['cutoff'] == WHEN.replace(hour=9, minute=12).isoformat()
+    assert first['slot_id'].startswith('live-')
+    assert first['template']['title'] == '即时简报'
+    assert first['content']['conclusion'] == ''
+    second = client.post('/api/v1/client-service/briefs', json={'request_id': 'live-two'}).json()
+    assert first['id'] != second['id'] and len(calls) == 2
+    assert client.post('/api/v1/client-service/briefs', json={'request_id': 'live-one'}).json()['id'] == first['id']
+    monkeypatch.setattr(service, 'now', lambda: WHEN + timedelta(days=1))
+    assert client.post('/api/v1/client-service/briefs', json={'request_id': 'live-one'}).json()['id'] == first['id']
+    assert len(calls) == 2
+    with db.connect() as connection:
+        prompt = connection.execute("SELECT content FROM conversation_messages WHERE role='user' LIMIT 1").fetchone()[0]
+    assert 'commentary' in prompt and '09:12' in prompt and '徐晔' not in prompt
+
+
+def test_instant_completion_fills_copy_but_preserves_saved_user_edits(configured):
+    client, _ = configured
+    card = client.post('/api/v1/client-service/briefs', json={'request_id': 'live-edit'}).json()
+    content = {**card['content'], 'conclusion': '用户手工判断'}
+    service.save_card(card['id'], SaveCard(revision=0, content=CardContent(**content)))
+    completed = finish(card, commentary=COMMENTARY)
+    assert completed['state'] == 'ready'
+    assert completed['content']['conclusion'] == '用户手工判断'
+    assert completed['content']['action'] == COMMENTARY['action']
+    assert completed['revision'] == 2
+    assert client.post('/api/v1/client-service/preview', json={'template': completed['template'], 'date': DAY, 'content': completed['content'], 'card_id': completed['id']}).status_code == 200
+
+
+def test_instant_rejects_missing_commentary_and_unopened_sources(configured):
+    client, _ = configured
+    card = client.post('/api/v1/client-service/briefs', json={'request_id': 'live-invalid'}).json()
+    assert finish(card)['state'] == 'failed'
+    other = client.post('/api/v1/client-service/briefs', json={'request_id': 'live-no-evidence'}).json()
+    assert finish(other, opened=False, commentary=COMMENTARY)['state'] == 'failed'
+
+
+def test_live_ids_are_allowed_for_preview_but_not_for_the_six_scheduled_templates(configured):
+    from apps.api.app.client_service_contracts import ServiceSettings
+    client, _ = configured
+    live = client.post('/api/v1/client-service/briefs', json={'request_id': 'live-settings'}).json()
+    settings = service.settings()
+    settings['templates'][2] = live['template']
+    assert client.put('/api/v1/client-service/settings', json=settings).status_code == 422
+
+
+def test_theme_selection_persists_and_all_slots_have_distinct_artwork(configured):
+    from apps.api.app.client_service_contracts import default_settings
+    template = default_settings().templates[2].model_dump()
+    hashes = set()
+    for theme in images.THEMES:
+        for slot in (*images.ART_SLOTS, 'live-' + 'a' * 32):
+            card = {'template': {**template, 'id': slot}, 'content': CardContent(theme=theme).model_dump(), 'service_date': DAY}
+            image = Image.open(BytesIO(images.render_card(card)))
+            hashes.add(__import__('hashlib').sha256(image.crop((0, 0, 1080, 400)).tobytes()).hexdigest())
+    assert len(hashes) == len(images.THEMES) * 7
+    card = finish(service.start(request('theme-save')))
+    content = CardContent(**{**card['content'], 'theme': 'jade'})
+    saved = service.save_card(card['id'], SaveCard(revision=card['revision'], content=content))
+    assert saved['content']['theme'] == 'jade'
+    client, _ = configured
+    preview = client.post('/api/v1/client-service/preview', json={'template': saved['template'], 'date': DAY, 'content': saved['content'], 'card_id': saved['id']})
+    assert base64.b64decode(preview.json()['image'].split(',')[1]) == client.get(f"/api/v1/client-service/cards/{card['id']}/image.png").content
+
+
+def test_instant_brief_retains_requested_theme_and_rejects_unknown_themes(configured):
+    client, _ = configured
+    response = client.post('/api/v1/client-service/briefs', json={'request_id': 'theme-live', 'theme': 'gold'})
+    assert response.status_code == 202 and response.json()['content']['theme'] == 'gold'
+    assert client.post('/api/v1/client-service/briefs', json={'request_id': 'theme-live', 'theme': 'jade'}).status_code == 409
+    assert client.post('/api/v1/client-service/briefs', json={'request_id': 'unknown-theme', 'theme': '../secret'}).status_code == 422
+    assert client.post('/api/v1/client-service/cards', json={'request_id': 'invalid-live-slot', 'slot_id': 'live-' + 'a' * 32, 'date': DAY}).status_code == 422
+
+
+
+def test_official_logo_composites_on_natural_artwork_without_an_opaque_strip():
+    from apps.api.app.client_service_contracts import default_settings
+    template = default_settings().templates[2].model_dump()
+    with Image.open(images.PROJECT_ROOT / 'apps/web/public/brand/soochow-white.png') as original:
+        mark = original.convert('RGBA')
+        mark.thumbnail((220, 50))
+    for theme, palette in images.THEMES.items():
+        card = {'template': template, 'content': CardContent(theme=theme).model_dump(), 'service_date': DAY}
+        rendered = Image.open(BytesIO(images.render_card(card)))
+        left = images.WIDTH - 64 - mark.width
+        background = images._masthead(theme, images.artwork_index(template['id']))
+        reference = background.crop((left, 52, left + mark.width, 52 + mark.height))
+        reference.paste(mark, (0, 0), mark)
+        assert rendered.crop((left, 52, left + mark.width, 52 + mark.height)).tobytes() == reference.tobytes()
+        assert rendered.crop((750, 0, 1080, 40)).tobytes() == background.crop((750, 0, 1080, 40)).tobytes()
+        from PIL import ImageStat
+        assert sum(ImageStat.Stat(reference).stddev) > 0
+
+
+
+def test_preview_regions_match_export_and_market_edits_preserve_original_evidence(configured):
+    client, _ = configured
+    card = finish(service.start(request('editable-image')))
+    edited = {**card['content'], 'conclusion': '直接从图片编辑的判断', 'market_overrides': {'summary': '用户修订的展示摘要', 'metric.0.value': '用户修订值'}}
+    saved = client.put(f"/api/v1/client-service/cards/{card['id']}", json={'revision': card['revision'], 'content': edited})
+    assert saved.status_code == 200
+    value = saved.json()
+    assert value['market'] == card['market']
+    preview = client.post('/api/v1/client-service/preview', json={'template': value['template'], 'date': DAY, 'content': value['content'], 'card_id': value['id']}).json()
+    regions = {item['key']: item for item in preview['regions']}
+    assert regions['conclusion']['value'] == '直接从图片编辑的判断'
+    assert regions['market.summary']['value'] == '用户修订的展示摘要'
+    assert regions['market.metric.0.value']['value'] == '用户修订值'
+    assert all(region['x'] >= 0 and region['y'] >= 0 and region['x'] + region['width'] <= preview['width'] and region['y'] + region['height'] <= preview['height'] for region in regions.values())
+    assert base64.b64decode(preview['image'].split(',')[1]) == client.get(f"/api/v1/client-service/cards/{card['id']}/image.png").content
+    settings = service.settings()
+    settings['templates'][2]['content'] = edited
+    saved_settings = client.put('/api/v1/client-service/settings', json=settings).json()
+    assert saved_settings['templates'][2]['content']['market_overrides'] == {}
+    assert saved_settings['templates'][2]['content']['conclusion'] == '直接从图片编辑的判断'
+    assert client.put(f"/api/v1/client-service/cards/{card['id']}", json={'revision': value['revision'], 'content': {**edited, 'market_overrides': {'source_url': 'https://wrong.test'}}}).status_code == 422

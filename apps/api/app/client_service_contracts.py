@@ -2,7 +2,8 @@
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+import re
 
 SLOTS = {
     'preopen': ('盘前简报', '08:45'),
@@ -18,7 +19,12 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
+CardTheme = Literal['river', 'jade', 'gold', 'cosmos', 'cinnabar', 'ocean', 'platinum']
+
+
 class CardContent(StrictModel):
+    theme: CardTheme = 'river'
+    market_overrides: dict[str, str] = Field(default_factory=dict, max_length=13)
     brand: str = Field(default='锦绣成长', min_length=1, max_length=20)
     headline: str = Field(default='', max_length=20)
     conclusion: str = Field(default='', max_length=160)
@@ -30,8 +36,23 @@ class CardContent(StrictModel):
     license: str = Field(default='S0600620060002', max_length=30)
 
 
+    @field_validator('market_overrides')
+    @classmethod
+    def valid_market_overrides(cls, value):
+        for key, text in value.items():
+            if key == 'summary':
+                limit = 600
+            elif re.fullmatch(r'metric\.[0-5]\.(?:label|value)', key):
+                limit = 30 if key.endswith('.label') else 80
+            else:
+                raise ValueError('市场展示字段无效')
+            if not text.strip() or len(text) > limit:
+                raise ValueError('市场展示文字为空或超过长度限制')
+        return value
+
+
 class CardTemplate(StrictModel):
-    id: Literal['preopen', 'opening', 'checkpoint', 'midday', 'late', 'close']
+    id: str = Field(pattern=r'^(?:preopen|opening|checkpoint|midday|late|close|live-[a-f0-9]{32})$')
     title: str = Field(min_length=1, max_length=20)
     time: str = Field(pattern=r'^(?:[01]\d|2[0-3]):[0-5]\d$')
     enabled: bool = True
@@ -75,3 +96,8 @@ class PreviewCard(StrictModel):
     date: date
     content: CardContent
     card_id: str | None = Field(default=None, pattern=r'^[a-f0-9-]{36}$')
+
+
+class InstantBrief(StrictModel):
+    theme: CardTheme | None = None
+    request_id: str = Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$')
