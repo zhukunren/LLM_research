@@ -142,6 +142,9 @@ def publication_notes(market):
 
 
 def publisher(source):
+    from .client_service_text import without_web_links
+
     host=(urlsplit(source.get('url','')).hostname or '').lower()
     names={'qq.com':'腾讯财经','eastmoney.com':'东方财富','sina.com.cn':'新浪财经','sina.cn':'新浪财经','cls.cn':'财联社','10jqka.com.cn':'同花顺','stcn.com':'证券时报','cnfin.com':'新华财经','nbd.com.cn':'每日经济新闻','yicai.com':'第一财经','tushare.pro':'Tushare','sse.com.cn':'上交所','szse.cn':'深交所'}
-    return next((name for domain,name in names.items() if host==domain or host.endswith('.'+domain)),source.get('title',host)[:18])
+    return next((name for domain,name in names.items() if host==domain or host.endswith('.'+domain)),
+                without_web_links(source.get('title') or '').strip()[:18])

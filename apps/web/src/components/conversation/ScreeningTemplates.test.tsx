@@ -142,7 +142,7 @@ it('publishes an atomic template plan, retries stable identity, and resumes auto
   await waitFor(() => expect(button).toBeEnabled())
   fireEvent.change(screen.getByLabelText('收盘价在均线上方：均线周期 N'), { target: { value: '10' } })
   await userEvent.click(button)
-  await screen.findByText(/基础方案尚未完成：连接中断/)
+  await screen.findByText(/基础方案尚未完成，连接中断/)
   await userEvent.click(button)
   await waitFor(() => expect(calls.some(call => call.path.endsWith('/execute'))).toBe(true))
   expect(attempts).toHaveLength(2)

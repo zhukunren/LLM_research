@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import closing
+from datetime import date
 import json
 import os
 from pathlib import Path
@@ -9,7 +10,7 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import conversation_store, db, main, market, research_workspace, screening_tools, worker
+from apps.api.app import conversation_store, db, main, market, news_retention, research_workspace, screening_tools, worker
 from apps.api.app.tool_protocol import ToolCall
 from apps.api.app.news_sources import NewsImport, import_items
 
@@ -17,6 +18,7 @@ from apps.api.app.news_sources import NewsImport, import_items
 @pytest.fixture
 def research(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "research.db")
+    monkeypatch.setattr(news_retention, "today", lambda: date(2026, 9, 20))
     monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
     db.init_db()
     cid = conversation_store.create_conversation("screening")["id"]
@@ -181,7 +183,8 @@ def test_data_discovery_exposes_actual_schema_and_unknown_units(research, tmp_pa
     data = result["result"]
     assert {item["name"]: item["type"] for item in data["market"]["columns"]}["close"] == "double"
     assert data["market"]["first_date"] == data["market"]["last_date"] == "2026-09-14"
-    assert data["market"]["volume_unit"] == data["market"]["price_basis"] == "unknown"
+    assert data["market"]["price_basis"] == "unadjusted"
+    assert data["market"]["volume_unit"] == data["market"]["amount_unit"] == "unknown"
     assert {item["name"] for item in data["sources"]["schemas"]["report_pages"]} == {"document_id", "page_number", "text"}
     assert conversation_store.get_conversation(cid)["task_revision"] == 0
 

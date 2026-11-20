@@ -41,11 +41,20 @@ def finish(cid, tid):
     conversation_store.finish_turn(cid, tid, 0, "succeeded", "已核验。", {})
 
 
-@pytest.mark.parametrize("assistant", ["general", "financial", "reports", "supply-chain", "risk"])
+@pytest.mark.parametrize("assistant", [
+    "general", "financial", "reports", "supply-chain", "risk", "a-share-company-research", "a-share-valuation",
+])
 def test_presets_are_selectable_and_message_snapshots_are_immutable(client, tmp_path, assistant):
     catalog = client.get("/api/v1/research-assistants").json()
     assert catalog["default_id"] == "general"
-    assert {item["id"] for item in catalog["items"]} >= {"general", "financial", "reports", "supply-chain", "risk"}
+    profile = next(item for item in catalog["items"] if item["id"] == assistant)
+    guide = profile["method_guide"]
+    assert all(guide[key].strip() for key in ("use_when", "inputs", "outputs", "example_prompt"))
+    if assistant in {"a-share-company-research", "a-share-valuation"}:
+        source = guide["source"]
+        skill = (research_assistants.SKILLS / assistant / "SKILL.md").read_text(encoding="utf-8")
+        assert source["url"] == f'https://github.com/spikeHongg/china-stock-research-skills/tree/{source["revision"]}'
+        assert f'upstream-revision: "{source["revision"]}"' in skill
     response = create(client, assistant)
     assert response.status_code == 200, response.text
     cid = response.json()["id"]
@@ -57,6 +66,8 @@ def test_presets_are_selectable_and_message_snapshots_are_immutable(client, tmp_
     assert restored["turns"][0]["assistant"] == restored["assistant"]
     assert "skill_content" not in restored["assistant"]
     snapshot = research_assistants.turn_snapshot(cid, tid)
+    assert "method_guide" not in snapshot
+    assert snapshot["skill_hash"] == profile["skill_hash"]
     path = research_assistants.materialize_skill(tmp_path / "work", snapshot)
     assert path.read_text(encoding="utf-8") == snapshot["skill_content"]
     assert snapshot["skill_hash"] == path.parent.name

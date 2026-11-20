@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from .db import connect, json_dump, json_load, utc_now
@@ -122,6 +123,26 @@ def list_events(
         "next_after": items[-1]["sequence"] if items else after,
         "has_more": has_more,
     }
+
+
+def web_evidence(conversation_id: str, turn_id: str) -> tuple[bool, set[str]]:
+    with connect() as connection:
+        events = [json_load(row[0]).get("item", {}) for row in connection.execute(
+            """SELECT payload_json FROM codex_turn_events
+               WHERE conversation_id=? AND app_turn_id=? AND method='item/completed'""",
+            (conversation_id, turn_id),
+        )]
+    searched, opened = False, set()
+    for item in events:
+        if not isinstance(item, dict) or re.sub("[^a-z]", "", str(item.get("type", "")).lower()) not in {"websearch", "websearchcall"}:
+            continue
+        action = item.get("action") or {}
+        results = [value for value in item.get("results") or [] if isinstance(value, dict)]
+        searched |= action.get("type") == "search" or any(re.search(r"turn\d+search\d+", str(value.get("ref_id", ""))) for value in results)
+        if action.get("type") in {"openPage", "open_page"} and isinstance(action.get("url"), str):
+            opened.add(action["url"])
+        opened.update(value["url"] for value in results if re.fullmatch(r"turn\d+view\d+", str(value.get("ref_id", ""))) and isinstance(value.get("url"), str))
+    return searched, opened
 
 
 def status(conversation_id: str, app_turn_id: str | None = None) -> dict[str, Any]:

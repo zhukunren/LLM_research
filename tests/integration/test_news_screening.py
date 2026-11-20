@@ -1,13 +1,15 @@
 import json
+from datetime import date
 
 import pytest
 
-from apps.api.app import db, model_client, news_adapter, news_sources, screening_execution
+from apps.api.app import db, model_client, news_adapter, news_retention, news_sources, screening_execution
 
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "news-screening.db")
+    monkeypatch.setattr(news_retention, "today", lambda: date(2026, 9, 20))
     db.init_db()
     monkeypatch.setattr(news_adapter, "llm_settings", lambda: {"configured": True})
 

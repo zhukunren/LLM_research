@@ -21,17 +21,14 @@
 .chat-page .research-studio .conversation-composer-footer { flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
 .chat-page .research-studio .conversation-composer-footer > span:empty { display: none; }
 .chat-page .research-studio .research-assistant-control select { min-height: 32px; height: 32px; padding-block: 3px; }
-.chat-page .research-studio .conversation-composer-footer > button[type=submit] { flex-shrink: 0; width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 50%; font-size: 0; gap: 0; transition: background var(--ui-transition), box-shadow var(--ui-transition); }
-.chat-page .research-studio .conversation-composer-footer > button[type=submit]:disabled { opacity: 1; background: var(--ui-surface-active); border-color: var(--ui-surface-active); color: var(--ui-text-disabled); cursor: default; }
-.chat-page .research-studio .conversation-composer-footer > button[type=submit] > svg { width: 19px; height: 19px; }
+.conversation-submit-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; margin-left: auto; }
+.conversation-submit-actions > button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+.conversation-submit-actions > button:disabled { opacity: 1; background: var(--ui-surface-active); border-color: var(--ui-surface-active); color: var(--ui-text-disabled); cursor: default; }
+.stock-follow-up-context { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; font-size: 12px; color: var(--ui-text-muted); }
 .chat-page .research-studio .composer-keyboard-hint { display: none; }
 .research-conversation-tools { display: flex; align-items: center; gap: 4px; position: relative; }
 .research-conversation-tools > .icon-button { width: 34px; height: 34px; min-height: 34px; border: 0; color: var(--ui-text-muted); background: transparent; }
 .research-conversation-tools > .icon-button:hover { background: var(--ui-surface-hover); }
-.research-conversation-popover { position: absolute; top: calc(100% + 8px); right: 0; z-index: 80; width: 310px; max-width: calc(100vw - 24px); padding: 16px; border: 1px solid var(--ui-border); border-radius: 14px; background: white; box-shadow: 0 8px 28px #00000012; }
-.research-conversation-popover-title { margin: 0 0 12px; font-size: 12px; font-weight: 500; color: var(--ui-text-muted); }
-.research-conversation-popover .project-membership { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.research-conversation-popover .project-membership > select { flex: 1; min-width: 0; width: 100%; }
 .chat-nav-button:disabled { opacity: .5; cursor: wait; }
 @media (max-width: 600px) {
   .assistant-launch-status { padding: 8px 14px; }
@@ -86,11 +83,10 @@
   .research-welcome-mark img { width: 30px; }
   .chat-page .research-studio .conversation-workspace-empty .conversation-composer { width: calc(100% - 32px); padding: 14px 16px 10px; }
   .chat-page .research-studio .conversation-workspace-empty .conversation-message-stage { width: calc(100% - 32px); }
-  .chat-page .research-studio .conversation-composer-footer > button[type=submit] { width: 40px; height: 40px; min-height: 40px; }
+  .conversation-submit-actions > button, .stock-follow-up-context > button { min-height: 44px; }
 }
 @media (max-width: 600px) {
   .chat-page .research-studio .conversation-message-list { padding-block: 20px; gap: 24px; }
-  .chat-page .research-studio .conversation-composer-footer > button[type=submit] { width: 44px; height: 44px; min-height: 44px; }
 }
 @media (max-height: 680px) {
   .chat-page .research-studio .conversation-workspace-empty .conversation-main { justify-content: flex-start; padding-block: 24px; }
@@ -98,19 +94,18 @@
   .research-welcome-mark { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .chat-page .research-studio .conversation-composer, .chat-page .research-studio .conversation-composer-footer > button[type=submit] { transition: none; }
+  .chat-page .research-studio .conversation-composer, .conversation-submit-actions > button { transition: none; }
 }
 @media (pointer: coarse) {
   .chat-page .research-studio .conversation-composer-footer :is(.composer-plus,.composer-method-trigger,.my-indicators-trigger,.research-model-trigger) { min-height: 44px; }
   .chat-page .research-studio .conversation-composer-footer .composer-plus { width: 44px; height: 44px; }
-  .chat-page .research-studio .conversation-composer-footer > button[type=submit] { width: 44px; height: 44px; min-height: 44px; }
+  .conversation-submit-actions > button, .stock-follow-up-context > button { min-height: 44px; }
 }
 
 /* Research and screening share the same rows, including space for optional context. */
 .chat-page .research-studio .conversation-main { gap:0; }
 .chat-page .research-studio .conversation-workspace-empty .conversation-composer { min-height:176px; }
 .chat-page .research-studio .conversation-composer-footer { margin-top:auto; }
-.chat-page .research-studio .conversation-composer-footer > button[type=submit] { margin-left:auto; }
 .chat-page .research-studio .conversation-workspace-empty .conversation-empty { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(40px,auto); gap:16px; flex:none; align-content:start; justify-items:stretch; }
 .conversation-composer-tools { display:flex; align-items:center; gap:8px; flex:0 0 146px; min-width:0; }
 .conversation-composer-tools > .research-composer-addons { flex:0 1 auto; min-width:0; max-width:100%; }
@@ -123,7 +118,6 @@
   .conversation-composer-tools { flex:0 0 auto; width:146px; min-height:46px; }
   .conversation-composer-tools .screening-settings-trigger { min-height:46px; height:46px; }
   .chat-page .research-studio .conversation-composer-footer > .my-indicators-trigger { margin-left:auto; padding-inline:4px; }
-  .chat-page .research-studio .conversation-composer-footer > button[type=submit] { margin-left:auto; }
 }
 
 /* Long conversations keep navigation outside the independently scrolling log. */

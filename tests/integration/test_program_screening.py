@@ -140,3 +140,30 @@ def screen(context, frames, params):
     assert result.stock_decisions[0].condition_decisions[0].actual_values["slope"] == pytest.approx(1)
     assert result.stock_decisions[1].condition_decisions[0].actual_values["slope"] == pytest.approx(2)
     assert result.stock_decisions[1].condition_decisions[0].thresholds == {"min_slope": 1.5}
+
+
+def test_large_stock_loop_checks_cancellation_per_batch(monkeypatch):
+    task = _task().model_dump(mode="json")
+    task["scope"]["universe"] = {"kind": "all_a_shares"}
+    codes = [f"{600000 + offset:06d}.SH" for offset in range(250)]
+    monkeypatch.setattr(market, "iter_recent_bars", lambda *_: iter(()))
+    monkeypatch.setattr(program_conditions, "evaluate_batch", lambda *_args, **_kwargs: {
+        code: {"state": "true", "reason_code": "condition_met"} for code in codes
+    })
+    checks = 0
+
+    def active():
+        nonlocal checks
+        checks += 1
+        return checks < 3
+
+    result = screening_execution.execute_snapshot({
+        "task": task, "execution_request": {"request_id": "batch-cancel"}, "universe": {"codes": codes},
+        "as_of": "2026-01-03", "effective_market_date": "2026-01-03", "source_manifests": [],
+        "tool_call_ids": [], "model_metadata": {},
+    }, run_id="batch-cancel", active=active, progress=lambda *_: None)
+
+    assert checks == 3
+    assert result.status == "cancelled"
+    assert result.coverage.true_count == 100
+    assert result.coverage.not_evaluated_count == 150

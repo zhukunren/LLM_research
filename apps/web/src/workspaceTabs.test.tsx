@@ -4,6 +4,24 @@ import { useWorkspaceTabs } from './workspaceTabs'
 
 beforeEach(() => window.history.replaceState(null, '', '#/research/new'))
 
+it('drops retired project tabs while keeping saved conversations and drafts', () => {
+  window.history.replaceState(null, '', '#/projects/old-project')
+  const project = { id: 'project-tab', title: '研究项目', route: { page: 'research', projectId: 'old-project' } }
+  const conversation = { id: 'conversation-tab', title: '原研究', route: { page: 'screening', conversationId: 'old-conversation' } }
+  sessionStorage.setItem('app.workspaceTabs.v1', JSON.stringify({
+    tabs: [conversation, project],
+    activeId: project.id,
+    closedTabs: [{ tab: { ...project, id: 'closed-project' }, index: 0, order: [project.id, conversation.id] }],
+  }))
+  sessionStorage.setItem('conversation.drafts', JSON.stringify({ 'research:screening:old-conversation': '保留草稿' }))
+  const { result } = renderHook(useWorkspaceTabs)
+  expect(window.location.hash).toBe('#/research/new')
+  expect(result.current.tabs).toHaveLength(2)
+  expect(result.current.tabs).toContainEqual(conversation)
+  expect(result.current.canReopen).toBe(false)
+  expect(sessionStorage.getItem('conversation.drafts')).toContain('保留草稿')
+})
+
 it('updates old plan and history tab labels without losing routes or stored drafts', () => {
   window.history.replaceState(null, '', '#/screening?view=saved')
   const plans = { id: 'old-plans', title: '我的筛选方案', route: { page: 'conditions', view: 'saved' } }
@@ -64,6 +82,16 @@ it('canonicalizes old reading URLs and merges legacy page IDs into material-spec
   act(() => result.current.open({ page: 'library', libraryTab: 'news' }))
   expect(result.current.tabs).toHaveLength(2)
   expect(result.current.activeTab.title).toBe('资讯')
+})
+
+it('names the suggestion editor when switching within the same service tab', () => {
+  window.history.replaceState(null, '', '#/tools/client-service')
+  const { result } = renderHook(useWorkspaceTabs)
+  const id = result.current.activeId
+  act(() => result.current.update(id, { page: 'client-service', serviceView: 'suggestions' }))
+  expect(result.current.activeTab).toMatchObject({ id, title: '生成建议' })
+  act(() => result.current.update(id, { page: 'client-service', serviceView: 'cards' }))
+  expect(result.current.activeTab).toMatchObject({ id, title: '对客服务' })
 })
 
 it('lets a background research publish its identity without replacing the active URL', () => {

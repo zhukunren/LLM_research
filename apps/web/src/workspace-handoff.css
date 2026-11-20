@@ -1,0 +1,60 @@
+.workspace-question-context {
+  display: flex;
+  flex: none;
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+  margin-block: 6px 10px;
+}
+.workspace-question-context > button { flex: none; }
+.workspace-question-context > details {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-surface-subtle);
+}
+.workspace-question-context summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+}
+.workspace-question-context summary strong { flex: none; }
+.workspace-question-context summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-question-context summary::after { content: '▾'; margin-left: auto; color: var(--ui-text-muted); }
+.workspace-question-context details[open] summary::after { content: '▴'; }
+.workspace-question-context details p {
+  max-height: 24vh;
+  margin-block: 8px 4px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.workspace-question-context details ul {
+  max-height: 16vh;
+  margin-block: 6px 2px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.conversation-handoff-return {
+  display: flex;
+  flex: none;
+  padding: 4px clamp(12px, 3vw, 32px) 0;
+}
+.conversation-handoff-return button { text-align: left; }
+.conversation-handoff-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.conversation-handoff-actions > button { padding-inline: 3px; }
+.draft-report-link { min-width: 0; overflow-wrap: anywhere; color: var(--ui-accent); }
+@media (max-width: 760px) {
+  .workspace-question-context { gap: 6px; font-size: 12px; }
+  .workspace-question-context > button,
+  .conversation-handoff-return button,
+  .conversation-handoff-actions > button { min-height: 36px; }
+}

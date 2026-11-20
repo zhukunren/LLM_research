@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Database } from 'lucide-react'
 import { api } from '../api'
-import { researchToday } from '../companyResearch'
 
 type FinancialSync = { id: string; job_id: string; state: string; message: string; credential_matches: boolean; summary: { planned: number; finished: number; source_versions: number } }
 type SeriesStatus = { can_sync: boolean; latest: FinancialSync | null; coverage: { stock_code: string; periods: number; source_versions: number; facts: number }[] }
@@ -31,7 +30,7 @@ export default function FinancialSyncStatusRow({ refreshKey = 0 }: { refreshKey?
     setBusy(true); setError('')
     try {
       await api(action === 'cancel' ? `/jobs/${run!.job_id}/cancel` : action === 'retry' ? `/maintenance/financial-sync/${run!.id}/retry` : '/maintenance/financial-sync', {
-        method: 'POST', ...(action === 'start' ? { body: JSON.stringify({ request_id: crypto.randomUUID(), as_of: researchToday() }) } : {}),
+        method: 'POST', ...(action === 'start' ? { body: JSON.stringify({ request_id: crypto.randomUUID(), as_of: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }) }) } : {}),
       })
       setRevision(value => value + 1)
     } catch (reason) { setError((reason as Error).message) }

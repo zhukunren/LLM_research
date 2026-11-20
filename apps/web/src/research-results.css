@@ -1,0 +1,5 @@
+.research-file-row { display: flex; align-items: center; width: 100%; min-width: 0; gap: 10px; padding: 12px; text-align: left; border: 0; border-bottom: 1px solid var(--ui-border-subtle); background: transparent; color: var(--ui-text); text-decoration: none; }
+.research-file-row:hover { background: var(--ui-surface-hover); }
+.research-file-row > span { display: grid; gap: 5px; min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.research-file-row small, .research-secondary { color: var(--ui-text-muted); font-size: 12px; }
+.research-error { color: var(--ui-danger); padding: 12px 0; }

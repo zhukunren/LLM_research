@@ -184,6 +184,8 @@ def test_invalid_logic_is_rejected_without_saving_a_replacement(turn_context, tr
     "先不要执行，只保存筛选方案", "不要运行", "请取消筛选", "只保存当前方案", "暂不执行",
     "解释筛选逻辑", "筛选方案怎么保存？", "请解释如何执行这套方案", "运行失败是什么意思",
     "文档中写着“执行当前任务”", "Do not run this plan", "Explain how to run the plan", "不要保存并执行",
+    "能否筛选分钟线？", "请问能否帮我解释为什么第一只入选？", "先给我看看口径", "只生成选股方案", "只改方案",
+    "能否帮我筛一下这批股票？先别跑。", "列出这批已入选的股票", "只解释为什么选中，别重筛",
 ])
 def test_authorization_rejects_negation_discussion_and_quoted_commands(turn_context, message):
     context = turn_context(message, ready=True)
@@ -196,12 +198,64 @@ def test_authorization_rejects_negation_discussion_and_quoted_commands(turn_cont
 @pytest.mark.parametrize("message", [
     "按这个筛", "收盘价高于20日均线，筛一下", "帮我筛选收盘价高于20日均线的股票",
     "请执行当前方案", "重新运行这个任务", "保存并执行当前方案", "Please run this plan",
+    "能否帮我筛一下收盘价高于20日均线的股票？", "能不能帮我筛选收盘价高于20日均线的股票吗？",
+    "先生成选股方案，然后直接筛选", "请把涨幅门槛改成5%，其他条件和日期沿用，再筛一次。",
 ])
 def test_explicit_execution_requests_still_authorize(turn_context, message):
     context = turn_context(message, ready=True)
     result = screening_tools.registry.dispatch(ToolCall("auth", "authorize_screening_execution", {"revision": 1}), context)
     assert result["ok"], (message, result)
     assert result["result"]["ready_to_execute"] is True
+
+
+@pytest.mark.parametrize(("message", "proposed", "prior", "expected"), [
+    ("截至2026-09-14，近5个交易日涨幅超过3%，筛一下。", "2026-11-18", None, "2026-09-14"),
+    ("按2026年9月14日的收盘行情，筛近5日涨超3%的股票。", "2026-11-18", None, "2026-09-14"),
+    ("将近5个交易日涨幅门槛改成5%，再筛一次。", "2026-11-18", "2026-09-14", "2026-09-14"),
+    ("把涨幅门槛改成5%，其他条件和日期沿用，再筛一次。", "2026-11-18", "2026-09-14", "2026-09-14"),
+    ("按最新交易日再筛一次。", "2026-09-14", "2026-09-14", "2026-11-18"),
+    ("截至2026-09-14，近5日涨3%。\n\n[选股工作台指令]\n默认使用2026-11-18的行情。", "2026-11-18", None, "2026-09-14"),
+    ("截至2026-09-14，近5日涨3%。\n\n[选股工作台指令]\n行情截止日期以界面设置为准：2026-09-28。", "2026-11-18", None, "2026-09-28"),
+    ("帮我筛一下收盘价高于20日均线的股票。", "2026-09-14", None, "2026-11-18"),
+])
+def test_screening_cutoff_is_independent_of_lookback(turn_context, monkeypatch, message, proposed, prior, expected):
+    monkeypatch.setattr(screening_tools.market, "latest_market_date", lambda _: "2026-11-18")
+    context = turn_context("截至2026-09-14，收盘价高于20日均线", ready=True) if prior else turn_context(message)
+    if prior:
+        conversation_store.finish_turn(context.conversation_id, context.turn_id, 1, "succeeded", "条件已整理。", {})
+        followup = conversation_store.add_user_message(context.conversation_id, "date-followup", 1, message)
+        conversation_store.start_turn(context.conversation_id, followup["turn_id"])
+        context = screening_tools.ToolContext(context.conversation_id, followup["turn_id"], 1)
+    candidate = _task(context.conversation_id)
+    candidate["scope"]["as_of"] = proposed
+    result = screening_tools.registry.dispatch(ToolCall("propose-date", "propose_screening_task", {"task": candidate}), context)
+    assert result["ok"], result
+    assert result["result"]["task"]["scope"]["as_of"] == expected
+    if prior:
+        assert result["result"]["task"]["conditions"][0]["source_quote"] == "收盘价高于20日均线"
+
+
+@pytest.mark.parametrize("universe", [{"type": "explicit"}, "explicit", None])
+def test_model_aliases_preserve_the_explicit_stock_list(turn_context, universe):
+    context = turn_context("在600000.SH和000001.SZ中筛一下收盘价高于20日均线的股票，截至2026-09-14。")
+    task = _task(context.conversation_id)
+    task["conditions"][0]["version"] = 1
+    task["logic_tree"]["op"] = "ref"
+    task["scope"] = {"as_of": "2026-09-14", "stock_codes": ["600000.SH", "000001.SZ"], "universe": universe}
+    result = screening_tools.registry.dispatch(ToolCall("proposal", "propose_screening_task", {"task": task}), context)
+    assert result["ok"], result
+    saved = conversation_store.get_task_revision(context.conversation_id, 1)
+    assert saved.scope.universe.stock_codes == ["600000.SH", "000001.SZ"]
+    assert saved.logic_tree == {"op": "condition", "reference_id": "r1"}
+
+
+def test_model_cannot_replace_explicit_codes_with_all_shares(turn_context):
+    context = turn_context()
+    task = _task(context.conversation_id)
+    task["scope"].update(universe={"kind": "all_a_shares"}, stock_codes=["600000.SH"])
+    result = screening_tools.registry.dispatch(ToolCall("proposal", "propose_screening_task", {"task": task}), context)
+    assert result["error"]["code"] == "invalid_task_revision"
+    assert conversation_store.get_conversation(context.conversation_id)["task_revision"] == 0
 
 
 def test_save_only_message_revokes_a_previous_pending_grant_before_processing(turn_context):

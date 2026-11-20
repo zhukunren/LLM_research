@@ -3,6 +3,18 @@ import { expect, it, vi } from 'vitest'
 import { StrictMode, useLayoutEffect, useState } from 'react'
 import { useSessionState } from './useSessionState'
 
+it('uses a seeded nullable draft when storage is absent and preserves an explicitly cleared null', () => {
+  function Editor() {
+    const [draft, setDraft] = useSessionState<string | null>('nullable.draft', '研究摘录', (value): value is string | null => value === null || typeof value === 'string')
+    return <button onClick={() => setDraft(null)}>{draft || '已关闭'}</button>
+  }
+  const view = render(<Editor />)
+  expect(screen.getByRole('button')).toHaveTextContent('研究摘录')
+  act(() => screen.getByRole('button').click())
+  view.unmount(); render(<Editor />)
+  expect(screen.getByRole('button')).toHaveTextContent('已关闭')
+})
+
 it('persists updates before the owner unmounts in the same batch', () => {
   function Editor({ close }: { close: () => void }) {
     const [draft, setDraft] = useSessionState('test.draft', 'saved draft', (value): value is string => typeof value === 'string')

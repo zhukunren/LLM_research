@@ -2,25 +2,34 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import { api } from '../api'
-import ClientRobotPanel from './ClientRobotPanel'
+import ClientRobotPanel, { ClientCardSendDialog } from './ClientRobotPanel'
 import type { ServiceCard } from '../clientService'
 
 vi.mock('../api', () => ({ api: vi.fn() }))
+it('reads delivery history directly without exposing robot mutation controls', async () => {
+  vi.mocked(api).mockResolvedValue({ items: [{ id: 'delivery', robot_name: '客户群', state: 'sent', kind: 'text', message: '已接收', created_at: '2026-11-17T01:00:00Z' }] } as never)
+  render(<ClientRobotPanel historyOnly />)
+  await screen.findByText('客户群')
+  expect(screen.queryByRole('button', { name: '新增机器人' })).not.toBeInTheDocument()
+  expect(vi.mocked(api).mock.calls.every(([path, init]) => path.endsWith('/deliveries') && !init?.method)).toBe(true)
+})
 const robot = { id: 'robot-one', name: '测试客户群', enabled: true, revision: 0, webhook_hint: '已配置 · 密钥不回显' }
-function setup({ empty = false, canSend = false } = {}) {
+const card = { id: 'card-one', revision: 3, service_date: '2026-11-16', template: { title: '即时简报', time: '09:30' }, content: { headline: '市场观察' } } as ServiceCard
+function setup({ empty = false, sendingCard = false } = {}) {
   vi.mocked(api).mockImplementation(async (path, init) => {
     if (path === '/client-service/robots/deliveries') return { items: [] }
     if (path === '/client-service/robots' && !init?.method) return { items: empty ? [] : [robot] }
     if (path.endsWith('/send')) return { state: 'sent', message: '企业微信已接收' }
     return robot
   })
-  return render(<ClientRobotPanel canSend={canSend} card={{ id: 'card-one', revision: 3, service_date: '2026-11-16', template: {title:'即时简报',time:'09:30'}, content: {headline:'市场观察'} } as ServiceCard} />)
+  return render(sendingCard ? <ClientCardSendDialog card={card} kind="image" preview="/card.png" canSend onClose={() => {}} onManage={() => {}} /> : <ClientRobotPanel />)
 }
 
 it('does not send automatically and requires explicit target confirmation', async () => {
   const user = userEvent.setup(); setup()
   await screen.findByText('测试客户群')
-  expect(screen.getByRole('button', { name: '发送图片' })).toBeDisabled()
+  expect(screen.queryByRole('button', { name: '发送图片' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '发送文案' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '发送测试消息' }))
   expect(screen.getByRole('region', { name: '确认机器人操作' })).toHaveTextContent('将向此机器人所在群发送一条连接测试消息')
   expect(vi.mocked(api).mock.calls.some(([path]) => path.endsWith('/send'))).toBe(false)
@@ -46,14 +55,13 @@ it('adds a webhook only after form submission and clears it on cancellation', as
 })
 
 it('uses the reviewed card revision and retains request id when a send response is lost', async () => {
-  const user = userEvent.setup(); setup({ canSend: true })
-  await screen.findByText('测试客户群')
+  const user = userEvent.setup(); setup({ sendingCard: true })
+  await user.selectOptions(await screen.findByRole('combobox', { name: '选择目标群' }), robot.id)
   const original = vi.mocked(api).getMockImplementation()!
   vi.mocked(api).mockImplementation(async (path, init) => {
     if (path.endsWith('/send')) throw new Error('连接中断')
     return original(path, init)
   })
-  await user.click(screen.getByRole('button', { name: '发送图片' }))
   await user.click(screen.getByRole('button', { name: '确认发送到 测试客户群' }))
   await screen.findByRole('alert')
   await waitFor(() => expect(screen.getByRole('button', { name: '确认发送到 测试客户群' })).toBeEnabled())

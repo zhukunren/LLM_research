@@ -14,7 +14,6 @@
 .conversation-product.research-studio.screening-studio .screening-plan-edit { margin:8px 0 12px; }
 .conversation-product.research-studio.screening-studio .screening-plan-edit > summary { cursor:pointer; color:var(--ui-text-muted); font-size:12px; }
 .conversation-product.research-studio.screening-studio .screening-plan-edit .scope-picker { margin-top:12px; }
-.chat-page .research-studio.screening-studio .conversation-composer-footer > button[type=submit] { margin-left:auto; }
 .conversation-product.research-studio.screening-studio .screening-entry-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 12px; padding:0; }
 .conversation-product.research-studio.screening-studio .screening-entry-heading h2 { margin:0; font-size:14px; font-weight:500; line-height:1.6; }
 .conversation-product.research-studio.screening-studio .conversation-empty { width:100%; max-width:none; min-height:0; margin:0; align-items:stretch; justify-content:flex-start; gap:16px; padding:0; text-align:left; }

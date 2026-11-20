@@ -1,15 +1,17 @@
+from datetime import date
 import json
 import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import company_research, db, jobs, main, market, news_sources, research_matrices, research_projects, worker
+from apps.api.app import company_research, db, jobs, main, market, news_retention, news_sources, research_matrices, research_projects, worker
 
 
 @pytest.fixture
 def workbench(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "workbench.db")
+    monkeypatch.setattr(news_retention, "today", lambda: date(2026, 9, 20))
     monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
     monkeypatch.setattr(research_matrices, "llm_settings", lambda: {"configured": True})
     with TestClient(main.app) as client:

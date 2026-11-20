@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Maximize2, Clock3, Copy, Download, FileText, Image, Bot, Radio, RefreshCw, RotateCcw, Save, Settings2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Maximize2, Clock3, Copy, Download, FileText, Image, Radio, RefreshCw, RotateCcw, Save, Send } from 'lucide-react'
 import { api } from '../api'
 import ConditionWorkspaceDrawer from '../components/ConditionWorkspaceDrawer'
-import ClientRobotPanel from '../components/ClientRobotPanel'
+import ClientRobotPanel, { ClientCardSendDialog } from '../components/ClientRobotPanel'
 import ClientCardReview from '../components/ClientCardReview'
 import EditableClientCard from '../components/EditableClientCard'
 import LoadingState from '../components/LoadingState'
 import WorkspacePageHeading from '../components/WorkspacePageHeading'
 import { useWorkspaceSession } from '../WorkspaceSession'
 import { useSessionState } from '../useSessionState'
-import { beijingDate, cardThemes, cardArtworkPosition, cardText, contentFields, disclosureLines, fixedDisclosure, withFixedDisclosure, marketTime, type CardContent, type CardPreview, type ServiceCard, type ServiceSettings } from '../clientService'
+import { beijingDate, cardThemes, cardArtworkPosition, cardText, conclusionLimit, contentFields, disclosureLines, fixedDisclosure, withFixedDisclosure, marketTime, markDraftPreview, type CardContent, type CardPreview, type ServiceCard, type ServiceSettings } from '../clientService'
 import './client-service.css'
+import type { ServiceView } from '../workspaceRoute'
+import { isServiceResearchDraft, serviceResearchPassages, type ServiceResearchDraft } from '../clientServiceResearchDraft'
+import AnswerSources from '../components/conversation/AnswerSources'
 
 type Drafts = Record<string, CardContent>
+type CardDeliveryTarget = { card: ServiceCard; kind: 'image' | 'text'; image: string; previewKey: string }
+type ReplacedConclusions = Record<string, { before: string; after: string }>
+const isReplacedConclusions = (value: unknown): value is ReplacedConclusions =>
+  !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item =>
+    item && typeof item.before === 'string' && item.before.length <= conclusionLimit && typeof item.after === 'string' && item.after.length <= conclusionLimit)
 function isMarketOverrides(value: unknown): boolean {
   return !!value && typeof value === 'object' && !Array.isArray(value) && Object.entries(value).length <= 13 && Object.entries(value).every(([key, text]) =>
     typeof text === 'string' && text.trim().length > 0 && (key === 'summary' ? text.length <= 600 : /^metric\.[0-5]\.(label|value)$/.test(key) && text.length <= (key.endsWith('.label') ? 30 : 80)))
@@ -34,21 +42,31 @@ function shiftDate(day: string, offset: number) {
   return value.toISOString().slice(0, 10)
 }
 
-export default function ClientServicePage() {
+export default function ClientServicePage({ view, onViewChange, researchDraft }: { view?: ServiceView; onViewChange?: (view: ServiceView) => void; researchDraft?: ServiceResearchDraft } = {}) {
   const { active } = useWorkspaceSession()
   const [config, setConfig] = useState<ServiceSettings | null>(null)
   const [schedule, setSchedule] = useState<ServiceSettings | null>(null)
-  const [drawer, setDrawer] = useState<'schedule' | 'robots' | null>(null)
+  const [localDrawer, setLocalDrawer] = useState<'schedule' | 'robots' | 'deliveries' | null>(null)
+  const drawer = view ? view === 'templates' ? 'schedule' : view === 'cards' ? null : view : localDrawer
+  function setDrawer(next: typeof localDrawer) {
+    if (onViewChange) onViewChange(next === 'schedule' ? 'templates' : next || 'cards')
+    else setLocalDrawer(next)
+  }
   const [fullscreen, setFullscreen] = useState(false)
   const [readingSize, setReadingSize] = useState(false)
   const [themeScroll, setThemeScroll] = useState({ up: false, down: false })
   const themeList = useRef<HTMLDivElement>(null)
   const [previewMode, setPreviewMode] = useState<'image' | 'text'>('image')
+  const [sendTarget, setSendTarget] = useState<CardDeliveryTarget | null>(null)
+  const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit')
+  const mobileScroll = useRef<Partial<Record<typeof mobilePane, number>>>({})
   const [date, setDate] = useState(beijingDate)
   const [slot, setSlot] = useState('checkpoint')
   const [cards, setCards] = useState<ServiceCard[]>([])
   const [loadedDate, setLoadedDate] = useState('')
   const [drafts, setDrafts, draftStorage] = useSessionState<Drafts>('client-service.drafts.v1', {}, isDrafts)
+  const [researchSource, setResearchSource] = useSessionState<ServiceResearchDraft | null>('client-service.researchSource', researchDraft || null, isServiceResearchDraft)
+  const [replacedConclusions, setReplacedConclusions] = useSessionState<ReplacedConclusions>('client-service.replacedConclusions', {}, isReplacedConclusions)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState('')
   const [retry, setRetry] = useState(0), [previewRetry, setPreviewRetry] = useState(0)
   const [now, setNow] = useState(Date.now)
@@ -58,7 +76,9 @@ export default function ClientServicePage() {
   const mutation = useRef(0)
   const latestCards = useRef(cards)
   latestCards.current = cards
-  const previewPanel = useRef<HTMLElement>(null)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const studioRef = useRef<HTMLDivElement>(null)
+  const mobileToolbarRef = useRef<HTMLDivElement>(null)
   const card = cards.find(item => item.slot_id === slot && item.service_date === date)
   const instant = slot === 'realtime' || slot.startsWith('live-')
   const baseTemplate = config?.templates.find(item => item.id === 'checkpoint')
@@ -76,19 +96,28 @@ export default function ClientServicePage() {
   const effectiveTemplate = card?.template || template
   const loaded = loadedDate === date
   const valid = !!content?.brand.trim()
-  const previewBody = effectiveTemplate && content && valid && loaded ? JSON.stringify({ template: effectiveTemplate, date, content, card_id: card?.id || null }) : ''
-  const previewKey = previewBody + JSON.stringify(card?.market || null)
-  const currentPreview = preview?.key === previewKey ? preview : null
-  const visiblePreview = preview?.owner === key ? preview : currentPreview
   const pending = card?.state === 'awaiting_agent' || card?.state === 'running'
   const futureSlot = !instant && !!effectiveTemplate && new Date(card?.cutoff || `${date}T${effectiveTemplate.time}:00+08:00`).getTime() > now
   const dirty = !!content && !contentEqual(content, card?.content || template?.content)
   const scheduleDirty = !!schedule && !!config && !same(schedule, config)
   const filled = content ? (['conclusion', 'action', 'focus'] as const).filter(field => content[field].trim()).length : 0
+  const draftReason = !card?.market || card.state !== 'ready' ? '市场状态尚未采集'
+    : card.market.quality !== 'verified' ? '部分市场来源待核实'
+      : filled !== 3 ? '核心内容待补齐' : dirty ? '本次修改尚未保存' : ''
+  const exportAsDraft = !!draftReason
+  const downloadLabel = exportAsDraft ? '下载草稿' : '下载成品'
+  const previewBody = effectiveTemplate && content && valid && loaded ? JSON.stringify({ template: effectiveTemplate, date, content, card_id: card?.id || null }) : ''
+  const previewKey = JSON.stringify([previewBody, card?.market || null, exportAsDraft])
+  const currentPreview = preview?.key === previewKey ? preview : null
+  const visiblePreview = preview?.owner === key ? preview : currentPreview
+  const readyToSend: CardDeliveryTarget | null = card && !exportAsDraft && loaded && currentPreview && !previewError && !busy
+    ? { card, kind: previewMode, image: currentPreview.image, previewKey } : null
+  const replacement = replacedConclusions[key]
+  const researchPassages = researchSource?.passages ?? (researchSource && researchSource.excerpt.length > conclusionLimit ? serviceResearchPassages(researchSource.excerpt) : [])
   const dayCards = cards.filter(item => item.service_date === date)
   const readyCount = dayCards.filter(item => !item.slot_id.startsWith('live-') && item.state === 'ready').length
   const instantCards = dayCards.filter(item => item.slot_id.startsWith('live-')).sort((a,b) => b.cutoff.localeCompare(a.cutoff))
-  const text = effectiveTemplate && content ? cardText(effectiveTemplate, content, card, date) : ''
+  const text = effectiveTemplate && content ? (exportAsDraft ? '【草稿 · 待核对】\n' : '') + cardText(effectiveTemplate, content, card, date) : ''
 
   useEffect(() => {
     const controller = new AbortController()
@@ -141,12 +170,14 @@ export default function ClientServicePage() {
     if (!previewBody || !active) return
     const controller = new AbortController()
     const timer = setTimeout(() => {
-      void api<CardPreview>('/client-service/preview', { method: 'POST', signal: controller.signal, body: previewBody })
+      const path = exportAsDraft ? '/client-service/preview?draft=true' : '/client-service/preview'
+      void api<CardPreview>(path, { method: 'POST', signal: controller.signal, body: previewBody })
+        .then(value => exportAsDraft && !value.draft && !controller.signal.aborted ? markDraftPreview(value) : value)
         .then(value => { if (!controller.signal.aborted) setPreview({ ...value, key: previewKey, owner: key }) })
         .catch(reason => { if (!controller.signal.aborted) setPreviewError(reason.message) })
     }, 350)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [previewBody, previewKey, previewRetry, active])
+  }, [previewBody, previewKey, previewRetry, active, exportAsDraft])
 
   useEffect(() => {
     if (!active || !config) return
@@ -182,10 +213,40 @@ export default function ClientServicePage() {
   }
   function openFullscreen() { setReadingSize(false); setFullscreen(true) }
 
+  function switchMobilePane(next: typeof mobilePane) {
+    if (next === mobilePane) return
+    const scroller = pageRef.current, studio = studioRef.current
+    if (scroller) mobileScroll.current[mobilePane] = scroller.scrollTop
+    setMobilePane(next)
+    if (!scroller || !studio) return
+    requestAnimationFrame(() => {
+      if (!scroller.isConnected) return
+      const start = studio.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
+      scroller.scrollTop = mobileScroll.current[next] ?? Math.max(0, start - (mobileToolbarRef.current?.offsetHeight ?? 0))
+    })
+  }
+
   function update(field: keyof CardContent, value: string) {
     if (!content) return
     setDrafts(current => ({ ...current, [key]: { ...(current[key] || content), [field]: value } }))
     setNotice(''); setUndo(null)
+  }
+  function applyResearchExcerpt() {
+    const excerpt = researchSource?.excerpt.trim()
+    if (!excerpt || !content || !loaded || busy || excerpt.length > conclusionLimit || excerpt === content.conclusion) return
+    if (content.conclusion.trim()) setReplacedConclusions(current => ({ ...current, [key]: { before: content.conclusion, after: excerpt } }))
+    update('conclusion', excerpt)
+    setNotice(`已填入 ${date} ${effectiveTemplate?.time} 的今日判断`)
+  }
+  function undoResearchExcerpt() {
+    if (!replacement || content?.conclusion !== replacement.after) return
+    update('conclusion', replacement.before)
+    setReplacedConclusions(current => {
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+    setNotice('已恢复替换前的今日判断')
   }
   function applyImageEdits(values: Record<string, string | null>) {
     if (!content) return
@@ -228,14 +289,15 @@ export default function ClientServicePage() {
   }
   async function saveSettings(kind: 'template' | 'schedule') {
     if (!config || !content || !schedule || (kind === 'template' && (!valid || instant))) return
+    if (kind === 'schedule' && schedule.templates.some(item => !item.content.brand.trim())) { setError('请补全每个服务模板的服务名称。'); return }
     setBusy(kind); setError(''); setNotice('')
     try {
       const next = kind === 'template'
         ? { ...config, templates: config.templates.map(item => item.id === slot ? { ...item, content: { ...content, market_overrides: {} } } : item) }
-        : { ...schedule, revision: config.revision, templates: schedule.templates.map(item => ({ ...item, content: config.templates.find(value => value.id === item.id)!.content })) }
+        : { ...schedule, revision: config.revision, templates: schedule.templates.map(item => ({ ...item, content: { ...withFixedDisclosure(item.content), market_overrides: {} } })) }
       const saved = await api<ServiceSettings>('/client-service/settings', { method: 'PUT', body: JSON.stringify(next) })
       setConfig(saved)
-      setSchedule(current => kind === 'schedule' ? saved : current && { ...current, revision: saved.revision, templates: current.templates.map(item => ({ ...item, content: saved.templates.find(value => value.id === item.id)!.content })) })
+      setSchedule(current => kind === 'schedule' ? saved : current && { ...current, revision: saved.revision, templates: current.templates.map(item => ({ ...item, content: same(item.content, config.templates.find(value => value.id === item.id)?.content) ? saved.templates.find(value => value.id === item.id)!.content : item.content })) })
       if (kind === 'template' && !card && !Object.keys(content.market_overrides).length) clearSavedDraft(key, content)
       setNotice(kind === 'template' ? '默认模板已保存，今后此时点沿用当前文案' : '自动生成计划已保存')
     } catch (reason) { setError((reason as Error).message) }
@@ -248,7 +310,7 @@ export default function ClientServicePage() {
       const next = { ...config, templates: config.templates.map(item => ({ ...item, content: { ...item.content, theme } })) }
       const saved = await api<ServiceSettings>('/client-service/settings', { method: 'PUT', body: JSON.stringify(next) })
       setConfig(saved)
-      setSchedule(current => current && { ...current, revision: saved.revision, templates: current.templates.map(item => ({ ...item, content: saved.templates.find(value => value.id === item.id)!.content })) })
+      setSchedule(current => current && { ...current, revision: saved.revision, templates: current.templates.map(item => ({ ...item, content: same(item.content, config.templates.find(value => value.id === item.id)?.content) ? saved.templates.find(value => value.id === item.id)!.content : item.content })) })
       setNotice(`「${themeLabel}」已设为所有时点的默认套图，以后生成时自动匹配对应底图`)
     } catch (reason) { setError((reason as Error).message) }
     finally { setBusy('') }
@@ -283,14 +345,14 @@ export default function ClientServicePage() {
     finally { setBusy('') }
   }
   async function copy() {
-    try { await navigator.clipboard.writeText(text); setNotice('当前文案已复制') }
+    try { await navigator.clipboard.writeText(text); setNotice(exportAsDraft ? '草稿文案已复制' : '文案已复制') }
     catch { setError('复制失败，请在文案预览中手动选择并复制。') }
   }
   function download() {
     if (!currentPreview || previewError) return
     const link = document.createElement('a')
-    link.href = currentPreview.image; link.download = `market-card-${date}-${slot}.png`; link.click()
-    setNotice(dirty || !card ? '图片已下载，当前文案尚未保存到本次卡片' : '图片已下载')
+    link.href = currentPreview.image; link.download = `market-card-${exportAsDraft ? 'draft-' : ''}${date}-${slot}.png`; link.click()
+    setNotice(exportAsDraft ? '带草稿标记的图片已下载' : '成品图片已下载')
   }
   function resetDraft() {
     if (!content) return
@@ -299,6 +361,7 @@ export default function ClientServicePage() {
     setNotice('已恢复保存的内容，可撤销此操作')
   }
   function changeDate(value: string) { if (value) { setDate(value); if (instant) setSlot('checkpoint'); setNotice(''); setUndo(null) } }
+  function selectSlot(value: string) { setSlot(value === 'realtime' ? instantCards[0]?.slot_id || value : value); setNotice(''); setUndo(null) }
   function field(fieldKey: keyof CardContent) {
     const item = contentFields.find(value => value.key === fieldKey)!
     if (!content) return null
@@ -310,45 +373,85 @@ export default function ClientServicePage() {
     </label>
   }
 
-  return <div className="page-content workspace-tool-page client-service-page" role="region" aria-label="对客服务内容" tabIndex={0}>
+  return <div ref={pageRef} className="page-content workspace-tool-page client-service-page" role="region" aria-label="对客服务内容" tabIndex={0}>
+    {researchSource && <section className="client-research-draft" aria-label="研究转服务草稿">
+      <header><h2>研究转服务草稿</h2><a href={`#/research/${encodeURIComponent(researchSource.conversationId)}`}>查看原研究</a></header>
+      <p>研究答复 {marketTime(researchSource.createdAt)} · 数据截至 {researchSource.asOf || '未记录'}</p>
+      {researchPassages.length > 0 && <label className="workspace-field-label">从答复选段<select className="workspace-field" aria-label="从研究答复选段" value="" onChange={event => setResearchSource({ ...researchSource, excerpt: event.target.value })}>
+        <option value="" disabled>选择一段原文填入摘录</option>
+        {researchPassages.map(passage => <option key={passage} value={passage}>{passage.length > 48 ? passage.slice(0, 48) + '…' : passage}</option>)}
+      </select></label>}
+      <label className="workspace-field-label">编辑客户沟通摘录<textarea className="workspace-field" aria-label="服务草稿摘录" rows={3} maxLength={conclusionLimit} value={researchSource.excerpt} onChange={event => setResearchSource({ ...researchSource, excerpt: event.target.value })} /></label>
+      {researchSource.references.length > 0 && <AnswerSources references={researchSource.references} />}
+      <footer>
+        <span>{researchSource.excerpt.length}/{conclusionLimit} 字 · 填入 {date} {effectiveTemplate?.time} {effectiveTemplate?.title || '所选卡片'}</span>
+        <button type="button" className="secondary-button workspace-button" disabled={!content || !loaded || !!busy || !researchSource.excerpt.trim() || researchSource.excerpt.length > conclusionLimit || content.conclusion === researchSource.excerpt.trim()} onClick={applyResearchExcerpt}>{content?.conclusion.trim() && content.conclusion !== researchSource.excerpt.trim() ? '替换今日判断' : '填入今日判断'}</button>
+        <button type="button" className="text-button workspace-button" onClick={() => setResearchSource(null)}>关闭草稿</button>
+      </footer>
+    </section>}
     <WorkspacePageHeading actions={<div className="client-date-control"><button className="workspace-button" aria-label="前一天" onClick={() => changeDate(shiftDate(date, -1))}><ArrowLeft size={15} /></button><input className="workspace-field" type="date" aria-label="服务日期" value={date} onChange={event => changeDate(event.target.value)} /><button className="workspace-button" aria-label="后一天" onClick={() => changeDate(shiftDate(date, 1))}><ArrowRight size={15} /></button><button className="workspace-button" disabled={date === beijingDate()} onClick={() => changeDate(beijingDate())}>今天</button></div>}><h1>对客服务</h1><p className="page-description">编辑市场时点卡片，预览并下载客户沟通内容。</p></WorkspacePageHeading>
-    <div className="client-workspace-nav"><div className="client-panel-actions"><button className="secondary-button workspace-button" aria-haspopup="dialog" onClick={() => { setNotice(''); setDrawer('robots') }}><Bot size={16} />企业微信机器人</button><button className="secondary-button workspace-button" aria-label="设置每日生成计划" aria-haspopup="dialog" disabled={!config} onClick={() => { setNotice(''); setDrawer('schedule') }}><Settings2 size={16} />设置{scheduleDirty && <span className="client-unsaved-dot" aria-label="计划未保存" />}</button></div><span><span className={`client-status-dot ${config?.enabled ? 'is-ready' : ''}`} />{config?.enabled ? '自动生成已开启' : '自动生成未开启'} · 北京时间</span></div>
+    <div className="client-generation-status" role="status">
+      <span className={`client-status-dot ${config?.enabled ? 'is-ready' : ''}`} aria-hidden="true" />
+      {config ? `${config.enabled ? '自动生成已开启' : '自动生成未开启'} · 北京时间` : error ? '暂时无法读取自动生成状态' : '正在读取自动生成状态…'}
+    </div>
     {error && drawer !== 'schedule' && <div role="alert" className="workspace-error client-service-feedback"><AlertCircle size={17} /><span>{error}</span><button className="workspace-button text-button" onClick={() => { setError(''); setRetry(value => value + 1) }}>重新读取</button></div>}
     {notice && drawer !== 'schedule' && <div role="status" className="client-service-feedback workspace-feedback-success"><Check size={16} /><span>{notice}</span>{undo?.key === key && <button className="workspace-button text-button" onClick={() => { setDrafts(current => ({ ...current, [key]: undo.content })); setUndo(null); setNotice('已撤销恢复，继续编辑') }}>撤销</button>}</div>}
     {!config || !template || !content ? (error ? <p className="client-empty">暂时无法读取服务模板，请重新读取。</p> : <LoadingState label="正在读取服务模板…" />) : <>
       <div className="client-day-summary"><h2>{date === beijingDate() ? '今日服务时点' : `${date} 服务时点`}</h2><span>{loaded ? `固定时点已采集 ${readyCount} / ${config.templates.length} · 即时简报 ${instantCards.length} 份` : '正在读取当日卡片…'}</span></div>
-      <nav className="client-slot-tabs" aria-label="服务时点"><button type="button" className="workspace-button client-live-slot" aria-label="实时股评卡片" aria-current={instant ? 'page' : undefined} onClick={() => { setSlot(instantCards[0]?.slot_id || 'realtime'); setNotice(''); setUndo(null) }}><span className="client-slot-top"><time><Radio size={15} />实时</time><small>LIVE</small></span><strong>即时简报</strong><span className={`client-slot-state is-${instantCards[0]?.state || 'empty'}`}><span className="client-status-dot" />{instantCards[0] ? stateLabels[instantCards[0].state] : '随时生成'}<ChevronRight size={12} /></span></button>{config.templates.map((item, index) => {
+      <label className="client-compact-slot workspace-field-label">服务时点<select className="workspace-field" aria-label="选择服务时点" value={instant ? 'realtime' : slot} onChange={event => selectSlot(event.target.value)}>
+        <option value="realtime">实时 · 即时简报</option>
+        {config.templates.map(item => {
+          const existing = dayCards.find(value => value.slot_id === item.id)
+          return <option key={item.id} value={item.id}>{existing?.template.time || item.time} · {existing?.template.title || item.title}{existing ? ` · ${stateLabels[existing.state]}` : ''}</option>
+        })}
+      </select></label>
+      <nav className="client-slot-tabs" aria-label="服务时点"><button type="button" className="workspace-button client-live-slot" aria-label="实时股评卡片" aria-current={instant ? 'page' : undefined} onClick={() => selectSlot('realtime')}><span className="client-slot-top"><time><Radio size={15} />实时</time><small>LIVE</small></span><strong>即时简报</strong><span className={`client-slot-state is-${instantCards[0]?.state || 'empty'}`}><span className="client-status-dot" />{instantCards[0] ? stateLabels[instantCards[0].state] : '随时生成'}<ChevronRight size={12} /></span></button>{config.templates.map((item, index) => {
         const existing = dayCards.find(value => value.slot_id === item.id)
         const status = existing ? stateLabels[existing.state] : new Date(`${date}T${item.time}:00+08:00`).getTime() > now ? '未到时点' : '待制作'
-        return <button className="workspace-button" key={item.id} aria-current={slot === item.id ? 'page' : undefined} onClick={() => { setSlot(item.id); setNotice(''); setUndo(null) }}><span className="client-slot-top"><time>{existing?.template.time || item.time}</time><small>0{index + 1}</small></span><strong>{existing?.template.title || item.title}</strong><span className={`client-slot-state is-${existing?.state || 'empty'}`}><span className="client-status-dot" />{loaded ? status : '读取中'}{drafts[date + ':' + item.id] && <span className="client-draft-tag">草稿</span>}</span></button>
+        return <button className="workspace-button" key={item.id} aria-current={slot === item.id ? 'page' : undefined} onClick={() => selectSlot(item.id)}><span className="client-slot-top"><time>{existing?.template.time || item.time}</time><small>0{index + 1}</small></span><strong>{existing?.template.title || item.title}</strong><span className={`client-slot-state is-${existing?.state || 'empty'}`}><span className="client-status-dot" />{loaded ? status : '读取中'}{drafts[date + ':' + item.id] && <span className="client-draft-tag">草稿</span>}</span></button>
       })}</nav>
       {!!instantCards.length && <section className="client-instant-history" aria-label="即时简报记录"><div><Radio size={16} /><strong>即时简报</strong><span>按生成时刻保留</span></div><nav aria-label="即时简报选择">{instantCards.map(item => <button key={item.id} className="workspace-button" aria-current={slot === item.slot_id ? 'page' : undefined} onClick={() => { setSlot(item.slot_id); setNotice('') }}><time>{new Date(item.cutoff).toLocaleTimeString('zh-CN',{timeZone:'Asia/Shanghai',hour12:false})}</time><span>{stateLabels[item.state]}</span></button>)}</nav></section>}
-      <div className="client-service-studio">
+      <div ref={mobileToolbarRef} className="client-mobile-pane-switch" role="group" aria-label="卡片编辑与预览">
+        <button type="button" className="workspace-button" aria-pressed={mobilePane === 'edit'} onClick={() => switchMobilePane('edit')}>编辑</button>
+        <button type="button" className="workspace-button" aria-pressed={mobilePane === 'preview'} onClick={() => switchMobilePane('preview')}>预览</button>
+      </div>
+      <div ref={studioRef} className="client-service-studio" data-mobile-pane={mobilePane}>
         <section className="client-card-editor" aria-label="卡片编辑"><header className="client-editor-title"><div><h2>{effectiveTemplate?.title}<span>编辑卡片</span></h2></div><button className="workspace-button text-button" disabled={!dirty || !!busy} onClick={resetDraft}><RotateCcw size={14} />恢复</button></header>
           <section className={`client-market-control ${card?.state === 'failed' ? 'has-error' : ''}`} aria-label="市场采集"><div><span className="client-market-icon"><RefreshCw size={17} className={pending ? 'spin' : ''} /></span><div><strong>市场快照 <small>{card ? stateLabels[card.state] : '尚未采集'}</small></strong><p>{futureSlot ? `将于 ${effectiveTemplate?.time} 到达服务时点，可先准备文案。` : card?.message || '采集指数、成交与市场广度，附带信息来源。'}</p></div></div><button type="button" className="secondary-button workspace-button" disabled={!!busy || pending || futureSlot || !loaded || !valid} onClick={() => void (instant ? generateInstant() : generate())}>{pending ? '正在采集…' : instant ? card ? '生成新一期股评' : '生成即时简报' : card ? '重新采集市场状态' : '采集市场状态'}</button></section>
           <div className="client-content-fields client-identity-fields">{field('brand')}{field('headline')}</div>
           <div className="client-section-heading"><h3>核心内容</h3><span>{filled} / 3 项已填写</span></div>
-          <div className="client-content-fields">{field('conclusion')}{field('action')}{field('focus')}</div>
+          <div className="client-content-fields">
+            {field('conclusion')}
+            {replacement && content.conclusion === replacement.after && <button type="button" className="text-button workspace-button client-replacement-undo" onClick={undoResearchExcerpt}><RotateCcw size={13} />撤销替换今日判断</button>}
+            {field('action')}{field('focus')}
+          </div>
           <details className="client-brand-details"><summary>服务落款与风险提示<span>R4 · 固定展示</span></summary><div className="client-content-fields">{field('service')}</div><section className="client-fixed-disclosure" aria-label="固定风险提示与投顾信息"><header><strong>风险提示</strong><span>R4</span></header><p>{fixedDisclosure.risk}</p><div>{disclosureLines.slice(1).map(line => <p key={line}>{line}</p>)}</div><small>所有时点、套图和导出文案均固定附带以上信息。</small></section></details>
-          <footer className="client-editor-footer"><p><span className={`client-status-dot ${dirty ? 'is-draft' : 'is-ready'}`} />{dirty ? draftStorage.persisted ? '草稿已暂存本机，尚未保存' : '草稿暂未写入本机，请及时保存' : card ? '与已保存卡片一致' : '正在使用默认模板'}</p><div className="client-editor-actions"><button className="primary-button workspace-button" disabled={!card || !!busy || !dirty || !valid} onClick={() => void saveCard()}><Save size={15} />{busy === 'save' ? '正在保存…' : '保存本次卡片'}</button><button className="secondary-button workspace-button" disabled={!!busy || !valid || instant} onClick={() => void saveSettings('template')}>{busy === 'template' ? '正在保存…' : '保存为默认模板'}</button><button className="workspace-button text-button client-mobile-jump" onClick={() => previewPanel.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })}>查看预览 ↓</button></div>{!card && <small>采集后可保存本次卡片；提前准备的内容可保存为默认模板。</small>}</footer>
+          <footer className="client-editor-footer"><p><span className={`client-status-dot ${dirty ? 'is-draft' : 'is-ready'}`} />{dirty ? draftStorage.persisted ? '草稿已暂存本机，尚未保存' : '草稿暂未写入本机，请及时保存' : card ? '与已保存卡片一致' : '正在使用默认模板'}</p><div className="client-editor-actions"><button className="primary-button workspace-button" disabled={!card || !!busy || !dirty || !valid} onClick={() => void saveCard()}><Save size={15} />{busy === 'save' ? '正在保存…' : '保存本次卡片'}</button><button className="secondary-button workspace-button" disabled={!!busy || !valid || instant} onClick={() => void saveSettings('template')}>{busy === 'template' ? '正在保存…' : '保存为默认模板'}</button></div>{!card && <small>采集后可保存本次卡片；提前准备的内容可保存为默认模板。</small>}</footer>
         </section>
-        <section ref={previewPanel} className="client-preview-workspace" aria-label="图片预览">
-          <section className="client-preview-panel" aria-label="成品预览">
-          <header><div><h2>成品预览</h2></div><div className="client-preview-toolbar"><button type="button" className="secondary-button workspace-button" disabled={!currentPreview || !!previewError} onClick={openFullscreen}><Maximize2 size={14} />全屏查看</button><div className="client-preview-switch" role="group" aria-label="预览方式"><button className="workspace-button" aria-pressed={previewMode === 'image'} onClick={() => setPreviewMode('image')}><Image size={15} />图片</button><button className="workspace-button" aria-pressed={previewMode === 'text'} onClick={() => setPreviewMode('text')}><FileText size={15} />文案</button></div></div></header>
+        <section className="client-preview-workspace" aria-label="卡片预览">
+          <section className="client-preview-panel" aria-label={exportAsDraft ? '草稿预览' : '成品预览'}>
+          <header><div><h2>{exportAsDraft ? '草稿预览' : '成品预览'}</h2></div><div className="client-preview-toolbar"><button type="button" className="secondary-button workspace-button" disabled={!currentPreview || !!previewError} onClick={openFullscreen}><Maximize2 size={14} />全屏查看</button><div className="client-preview-switch" role="group" aria-label="预览方式"><button className="workspace-button" aria-pressed={previewMode === 'image'} onClick={() => setPreviewMode('image')}><Image size={15} />图片</button><button className="workspace-button" aria-pressed={previewMode === 'text'} onClick={() => setPreviewMode('text')}><FileText size={15} />文案</button></div></div></header>
           <div className="client-preview-meta"><span>{themeLabel} · 点击图片文字可编辑</span><span>{!valid ? '等待填写服务名称' : currentPreview ? `${currentPreview.width} × ${currentPreview.height} px` : previewError ? '预览暂不可用' : '正在同步…'}</span></div>
           {previewError && <div role="alert" className="workspace-error client-service-feedback"><span>{previewError}</span><button className="workspace-button text-button" onClick={() => setPreviewRetry(value => value + 1)}>重试预览</button></div>}
           {previewMode === 'image' ? <div className="client-preview-stage"><button type="button" className="workspace-button client-theme-arrow client-theme-previous" aria-label="上一套底图" title="切换上一套底图" onClick={() => switchTheme(-1)}><ChevronLeft size={22} /></button><div className="client-card-canvas" aria-busy={valid && !currentPreview && !previewError}>{visiblePreview ? <EditableClientCard key={key} preview={visiblePreview} content={content} alt={`${content.brand} ${content.headline || effectiveTemplate?.title}时点卡预览`} onApply={applyImageEdits} onFullscreen={openFullscreen} /> : <div className="client-preview-placeholder"><Image size={34} /><p>{!valid ? '填写服务名称后，即可预览卡片' : previewError ? '修改内容或重试以恢复图片预览' : '正在排版当前内容…'}</p><small>预览与下载使用同一版式</small></div>}</div><button type="button" className="workspace-button client-theme-arrow client-theme-next" aria-label="下一套底图" title="切换下一套底图" onClick={() => switchTheme(1)}><ChevronRight size={22} /></button></div> : <div className="client-text-preview" aria-label="文案预览"><pre>{text}</pre></div>}
-          <div className="client-export-bar"><p><CheckCircle2 size={14} />{card?.market ? filled === 3 ? '内容已齐全，请核对后使用' : '市场已采集，可继续补充文案' : '当前为草稿，市场状态尚未采集'}</p><div><button className="secondary-button workspace-button" disabled={!valid || !loaded} onClick={() => void copy()}><Copy size={15} />复制文案</button><button className="primary-button workspace-button" disabled={!currentPreview || !!previewError} onClick={download}><Download size={15} />下载 PNG</button></div></div>
+          <div className="client-export-bar" data-draft={exportAsDraft}>
+            <p>{exportAsDraft ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}{exportAsDraft ? `草稿 · ${draftReason}` : '成品 · 市场已核对，内容已保存'}</p>
+            <div>
+              <button className="secondary-button workspace-button" disabled={!valid || !loaded} onClick={() => void copy()}><Copy size={15} />{exportAsDraft ? '复制草稿文案' : '复制文案'}</button>
+              <button className={`${exportAsDraft ? 'secondary' : 'primary'}-button workspace-button`} disabled={!currentPreview || !!previewError} onClick={download}><Download size={15} />{downloadLabel}</button>
+              {!exportAsDraft && <button type="button" className="secondary-button workspace-button" aria-haspopup="dialog" disabled={!readyToSend} onClick={() => setSendTarget(readyToSend)}><Send size={15} aria-hidden="true" />发送到群</button>}
+            </div>
+          </div>
           {card?.market && <details className="client-evidence-details"><summary>市场来源与时点<span>{card.market.sources.length} 个来源 · {card.market.quality === 'partial' ? '部分待核实' : '已核对'}</span></summary><section className="client-market-evidence" aria-label="市场来源与时点"><p>信息截至 {marketTime(card.cutoff)}（北京时间）</p><dl>{(card.market.raw_metrics || card.market.metrics).map((metric, index) => <div key={index}><dt>{metric.label}</dt><dd>{metric.value}{metric.observed_at && <small>数据时点 {marketTime(metric.observed_at)}</small>}</dd></div>)}</dl><ul>{card.market.sources.map((source, index) => <li key={index}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></li>)}</ul>{!!card.market.limitations.length && <p>{card.market.limitations.join('；')}</p>}</section></details>}
           {currentPreview?.checks?.state==='warning'&&<p className="client-layout-warning" role="status">排版提示：{[...new Set(currentPreview.checks.issues.map(issue=>issue.message))].join('；')}。</p>}
-          <ClientCardReview card={card} dirty={dirty} imageHash={currentPreview?.image_hash}/>
+          <ClientCardReview card={card} dirty={dirty} imageHash={exportAsDraft ? currentPreview?.saved_image_hash : currentPreview?.image_hash} />
           </section>
           <aside className="client-theme-picker" aria-label="卡片套图"><div className="client-section-heading"><h3>选择套图</h3><span>每套含 7 款时点插画</span></div><button type="button" className="workspace-button client-theme-scroll" aria-label="向上浏览套图" disabled={!themeScroll.up} onClick={() => browseThemes(-1)}><ChevronUp size={18} /></button><div ref={themeList} className="client-theme-list" role="group" aria-label="套图风格">{cardThemes.map(item => <button type="button" key={item.id} className="workspace-button" aria-pressed={theme === item.id} aria-label={item.name} onClick={() => update('theme', item.id)}><span className="client-theme-thumbnail" style={{ backgroundImage: `url(/client-service/themes/${item.id}-logo-safe.png)`, backgroundPosition: cardArtworkPosition(slot) }} /><strong>{item.name}{theme === item.id && <Check size={12} />}</strong><small>{item.description}</small></button>)}</div><button type="button" className="workspace-button client-theme-scroll" aria-label="向下浏览套图" disabled={!themeScroll.down} onClick={() => browseThemes(1)}><ChevronDown size={18} /></button><footer><span>已匹配{effectiveTemplate?.title}底图</span><button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => void saveThemeCollection()}>{busy === 'theme' ? '正在保存…' : '设为全时点默认'}</button></footer></aside>
         </section>
       </div>
     </>}
-    {fullscreen && <ConditionWorkspaceDrawer title="成品全屏预览" description={`${themeLabel} · ${content?.headline || effectiveTemplate?.title || '时点卡'}`} closeLabel="退出全屏预览" className="client-card-fullscreen" onClose={() => setFullscreen(false)} footer={<><div className="client-fullscreen-themes"><button type="button" className="workspace-button" onClick={() => switchTheme(-1)}><ChevronLeft size={17} />上一套</button><span>{themeLabel}</span><button type="button" className="workspace-button" onClick={() => switchTheme(1)}>下一套<ChevronRight size={17} /></button></div><div className="client-fullscreen-actions"><button type="button" className="workspace-button" aria-pressed={readingSize} onClick={() => setReadingSize(value => !value)}>{readingSize ? '适应窗口' : '放大阅读'}</button><button type="button" className="workspace-button" disabled={!currentPreview || !!previewError} onClick={download}><Download size={15} />下载图片</button></div></>}>
-      <div className={`client-fullscreen-canvas${readingSize ? ' is-reading' : ''}`}>{visiblePreview ? <EditableClientCard key={key} preview={visiblePreview} content={content!} alt="全屏成品图片" mode={readingSize ? 'read' : 'fit'} onApply={applyImageEdits} /> : previewError ? <div role="alert" className="client-fullscreen-error"><p>{previewError}</p><button className="workspace-button" onClick={() => setPreviewRetry(value => value + 1)}>重试预览</button></div> : <LoadingState label="正在同步成品图片…" />}</div>
+    {fullscreen && <ConditionWorkspaceDrawer title={exportAsDraft ? '草稿全屏预览' : '成品全屏预览'} description={`${themeLabel} · ${content?.headline || effectiveTemplate?.title || '时点卡'}`} closeLabel="退出全屏预览" className="client-card-fullscreen" onClose={() => setFullscreen(false)} footer={<><div className="client-fullscreen-themes"><button type="button" className="workspace-button" onClick={() => switchTheme(-1)}><ChevronLeft size={17} />上一套</button><span>{themeLabel}</span><button type="button" className="workspace-button" onClick={() => switchTheme(1)}>下一套<ChevronRight size={17} /></button></div><div className="client-fullscreen-actions"><button type="button" className="workspace-button" aria-pressed={readingSize} onClick={() => setReadingSize(value => !value)}>{readingSize ? '适应窗口' : '放大阅读'}</button><button type="button" className="workspace-button" disabled={!currentPreview || !!previewError} onClick={download}><Download size={15} />{downloadLabel}</button></div></>}>
+      <div className={`client-fullscreen-canvas${readingSize ? ' is-reading' : ''}`}>{visiblePreview ? <EditableClientCard key={key} preview={visiblePreview} content={content!} alt={exportAsDraft ? '全屏草稿图片' : '全屏成品图片'} mode={readingSize ? 'read' : 'fit'} onApply={applyImageEdits} /> : previewError ? <div role="alert" className="client-fullscreen-error"><p>{previewError}</p><button className="workspace-button" onClick={() => setPreviewRetry(value => value + 1)}>重试预览</button></div> : <LoadingState label="正在同步卡片图片…" />}</div>
     </ConditionWorkspaceDrawer>}
     {drawer === 'schedule' && schedule && <ConditionWorkspaceDrawer title="每日生成计划" description="设置服务时点与生成日期，保存后生效。" closeLabel="关闭生成计划" className="client-service-drawer" onClose={() => setDrawer(null)}>
       {error && <p role="alert" className="workspace-error client-service-feedback">{error}</p>}
@@ -357,9 +460,18 @@ export default function ClientServicePage() {
       <div className="client-plan-note"><Clock3 size={17} /><span>本地后台服务运行时，关闭页面仍会执行计划。错过 15 分钟的时点需手动采集。</span></div>
       <fieldset disabled={!!busy}><legend>选择生成日期</legend><div className="client-weekdays">{weekdays.map((day, index) => <label key={day} className={schedule.weekdays.includes(index) ? 'is-selected' : ''}><input type="checkbox" checked={schedule.weekdays.includes(index)} onChange={event => setSchedule({ ...schedule, weekdays: event.target.checked ? [...schedule.weekdays, index].sort() : schedule.weekdays.filter(value => value !== index) })} />{day}</label>)}</div><p className="client-plan-help">按星期执行，请在法定休市日前调整计划。</p>
       <div className="client-schedule-times">{schedule.templates.map((item, index) => <div key={item.id}><span className="client-schedule-number">0{index + 1}</span><label><input type="checkbox" checked={item.enabled} onChange={event => setSchedule({ ...schedule, templates: schedule.templates.map(value => value.id === item.id ? { ...value, enabled: event.target.checked } : value) })} />{item.title}</label><input type="time" aria-label={`${item.title}生成时间`} className="workspace-field" value={item.time} onChange={event => { if (event.target.value) setSchedule({ ...schedule, templates: schedule.templates.map(value => value.id === item.id ? { ...value, time: event.target.value } : value) }) }} /></div>)}</div></fieldset>
+      <section className="client-template-library" aria-label="服务模板文案"><h3>服务模板文案</h3><p className="client-plan-help">保存后用于后续生成，已有卡片保留原内容。</p>{schedule.templates.map(item => <details key={item.id}><summary>{item.title} · {item.time}</summary><div className="client-template-fields">{contentFields.map(field => <label key={field.key} className="workspace-field-label">{field.label}<textarea aria-label={`${item.title}${field.label}`} rows={field.rows || 1} maxLength={field.max} disabled={!!busy} value={item.content[field.key]} onChange={event => setSchedule({ ...schedule, templates: schedule.templates.map(value => value.id === item.id ? { ...value, content: withFixedDisclosure({ ...value.content, [field.key]: event.target.value }) } : value) })} className="workspace-field" /></label>)}</div></details>)}</section>
       {!schedule.weekdays.length && <p role="alert" className="client-field-error">请至少选择一个生成日期。</p>}
       <footer><span>{scheduleDirty ? '计划有未保存的修改' : '计划已保存'} · {schedule.templates.filter(item => item.enabled).length} 个启用时点</span><button className="secondary-button workspace-button" disabled={!scheduleDirty || !!busy} onClick={() => setSchedule(config)}>放弃计划修改</button><button type="button" className="primary-button workspace-button" disabled={!!busy || !schedule.weekdays.length || !scheduleDirty} onClick={() => void saveSettings('schedule')}><Save size={15} />{busy === 'schedule' ? '正在保存…' : '保存生成计划'}</button></footer>
     </section></ConditionWorkspaceDrawer>}
-    {drawer === 'robots' && <ConditionWorkspaceDrawer title="企业微信机器人" description="管理群机器人，核对后发送对客内容。" closeLabel="关闭机器人管理" className="client-service-drawer" onClose={() => setDrawer(null)}><ClientRobotPanel card={card} canSend={!!card && card.state === 'ready' && !dirty && valid && loaded} preview={currentPreview?.image} /></ConditionWorkspaceDrawer>}
+    {(drawer === 'robots' || drawer === 'deliveries') && <ConditionWorkspaceDrawer title={drawer === 'deliveries' ? '发送记录' : '群机器人'} description={drawer === 'deliveries' ? '查看最近发送的内容、时间与结果。' : '管理企业微信群机器人并测试连接。'} closeLabel={drawer === 'deliveries' ? '关闭发送记录' : '关闭机器人管理'} className="client-service-drawer" onClose={() => setDrawer(null)}><ClientRobotPanel key={drawer} historyOnly={drawer === 'deliveries'} /></ConditionWorkspaceDrawer>}
+    {sendTarget && <ClientCardSendDialog
+      card={sendTarget.card}
+      kind={sendTarget.kind}
+      preview={sendTarget.image}
+      canSend={!!readyToSend && readyToSend.card.id === sendTarget.card.id && readyToSend.card.revision === sendTarget.card.revision && readyToSend.previewKey === sendTarget.previewKey}
+      onClose={() => setSendTarget(null)}
+      onManage={() => { setSendTarget(null); setNotice(''); setDrawer('robots') }}
+    />}
   </div>
 }

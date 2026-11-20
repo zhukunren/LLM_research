@@ -6,7 +6,6 @@ import { SecuritiesProvider } from '../StockSearch'
 import ConversationWorkspace from './ConversationWorkspace'
 import { researchAnswerExcerpt, researchAnswerSecurityCodes, uniqueResearchSecurity } from './researchResultNextSteps'
 
-vi.mock('./ProjectMembership', () => ({ default: () => <span>项目归属</span> }))
 const timestamp = '2026-10-06T00:00:00Z'
 const securities = [{ stock_code: '600000.SH', name: '浦发银行', market: 'SH' }, { stock_code: '000001.SZ', name: '平安银行', market: 'SZ' }]
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
@@ -24,7 +23,6 @@ function restore(stored = research()) {
     if (path === '/security-catalog') return json({ items: securities })
     if (path === '/conversations') return json({ items: [{ ...stored, title: '现金流研究' }] })
     if (path === '/conversations/research') return json(stored)
-    if (path.endsWith('/notes/from-message')) return json({ id: 'note', project_id: 'inbox' })
     if (path.endsWith('/screening-draft')) return json({ conversation_id: 'draft', turn_id: null, draft_prompt: String(body.instructions), source: { source_conversation_id: 'research', source_message_id: 'answer' } })
     return json({ items: [], id: 'candidate' })
   }))
@@ -81,14 +79,13 @@ it('switches preserved answer versions without extra requests or repeated user m
   expect(calls.every(call => call.method === 'GET')).toBe(true)
 })
 
-it('saves a completed answer without starting another workflow', async () => {
-  const calls = restore(), user = userEvent.setup()
+it('keeps answer actions on a conversation saved with an old project', async () => {
+  const calls = restore({ ...research(), project_id: 'old-project' })
   renderResearch()
   const next = await screen.findByRole('region', { name: '研究答复操作' })
-  await user.click(within(next).getByRole('button', { name: '保存为研究笔记' }))
-  await screen.findByText('已保存为研究笔记')
-  expect(within(next).getByRole('button', { name: '保存为研究笔记' })).toBeDisabled()
-  expect(calls.filter(call => call.method !== 'GET').map(call => call.path)).toEqual(['/conversations/research/notes/from-message'])
+  expect(within(next).getByRole('button', { name: '加入关注' })).toBeEnabled()
+  expect(within(next).queryByRole('button', { name: '保存为研究笔记' })).not.toBeInTheDocument()
+  expect(calls.every(call => call.method === 'GET' && !call.path.includes('/research-projects'))).toBe(true)
 })
 
 it('prefills only the answer frozen company and an editable excerpt, leaving optional plans blank', async () => {

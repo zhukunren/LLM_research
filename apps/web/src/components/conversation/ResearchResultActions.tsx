@@ -14,16 +14,16 @@ export type ResearchResultRequest =
   | { kind: 'draft'; instructions: string }
   | { kind: 'observe'; stock_code: string; note: string; verification: string; invalidation: string }
 
-export default function ResearchResultActions({ conversation, message, disabled, savingNote, savingAction, onSave, onCopy, onSubmit, onContinue, onRegenerate, onBranch }: {
-  conversation: Conversation; message: ConversationMessage; disabled: boolean; savingNote: boolean; savingAction: boolean
-  onSave: () => Promise<boolean>; onCopy: () => void; onSubmit: (request: ResearchResultRequest) => Promise<boolean>
+export default function ResearchResultActions({ conversation, message, disabled, savingAction, onCopy, onSubmit, onContinue, onRegenerate, onBranch, onServiceDraft }: {
+  conversation: Conversation; message: ConversationMessage; disabled: boolean; savingAction: boolean
+  onCopy: () => void; onSubmit: (request: ResearchResultRequest) => Promise<boolean>
   onContinue: () => void
   onRegenerate?: () => void; onBranch?: () => void
+  onServiceDraft?: () => void
 }) {
   const workspaceSession = useWorkspaceSession()
   const portalTarget = workspaceSession.portalTarget ?? document.body
   const { items: securities, loading: catalogLoading, error: catalogError } = useSecurities()
-  const [saved, setSaved] = useState(false)
   const [action, setAction] = useState<'draft' | 'observe' | null>(null)
   const [instructions, setInstructions] = useState('')
   const [stockCode, setStockCode] = useState('')
@@ -37,7 +37,7 @@ export default function ResearchResultActions({ conversation, message, disabled,
   const codes = researchAnswerSecurityCodes(conversation, message)
   const suggestedSecurity = uniqueResearchSecurity(codes, securities)
   const selectedSecurity = securities.find(item => item.stock_code === stockCode && item.market !== '指数')
-  const locked = disabled || savingNote || savingAction
+  const locked = disabled || savingAction
 
   useEffect(() => {
     if (!action) return
@@ -88,9 +88,8 @@ export default function ResearchResultActions({ conversation, message, disabled,
   }
 
   return <StockText><section className="research-next-steps" aria-label="研究答复操作">
-    <ResearchAnswerTools conversation={conversation} message={message} locked={locked} saved={saved} savingNote={savingNote}
-      onSave={() => { void (async () => { if (await onSave()) setSaved(true) })() }} onCopy={onCopy}
-      onObserve={() => startAction('observe')} onDraft={() => startAction('draft')} onRegenerate={onRegenerate} onBranch={onBranch} />
+    <ResearchAnswerTools conversation={conversation} message={message} locked={locked} onCopy={onCopy}
+      onObserve={() => startAction('observe')} onDraft={() => startAction('draft')} onRegenerate={onRegenerate} onBranch={onBranch} onServiceDraft={onServiceDraft} />
     {action && createPortal(<div className="research-result-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) closeAction() }}>
       <section className="research-result-dialog workspace-tool-dialog workspace-dialog" role="dialog" aria-modal="true" aria-label={action === 'draft' ? '研究转选股草稿' : '加入关注'} onKeyDown={event => {
         if (event.key === 'Escape') {

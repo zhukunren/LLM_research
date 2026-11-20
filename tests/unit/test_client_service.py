@@ -122,6 +122,13 @@ def test_fixed_disclosure_upgrades_legacy_settings_cards_and_all_write_paths(con
         'template': old_template, 'date': DAY, 'content': {**legacy, **FIXED_DISCLOSURE},
     })
     assert preview.json()['image'] == normalized.json()['image']
+    draft = client.post('/api/v1/client-service/preview?draft=true', json={
+        'template': old_template, 'date': DAY, 'content': legacy,
+    })
+    assert draft.status_code == 200
+    assert draft.json()['draft'] is True
+    assert draft.json()['image_hash'] != preview.json()['image_hash']
+    assert draft.json()['regions'] == preview.json()['regions']
 
 
 def test_all_theme_renderers_keep_full_fixed_disclosure_visible_and_read_only(monkeypatch):
@@ -262,7 +269,7 @@ def test_brief_can_omit_repeated_indices_without_losing_numeric_evidence(configu
     metrics = [{'label': label, 'value': value, 'observed_at': WHEN.isoformat(), 'source_url': URL}
                for label, value in [('上证指数', '3600.00点 +0.20%'), ('深证成指', '12000.00点 -0.30%'), ('创业板指', '2600.00点 -0.50%')]]
     monkeypatch.setattr(client_service_market, 'read', lambda *args: {'metrics': metrics, 'sources': [{'title': '服务端行情', 'url': URL, 'published_at': None}]})
-    monkeypatch.setattr(service, '_web_evidence', lambda _: (True, {'https://example.com/market'}))
+    monkeypatch.setattr(service, 'web_evidence', lambda *_: (True, {'https://example.com/market'}))
     body = {'summary': '市场表现分化。', 'metrics': [], 'commentary': {'headline': '时点简评', 'conclusion': '判断', 'action': '主线', 'focus': '观察'},
             'sources': [{'title': '当期市场综述', 'url': 'https://example.com/market', 'published_at': WHEN.isoformat()}]}
     result = service.verified_market(row, json.dumps(body))
@@ -392,6 +399,28 @@ def test_customer_png_omits_internal_collection_diagnostics(configured):
     card['market']['limitations']=['Tushare 没有接口权限，未核实，继续补采。'*20]
     assert images.render_card(card)==baseline
     assert 'Tushare' not in card['market']['public_notes'][0]
+
+
+def test_customer_png_renders_link_labels_and_keeps_the_original_card():
+    template = service.default_settings().templates[2].model_dump()
+    card = {
+        'template': template, 'service_date': DAY,
+        'content': {**template['content'], 'conclusion': '观察公告'},
+        'market': {
+            'summary': '强弱分化。', 'data_note': '沪深两市口径。',
+            'metrics': [{'label': '上证指数', 'value': '3600点 +0.2%', 'observed_at': WHEN.isoformat()}],
+            'sources': [{'title': '公开市场数据', 'url': 'https://example.com/source'}],
+        },
+    }
+    expected = images.render_card(card)
+    card['content']['conclusion'] = '观察[公告](https://example.com/filing)'
+    card['market']['summary'] = '强弱分化（www.example.cn/market）。'
+    card['market']['data_note'] = '沪深两市口径（https://example.com/notes）。'
+    card['market']['metrics'][0]['value'] = '3600点 +0.2% <https://example.com/data>'
+    card['market']['sources'][0]['title'] = '公开市场数据 example.org/source'
+    assert images.render_card(card) == expected
+    assert 'https://example.com/filing' in card['content']['conclusion']
+    assert card['market']['sources'][0]['url'] == 'https://example.com/source'
 
 
 def test_missing_optional_statistics_are_omitted_from_the_finished_card(configured):
@@ -624,6 +653,11 @@ def test_preview_regions_match_export_and_market_edits_preserve_original_evidenc
     assert regions['market.metric.0.value']['value'] == '用户修订值'
     assert all(region['x'] >= 0 and region['y'] >= 0 and region['x'] + region['width'] <= preview['width'] and region['y'] + region['height'] <= preview['height'] for region in regions.values())
     assert base64.b64decode(preview['image'].split(',')[1]) == client.get(f"/api/v1/client-service/cards/{card['id']}/image.png").content
+    draft = client.post('/api/v1/client-service/preview?draft=true', json={
+        'template': value['template'], 'date': DAY, 'content': value['content'], 'card_id': value['id'],
+    }).json()
+    assert draft['saved_image_hash'] == preview['image_hash']
+    assert draft['image_hash'] != draft['saved_image_hash']
     settings = service.settings()
     settings['templates'][2]['content'] = edited
     saved_settings = client.put('/api/v1/client-service/settings', json=settings).json()

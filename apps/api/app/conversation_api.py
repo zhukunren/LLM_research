@@ -315,6 +315,8 @@ def update_research_mode(conversation_id: str, payload: UpdateResearchModeReques
 
 @router.post("/{conversation_id}/messages")
 def add_user_message(conversation_id: str, payload: AddUserMessageRequest):
+    from .screening_service import ScreeningServiceError
+
     try:
         result = conversation_store.add_user_message(
             conversation_id,
@@ -326,6 +328,8 @@ def add_user_message(conversation_id: str, payload: AddUserMessageRequest):
             assistant_revision=payload.assistant_revision,
             model_revision=payload.model_revision,
             attachment_ids=payload.attachment_ids,
+            execute_plan=payload.execute_plan,
+            route_screening=payload.route_screening,
         )
     except (
         conversation_store.ConversationNotFound,
@@ -333,6 +337,12 @@ def add_user_message(conversation_id: str, payload: AddUserMessageRequest):
         conversation_store.ConversationStoreError,
     ) as exc:
         _store_error(exc)
+    if payload.route_screening and result["workflow_type"] == "screening":
+        try:
+            result["turn"] = research_turn_service.enqueue_turn(conversation_id, result["turn_id"])
+        except (codex_runtime.CodexRuntimeError, ScreeningServiceError) as exc:
+            result["turn"] = conversation_store.get_turn(conversation_id, result["turn_id"])
+            result["processing_error"] = str(exc)
     return JSONResponse(
         status_code=200 if result["idempotent_replay"] else 202,
         content=result,
@@ -398,6 +408,8 @@ def get_conversation_turn(conversation_id: str, turn_id: str):
 
 @router.post("/{conversation_id}/turns/{turn_id}/process")
 def process_conversation_turn(conversation_id: str, turn_id: str):
+    from .screening_service import ScreeningServiceError
+
     try:
         turn = research_turn_service.enqueue_turn(conversation_id, turn_id)
         return JSONResponse(status_code=202 if turn["state"] in {"awaiting_agent", "running"} else 200, content=turn)
@@ -406,6 +418,8 @@ def process_conversation_turn(conversation_id: str, turn_id: str):
             503,
             {"code": "codex_runtime_unavailable", "message": str(exc)},
         ) from exc
+    except ScreeningServiceError as exc:
+        raise HTTPException(exc.status_code, {"code": exc.code, "message": str(exc)}) from exc
     except (
         conversation_store.ConversationNotFound,
         conversation_store.ConversationConflict,

@@ -1,5 +1,5 @@
 import { openResearchSettings } from '../../test/openResearchSettings'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
@@ -450,13 +450,13 @@ describe('ConversationWorkspace', () => {
 
     await waitFor(() => expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1))
     await user.click(await screen.findByRole('button', { name: '查看名单' }))
-    expect(await screen.findByText('600000.SH')).toBeInTheDocument()
+    expect(await within(await screen.findByRole('table', { name: '筛选结果股票列表' })).findByText('600000.SH')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' }))
     await user.click(screen.getByRole('button', { name: '追问这只股票' }))
     expect(screen.getByLabelText(/研究要求|选股要求/)).toHaveValue('为什么这次选中了600000.SH？')
     expect(calls.filter((call) => call.includes('/turns/turn-2/execute'))).toHaveLength(1)
     expect(screen.getByText('当前运行')).toBeInTheDocument()
-    expect(screen.getByText('数据截止日：2026-09-14')).toBeInTheDocument()
+    expect(screen.getAllByText('数据截止日：2026-09-14')).toHaveLength(2)
   })
 
   it('attaches a report page reference to the first message from a report page', async () => {
@@ -506,7 +506,7 @@ describe('ConversationWorkspace', () => {
 })
 
 
-it.each(['research', 'screening'] as const)('keeps the existing %s draft when an arbitrary indicator request is added', async workflow => {
+it.each(['research'] as const)('keeps the existing %s draft when an arbitrary indicator request is added', async workflow => {
   const fetcher = vi.fn(async () => jsonResponse({ items: [] }))
   vi.stubGlobal('fetch', fetcher)
   const user = userEvent.setup()

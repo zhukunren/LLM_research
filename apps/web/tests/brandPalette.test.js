@@ -7,7 +7,7 @@ const tokens = readStyle('tokens.css')
 const minimalist = readStyle('minimalist-workspace.css')
 const libraries = readStyle('library-minimal.css')
 const chat = readStyle('chat-layout.css')
-const screening = readStyle('components/conversation/screening-simple.css')
+const research = readStyle('research-chat.css')
 const screeningJourney = readStyle('components/conversation/screening-journey.css')
 
 const token = (name) => {
@@ -28,13 +28,13 @@ const contrast = (a, b) => {
 }
 
 describe('Soochow interaction palette', () => {
-  it('uses site-derived blues without recoloring the quiet canvas or market semantics', () => {
-    expect(token('ui-brand')).toBe('#00337a')
-    expect(token('ui-primary')).toBe('#00337a')
+  it('keeps the current product blues, neutral surfaces and market semantics', () => {
+    expect(token('ui-brand')).toBe('#004a99')
+    expect(token('ui-primary')).toBe('#004a99')
     expect(token('ui-accent')).toBe('#0079c2')
-    expect(token('ui-canvas')).toBe('#ffffff')
+    expect(token('ui-canvas')).toBe('#fcfcfc')
     expect(token('ui-surface')).toBe('#ffffff')
-    expect(token('ui-sidebar')).toBe('#f7f8fa')
+    expect(token('ui-sidebar')).toBe('#fafbfc')
     expect(token('ui-market-up')).toBe('#be414a')
     expect(token('ui-market-down')).toBe('#208575')
     expect(token('ui-chart-line')).toBe('#32839b')
@@ -58,7 +58,9 @@ describe('Soochow interaction palette', () => {
     expect(minimalist).toMatch(/primary-button:active:not\(:disabled\)\s*\{[^}]*background: var\(--ui-primary-active\)/)
     expect(libraries).not.toMatch(/color:#242424/)
     expect(screeningJourney).toMatch(/button\.active\s*\{[^}]*color: var\(--ui-primary\)/)
-    expect(screening).toMatch(/conversation-workspace-empty \.conversation-composer:focus-within\s*\{ border-color:var\(--ui-primary\)/)
+    // Both task types inherit their final composer focus treatment from research-chat.css.
+    expect(research).toMatch(/\.conversation-composer:focus-within\s*\{ border-color: var\(--ui-accent\); box-shadow: var\(--ui-focus-shadow\)/)
+    expect(research).toMatch(/conversation-workspace-empty \.conversation-composer:focus-within\s*\{ border-color: var\(--ui-accent\); box-shadow: var\(--ui-focus-shadow\)/)
     expect(libraries).toMatch(/button\.selected\s*\{[^}]*color:var\(--ui-primary\)/)
     expect(libraries).toMatch(/button\.selected strong\s*\{ color:var\(--ui-primary\)/)
     expect(libraries).toMatch(/:focus-within\s*\{ border-color:var\(--ui-primary\)/)

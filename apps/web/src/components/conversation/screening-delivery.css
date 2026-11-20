@@ -18,7 +18,7 @@
 .screening-panel-tabs button { padding:7px 12px; border:0; border-radius:7px; background:transparent; color:var(--ui-text-muted); font-size:13px; line-height:1.6; cursor:pointer; }
 .screening-panel-tabs button[aria-selected=true] { background:var(--ui-primary-soft); color:var(--ui-primary); }
 .screening-results-drawer [role=tabpanel][hidden] { display:none; }
-.chat-page .research-studio.screening-studio .conversation-workspace.screening-detail-open { display:grid; grid-template-columns:minmax(0,1fr) minmax(400px,48%); gap:0; }
+.chat-page .research-studio.screening-studio .conversation-workspace.screening-detail-open { display:grid; grid-template-columns:minmax(300px,var(--screening-chat-fraction,38fr)) 8px minmax(440px,var(--screening-result-fraction,62fr)); gap:0; }
 .chat-page .research-studio.screening-studio .conversation-workspace.screening-detail-open > .conversation-main { min-width:0; }
 .chat-page .research-studio.screening-studio .conversation-workspace > .screening-results-drawer { position:relative; inset:auto; width:auto; max-width:none; height:100%; padding:22px 20px; border-left:1px solid var(--ui-border); box-shadow:none; animation:screening-panel-enter 180ms ease-out; }
 @keyframes screening-panel-enter { from { opacity:0; transform:translateX(12px); } to { opacity:1; transform:translateX(0); } }

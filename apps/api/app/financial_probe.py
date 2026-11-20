@@ -53,8 +53,10 @@ def credential_id() -> str:
 def create_probe_client() -> TushareClient:
     from .tushare_limits import configured_limiter
     settings = tushare_settings()
-    return TushareClient(str(settings["token"]), timeout=min(float(settings["timeout"]), 15), retries=0,
-                         limiter=configured_limiter())
+    return TushareClient(
+        str(settings["token"]), api_url=str(settings["api_url"]),
+        timeout=min(float(settings["timeout"]), 15), retries=0, limiter=configured_limiter(),
+    )
 
 
 def samples(request: ProbeRequest) -> list[dict]:

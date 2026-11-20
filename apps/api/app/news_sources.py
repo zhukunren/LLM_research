@@ -3,16 +3,18 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 import json
 import re
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from . import news_retention
 from .db import connect, json_dump, json_load, utc_now
 from .evidence_sources import EvidenceSourceError
 from .screening_contracts import ContractModel
 
-LOCAL_ZONE = timezone(timedelta(hours=8))
+LOCAL_ZONE = news_retention.LOCAL_ZONE
+NewsView = Literal["recent", "today", "manual"]
 
 
 class NewsItemInput(ContractModel):
@@ -84,14 +86,16 @@ def _record(row):
                 **json_load(row["payload_json"]), created_at=row["created_at"])
 
 
-def import_items(request: NewsImport, *, base_id: str | None = None) -> dict[str, Any]:
+def import_items(
+    request: NewsImport, *, base_id: str | None = None, origin: Literal["manual", "tushare"] = "manual",
+) -> dict[str, Any]:
     payloads = [_canonical(item) for item in request.items]
     identity = json_dump(dict(base_id=base_id, payloads=payloads))
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         old = connection.execute("SELECT * FROM news_import_requests WHERE request_id=?", (request.request_id,)).fetchone()
         if old:
-            if old["request_json"] != identity:
+            if old["request_json"] != identity or old["origin"] != origin:
                 raise NewsError("request_conflict", "同一导入请求不能用于不同内容", 409)
             return dict(**json_load(old["result_json"]), replay=True)
         base = None
@@ -104,11 +108,22 @@ def import_items(request: NewsImport, *, base_id: str | None = None) -> dict[str
             latest = connection.execute("SELECT MAX(version) FROM news_records WHERE root_id=?", (base["root_id"],)).fetchone()[0]
             if latest != base["version"]:
                 raise NewsError("revision_conflict", "资讯已有较新版本，请刷新后编辑", 409)
+        existing_by_payload = {}
+        if base is None:
+            # A single lookup per batch keeps historical imports from rescanning the archive for each item.
+            distinct_payloads = list(dict.fromkeys(payloads))
+            placeholders = ",".join("?" for _ in distinct_payloads)
+            for row in connection.execute(
+                f"SELECT * FROM news_records WHERE payload_json IN ({placeholders}) ORDER BY created_at DESC",
+                distinct_payloads,
+            ):
+                existing_by_payload.setdefault(row["payload_json"], row)
         result = {"items": [], "created": 0, "duplicates": 0}
         for item, payload in zip(request.items, payloads):
-            duplicate = (base if base["payload_json"] == payload else None) if base else connection.execute(
-                "SELECT * FROM news_records WHERE payload_json=? ORDER BY created_at DESC LIMIT 1", (payload,)).fetchone()
+            duplicate = (base if base["payload_json"] == payload else None) if base else existing_by_payload.get(payload)
             if duplicate:
+                if origin == "manual" and duplicate["origin"] == "tushare":
+                    connection.execute("UPDATE news_records SET origin='manual' WHERE id=?", (duplicate["id"],))
                 result["items"].append(_record(duplicate))
                 result["duplicates"] += 1
                 continue
@@ -116,12 +131,15 @@ def import_items(request: NewsImport, *, base_id: str | None = None) -> dict[str
             root_id, version = (base["root_id"], base["version"] + 1) if base else (record_id, 1)
             data = json.loads(payload)
             connection.execute("""INSERT INTO news_records(id,root_id,version,title,body,source,published_at,
-                available_at,stock_codes_json,event_key,payload_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                available_at,stock_codes_json,event_key,payload_json,created_at,origin) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (record_id, root_id, version, item.title, item.body, item.source, data["published_at"],
-                 data["available_at"], json_dump(item.stock_codes), item.event_key, payload, utc_now()))
-            result["items"].append(_record(connection.execute("SELECT * FROM news_records WHERE id=?", (record_id,)).fetchone()))
+                 data["available_at"], json_dump(item.stock_codes), item.event_key, payload, utc_now(), origin))
+            saved = connection.execute("SELECT * FROM news_records WHERE id=?", (record_id,)).fetchone()
+            existing_by_payload[payload] = saved
+            result["items"].append(_record(saved))
             result["created"] += 1
-        connection.execute("INSERT INTO news_import_requests VALUES(?,?,?)", (request.request_id, identity, json_dump(result)))
+        connection.execute("INSERT INTO news_import_requests(request_id,request_json,result_json,origin) VALUES(?,?,?,?)",
+                           (request.request_id, identity, json_dump(result), origin))
     return dict(**result, replay=False)
 
 
@@ -134,11 +152,19 @@ def get_item(item_id: str) -> dict:
 
 
 def browse(*, query: str = "", stock_code: str | None = None, start_date: date | None = None,
-           end_date: date | None = None, offset: int = 0, limit: int = 30) -> dict:
+           end_date: date | None = None, offset: int = 0, limit: int = 30, view: NewsView = "recent") -> dict:
     if start_date and end_date and start_date > end_date:
         raise NewsError("invalid_date_range", "结束日期不能早于开始日期")
     predicates = ["n.version=(SELECT MAX(v.version) FROM news_records v WHERE v.root_id=n.root_id)"]
     params: list[Any] = []
+    article_time = news_retention.article_time("n")
+    if view == "manual":
+        predicates.append("EXISTS(SELECT 1 FROM news_records v WHERE v.root_id=n.root_id AND v.origin='manual')")
+    else:
+        day = news_retention.today()
+        start = day if view == "today" else news_retention.cutoff_day(day)
+        start_date = max(start_date, start) if start_date else start
+        end_date = min(end_date, day) if end_date else day
     if query:
         predicates.append("(instr(n.title,?)>0 OR instr(n.body,?)>0)")
         params.extend([query, query])
@@ -146,17 +172,15 @@ def browse(*, query: str = "", stock_code: str | None = None, start_date: date |
         predicates.append("EXISTS(SELECT 1 FROM json_each(n.stock_codes_json) WHERE value=?)")
         params.append(stock_code)
     if start_date:
-        start_at = datetime.combine(start_date, time.min, LOCAL_ZONE).astimezone(timezone.utc).isoformat()
-        predicates.append("n.available_at>=?")
-        params.append(start_at)
+        predicates.append(f"{article_time}>=?")
+        params.append(news_retention.day_start(start_date))
     if end_date:
-        end_at = datetime.combine(end_date + timedelta(days=1), time.min, LOCAL_ZONE).astimezone(timezone.utc).isoformat()
-        predicates.append("n.available_at<?")
-        params.append(end_at)
+        predicates.append(f"{article_time}<?")
+        params.append(news_retention.day_start(end_date + timedelta(days=1)))
     where = " AND ".join(predicates)
     with connect() as connection:
         total = connection.execute(f"SELECT COUNT(*) FROM news_records n WHERE {where}", params).fetchone()[0]
-        rows = connection.execute(f"SELECT n.* FROM news_records n WHERE {where} ORDER BY COALESCE(n.available_at,n.published_at,n.created_at) DESC,n.created_at DESC,n.id LIMIT ? OFFSET ?",
+        rows = connection.execute(f"SELECT n.* FROM news_records n WHERE {where} ORDER BY {article_time} DESC,n.created_at DESC,n.id LIMIT ? OFFSET ?",
                                   [*params, limit, offset]).fetchall()
         external_sync = connection.execute(
             "SELECT EXISTS(SELECT 1 FROM news_records WHERE source LIKE 'Tushare news/%')"
@@ -200,6 +224,10 @@ def list_news_sources(stock_code: str, as_of: str, *, lookback_days=None, offset
     if allowed_source_ids is not None:
         predicates.append("n.id IN (" + ",".join("?" for _ in allowed_source_ids) + ")" if allowed_source_ids else "0")
         params.extend(sorted(allowed_source_ids))
+    else:
+        article_time = news_retention.article_time("n")
+        predicates.extend((f"{article_time}>=?", f"{article_time}<?"))
+        params.extend(news_retention.window(news_retention.today()))
     where = " AND ".join(predicates)
     with connect() as connection:
         total = connection.execute(f"SELECT COUNT(*) FROM news_records n WHERE {where}", params).fetchone()[0]

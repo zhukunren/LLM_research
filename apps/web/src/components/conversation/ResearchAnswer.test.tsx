@@ -6,6 +6,7 @@ describe('research answer reading', () => {
   it('resolves legacy document-id links only from recorded report references', () => {
     render(<ResearchAnswer conversationId="one" references={[{ kind: 'report_page', source_id: 'report-id', page_number: 5 }, { kind: 'report_page', source_id: 'report-id', page_number: 8 }]} content={'[年度报告，第8页](report-id)\n\n[未知资料](unknown-id)'} />)
     expect(screen.getByRole('link', { name: '年度报告，第8页' })).toHaveAttribute('href', '/api/v1/documents/report-id/pdf#page=8')
+    expect(screen.getByRole('link', { name: '年度报告，第8页' })).toHaveAttribute('target', '_blank')
     expect(screen.getByRole('link', { name: '未知资料' })).toHaveAttribute('href', 'unknown-id')
   })
   it('links generated QMT source as an attachment and keeps code available for preview', () => {

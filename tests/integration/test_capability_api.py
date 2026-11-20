@@ -29,7 +29,10 @@ def client(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(main, "STOCK_FILE", stock_file)
     monkeypatch.setattr(main, "llm_settings", lambda: {"configured": False})
-    monkeypatch.setattr(main, "tushare_settings", lambda: {"configured": True, "credential_source": "environment", "token": "private-token"})
+    monkeypatch.setattr(main, "tushare_settings", lambda: {
+        "configured": True, "credential_source": "environment",
+        "token": "private-token", "api_url": "https://api.tushare.pro",
+    })
     monkeypatch.setattr(
         market,
         "cached_profile",
@@ -81,17 +84,23 @@ def test_data_coverage_returns_scope_and_units_without_local_path(client):
 
 
 @pytest.mark.parametrize("configured", [True, False])
-def test_tushare_status_tracks_official_token_without_exposing_it(client, monkeypatch, configured):
+@pytest.mark.parametrize(("url", "provider"), [
+    ("https://api.tushare.pro", "official"),
+    ("http://relay.example.test", "relay"),
+])
+def test_tushare_status_reports_provider_without_exposing_token(client, monkeypatch, configured, url, provider):
     monkeypatch.setattr(main, "tushare_settings", lambda: {
         "configured": configured, "credential_source": "environment" if configured else "",
         "token": "private-token" if configured else "",
+        "api_url": url,
     })
     status = client.get("/api/v1/settings/status")
     assert status.status_code == 200
     assert status.json()["tushare"] == {
-        "configured": configured, "credential_source": "environment" if configured else None, "provider": "official",
+        "configured": configured, "credential_source": "environment" if configured else None, "provider": provider,
     }
     assert "private-token" not in status.text
+    assert "relay.example.test" not in status.text
     assert client.get("/api/v1/capabilities").json()["news_external_sync"] is configured
 
 

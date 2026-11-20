@@ -481,6 +481,9 @@ def _execute_screening_task(lease: JobLease) -> None:
         active=lease.active,
         progress=lease.progress,
     )
+    if result.status != "cancelled" and market_data.source_fingerprint() != fingerprint:
+        lease.finish("failed", "筛选期间行情来源发生变化，请重新创建筛选运行")
+        return
     summary = result.model_dump(mode="json", exclude={"stock_decisions"})
     coverage = result.coverage
     message = (
@@ -500,14 +503,17 @@ def _execute_screening_task(lease: JobLease) -> None:
 _consumer_state = local()
 
 
-def execute_job(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, exclude_kinds: tuple[str, ...] = ()) -> bool:
+def execute_job(
+    job_id: str | None = None, *, kinds: tuple[str, ...] | None = None,
+    exclude_kinds: tuple[str, ...] = (), client_service: bool | None = None,
+) -> bool:
     from .security_context import AccessDenied, actor_scope, auth_mode, has_actor_scope
     if auth_mode() == "oidc" and not has_actor_scope():
         from .identity import execution_actors
         from .db import database_path
         from .identity import identity_path
         actors = execution_actors()
-        lane = (str(identity_path()), kinds, exclude_kinds)
+        lane = (str(identity_path()), kinds, exclude_kinds, client_service)
         cursors = getattr(_consumer_state, "cursors", {})
         last = cursors.get(lane)
         keys = [(actor.tenant_id, actor.user_id) for actor in actors]
@@ -515,19 +521,24 @@ def execute_job(job_id: str | None = None, *, kinds: tuple[str, ...] | None = No
         for actor in actors[start:] + actors[:start]:
             try:
                 with actor_scope(actor):
-                    if database_path().is_file() and _execute_owned_job(job_id, kinds=kinds, exclude_kinds=exclude_kinds):
+                    if database_path().is_file() and _execute_owned_job(
+                        job_id, kinds=kinds, exclude_kinds=exclude_kinds, client_service=client_service,
+                    ):
                         cursors[lane] = (actor.tenant_id, actor.user_id)
                         _consumer_state.cursors = cursors
                         return True
             except AccessDenied:
                 continue  # Revoked between listing workspaces and claiming a job.
         return False
-    return _execute_owned_job(job_id, kinds=kinds, exclude_kinds=exclude_kinds)
+    return _execute_owned_job(job_id, kinds=kinds, exclude_kinds=exclude_kinds, client_service=client_service)
 
 
-def _execute_owned_job(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, exclude_kinds: tuple[str, ...] = ()) -> bool:
+def _execute_owned_job(
+    job_id: str | None = None, *, kinds: tuple[str, ...] | None = None,
+    exclude_kinds: tuple[str, ...] = (), client_service: bool | None = None,
+) -> bool:
     from .security_context import AccessDenied
-    lease = claim(job_id, kinds=kinds, exclude_kinds=exclude_kinds)
+    lease = claim(job_id, kinds=kinds, exclude_kinds=exclude_kinds, client_service=client_service)
     if lease is None:
         return False
     with lease:
@@ -602,44 +613,45 @@ def execute_report_evaluation(job_id: str) -> None:
 def run_worker(poll_seconds: float = 1.0, *, stop_event: Event | None = None) -> None:
     stop = stop_event if stop_event is not None else Event()
 
-    def consume(*, kinds=None, exclude_kinds=()):
+    def consume(*, kinds=None, exclude_kinds=(), client_service=None):
         while not stop.is_set():
             try:
-                if not execute_job(kinds=kinds, exclude_kinds=exclude_kinds):
+                if not execute_job(kinds=kinds, exclude_kinds=exclude_kinds, client_service=client_service):
                     stop.wait(poll_seconds)
             except Exception:
                 logging.getLogger(__name__).exception("Worker lane failed")
                 stop.wait(poll_seconds)
 
-    def schedule_client_cards():
-        from .client_service import scheduler_tick
+    def schedule_periodic_tasks():
+        from . import client_service, news_retention
         while not stop.is_set():
-            try:
-                scheduler_tick()
-            except Exception:
-                logging.getLogger(__name__).exception('Client service scheduler failed')
+            for tick in (client_service.scheduler_tick, news_retention.scheduler_tick):
+                try:
+                    tick()
+                except Exception:
+                    logging.getLogger(__name__).exception("Periodic scheduler failed: %s", tick.__module__)
             stop.wait(20)
 
-    # A Codex turn can wait for a scan, so its consumer must run independently.
-    research = Thread(target=consume, kwargs={"kinds": ("research_turn",)}, name="research-turn-worker", daemon=True)
-    pdf = Thread(target=consume, kwargs={"kinds": ("research_pdf",)}, name="research-pdf-worker", daemon=True)
-    matrix = Thread(target=consume, kwargs={"kinds": ("research_matrix",)}, name="research-matrix-worker", daemon=True)
-    intelligence_sources = Thread(target=consume, kwargs={"kinds": ("intelligence_source",)}, name="intelligence-source-worker", daemon=True)
-    client_cards = Thread(target=schedule_client_cards, name='client-service-scheduler', daemon=True)
-    research.start()
-    pdf.start()
-    matrix.start()
-    intelligence_sources.start()
-    client_cards.start()
+    # Reserve one slot for each group and let either group use the third.
+    # Codex turns can wait for scans, so scans run on a separate consumer.
+    consumers = (
+        ("research-turn-worker", {"client_service": False}),
+        ("client-service-worker", {"client_service": True}),
+        ("shared-turn-worker", {"kinds": ("research_turn",)}),
+        ("research-pdf-worker", {"kinds": ("research_pdf",)}),
+        ("research-matrix-worker", {"kinds": ("research_matrix",)}),
+        ("intelligence-source-worker", {"kinds": ("intelligence_source",)}),
+    )
+    threads = [Thread(target=consume, kwargs=options, name=name, daemon=True) for name, options in consumers]
+    threads.append(Thread(target=schedule_periodic_tasks, name="periodic-task-scheduler", daemon=True))
+    for thread in threads:
+        thread.start()
     try:
         consume(exclude_kinds=("research_turn", "research_pdf", "research_matrix", "intelligence_source"))
     finally:
         stop.set()
-        research.join(timeout=2)
-        pdf.join(timeout=2)
-        matrix.join(timeout=2)
-        intelligence_sources.join(timeout=2)
-        client_cards.join(timeout=2)
+        for thread in threads:
+            thread.join(timeout=2)
 
 
 if __name__ == "__main__":

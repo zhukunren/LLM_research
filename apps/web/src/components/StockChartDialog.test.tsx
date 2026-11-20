@@ -8,7 +8,7 @@ it('lets keyboard users inspect the chart and keeps focus inside the dialog', as
   const user = userEvent.setup()
   vi.mocked(api).mockResolvedValue({ items: [{ trade_date: '2026-09-10', open: 10, high: 11, low: 9, close: 10.5 }] })
   render(<StockChartDialog code="600000.SH" asOf="2026-09-10" onClose={vi.fn()} />)
-  const chart = await screen.findByRole('img', { name: 'K线主图叠加指标走势' })
+  const chart = await screen.findByRole('img', { name: 'K线主图和指标副图走势' })
   expect(screen.getByRole('button', { name: '关闭走势' })).toHaveFocus()
   await user.tab()
   expect(chart).toHaveFocus()

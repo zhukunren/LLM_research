@@ -1,18 +1,20 @@
 from __future__ import annotations
 
+from datetime import date
 import json
 import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import db, main, market, news_sources, research_projects, codex_runtime, conversation_store, research_tools
+from apps.api.app import db, main, market, news_retention, news_sources, research_projects, codex_runtime, conversation_store, research_tools
 from apps.api.app.screening_tools import ToolContext, ToolDispatchError
 
 
 @pytest.fixture
 def research(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "company.db")
+    monkeypatch.setattr(news_retention, "today", lambda: date(2026, 9, 20))
     monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "missing.parquet")
     with TestClient(main.app) as client:
         project = research_projects.create_project(research_projects.CreateProject(name="经营兑现", request_id="project"))

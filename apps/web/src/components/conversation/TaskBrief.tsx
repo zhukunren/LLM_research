@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { useId } from 'react'
 import type { ScreeningTaskRevision } from '../../api'
 
-const libraryLabels: Record<string, string> = { technical: '行情', report: '研报', news: '资讯', pattern: '形态', ranking: '排名' }
+const libraryLabels: Record<string, string> = { technical: '行情', report: '研报', news: '资讯', pattern: '形态', ranking: '排名', fundamentals: '行业估值' }
 const parameterLabels: Record<string, string> = { window: '周期', period: '周期', threshold: '阈值', limit: '下限', direction: '方向', operator: '比较方式' }
 
 export function taskUniverseLabel(task: ScreeningTaskRevision) {

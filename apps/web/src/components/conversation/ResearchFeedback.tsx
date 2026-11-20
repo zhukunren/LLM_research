@@ -9,17 +9,22 @@ export function isExecutionFailure(content: string) {
   return /^(?:Codex\s*(?:运行失败|运行不可用|研究回合失败)|研究处理失败|研究执行失败|本次处理失败|研究服务启动失败)/i.test(content.trim()) || /^\s*(?:Traceback \(most recent call last\)|Error:.*(?:stdout|stderr|runtime))/i.test(content)
 }
 
-export function ResearchFailure({ content, onRetry, onOpenDataServices, onAdjustScope, disabled }: {
+export function ResearchFailure({ content, onRetry, onOpenDataServices, onAdjustScope, disabled, screening, availableBatch }: {
   content: string; onRetry?: () => void; onOpenDataServices?: () => void; onAdjustScope?: () => void; disabled?: boolean
+  screening?: boolean
+  availableBatch?: { asOf: string; revision: number; onView: () => void }
 }) {
   const permission = /拒绝访问|access.denied|permission.denied|os error 5/i.test(content)
   const timeout = /timeout|timed.out|超时/i.test(content)
   return <StockText><div className="research-failure workspace-error" role="alert">
-    <div><AlertCircle size={19} /><strong>{timeout ? '这次研究等待超时' : permission ? '研究服务暂时无法启动' : '这次研究未能完成'}</strong></div>
-    <p>{permission ? '服务报告访问受限。原问题和已有成果已保留，请检查数据与服务及具体错误，恢复访问后再重试。' : timeout ? '原问题已保留，可以重新处理，或缩小研究范围后再试。' : '原问题和已有成果已保留。请检查服务状态，再重新处理。'}</p>
+    <div><AlertCircle size={19} /><strong>{screening ? '这轮选股请求未完成' : timeout ? '这次研究等待超时' : permission ? '研究服务暂时无法启动' : '这次研究未能完成'}</strong></div>
+    <p>{availableBatch ? `截至 ${availableBatch.asOf} 的 v${availableBatch.revision} 批次仍可查看。`
+      : screening ? '选股要求已保留，可展开详情查看原因。'
+        : permission ? '服务报告访问受限。原问题和已有成果已保留，请检查数据与服务及具体错误，恢复访问后再重试。' : timeout ? '原问题已保留，可以重新处理，或缩小研究范围后再试。' : '原问题和已有成果已保留。请检查服务状态，再重新处理。'}</p>
+    {availableBatch && <button type="button" className="secondary-button workspace-button" onClick={availableBatch.onView}>查看已有名单</button>}
     {onOpenDataServices && <button type="button" className="secondary-button workspace-button" onClick={onOpenDataServices}>检查数据与服务</button>}
-    {onAdjustScope && <button type="button" className="secondary-button workspace-button" disabled={disabled} onClick={onAdjustScope}>调整研究范围</button>}
-    {onRetry && <button type="button" className="secondary-button workspace-button" disabled={disabled} onClick={onRetry}>重试这次研究</button>}
+    {onAdjustScope && <button type="button" className="secondary-button workspace-button" disabled={disabled} onClick={onAdjustScope}>{screening ? '调整选股要求' : '调整研究范围'}</button>}
+    {onRetry && <button type="button" className="secondary-button workspace-button" disabled={disabled} onClick={onRetry}>{screening ? '重新提交选股请求' : '重试这次研究'}</button>}
     <details><summary>查看技术详情</summary><pre>{content}</pre></details>
   </div></StockText>
 }

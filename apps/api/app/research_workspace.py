@@ -12,7 +12,7 @@ import sys
 from typing import Any
 from urllib.parse import quote
 
-from . import conversation_store, db, documents, market
+from . import conversation_store, db, documents, market, news_retention
 from .settings import PROJECT_ROOT, research_mode_settings
 from .storage import application_paths
 
@@ -49,13 +49,25 @@ def _freeze_snapshot_originals(path: Path) -> None:
                 connection.execute("UPDATE reports SET source_path=? WHERE id=?", (frozen, document_id))
 
 
-def _snapshot(path: Path) -> dict[str, int]:
+def _snapshot(path: Path, conversation_id: str) -> dict[str, int]:
     # Copy only research data, never the application database or service configuration.
+    article_time = news_retention.article_time("n")
     queries = {
         "reports": "SELECT id,title,filename,source_path,sha256,stock_code,stock_code_status,publication_date,available_at,available_at_status,pages,parse_status FROM documents WHERE material_kind='report'",
         "report_pages": "SELECT document_id,page_number,text FROM document_pages WHERE document_id IN (SELECT id FROM documents WHERE material_kind='report')",
-        "news": "SELECT id,root_id,version,title,body,source,published_at,available_at,stock_codes_json,event_key FROM news_records",
+        "news": f"""SELECT id,root_id,version,title,body,source,published_at,available_at,stock_codes_json,event_key
+            FROM news_records n WHERE ({article_time}>=? AND {article_time}<?)
+                OR id IN (
+                    SELECT json_extract(ref.value, '$.source_id')
+                    FROM conversation_messages m, json_each(m.source_refs_json) ref
+                    WHERE m.conversation_id=? AND json_extract(ref.value, '$.kind')='news_item'
+                    UNION SELECT json_extract(ref.value, '$.source_id')
+                    FROM research_message_evidence e
+                    JOIN conversation_messages m ON m.id=e.message_id, json_each(e.evidence_json, '$.items') ref
+                    WHERE m.conversation_id=? AND json_extract(ref.value, '$.kind')='news_item'
+                )""",
     }
+    news_params = (*news_retention.window(news_retention.today()), conversation_id, conversation_id)
     counts = {}
     source_tables = {"reports": "documents", "report_pages": "document_pages", "news": "news_records"}
     financial_tables = ("financial_source_records", "financial_facts", "financial_calculations",
@@ -70,7 +82,7 @@ def _snapshot(path: Path) -> dict[str, int]:
     with db.connect() as source, closing(sqlite3.connect(path)) as target, target:
         source.execute("BEGIN")
         for table, query in queries.items():
-            cursor = source.execute(query)
+            cursor = source.execute(query, news_params if table == "news" else ())
             columns = [item[0] for item in cursor.description]
             types = {row["name"]: row["type"] for row in source.execute(f"PRAGMA table_info({source_tables[table]})")}
             column_sql = ",".join(f'"{name}" {types[name]}' for name in columns)
@@ -148,7 +160,7 @@ def prepare(conversation_id: str, turn_id: str) -> dict[str, Any]:
     if not snapshot.exists():
         temporary = snapshot.with_suffix(".partial")
         temporary.unlink(missing_ok=True)
-        counts = _snapshot(temporary)
+        counts = _snapshot(temporary, conversation_id)
         os.replace(temporary, snapshot)
     else:
         _freeze_snapshot_originals(snapshot)
@@ -188,7 +200,7 @@ def prepare(conversation_id: str, turn_id: str) -> dict[str, Any]:
         "sources": {"sqlite": str(snapshot), "counts": counts,
                     "tables": {"reports": "报告元数据、已校验原始PDF路径（缺失或校验不符时为NULL）及日期/证券归属确认状态",
                                "report_pages": "document_id / page_number / text（完整原文）",
-                               "news": "全部资讯版本；历史研究须按available_at选择版本",
+                               "news": "近30天资讯及本对话引用的版本；历史研究须按available_at选择版本",
                                "financial_facts": "冻结的标准事实，金额十进制字符串与单位；使用 get_company_financials 计算",
                                "financial_source_records": "不可变供应商源行、字段合同及首次观察时间",
                                "disclosure_versions": "原始披露文件版本与哈希", "disclosure_metadata": "冻结的分类历史",

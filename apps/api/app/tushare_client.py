@@ -1,17 +1,26 @@
-"""Direct access to the official Tushare Pro JSON API."""
+"""Server-side access to a Tushare Pro-compatible JSON endpoint."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from functools import partial
 import hashlib
 import json
 import time
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
 
 API_URL = "https://api.tushare.pro"
+
+
+def _parse_constant(value: str, *, api_name: str) -> None:
+    # Some compatible providers emit bare NaN for missing daily valuations.
+    if api_name == "daily_basic" and value == "NaN":
+        return None
+    raise ValueError("nonfinite")
 
 
 class TushareError(RuntimeError):
@@ -41,10 +50,11 @@ class TushareSnapshot:
 
 
 class TushareClient:
-    def __init__(self, token: str, *, timeout: float = 30, retries: int = 3, limiter=None):
+    def __init__(self, token: str, *, api_url: str = API_URL, timeout: float = 30, retries: int = 3, limiter=None):
         self._token = token.strip()
         if not self._token:
-            raise TushareError("未配置 Tushare 官方 token，请设置 [tushare].token 或 token_env 指定的环境变量（默认 TUSHARE_TOKEN）", kind="not_configured")
+            raise TushareError("未配置 Tushare token，请设置 [tushare].token 或 token_env 指定的环境变量（默认 TUSHARE_TOKEN）", kind="not_configured")
+        self._api_url = api_url.rstrip("/")
         self._timeout = timeout
         self._retries = retries
         self._limiter = limiter
@@ -54,15 +64,20 @@ class TushareClient:
         return hashlib.sha256(("tushare:" + self._token).encode()).hexdigest()
 
     def raw_query(self, api_name: str, *, fields: str = "", **params: Any) -> dict[str, Any]:
-        return json.loads(self.query_snapshot(api_name, fields=fields, **params).body)
+        return json.loads(self.query_snapshot(api_name, fields=fields, **params).body,
+                          parse_constant=partial(_parse_constant, api_name=api_name))
 
     def query_snapshot(self, api_name: str, *, fields: str = "", **params: Any) -> TushareSnapshot:
         body = {"api_name": api_name, "token": self._token, "params": params, "fields": fields}
+        url = self._api_url
+        if url != API_URL:
+            # Compatible relays use the SDK's per-interface route.
+            url = f"{url}/{quote(api_name, safe='')}"
         for attempt in range(self._retries + 1):
             if self._limiter is not None:
                 self._limiter.acquire(self.credential_id, api_name)
             try:
-                with requests.post(API_URL, json=body, timeout=self._timeout, allow_redirects=False) as response:
+                with requests.post(url, json=body, timeout=self._timeout, allow_redirects=False) as response:
                     if response.status_code == 429 or 500 <= response.status_code < 600:
                         if attempt == self._retries:
                             raise TushareError(f"Tushare 服务暂不可用（HTTP {response.status_code}）",
@@ -76,7 +91,7 @@ class TushareClient:
                             if len(raw) > 16 * 1024 * 1024:
                                 raise TushareError("Tushare 响应超过 16 MiB，请缩小范围", kind="invalid_response")
                             payload = json.loads(raw, parse_float=Decimal,
-                                                 parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite")))
+                                                 parse_constant=partial(_parse_constant, api_name=api_name))
                         except ValueError:
                             raise TushareError("Tushare 返回了无效的 JSON", kind="invalid_response") from None
                         if not isinstance(payload, dict) or type(payload.get("code")) is not int:
@@ -94,8 +109,8 @@ class TushareClient:
                         return TushareSnapshot(raw, payload)
             except (requests.Timeout, requests.ConnectionError):
                 if attempt == self._retries:
-                    raise TushareError("Tushare 官方接口连接失败或超时", kind="transient_error") from None
+                    raise TushareError("Tushare 接口连接失败或超时", kind="transient_error") from None
             except requests.RequestException:
-                raise TushareError("Tushare 官方接口请求失败", kind="transient_error") from None
+                raise TushareError("Tushare 接口请求失败", kind="transient_error") from None
             time.sleep(0.6 * (2 ** attempt))
         raise TushareError("Tushare 请求失败")  # Defensive: all attempts must return or raise.

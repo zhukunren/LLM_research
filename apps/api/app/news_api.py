@@ -18,10 +18,11 @@ def _error(exc: news_sources.NewsError):
 @router.get("")
 def browse_news(query: str = Query(default="", max_length=300), stock_code: str | None = None,
                 start_date: date | None = None, end_date: date | None = None,
-                offset: int = Query(default=0, ge=0), limit: int = Query(default=30, ge=1, le=50)):
+                offset: int = Query(default=0, ge=0), limit: int = Query(default=30, ge=1, le=50),
+                view: news_sources.NewsView = "recent"):
     try:
         return news_sources.browse(query=query, stock_code=stock_code, start_date=start_date,
-                                   end_date=end_date, offset=offset, limit=limit)
+                                   end_date=end_date, offset=offset, limit=limit, view=view)
     except news_sources.NewsError as exc:
         _error(exc)
 

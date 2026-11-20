@@ -41,6 +41,7 @@ def build_manifest(
     registered_tool_names: set[str] | None = None,
     runtime_ready: bool = False,
     indexed_news: int = 0,
+    tushare_configured: bool = False,
 ) -> dict[str, Any]:
     """Describe service-backed abilities and unavailable domains without inferring data."""
     items = [
@@ -277,6 +278,23 @@ def build_manifest(
                              "separate_process": True, "os_security_sandbox": False},
         ),
         Capability(
+            id="fundamentals.shenwan_valuation",
+            version="1",
+            domain="fundamentals",
+            title="申万行业、市盈率与成交额筛选",
+            availability="partial" if tushare_configured and market_available else "unavailable",
+            reason=("按指定交易日核对接口权限与覆盖，缺失记录保留为未知"
+                    if tushare_configured and market_available else "需要 Tushare 连接与本地 A 股日线"),
+            input_contract={"library": "fundamentals", "industry_code": "申万一级、二级或三级行业代码",
+                            "pe_comparison": ["at_most", "below_value", "below_industry_median"],
+                            "amount_window": "可选 1–60 个交易日，并给出 min_daily_amount_yi"},
+            output_contract={"state": "true / false / unknown", "data_as_of": "实际核对的交易日"},
+            fields=[{"name": "pe_ttm", "unit": "倍"}, {"name": "average_daily_amount", "unit": "亿元"}],
+            coverage={"provider": "Tushare", "endpoints": ["index_member_all", "daily_basic", "daily"]},
+            side_effect="persist_result",
+            resource_policy={"exact_trade_date": True},
+        ),
+        Capability(
             id="fundamentals.market_cap",
             version="1",
             domain="fundamentals",
@@ -323,7 +341,7 @@ def build_manifest(
             resource_policy={"read_only": True},
         ),
     ]
-    # The conversational workflow exposes raw data and user-defined programs only.
+    # The legacy built-in indicator catalogue is exposed by the indicator workspace.
     items = [item for item in items if item.id != "market.builtin_indicators"]
     registrations = registered_tool_names or set()
     capability_tools = {
@@ -335,6 +353,7 @@ def build_manifest(
         "portfolio.inspect_saved_conditions": {"inspect_saved_conditions"},
         "runtime.artifact_read": {"read_artifact_chunk"},
         "runtime.dynamic_indicators": {"preview_dynamic_indicator", "list_dynamic_indicators", "read_dynamic_indicator"},
+        "fundamentals.shenwan_valuation": {"search_screening_industries"},
     }
     for item in items:
         required = capability_tools.get(item.id, set())

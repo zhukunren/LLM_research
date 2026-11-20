@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from PIL import Image, ImageDraw, ImageFont
 
 from .client_service_disclosure import FIXED_DISCLOSURE, disclosure_lines
+from .client_service_text import card_copy_content, without_web_links
 from .settings import PROJECT_ROOT
 from .storage import application_paths
 
@@ -108,12 +109,21 @@ def display_market(card):
             index, field = int(match[1]), match[2]
             if index < len(market.get('metrics', [])):
                 market['metrics'][index][field] = value
+    for field in ('summary', 'data_note'):
+        if isinstance(market.get(field), str):
+            market[field] = without_web_links(market[field])
+    for metric in market.get('metrics', []):
+        for field in ('label', 'value'):
+            metric[field] = without_web_links(metric[field])
+    if market.get('limitations'):
+        market['limitations'] = [line for value in market['limitations'] if (line := without_web_links(value))]
     return market
 
 
-def render_card(card: dict, *, regions: list | None = None) -> bytes:
+def render_card(card: dict, *, regions: list | None = None, draft: bool = False) -> bytes:
     """An editorial composition: art-led masthead, lead view, ruled data and a full-bleed action band."""
-    content, template = card['content'], card['template']
+    content, template = card_copy_content(card['content']), card['template']
+    template_title = without_web_links(template['title'])
     market = display_market(card)
     theme = content.get('theme', 'river')
     if theme not in THEMES:
@@ -141,8 +151,8 @@ def render_card(card: dict, *, regions: list | None = None) -> bytes:
     service = _lines(content.get('service', ''), footer_font, 936) if content.get('service') else []
     risk = _lines(FIXED_DISCLOSURE['risk'], _font(26), 936)
     identity = [line for text in disclosure_lines()[1:] for line in _lines(text, _font(25), 936)]
-    sources_text = '来源 / ' + ' · '.join(list(dict.fromkeys(publisher(source) for source in market.get('sources', [])))[:4])
-    sources = _lines(sources_text, _font(23), 936) if market.get('sources') else []
+    source_names = list(dict.fromkeys(filter(None, map(publisher, market.get('sources', [])))))[:4]
+    sources = _lines('来源 / ' + ' · '.join(source_names), _font(23), 936) if source_names else []
     conclusion_height = 114 + len(conclusion) * 53
     market_height = 116 + len(summary) * 43 + sum(height for _, height in rows)
     action_height = 124 + len(action) * 47
@@ -177,7 +187,14 @@ def render_card(card: dict, *, regions: list | None = None) -> bytes:
             image.paste(mark, (WIDTH - 64 - mark.width, 52), mark)
     edition = artwork_index(template['id']) + 1
     draw.text((64, 128), f'M A R K E T   N O T E S   /   {edition:02}', font=_font(17), fill='#d9dcd1')
-    title = content.get('headline') or template['title']
+    if draft:
+        draft_label = '草稿 · 待核对'
+        draft_font = _font(22, True)
+        right = WIDTH - 64
+        left = right - round(draft_font.getlength(draft_label)) - 28
+        draw.rounded_rectangle((left, 107, right, 146), radius=6, fill='#fff1d5')
+        draw.text(((left + right) / 2, 126), draft_label, font=draft_font, fill=INK, anchor='mm')
+    title = content.get('headline') or template_title
     size = 62
     while size > 30 and _font(size, True).getlength(title) > 640:
         size -= 2
@@ -188,7 +205,7 @@ def render_card(card: dict, *, regions: list | None = None) -> bytes:
     draw.text((64, 268), template['time'], font=_font(54, True), fill='white')
     draw.line((254, 278, 254, 322), fill=accent, width=2)
     draw.text((278, 273), card['service_date'].replace('-', ' / '), font=_font(23), fill='#f1f4ef')
-    draw.text((278, 308), '北京时间  /  ' + template['title'], font=_font(18), fill='#d9e0e1')
+    draw.text((278, 308), '北京时间  /  ' + template_title, font=_font(18), fill='#d9e0e1')
 
     def lines_at(lines, x, y, font, color, step):
         for line in lines:

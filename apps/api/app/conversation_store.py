@@ -11,7 +11,14 @@ from typing import Any
 from uuid import uuid4
 
 from .db import connect, json_dump, json_load, utc_now
-from .execution_policy import denies_execution
+from .execution_policy import (
+    WORKBENCH_MARKER,
+    asks_about_screening_result,
+    asks_question,
+    denies_execution,
+    requests_plan_save,
+    starts_screening,
+)
 from .screening_contracts import ConversationSourceReference, ResearchScope, ScreeningTaskRevision, MAX_MESSAGE_CHARS
 
 
@@ -482,17 +489,16 @@ def create_screening_draft(conversation_id: str, request_id: str, source_message
 
 def quick_task_display_prompts(connection, conversation_id: str) -> dict[str, str]:
     """Keep generated task instructions and workbench metadata out of the transcript."""
-    screening_marker = "\n\n[选股工作台指令]\n"
     rows = connection.execute(
         """SELECT content FROM conversation_messages
            WHERE conversation_id=? AND role='user'
              AND (client_message_id LIKE 'assistant-launch:%' OR client_message_id LIKE 'intelligence:%'
                   OR instr(content, ?) > 0)""",
-        (conversation_id, screening_marker),
+        (conversation_id, WORKBENCH_MARKER),
     )
     return {
-        row["content"]: row["content"].split(screening_marker, 1)[0]
-        if screening_marker in row["content"] else row["content"].split("\n", 1)[0]
+        row["content"]: row["content"].split(WORKBENCH_MARKER, 1)[0]
+        if WORKBENCH_MARKER in row["content"] else row["content"].split("\n", 1)[0]
         for row in rows
     }
 
@@ -521,7 +527,7 @@ def _freeze_source_refs(
     seen = set()
     for reference in references:
         source_id = reference.source_id.upper() if reference.kind == "security" else reference.source_id
-        key = (reference.kind, source_id, reference.page_number, reference.version)
+        key = (reference.kind, source_id, reference.page_number, reference.version, reference.stock_code)
         if key in seen:
             raise ConversationStoreError("同一条消息不能重复附加相同来源")
         seen.add(key)
@@ -554,6 +560,32 @@ def _freeze_source_refs(
             frozen.append(dict(kind="news_item", source_id=row["id"], title=row["title"],
                                version=row["version"], available_at=row["available_at"], stock_codes=json_load(row["stock_codes_json"])))
         elif reference.kind == "screening_run":
+            task_run = connection.execute(
+                """SELECT r.id,r.conversation_id,r.task_revision,r.as_of,r.status
+                   FROM screening_task_runs r JOIN conversations c ON c.id=r.conversation_id
+                   WHERE r.id=? AND c.deleted_at IS NULL""",
+                (source_id,),
+            ).fetchone()
+            if task_run:
+                source = {
+                    "kind": "screening_run", "source_id": task_run["id"],
+                    "conversation_id": task_run["conversation_id"], "task_revision": task_run["task_revision"],
+                    "as_of": task_run["as_of"], "status": task_run["status"],
+                    "title": f"筛选批次 · {task_run['as_of']} · v{task_run['task_revision']}",
+                }
+                if reference.stock_code:
+                    decision = connection.execute(
+                        "SELECT decision_json FROM screening_task_decisions WHERE run_id=? AND stock_code=?",
+                        (source_id, reference.stock_code),
+                    ).fetchone()
+                    if not decision:
+                        raise ConversationStoreError("该筛选批次没有这只股票的已保存判断")
+                    source["stock_code"] = reference.stock_code
+                    source["decision"] = json_load(decision["decision_json"])
+                frozen.append(source)
+                continue
+            if reference.stock_code:
+                raise ConversationStoreError("找不到证券所属的对话筛选批次")
             row = connection.execute(
                 "SELECT id,as_of,status FROM screening_runs WHERE id=?",
                 (source_id,),
@@ -563,6 +595,25 @@ def _freeze_source_refs(
             frozen.append({"kind": "screening_run", "source_id": row["id"], "as_of": row["as_of"], "status": row["status"]})
         elif reference.kind == "security":
             frozen.append({"kind": "security", "source_id": source_id})
+        elif reference.kind in {"saved_screening_task", "screening_strategy"}:
+            table, column = ("saved_screening_tasks", "task_json") if reference.kind == "saved_screening_task" else ("strategies", "strategy_json")
+            row = connection.execute(f"SELECT id,name,version,{column} AS snapshot_json FROM {table} WHERE id=? AND version=?", (source_id, reference.version)).fetchone()
+            if not row:
+                raise ConversationStoreError("引用的选股方案版本不存在，请重新选择方案")
+            snapshot = json_load(row["snapshot_json"])
+            source = {"kind": reference.kind, "source_id": row["id"], "version": row["version"], "title": row["name"], "snapshot": snapshot}
+            if reference.kind == "screening_strategy":
+                from .rules import references as filter_references, pattern_references
+                assets = []
+                for asset_table, asset_column, keys in [("filters", "dsl_json", filter_references(snapshot["tree"])), ("patterns", "pattern_json", pattern_references(snapshot["tree"]))]:
+                    for asset_id, version in sorted(set(keys)):
+                        asset = connection.execute(f"SELECT id,name,version,{asset_column} AS snapshot_json FROM {asset_table} WHERE id=? AND version=?", (asset_id, version)).fetchone()
+                        if not asset:
+                            raise ConversationStoreError("方案中的条件或形态版本不存在，请在条件库中核对")
+                        assets.append({"kind": "condition" if asset_table == "filters" else "pattern", "source_id": asset["id"], "title": asset["name"], "version": asset["version"], "snapshot": json_load(asset["snapshot_json"])})
+                source["assets"] = assets
+            source["source_sha256"] = hashlib.sha256(json_dump(source).encode("utf-8")).hexdigest()
+            frozen.append(source)
         else:
             table = "patterns" if reference.kind == "pattern" else "filters"
             row = connection.execute(
@@ -587,7 +638,8 @@ def _reference_keys(references) -> list[tuple]:
         kind = item["kind"]
         source_id = item["source_id"].upper() if kind == "security" else item["source_id"]
         keys.append((kind, source_id, item.get("page_number") if kind == "report_page" else None,
-                     item.get("version") if kind in {"pattern", "condition"} else None))
+                     item.get("version") if kind in {"pattern", "condition", "saved_screening_task", "screening_strategy"} else None,
+                     item.get("stock_code") if kind == "screening_run" else None))
     return keys
 
 
@@ -668,6 +720,8 @@ def add_user_message(
     assistant_revision: int | None = None,
     model_revision: int | None = None,
     attachment_ids: list[str] | None = None,
+    execute_plan: bool = False,
+    route_screening: bool = False,
     _connection: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
     if _connection is None:
@@ -696,6 +750,7 @@ def add_user_message(
             if (
                 existing["content"] != content
                 or _reference_keys(json_load(existing["source_refs_json"])) != _reference_keys(source_refs or [])
+                or any(item.get("execution_requested") is True for item in json_load(existing["source_refs_json"])) != execute_plan
                 or existing["base_revision"] != base_revision
                 or existing["requested_research_scope_revision"] != research_scope_revision
                 or existing["requested_assistant_revision"] != assistant_revision
@@ -712,7 +767,28 @@ def add_user_message(
                 "source_refs": json_load(existing["source_refs_json"]),
                 "idempotent_replay": True,
             }
+        if (route_screening and conversation["workflow_type"] == "research" and conversation["entry_scope"] == "screening"
+                and base_revision == conversation["task_revision"] and starts_screening(content)
+                and not connection.execute("SELECT 1 FROM conversation_turns WHERE conversation_id=? LIMIT 1", (conversation_id,)).fetchone()):
+            from .research_assistants import selection_snapshot
+            assistant = json_load(conversation["assistant_snapshot_json"])
+            if assistant.get("id", "general") == "general":
+                if research_scope_revision is not None and research_scope_revision != conversation["research_scope_revision"]:
+                    raise ConversationConflict("研究范围版本已经变化，请读取最新状态")
+                if assistant_revision is not None and assistant_revision != conversation["assistant_revision"]:
+                    raise ConversationConflict("研究助手已经变化，请读取最新状态后再发送")
+                connection.execute(
+                    """UPDATE conversations SET workflow_type='screening',workflow_revision=workflow_revision+1,
+                       research_mode='screening',assistant_snapshot_json=?,pending_execute_message_id=NULL WHERE id=?""",
+                    (json_dump(selection_snapshot(connection)), conversation_id),
+                )
+                conversation = connection.execute("SELECT * FROM conversations WHERE id=?", (conversation_id,)).fetchone()
         frozen_sources = _freeze_source_refs(connection, conversation_id, source_refs or [])
+        if execute_plan:
+            plans = [item for item in frozen_sources if item["kind"] in {"saved_screening_task", "screening_strategy"}]
+            if conversation["workflow_type"] != "screening" or len(plans) != 1:
+                raise ConversationStoreError("执行方案必须在选股对话中引用一个固定版本方案")
+            plans[0]["execution_requested"] = True
         source_refs_json = json_dump(frozen_sources)
         from .research_attachments import AttachmentError, freeze
         try:
@@ -779,7 +855,8 @@ def add_user_message(
         connection.execute(
             """UPDATE conversations SET updated_at=?,
                pending_execute_message_id=CASE WHEN ? THEN NULL ELSE pending_execute_message_id END WHERE id=?""",
-            (now, denies_execution(content), conversation_id),
+            (now, denies_execution(content) or asks_about_screening_result(content) or asks_question(content)
+             or requests_plan_save(content), conversation_id),
         )
         return {
             "message_id": message_id,

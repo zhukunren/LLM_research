@@ -35,3 +35,15 @@ it('makes recently failed work discoverable and keeps the active count separate'
   expect(await screen.findByRole('button', { name: /需重试/ })).toHaveTextContent('恢复方式')
   expect(screen.getByRole('button', { name: '最近任务' })).toHaveAttribute('aria-pressed', 'true')
 })
+
+it('displays the status of an old project job without linking to the retired page', async () => {
+  const projectJob = { ...task('research_pdf', { kind: 'project', project_id: 'old-project' }), title: '旧项目报告', action_label: '查看研究笔记' }
+  vi.mocked(api).mockResolvedValue({ active_count: 1, items: [projectJob] })
+  const user = userEvent.setup()
+  render(<ActiveTasks onConversation={vi.fn()} />)
+  await user.click(screen.getByRole('button', { name: '运行任务' }))
+  const row = await screen.findByRole('button', { name: /旧项目报告/ })
+  expect(row).toHaveTextContent('处理中')
+  expect(row).toBeDisabled()
+  expect(screen.queryByText('查看研究笔记')).not.toBeInTheDocument()
+})

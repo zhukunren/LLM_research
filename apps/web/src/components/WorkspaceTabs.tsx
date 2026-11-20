@@ -144,7 +144,7 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
     items[next]?.focus()
   }
-  return <div className="workspace-tab-bar">
+  return <div className="workspace-tab-bar" data-single={tabs.length === 1 || undefined}>
     <div ref={list} role="tablist" aria-label="工作区标签" className="workspace-tab-list" onDragOver={dragOver} onDragLeave={event => {
       const rect = event.currentTarget.getBoundingClientRect()
       if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) { stopDragScroll(); setDropTarget(null) }

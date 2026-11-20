@@ -3,19 +3,19 @@ import LoadingState from '../LoadingState'
 import { useWorkspaceSession } from '../../WorkspaceSession'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, Bookmark, Check, ChevronRight, Copy, Download, GitBranch, ListFilter, LoaderCircle, MoreHorizontal, RefreshCw, Share2, Star, X } from 'lucide-react'
+import { BookOpen, Check, ChevronRight, Copy, Download, GitBranch, ListFilter, LoaderCircle, MoreHorizontal, RefreshCw, Send, Share2, Star, X } from 'lucide-react'
 import { api, type Conversation, type ConversationMessage } from '../../api'
 import { trapDialogTab } from '../../keyboard'
 import AnswerSources from './AnswerSources'
 import { answerSources } from './collectAnswerSources'
 import { copyAnswerProvenance } from './copyAnswerProvenance'
 import { displayedMessages } from './answerVersions'
-import { researchAnswerTurn } from './researchResultNextSteps'
 
-export default function ResearchAnswerTools({ conversation, message, locked, saved, savingNote, onSave, onCopy, onObserve, onDraft, onRegenerate, onBranch }: {
-  conversation: Conversation; message: ConversationMessage; locked: boolean; saved: boolean; savingNote: boolean
-  onSave: () => void; onCopy: () => void; onObserve: () => void; onDraft: () => void
+export default function ResearchAnswerTools({ conversation, message, locked, onCopy, onObserve, onDraft, onRegenerate, onBranch, onServiceDraft }: {
+  conversation: Conversation; message: ConversationMessage; locked: boolean
+  onCopy: () => void; onObserve: () => void; onDraft: () => void
   onRegenerate?: () => void; onBranch?: () => void
+  onServiceDraft?: () => void
 }) {
   const workspaceSession = useWorkspaceSession()
   const portalTarget = workspaceSession.portalTarget ?? document.body
@@ -39,7 +39,6 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   const menuId = useId()
   const sources = answerSources({ ...message, source_refs: [...(resolvedSources ?? []), ...message.source_refs] })
   // Prefer recorded evidence/summary, never infer executable conditions from prose.
-  const primaryAction = sources.length ? 'sources' : !saved && researchAnswerTurn(conversation, message)?.result.research_summary ? 'note' : null
   const closeMenu = (focus = true) => { setMenu(false); if (focus) trigger.current?.focus() }
   useEffect(() => { if (!workspaceSession.active) { setMenu(false); setDialog(null) } }, [workspaceSession.active])
   const openDialog = (kind: 'sources' | 'share') => {
@@ -152,14 +151,11 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
   return <>
     <div className="research-answer-toolbar" role="group" aria-label="回答操作">
       <button type="button" aria-label="加入关注" disabled={locked} onClick={onObserve} className="research-answer-action workspace-button"><Star size={16} aria-hidden="true" /><span>加入关注</span></button>
-      <button type="button" aria-label="查看依据" data-primary-action={primaryAction === 'sources'} onClick={() => openDialog('sources')} className="research-answer-action workspace-button"><BookOpen size={16} aria-hidden="true" /><span>查看依据</span></button>
+      <button type="button" aria-label="查看依据" data-primary-action={sources.length > 0} onClick={() => openDialog('sources')} className="research-answer-action workspace-button"><BookOpen size={16} aria-hidden="true" /><span>查看依据</span></button>
       <button type="button" aria-label="转为选股草稿" disabled={locked} onClick={onDraft} className="research-answer-action workspace-button"><ListFilter size={16} aria-hidden="true" /><span>转为选股草稿</span></button>
       <button type="button" aria-label="复制答复" data-tooltip="复制答复" onClick={onCopy} className="workspace-button"><Copy size={17} /></button>
       <button type="button" aria-label="分享答复" data-tooltip="分享答复" onClick={() => openDialog('share')} className="workspace-button"><Share2 size={17} /></button>
       <button type="button" aria-label="重新生成答案" data-tooltip="重新生成答案" disabled={locked || !onRegenerate} onClick={onRegenerate} className="workspace-button"><RefreshCw size={17} /></button>
-      <button type="button" aria-label="保存为研究笔记" data-primary-action={primaryAction === 'note'} data-tooltip={saved ? '已保存为研究笔记' : savingNote ? '正在保存…' : '保存为研究笔记'} disabled={locked || saved} onClick={onSave} className={primaryAction === 'note' ? "research-answer-action workspace-button" : "workspace-button"}>
-        {savingNote ? <LoaderCircle size={17} className="spin" /> : saved ? <Check size={17} /> : <Bookmark size={17} />}<span className={primaryAction === 'note' ? undefined : "sr-only"}>{primaryAction === 'note' ? '存笔记' : saved ? '已保存为研究笔记' : ''}</span>
-      </button>
       <button ref={trigger} type="button" aria-label="更多回答操作" data-tooltip="更多回答操作" aria-haspopup="menu" aria-expanded={menu} aria-controls={menu ? menuId : undefined}
         onClick={() => setMenu(value => !value)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setMenu(true) } }} className="workspace-button"><MoreHorizontal size={19} /></button>
     </div>
@@ -175,6 +171,7 @@ export default function ResearchAnswerTools({ conversation, message, locked, sav
       <button type="button" role="menuitem" onClick={() => openDialog('sources')} className="workspace-button workspace-menu-option"><BookOpen size={17} />查看来源{(sources.length > 0 || resolvedSources !== null) && <span className="research-answer-source-count">{sources.length}</span>}</button>
       <button type="button" role="menuitem" disabled={locked || !onBranch} onClick={() => { closeMenu(false); onBranch?.() }} className="workspace-button workspace-menu-option"><GitBranch size={17} />打开新对话分支<ChevronRight size={15} /></button>
       <button type="button" role="menuitem" disabled={locked} onClick={() => { closeMenu(); onDraft() }} className="workspace-button workspace-menu-option"><ListFilter size={17} />转为选股草稿</button>
+      {onServiceDraft && <button type="button" role="menuitem" disabled={locked} onClick={() => { closeMenu(false); onServiceDraft() }} className="workspace-button workspace-menu-option"><Send size={17} />制作服务草稿</button>}
       <button type="button" role="menuitem" disabled={copyFeedback?.scope === copyScope && copyFeedback.state === 'loading'} onClick={() => void copyWithSources()} className="workspace-button workspace-menu-option"><Copy size={17} />复制并附来源/日期</button>
     </div>, portalTarget)}
     {dialog && createPortal(<div className={`research-result-dialog-backdrop${dialog === 'sources' ? ' research-sources-backdrop' : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) setDialog(null) }}>

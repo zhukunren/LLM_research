@@ -16,7 +16,8 @@ class ContractModel(BaseModel):
 Intent = Literal["discuss", "edit", "execute", "explain_run", "save"]
 DecisionState = Literal["true", "false", "unknown"]
 EvaluationStatus = Literal["completed", "failed", "not_evaluated"]
-ConditionLibrary = Literal["technical", "news", "report", "pattern", "ranking"]
+ConditionLibrary = Literal["technical", "news", "report", "pattern", "ranking", "fundamentals"]
+INDUSTRY_VALUATION_IMPLEMENTATION = "tushare-industry-valuation-v1"
 ConversationScope = Literal["technical", "news", "report", "pattern", "screening"]
 ResearchMode = Literal["research", "screening", "advanced"]
 WorkflowType = Literal["research", "screening"]
@@ -110,16 +111,19 @@ class CreateScreeningDraftRequest(ContractModel):
 
 
 class ConversationSourceReference(ContractModel):
-    kind: Literal["report_page", "news_item", "security", "screening_run", "pattern", "condition"]
+    kind: Literal["report_page", "news_item", "security", "screening_run", "pattern", "condition", "saved_screening_task", "screening_strategy"]
     source_id: str = Field(min_length=1, max_length=100)
     page_number: int | None = Field(default=None, ge=1, le=5000)
     version: int | None = Field(default=None, ge=1)
+    stock_code: str | None = Field(default=None, pattern=r"^\d{6}\.(SH|SZ|BJ)$")
 
     @model_validator(mode="after")
     def reference_shape_matches_kind(self):
+        if self.stock_code is not None and self.kind != "screening_run":
+            raise ValueError("只有筛选批次来源可绑定批次中的证券")
         if self.kind == "report_page" and (self.page_number is None or self.version is not None):
             raise ValueError("研报来源必须指定文档页码")
-        if self.kind in {"pattern", "condition"} and (self.version is None or self.page_number is not None):
+        if self.kind in {"pattern", "condition", "saved_screening_task", "screening_strategy"} and (self.version is None or self.page_number is not None):
             raise ValueError("已保存资产来源必须指定版本")
         if self.kind in {"security", "screening_run", "news_item"} and (self.page_number is not None or self.version is not None):
             raise ValueError("证券和筛选记录来源不能包含页码或条件版本")
@@ -133,6 +137,8 @@ class AddUserMessageRequest(ContractModel):
     base_revision: int = Field(ge=0)
     content: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
     source_refs: list[ConversationSourceReference] = Field(default_factory=list, max_length=8)
+    execute_plan: bool = Field(default=False, strict=True)
+    route_screening: bool = Field(default=False, strict=True)
     research_scope_revision: int | None = Field(default=None, ge=0)
     assistant_revision: int | None = Field(default=None, ge=0)
     model_revision: int | None = Field(default=None, ge=0)
@@ -300,6 +306,43 @@ class CustomProgram(ContractModel):
         return self
 
 
+class IndustryValuationSelection(ContractModel):
+    industry_code: str = Field(pattern=r"^\d{6}\.SI$")
+    pe_comparison: Literal["at_most", "below_value", "below_industry_median"]
+    max_pe_ttm: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+
+    @field_validator("max_pe_ttm", mode="before")
+    @classmethod
+    def numeric_pe(cls, value):
+        if value is not None and type(value) not in (int, float):
+            raise ValueError("市盈率上限必须是数字")
+        return value
+
+    @model_validator(mode="after")
+    def validate_pe_comparison(self):
+        if (self.pe_comparison != "below_industry_median") != (self.max_pe_ttm is not None):
+            raise ValueError("与固定市盈率比较时必须填写比较值")
+        return self
+
+
+class IndustryValuationRule(IndustryValuationSelection):
+    amount_window: int | None = Field(default=None, ge=1, le=60)
+    min_daily_amount_yi: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+    @field_validator("amount_window", "min_daily_amount_yi", mode="before")
+    @classmethod
+    def numeric_amount(cls, value):
+        if value is not None and type(value) not in (int, float):
+            raise ValueError("成交额参数必须是数字")
+        return value
+
+    @model_validator(mode="after")
+    def amount_pair(self):
+        if (self.amount_window is None) != (self.min_daily_amount_yi is None):
+            raise ValueError("需要同时填写成交额窗口和下限")
+        return self
+
+
 class ConditionDefinition(ContractModel):
     condition_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")
     library: ConditionLibrary
@@ -312,6 +355,13 @@ class ConditionDefinition(ContractModel):
 
     @model_validator(mode="after")
     def implementation_matches_contract(self):
+        if self.library == "fundamentals":
+            if (self.program is not None
+                    or self.implementation_id != INDUSTRY_VALUATION_IMPLEMENTATION
+                    or self.implementation_version != INDUSTRY_VALUATION_IMPLEMENTATION):
+                raise ValueError("行业估值条件需要固定的结构化实现")
+            IndustryValuationRule.model_validate(self.expression)
+            return self
         if self.library == "ranking":
             if self.expression or self.program is not None:
                 raise ValueError("排名条件使用独立的排名合同，不能包含筛选表达式或程序")
@@ -399,6 +449,9 @@ class ScreeningTaskRevision(ContractModel):
         known_conditions = set(condition_ids)
         if any(reference.condition_id not in known_conditions for reference in self.references):
             raise ValueError("条件引用了不存在的条件定义")
+        fundamentals = {item.condition_id for item in self.conditions if item.library == "fundamentals"}
+        if any(ref.condition_id in fundamentals and ref.parameter_overrides for ref in self.references):
+            raise ValueError("行业估值条件需要在规则中明确填写全部参数")
         tree_refs = validate_logic_tree(self.logic_tree)
         if Counter(tree_refs) != Counter(reference_ids):
             raise ValueError("逻辑树必须完整且仅引用任务中的条件引用")
@@ -467,7 +520,7 @@ def validate_executable_task(task: ScreeningTaskRevision) -> None:
     if ranking is not None:
         universe = task.scope.universe
         if ranking.ranking_universe == "industry":
-            raise ValueError("当前没有历史行业分类数据，不能执行行业内排名")
+            raise ValueError("通用排名暂未接入申万行业范围")
         if ranking.ranking_universe == "all_a_shares" and universe.kind != "all_a_shares":
             raise ValueError("全市场排名必须使用完整的A股筛选范围")
         if ranking.ranking_universe == "watchlist" and universe.kind != "watchlist":

@@ -1,25 +1,26 @@
 import LoadingState from './LoadingState'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Archive, ArchiveRestore, ArrowLeft, Check, ChevronRight, Copy, Download, FolderOpen, ListFilter, MoreHorizontal, Pencil, Pin, PinOff, Share2, Trash2, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Check, Copy, Download, ListFilter, MoreHorizontal, Pencil, Pin, PinOff, Share2, Trash2, X } from 'lucide-react'
 import { api, conversationWorkflow, type Conversation, type ConversationScope, type WorkflowType } from '../api'
 import { trapDialogTab } from '../keyboard'
-import type { ResearchProjectSummary } from '../research'
 import { workspaceRouteHash } from '../workspaceRoute'
 import './conversation-history.css'
 
 export type RecentConversation = {
   id: string; title: string | null; entry_scope: ConversationScope; workflow_type?: WorkflowType
   research_mode?: string; task_revision?: number; last_turn_state?: string; active_run_status?: string
-  state?: 'active' | 'archived'; pinned?: boolean; project_id?: string | null
+  state?: 'active' | 'archived'; pinned?: boolean
 }
-export type ConversationHistoryChange = Partial<Pick<RecentConversation, 'title' | 'pinned' | 'state' | 'project_id'>> & { deleted?: boolean }
+export type ConversationHistoryChange = Partial<Pick<RecentConversation, 'title' | 'pinned' | 'state'>> & { deleted?: boolean }
 
-export default function ConversationHistoryItem({ item, current, onOpen, onChange }: {
+export default function ConversationHistoryItem({ item, current, onOpen, onChange, showWorkflow = false, openState }: {
   item: RecentConversation; current: boolean; onOpen: () => void
   onChange: (id: string, changes: ConversationHistoryChange) => void
+  showWorkflow?: boolean
+  openState?: 'opening' | 'error'
 }) {
-  const [menu, setMenu] = useState<'main' | 'projects' | null>(null)
+  const [menu, setMenu] = useState(false)
   const [dialog, setDialog] = useState<'rename' | 'share' | 'delete' | null>(null)
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -29,9 +30,6 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
   const [publicShare, setPublicShare] = useState<{ id: string; url: string } | null>(null)
   const [shareLoading, setShareLoading] = useState(false)
   const shareRequest = useRef<string | null>(null)
-  const [projects, setProjects] = useState<ResearchProjectSummary[]>([])
-  const [loadingProjects, setLoadingProjects] = useState(false)
-  const [projectAttempt, setProjectAttempt] = useState(0)
   const [position, setPosition] = useState<CSSProperties>({ top: 0, left: 0 })
   const trigger = useRef<HTMLButtonElement>(null)
   const popup = useRef<HTMLDivElement>(null)
@@ -44,7 +42,7 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
   const active = ['running', 'awaiting_agent'].includes(item.last_turn_state || '') || ['queued', 'running'].includes(item.active_run_status || '')
   const shareUrl = new URL(window.location.href)
   shareUrl.hash = workspaceRouteHash({ page: screening ? 'conditions' : 'screening', conversationId: item.id, scope: item.entry_scope })
-  const closeMenu = useCallback((focus = true) => { setMenu(null); if (focus) trigger.current?.focus() }, [])
+  const closeMenu = useCallback((focus = true) => { setMenu(false); if (focus) trigger.current?.focus() }, [])
   const closeDialog = () => { if (pending.current) return; setDialog(null); setError(''); trigger.current?.focus() }
 
   useLayoutEffect(() => {
@@ -62,7 +60,7 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
-  }, [menu, projects, loadingProjects, error])
+  }, [menu, error])
 
   useEffect(() => {
     if (!menu) return
@@ -99,23 +97,11 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
     return () => controller.abort()
   }, [dialog, screening, item.id])
 
-  useEffect(() => {
-    if (menu !== 'projects') return
-    const controller = new AbortController()
-    setLoadingProjects(true); setError('')
-    api<{ items: ResearchProjectSummary[] }>('/research-projects', { signal: controller.signal }).then(result => {
-      if (!Array.isArray(result.items)) throw new Error('项目列表暂不可用。')
-      if (!controller.signal.aborted) setProjects(result.items.filter(project => project.status === 'active'))
-    }).catch(reason => { if (!controller.signal.aborted) setError((reason as Error).message) })
-      .finally(() => { if (!controller.signal.aborted) setLoadingProjects(false) })
-    return () => controller.abort()
-  }, [menu, projectAttempt])
-
-  async function save(changes: ConversationHistoryChange, project = false) {
+  async function save(changes: ConversationHistoryChange) {
     if (pending.current) return
     pending.current = true; setSaving(true); setError('')
     try {
-      await api(`/conversations/${encodeURIComponent(item.id)}${project ? '/project' : ''}`, {
+      await api(`/conversations/${encodeURIComponent(item.id)}`, {
         method: changes.deleted ? 'DELETE' : 'PATCH', body: changes.deleted ? undefined : JSON.stringify(changes),
       })
       pending.current = false
@@ -131,7 +117,6 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
     event.stopPropagation()
     if (event.key === 'Escape') { event.preventDefault(); if (!pending.current) closeMenu(); return }
     if (event.key === 'Tab') { if (pending.current) event.preventDefault(); else closeMenu(); return }
-    if (event.key === 'ArrowLeft' && menu === 'projects') { event.preventDefault(); setError(''); setMenu('main'); return }
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
     const buttons = Array.from(popup.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || [])
@@ -156,15 +141,15 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
   }
 
   return <div className={`chat-history-row${menu ? ' menu-open' : ''}${current ? ' is-current' : ''}`}>
-    <button type="button" className="chat-history-item workspace-button" data-tooltip={title} aria-label={`继续${screening ? '选股' : '研究'}：${title}`} aria-current={current ? 'page' : undefined} onClick={onOpen}>
-      {screening && <ListFilter size={13} aria-hidden="true" />}<span>{title}</span>
+    <button type="button" className="chat-history-item workspace-button" data-tooltip={title} aria-label={`继续${screening ? '选股' : '研究'}：${title}`} aria-current={current ? 'page' : undefined} aria-busy={openState === 'opening' || undefined} aria-describedby={openState ? `${menuId}-opening` : undefined} onClick={onOpen}>
+      {showWorkflow ? <small className="chat-history-workflow" aria-hidden="true">{screening ? '选股' : '研究'}</small> : screening && <ListFilter size={13} aria-hidden="true" />}
+      <span className="chat-history-label"><span>{title}</span>{openState && <small id={`${menuId}-opening`} role="status" className={`chat-history-open-state is-${openState}`}>{openState === 'opening' ? '正在打开…' : '打开失败 · 点击重试'}</small>}</span>
       {['failed', 'awaiting_user', 'running', 'awaiting_agent'].includes(item.last_turn_state || '') && <i className={item.last_turn_state === 'failed' || item.last_turn_state === 'awaiting_user' ? 'needs-attention' : 'in-progress'} aria-label={item.last_turn_state === 'failed' ? '需重试' : item.last_turn_state === 'awaiting_user' ? '待补充' : '处理中'} />}
     </button>
     {!!item.pinned && <Pin className="chat-history-pin" size={13} aria-label="已置顶" />}
-    <button ref={trigger} type="button" className="chat-history-actions workspace-button" aria-label={`更多操作：${title}`} data-tooltip="更多操作" aria-haspopup="menu" aria-expanded={!!menu} aria-controls={menu ? menuId : undefined}
-      onClick={() => { if (pending.current) return; setError(''); if (menu) closeMenu(); else setMenu('main') }} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setMenu('main') } }}><MoreHorizontal size={18} aria-hidden="true" /></button>
-    {menu && createPortal(<div ref={popup} id={menuId} className="chat-history-menu workspace-popover workspace-tool-dialog workspace-menu" role="menu" aria-label={menu === 'projects' ? '移至项目' : '对话操作'} style={position} onKeyDown={menuKeys}>
-      {menu === 'main' ? <>
+    <button ref={trigger} type="button" className="chat-history-actions workspace-button" aria-label={`更多操作：${title}`} data-tooltip="更多操作" aria-haspopup="menu" aria-expanded={menu} aria-controls={menu ? menuId : undefined}
+      onClick={() => { if (pending.current) return; setError(''); if (menu) closeMenu(); else setMenu(true) }} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setMenu(true) } }}><MoreHorizontal size={18} aria-hidden="true" /></button>
+    {menu && createPortal(<div ref={popup} id={menuId} className="chat-history-menu workspace-popover workspace-tool-dialog workspace-menu" role="menu" aria-label="对话操作" style={position} onKeyDown={menuKeys}>
         <button role="menuitem" disabled={saving} onClick={() => openDialog('rename')} className="workspace-button workspace-menu-option"><Pencil size={17} /><span>重命名</span></button>
         <button role="menuitem" disabled={saving} onClick={() => void save({ pinned: !item.pinned })} className="workspace-button workspace-menu-option">{item.pinned ? <PinOff size={17} /> : <Pin size={17} />}<span>{item.pinned ? '取消置顶' : '置顶'}</span></button>
         <div role="separator" />
@@ -172,18 +157,8 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
         <div role="separator" />
         <button role="menuitem" disabled={saving || active} data-tooltip={active ? '请先等待或停止当前任务' : undefined} onClick={() => void save({ state: archived ? 'active' : 'archived' })} className="workspace-button workspace-menu-option">{archived ? <ArchiveRestore size={17} /> : <Archive size={17} />}<span>{archived ? '恢复对话' : '归档'}</span></button>
         <button role="menuitem" className="danger workspace-button workspace-menu-option" disabled={saving || active} data-tooltip={active ? '请先等待或停止当前任务' : undefined} onClick={() => openDialog('delete')}><Trash2 size={17} /><span>删除</span></button>
-        {!screening && <><div role="separator" /><button role="menuitem" disabled={saving || active} data-tooltip={active ? '请先等待或停止当前任务' : undefined} aria-haspopup="menu" onClick={() => { setError(''); setMenu('projects') }} className="workspace-button workspace-menu-option"><FolderOpen size={17} /><span>移至项目</span><ChevronRight size={15} /></button></>}
-      </> : <>
-        <button role="menuitem" disabled={saving} onClick={() => { setError(''); setMenu('main') }} className="workspace-button workspace-menu-option"><ArrowLeft size={17} /><span>移至项目</span></button>
-        <div role="separator" />
-        {loadingProjects ? <LoadingState compact label="正在读取项目…" /> : <>
-          <button role="menuitemradio" aria-checked={!item.project_id} disabled={saving} onClick={() => void save({ project_id: null }, true)} className="workspace-button workspace-menu-option"><FolderOpen size={17} /><span>未归入项目</span>{!item.project_id && <Check size={15} />}</button>
-          {projects.map(project => <button key={project.id} role="menuitemradio" aria-checked={item.project_id === project.id} disabled={saving} onClick={() => void save({ project_id: project.id }, true)} className="workspace-button workspace-menu-option"><FolderOpen size={17} /><span>{project.name}</span>{item.project_id === project.id && <Check size={15} />}</button>)}
-          {!projects.length && !error && <p>暂无可用项目，可在“研究项目”中创建。</p>}
-        </>}
-      </>}
       {saving && <p role="status">正在保存…</p>}
-      {error && <p role="alert" className="workspace-error">{error}{menu === 'projects' && <button type="button" className="text-button workspace-button" disabled={saving} onClick={() => setProjectAttempt(value => value + 1)}>重试项目列表</button>}</p>}
+      {error && <p role="alert" className="workspace-error">{error}</p>}
     </div>, document.body)}
     {dialog && createPortal(<div className="chat-history-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) closeDialog() }}>
       <section ref={modal} className="chat-history-dialog workspace-tool-dialog workspace-dialog" role="dialog" aria-modal="true" aria-label={dialog === 'rename' ? '重命名对话' : dialog === 'delete' ? '删除对话' : '分享对话'} aria-busy={saving} onKeyDown={event => {
@@ -195,7 +170,7 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
           {error && <p role="alert" className="workspace-error">{error}</p>}
           <footer><button type="button" className="secondary-button workspace-button" disabled={saving} onClick={closeDialog}>取消</button><button type="submit" className="primary-button workspace-button" disabled={saving || !name.trim()}>{saving ? '正在保存…' : '保存'}</button></footer>
         </form> : dialog === 'delete' ? <>
-          <p>确定删除“{title}”吗？删除后将无法从对话记录中恢复，已保存的研究笔记会保留。</p>
+          <p>确定删除“{title}”吗？删除后将无法从对话记录中恢复。</p>
           {error && <p role="alert" className="workspace-error">{error}</p>}
           <footer><button type="button" className="secondary-button workspace-button" disabled={saving} onClick={closeDialog}>取消</button><button type="button" className="chat-history-delete-button workspace-button" disabled={saving} onClick={() => void save({ deleted: true })}>{saving ? '正在删除…' : '确认删除'}</button></footer>
         </> : <>

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from .storage import storage_paths
+from .tushare_client import API_URL as TUSHARE_API_URL
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -215,7 +216,7 @@ def default_research_mode() -> str:
 
 
 def tushare_settings() -> dict[str, str | float | int | bool]:
-    """Read the official Tushare token for server-side requests."""
+    """Read the Tushare endpoint and token for server-side requests."""
 
     config = _read_config()
     section = config["tushare"] if config.has_section("tushare") else {}
@@ -235,6 +236,7 @@ def tushare_settings() -> dict[str, str | float | int | bool]:
         "credential_source": "config" if configured_token else "environment" if token else "",
         "token_env": token_env,
         "token": token,
+        "api_url": section.get("api_url", "").strip() or TUSHARE_API_URL,
         "timeout": max(1.0, min(timeout, 120.0)),
         "retries": max(0, min(retries, 8)),
     }

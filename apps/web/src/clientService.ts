@@ -46,24 +46,83 @@ export type ServiceCard = {
   state: 'awaiting_agent' | 'running' | 'ready' | 'failed'; message: string
   template: ServiceTemplate; content: CardContent; market: MarketSnapshot | null; updated_at: string
 }
+export const conclusionLimit = 160
 export const contentFields: { key: Exclude<keyof CardContent, 'theme' | 'market_overrides' | keyof typeof fixedDisclosure>; label: string; max: number; rows?: number }[] = [
   { key: 'brand', label: '服务名称', max: 20 }, { key: 'headline', label: '卡片标题', max: 20 },
-  { key: 'conclusion', label: '今日判断', max: 160, rows: 3 }, { key: 'action', label: '行动安排', max: 180, rows: 3 },
+  { key: 'conclusion', label: '今日判断', max: conclusionLimit, rows: 3 }, { key: 'action', label: '行动安排', max: 180, rows: 3 },
   { key: 'focus', label: '观察重点', max: 140, rows: 3 }, { key: 'service', label: '服务说明', max: 80, rows: 2 },
 ]
 export function beijingDate() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) }
 export function marketTime(value: string) { return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value)) }
+
+const urlCharacter = /[^\s<>{}\[\]()"'（）【】《》“”‘’，。；：、！？]/.source
+const urlHost = /(?<![a-z0-9@_.-])(?:[a-z0-9-]+\.)+(?:com|cn|net|org|gov|edu|hk|io|pro|info)(?![a-z0-9-]|\.[a-z0-9])/.source
+const urlTail = String.raw`${urlCharacter}*(?:\(${urlCharacter}*\)${urlCharacter}*)*`
+const webAddress = String.raw`(?:(?:https?://|www\.)${urlCharacter}${urlTail}|${urlHost}(?:[/?#]${urlTail})?)`
+const markdownWebLink = new RegExp(String.raw`!?\[([^\]\r\n]*)\]\([ \t]*<?${webAddress}>?(?:[ \t]+"[^"\r\n]*")?[ \t]*\)`, 'gi')
+const webLink = new RegExp(String.raw`<${webAddress}>|（${webAddress}）|\(${webAddress}\)|${webAddress}`, 'gi')
+
+export function withoutWebLinks(text: string) {
+  const cleaned = text.replace(markdownWebLink, '$1').replace(webLink, address => address.match(/[.,;:!?]+$/)?.[0] ?? '')
+  return cleaned === text ? text : cleaned.replace(/[ \t]+(?=[，。；：、！？.,;:!?])/g, '').trim()
+}
+
+export function forwardingLines(lines: readonly string[]) {
+  return lines.map(line => withoutWebLinks(line).trim()).filter(Boolean)
+}
+
+export function forwardingSourceTitles(sources: readonly { title: string }[]) {
+  return [...new Set(forwardingLines(sources.map(source => source.title || '')))]
+}
+
 export function cardText(template: ServiceTemplate, content: CardContent, card: ServiceCard | undefined, date: string) {
-  return [`【${content.brand}·${content.headline || template.title}】${date} ${template.time}`,
-    content.market_overrides?.summary || card?.market?.summary || '市场状态尚未采集。',
-    ...(card?.market?.metrics.map((item, index) => `${content.market_overrides?.[`metric.${index}.label`] || item.label}：${content.market_overrides?.[`metric.${index}.value`] || item.value}`) || []),
-    ...contentFields.filter(field => ['conclusion', 'action', 'focus', 'service'].includes(field.key) && content[field.key]).map(field => `${template.id.startsWith('live-') && field.key === 'action' ? '盘面主线' : field.label}：${content[field.key]}`),
-    ...(card?.market?.public_notes?.length ? ['数据说明：' + card.market.public_notes.join('；')] : []),
+  const notes = forwardingLines(card?.market?.public_notes || [])
+  const title = withoutWebLinks(content.headline) || withoutWebLinks(template.title)
+  const summary = content.market_overrides?.summary || card?.market?.summary || '市场状态尚未采集。'
+  return [`【${withoutWebLinks(content.brand)}·${title}】${date} ${template.time}`,
+    withoutWebLinks(summary),
+    ...(card?.market?.metrics.map((item, index) => {
+      const label = withoutWebLinks(content.market_overrides?.[`metric.${index}.label`] || item.label)
+      const value = withoutWebLinks(content.market_overrides?.[`metric.${index}.value`] || item.value)
+      return `${label}：${value}`
+    }) || []),
+    ...contentFields.filter(field => ['conclusion', 'action', 'focus', 'service'].includes(field.key)).flatMap(field => {
+      const text = withoutWebLinks(content[field.key])
+      const label = template.id.startsWith('live-') && field.key === 'action' ? '盘面主线' : field.label
+      return text ? [`${label}：${text}`] : []
+    }),
+    ...(notes.length ? ['数据说明：' + notes.join('；')] : []),
     ...(Object.keys(content.market_overrides || {}).length ? ['展示说明：市场展示文字含手工编辑，原始采集记录可在工作台来源中核对。'] : []),
-    ...(card?.market?.sources.map(source => `来源：${source.title} ${source.url}`) || []),
+    ...forwardingSourceTitles(card?.market?.sources || []).map(title => `来源：${title}`),
     ...disclosureLines,
   ].filter(Boolean).join('\n')
 }
 
 export type CardTextRegion = { key: string; label: string; x: number; y: number; width: number; height: number; max: number; value: string; color: string }
-export type CardPreview = { image: string; width: number; height: number; regions?: CardTextRegion[]; image_hash?: string; checks?: {state:string;issues:{area:string;message:string;severity:string}[]} }
+export type CardPreview = { image: string; width: number; height: number; draft?: boolean; regions?: CardTextRegion[]; image_hash?: string; saved_image_hash?: string; checks?: {state:string;issues:{area:string;message:string;severity:string}[]} }
+
+/** The older preview endpoint ignores the draft query parameter. */
+export async function markDraftPreview(preview: CardPreview): Promise<CardPreview> {
+  const image = new Image()
+  image.src = preview.image
+  await image.decode()
+  const canvas = document.createElement('canvas')
+  canvas.width = image.naturalWidth
+  canvas.height = image.naturalHeight
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('暂时无法生成带草稿标记的预览。')
+  context.drawImage(image, 0, 0)
+  const scale = canvas.width / 1080
+  context.scale(scale, scale)
+  const label = '草稿 · 待核对'
+  context.font = '600 22px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif'
+  const width = Math.ceil(context.measureText(label).width) + 28
+  const left = 1016 - width
+  context.fillStyle = '#fff1d5'
+  context.fillRect(left, 107, width, 39)
+  context.fillStyle = '#213d55'
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+  context.fillText(label, left + width / 2, 126)
+  return { ...preview, draft: true, image: canvas.toDataURL('image/png'), image_hash: undefined, saved_image_hash: preview.image_hash }
+}

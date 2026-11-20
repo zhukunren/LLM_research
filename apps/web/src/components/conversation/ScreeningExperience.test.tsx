@@ -5,7 +5,6 @@ import { expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
 import type { Conversation, ScreeningTaskRevision } from '../../api'
 
-vi.mock('./ProjectMembership', () => ({ default: () => <span>项目归属</span> }))
 const timestamp = '2026-10-04T08:00:00Z'
 const screeningWorkspacePromptMarker = '\n\n[选股工作台指令]\n'
 const autoExecutionInstruction = '请整理筛选方案；条件完整后请开始筛选并直接返回结果，不等待用户再次确认；有关键条件不明确时先向用户提问。'
@@ -138,7 +137,7 @@ it('opens saved schemes directly from the new screening entry and closes with Es
   const user = userEvent.setup()
   render(<ConversationWorkspace initialWorkflowType="screening" />)
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
-  const reuseButton = screen.getByRole('button', { name: '打开我的方案' })
+  const reuseButton = screen.getByRole('button', { name: '查看已保存方案' })
   await user.click(reuseButton)
   const library = screen.getByRole('dialog', { name: '历史与方案' })
   expect(within(library).getByRole('button', { name: '已保存方案' })).toHaveAttribute('aria-pressed', 'true')
@@ -167,8 +166,8 @@ it('keeps restored plans inline, opens details explicitly and restores reading p
   log.scrollTop = 420; fireEvent.scroll(log)
   const trigger = within(card).getByRole('button', { name: '查看方案' })
   await user.click(trigger)
-  const panel = await screen.findByRole('dialog', { name: '筛选方案与结果' })
-  expect(panel).toHaveAttribute('aria-modal', 'false')
+  const panel = await screen.findByRole('region', { name: '筛选方案与结果' })
+  expect(panel).not.toHaveAttribute('aria-modal')
   expect(within(panel).getByText('我的理解')).toBeVisible()
   expect(within(panel).getByText('系统规则')).toBeVisible()
   log.scrollTop = 33
@@ -249,7 +248,8 @@ it('offers a preview-only path that sends no execution request', async () => {
   render(<ConversationWorkspace initialWorkflowType="screening" data={{ available: true, last_date: '2026-09-30' }} />)
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
   await user.type(screen.getByLabelText('选股要求'), '收盘价高于20日均线')
-  if (screen.getByRole('button', { name: '选股设置' }).getAttribute('aria-expanded') === 'false') await user.click(screen.getByRole('button', { name: '选股设置' }))
+  expect(screen.getByRole('button', { name: '选股设置' })).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.getByRole('button', { name: '生成并筛选' })).toHaveTextContent('生成并筛选')
   await user.click(screen.getByRole('button', { name: '只生成方案' }))
   await waitFor(() => expect(calls.some(call => call.path.endsWith('/messages'))).toBe(true))
   const content = String(calls.find(call => call.path.endsWith('/messages'))!.body.content)
@@ -292,7 +292,7 @@ it('starts a previewed plan explicitly from the inline card with its current rev
   expect(calls.filter(call => call.path.endsWith('/execute'))).toHaveLength(1)
 })
 
-it('keeps one inline card as screening completes and loads decisions only after an explicit click', async () => {
+it('keeps the conversation focused as the docked result updates automatically', async () => {
   vi.stubGlobal('innerWidth', 1280)
   let finished = false
   const stored = { ...baseConversation, task_revision: 1, active_run_id: 'latest', messages: [{ id: 'request', role: 'user', content: '趋势选股', source_refs: [], created_at: timestamp }] }
@@ -325,9 +325,8 @@ it('keeps one inline card as screening completes and loads decisions only after 
   expect(log.scrollTop).toBe(300)
   expect(screen.getByRole('button', { name: '筛选结果已就绪' })).toBeVisible()
   expect(screen.queryByRole('dialog', { name: '筛选方案与结果' })).not.toBeInTheDocument()
-  expect(calls.some(call => call.path.endsWith('/decisions'))).toBe(false)
   await user.click(within(card).getByRole('button', { name: '查看名单' }))
-  const panel = await screen.findByRole('dialog', { name: '筛选方案与结果' })
+  const panel = await screen.findByRole('region', { name: '筛选方案与结果' })
   expect(within(panel).getByRole('tab', { name: '筛选结果' })).toHaveAttribute('aria-selected', 'true')
   await waitFor(() => expect(calls.some(call => call.path.endsWith('/decisions'))).toBe(true))
   expect(calls.every(call => call.method === 'GET')).toBe(true)
@@ -365,13 +364,16 @@ it('uses a modal sheet only on a narrow viewport after an explicit request', asy
   expect(screen.queryByRole('dialog', { name: '筛选方案与结果' })).not.toBeInTheDocument()
 })
 
-it('warns about unsupported valuation or industry fields before sending', async () => {
+it('allows Shenwan P/E requests and warns about unsupported valuation fields before sending', async () => {
   mockScreening()
   const openData = vi.fn()
   const user = userEvent.setup()
   render(<ConversationWorkspace initialWorkflowType="screening" onOpenDataServices={openData} data={{ available: true, last_date: '2026-09-30' }} />)
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
-  await user.type(screen.getByLabelText('选股要求'), '筛选市盈率低于20且行业分类为银行的股票')
+  const input = screen.getByLabelText('选股要求')
+  await user.type(input, '筛选申万银行行业市盈率低于20的股票')
+  expect(screen.queryByText(/本地选股暂不提供/)).not.toBeInTheDocument()
+  await user.type(input, '，市净率低于1')
   const warning = screen.getByText(/本地选股暂不提供/).closest('p')!
   expect(warning).toBeVisible()
   await user.click(within(warning).getByRole('button', { name: '查看数据与服务' }))

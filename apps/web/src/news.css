@@ -77,3 +77,6 @@
   .news-catalog .local-news-date-range input { font-size: 10px; padding: 7px 4px; }
   .news-import-panel form > button { width: 100%; }
 }
+.news-range-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.news-range-controls button { border: 1px solid var(--ui-border-subtle); border-radius: var(--ui-radius-sm); background: var(--ui-surface); color: var(--ui-text-muted); min-height: 32px; padding: 4px 10px; }
+.news-range-controls button[aria-pressed="true"] { background: var(--ui-primary-soft); color: var(--ui-primary); border-color: var(--ui-border); }

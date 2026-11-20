@@ -72,6 +72,62 @@ def test_explanation_reads_saved_decision_after_current_market_changes(client, m
     assert payload["decision"]["condition_decisions"][0]["actual_values"] == {"close": 21}
     assert payload["task"]["scope"]["as_of"] == "2026-09-14"
 
+    research = client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "research"}).json()
+    request = {
+        "client_message_id": "recheck-saved-decision", "base_revision": 0, "content": "解释这只股票入选的原始依据",
+        "source_refs": [{"kind": "screening_run", "source_id": payload["run_id"], "stock_code": "600000.SH"}],
+    }
+    path = f"/api/v1/conversations/{research['id']}/messages"
+    answer = client.post(path, json=request)
+    assert answer.status_code == 202, answer.text
+    frozen = answer.json()["source_refs"][0]
+    assert (frozen["conversation_id"], frozen["task_revision"], frozen["as_of"], frozen["stock_code"]) == (
+        conversation_id, 1, "2026-09-14", "600000.SH",
+    )
+    assert frozen["decision"] == payload["decision"]
+    retry = client.post(path, json=request)
+    assert retry.json()["turn_id"] == answer.json()["turn_id"]
+    request["source_refs"][0]["stock_code"] = "600001.SH"
+    assert client.post(path, json=request).status_code == 409
+
+
+def test_conversation_rechecks_a_selected_batch_without_another_run(client, monkeypatch):
+    from apps.api.app import conversation_store, screening_tools
+    from apps.api.app.tool_protocol import ToolCall
+
+    cid, turn_id = _authorized(client)
+    monkeypatch.setattr(screening_execution, "evaluate_reference", lambda condition, reference, stock_code, as_of: {
+        "stock_code": stock_code, "condition_id": condition["condition_id"], "reference_id": reference["reference_id"],
+        "state": "true", "evaluation_status": "completed", "reason_code": "condition_met", "explanation": "入选原始依据",
+        "actual_values": {"close": 21}, "thresholds": {"window": 20}, "units": {"close": "price"}, "data_as_of": as_of,
+    })
+    run_a = client.post(f"/api/v1/conversations/{cid}/turns/{turn_id}/execute").json()
+    assert worker.execute_job(run_a["job_id"])
+    run_b = client.post(f"/api/v1/conversations/{cid}/turns/{turn_id}/execute", json={
+        "action": "button", "revision": 1, "request_id": "run-b",
+    }).json()
+    assert run_b["run_id"] != run_a["run_id"]
+    assert worker.execute_job(run_b["job_id"])
+    monkeypatch.setattr(market, "get_bars", lambda *args, **kwargs: pytest.fail("历史追问读取了当前行情"))
+    message = client.post(f"/api/v1/conversations/{cid}/messages", json={
+        "client_message_id": "first-match", "base_revision": 1, "content": "为什么第一只入选？把实际值和门槛都列出来。",
+        "source_refs": [{"kind": "screening_run", "source_id": run_a["run_id"]}],
+    }).json()
+    conversation_store.start_turn(cid, message["turn_id"])
+    context = screening_tools.ToolContext(cid, message["turn_id"], 1)
+    result = screening_tools.registry.dispatch(ToolCall("why", "read_screening_run", {
+        "run_id": None, "wait_seconds": 0, "state": "true", "query": "", "offset": 0, "limit": 1,
+    }), context)
+    assert result["ok"], result
+    assert result["result"]["run"]["id"] == run_a["run_id"]
+    assert result["result"]["decisions"]["items"][0]["condition_decisions"][0]["actual_values"] == {"close": 21}
+    execute = screening_tools.registry.dispatch(ToolCall("write", "execute_screening_task", {"revision": 1}), context)
+    assert execute["error"]["code"] == "execution_not_explicit"
+    task = conversation_store.get_task_revision(cid, 1)
+    proposed = screening_tools.registry.dispatch(ToolCall("revision", "propose_screening_task", {"task": task.model_dump(mode="json")}), context)
+    assert proposed["error"]["code"] == "screening_result_read_only"
+    assert len(client.get(f"/api/v1/conversations/{cid}/screening-runs").json()["items"]) == 2
+
 
 def test_explanation_requires_a_saved_decision_for_requested_security(client):
     conversation_id, turn_id = _authorized(client)

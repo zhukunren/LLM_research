@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from . import codex_runtime, conversation_store, research_models, research_turn_service
 from .client_service_contracts import CardContent, GenerateCard, SLOTS, ServiceSettings, default_settings
 from .client_service_disclosure import with_fixed_disclosure
+from .codex_store import web_evidence
 from .db import connect, json_dump, json_load, utc_now
 from .screening_contracts import ResearchScope
 
@@ -193,24 +194,6 @@ def start(payload: GenerateCard, *, clock: datetime | None = None, instant=False
     return detail(card_id)
 
 
-def _web_evidence(row):
-    with connect() as db:
-        events = [json_load(item['payload_json']).get('item', {}) for item in db.execute(
-            "SELECT payload_json FROM codex_turn_events WHERE conversation_id=? AND app_turn_id=? AND method='item/completed'",
-            (row['conversation_id'], row['turn_id']))]
-    searched, opened = False, set()
-    for item in events:
-        if not isinstance(item, dict) or re.sub('[^a-z]', '', str(item.get('type', '')).lower()) not in {'websearch', 'websearchcall'}:
-            continue
-        action = item.get('action') or {}
-        results = [value for value in item.get('results') or [] if isinstance(value, dict)]
-        searched |= action.get('type') == 'search' or any(re.search(r'turn\d+search\d+', str(value.get('ref_id', ''))) for value in results)
-        if action.get('type') in {'openPage', 'open_page'} and isinstance(action.get('url'), str):
-            opened.add(action['url'])
-        opened.update(value['url'] for value in results if re.fullmatch(r'turn\d+view\d+', str(value.get('ref_id', ''))) and isinstance(value.get('url'), str))
-    return searched, opened
-
-
 def _timestamp(value):
     parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
     if parsed.tzinfo is None:
@@ -224,7 +207,7 @@ def verified_market(row, text):
     body = json.loads(re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip()))
     if not isinstance(body, dict) or not isinstance(body.get('summary'), str) or not body['summary'].strip() or len(body['summary']) > 600:
         raise ValueError('市场状态格式不完整。')
-    searched, opened = _web_evidence(row)
+    searched, opened = web_evidence(row['conversation_id'], row['turn_id'])
     cutoff = _timestamp(row['cutoff'])
     snapshot=read_snapshot(row['conversation_id'],row['turn_id']) or {}
     sources = list(snapshot.get('sources',[]))

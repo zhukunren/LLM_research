@@ -45,7 +45,10 @@ def test_catalog_describes_server_owned_tasks_without_client_special_cases(clien
     assert all(item["builtin"] and item["enabled"] and item["launch_label"] and item["default_prompt"] for item in tasks)
     assert all(item["input_schema"] == {"type": "object", "properties": {}, "additionalProperties": False} for item in tasks)
     draft_ids = {item["id"] for item in catalog["items"] if item["launch_mode"] == "draft"}
-    assert draft_ids == {"general", "financial", "reports", "supply-chain", "risk", "qmt-script"}
+    assert draft_ids == {
+        "general", "financial", "reports", "supply-chain", "risk", "qmt-script",
+        "a-share-company-research", "a-share-valuation",
+    }
 
 
 @pytest.mark.parametrize("assistant", ["daily-hotspots", "policy-tracker", "industry-updates"])

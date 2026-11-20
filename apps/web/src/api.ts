@@ -140,6 +140,13 @@ export type ResearchAssistant = AssistantSelection & {
   launch_description?: string
   default_prompt?: string
   input_schema?: Record<string, unknown>
+  method_guide?: {
+    use_when: string
+    inputs: string
+    outputs: string
+    example_prompt: string
+    source?: { name: string; url: string; revision: string }
+  }
 }
 export type ResearchScope = {
   as_of: string | null; stock_codes: string[]; report_lookback_calendar_days?: number | null
@@ -153,10 +160,11 @@ export function conversationWorkflow(value: { workflow_type?: WorkflowType; rese
   return value.workflow_type ?? (value.research_mode === 'screening' || (value.task_revision ?? 0) > 0 ? 'screening' : fallback)
 }
 export type ConversationSourceReference = {
-  kind: 'report_page' | 'news_item' | 'security' | 'screening_run' | 'pattern' | 'condition'
+  kind: 'report_page' | 'news_item' | 'security' | 'screening_run' | 'pattern' | 'condition' | 'saved_screening_task' | 'screening_strategy'
   source_id: string
   page_number?: number
   version?: number
+  stock_code?: string
 }
 export type ConversationAttachment = {
   id: string
@@ -263,6 +271,7 @@ export type ScreeningTaskRevision = {
 }
 export type ScreeningTaskRunSummary = {
   id: string
+  turn_id?: string
   task_revision: number
   as_of: string
   status: string

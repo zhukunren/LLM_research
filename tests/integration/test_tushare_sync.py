@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from apps.api.app import db, news_sources, tushare_sync
+from apps.api.app import db, news_retention, news_sources, tushare_sync
 
 
 def payload(fields, items):
@@ -54,6 +54,8 @@ class FakeTushareClient:
 @pytest.fixture
 def isolated_store(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "sync.db")
+    monkeypatch.setattr(news_retention, "today", lambda: date(2026, 9, 20))
+    monkeypatch.setattr(news_sources, "utc_now", lambda: "2026-09-20T01:00:00+00:00")
     monkeypatch.setattr(tushare_sync, "STOCK_FILE", tmp_path / "stock_daily.parquet")
     monkeypatch.setattr(tushare_sync, "DAILY_PAGE_SIZE", 2)
     monkeypatch.setattr(tushare_sync, "SOURCE_DELAY_SECONDS", 0)
@@ -116,6 +118,48 @@ def test_full_sync_imports_news_without_claiming_missing_history(isolated_store)
     saved = news_sources.list_news_sources("000001.SZ", "2026-09-15")
     assert saved["total"] == 1
     assert "Tushare news/eastmoney" in news_sources.get_item(saved["items"][0]["source_id"])["source"]
+
+
+@pytest.mark.parametrize("raises_on_limit", [True, False])
+def test_news_sync_splits_capped_ranges_and_retries_without_counting_replays(isolated_store, monkeypatch, raises_on_limit):
+    monkeypatch.setattr(tushare_sync, "NEWS_ROW_LIMIT", 2)
+    monkeypatch.setattr(tushare_sync, "NEWS_ENDPOINT_SOURCES", ("eastmoney",))
+    timestamps = [f"2026-09-16 00:00:0{second}" for second in range(4)]
+    delivered = []
+
+    class CappedClient:
+        def raw_query(self, api_name, *, src, start_date, end_date):
+            assert (api_name, src) == ("news", "eastmoney")
+            matches = [stamp for stamp in timestamps if start_date <= stamp <= end_date]
+            if raises_on_limit and len(matches) > 2:
+                raise tushare_sync.TushareError("取数超出最大行数：本次条件匹配行数超过单次上限 2 行")
+            if len(matches) < 2:
+                delivered.extend(matches)
+            return payload(["datetime", "content"], [[stamp, f"报道 {stamp}"] for stamp in matches[:2]])
+
+    cutoff = datetime(2026, 9, 16, 0, 0, 3, tzinfo=tushare_sync.SOURCE_ZONE)
+    first = tushare_sync.sync_news(CappedClient(), start=cutoff.date(), as_of=cutoff)
+    assert delivered == list(reversed(timestamps))
+    assert first["history_complete"] is True
+    assert first["latest_returned_at"] == "2026-09-16T00:00:03+08:00"
+    assert first["import"]["created"] == 4
+    replay = tushare_sync.sync_news(CappedClient(), start=cutoff.date(), as_of=cutoff)
+    assert replay["import"]["created"] == 0
+    assert replay["import"]["duplicates"] == 4
+    assert news_sources.browse()["total"] == 4
+
+
+def test_news_batch_reuses_existing_and_same_batch_duplicates(isolated_store):
+    previous = news_sources.NewsItemInput(title="已有资讯", body="已有正文", source="测试来源")
+    incoming = news_sources.NewsItemInput(title="新资讯", body="新的正文", source="测试来源")
+    original = news_sources.import_items(news_sources.NewsImport(request_id="previous", items=[previous]))
+    result = news_sources.import_items(news_sources.NewsImport(
+        request_id="new-batch", items=[previous, incoming, incoming],
+    ))
+    assert (result["created"], result["duplicates"]) == (1, 2)
+    assert result["items"][0]["id"] == original["items"][0]["id"]
+    assert result["items"][1]["id"] == result["items"][2]["id"]
+    assert news_sources.browse()["total"] == 2
 
 
 def test_failed_day_retried_after_later_day_advances_watermark(isolated_store):
@@ -244,12 +288,20 @@ def test_maintenance_publishes_live_pages_counts_and_failure_details(isolated_st
             snapshots.append((api_name, params, maintenance_service.maintenance_status()["job"]))
             if api_name == "news" and params["src"] == "sina":
                 raise tushare_sync.TushareError("该资讯来源暂无权限")
+            if api_name == "news" and params["src"] == "eastmoney":
+                return payload(["datetime", "content"], [["2026-09-17 10:30:00", "当天资讯。"]])
             return super().raw_query(api_name, **params)
 
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz):
+            return cls(2026, 9, 17, 12, tzinfo=tz)
+
     original_sync = tushare_sync.sync_tushare
+    monkeypatch.setattr(maintenance_service, "datetime", Clock)
     monkeypatch.setattr(security_catalog, "refresh", lambda: 10)
     monkeypatch.setattr(tushare_sync, "sync_tushare", lambda **kwargs: original_sync(
-        as_of="2026-09-16", days=2, client=ObservedClient(), on_progress=kwargs["on_progress"],
+        **(kwargs | {"days": 2, "client": ObservedClient()}),
     ))
     job_id = maintenance_service.start_refresh()["job_id"]
     assert maintenance_service.start_refresh()["job_id"] == job_id
@@ -259,9 +311,12 @@ def test_maintenance_publishes_live_pages_counts_and_failure_details(isolated_st
     during = next(item for api, params, item in snapshots if api == "daily" and params["offset"] == 2)
     assert during["state"] == "running" and during["result"]["market"]["current_rows"] == 2
     assert during["result"]["names"]["count"] == 10
+    assert during["result"]["news"]["import"]["created"] == 1
     assert "页" in during["message"]
-    news = next(item for api, _, item in snapshots if api == "news")
-    assert news["result"]["market"]["rows_written"] == 4
+    params, news = next((params, item) for api, params, item in snapshots if api == "news")
+    assert params["end_date"] == "2026-09-17 12:00:00"
+    assert news["result"]["market"]["status"] == "pending"
+    assert not any(params["trade_date"] > "20260916" for api, params, _ in snapshots if api == "daily")
     final = maintenance_service.maintenance_status()["job"]
     assert final["state"] == "partial" and final["progress"] == 1
     assert final["result"]["market"]["completed"] == 2

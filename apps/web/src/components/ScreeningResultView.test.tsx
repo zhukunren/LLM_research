@@ -5,6 +5,29 @@ import ScreeningResultView, { type CoverageCounts } from './ScreeningResultView'
 
 const mixed: CoverageCounts = { target_total: 10, true_count: 2, false_count: 3, unknown_count: 5, failed_count: 2, not_evaluated_count: 1 }
 
+it('keeps evidence inline, preserves focus, and adds a single stock without clearing other selections', async () => {
+  const user = userEvent.setup(), research = vi.fn(), writes: string[] = []
+  vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init?: RequestInit) => {
+    if (init?.method === 'POST') writes.push(JSON.parse(String(init.body)).stock_code)
+    return new Response(JSON.stringify({ items: [] }))
+  }))
+  const decisions = ['600000.SH', '000001.SZ'].map((stock_code, index) => ({ stock_code, state: 'true', conditions: [{ name: '订单依据', state: 'true', explanation: `原文证据 ${index + 1}`, citation: `研报第 ${index + 1} 页` }] }))
+  render(<ScreeningResultView status="succeeded" resultKey="batch-1" asOf="2026-11-16" evidenceLayout="inline" decisions={decisions} onResearchStock={research} />)
+  const evidence = within(screen.getByRole('region', { name: '个股条件与依据' }))
+  expect(evidence.getByText('研报第 1 页')).toBeVisible()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  const choose = screen.getByRole('button', { name: '查看 000001.SZ 条件与依据' })
+  await user.click(choose)
+  expect(choose).toHaveFocus()
+  expect(evidence.getByText('研报第 2 页')).toBeVisible()
+  await user.click(screen.getByRole('checkbox', { name: '勾选筛选结果 600000.SH' }))
+  await user.click(evidence.getByRole('button', { name: '加入观察池' }))
+  await waitFor(() => expect(writes).toEqual(['000001.SZ']))
+  expect(screen.getByRole('checkbox', { name: '勾选筛选结果 600000.SH' })).toBeChecked()
+  await user.click(evidence.getByRole('button', { name: '继续研究' }))
+  expect(research).toHaveBeenCalledExactlyOnceWith('000001.SZ')
+})
+
 it('opens full evidence from the compact list, including a false condition on a matching stock', async () => {
   const user = userEvent.setup()
   render(<ScreeningResultView status="succeeded" asOf="2026-09-28" decisions={[{ stock_code: '600000.SH', state: 'true', conditions: [

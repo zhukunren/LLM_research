@@ -9,23 +9,23 @@ import { displayedMessages } from './answerVersions'
 const question: ConversationMessage = { id: 'question', role: 'user', content: '核对订单', source_refs: [], created_at: '2026-10-10T00:00:00Z' }
 const message: ConversationMessage = { ...question, id: 'answer', role: 'assistant', content: '查看[公告原文](https://example.com/notice)。', source_refs: [] }
 const conversation = { id: 'research', entry_scope: 'report', messages: [question, message], turns: [], title: '订单研究' } as unknown as Conversation
-const callbacks = () => ({ onSave: vi.fn(), onCopy: vi.fn(), onObserve: vi.fn(), onDraft: vi.fn(), onRegenerate: vi.fn(), onBranch: vi.fn() })
+const callbacks = () => ({ onCopy: vi.fn(), onObserve: vi.fn(), onDraft: vi.fn(), onRegenerate: vi.fn(), onBranch: vi.fn() })
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
 beforeEach(() => vi.stubGlobal('fetch', vi.fn(async () => json({ items: [], configured: true, share: null }))))
 
 it('offers compact labelled icons and invokes only the chosen action', async () => {
   const handlers = callbacks(), user = userEvent.setup()
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...handlers} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...handlers} />)
   const toolbar = screen.getByRole('group', { name: '回答操作' })
-  expect(within(toolbar).getAllByRole('button')).toHaveLength(8)
+  expect(within(toolbar).getAllByRole('button')).toHaveLength(7)
   await user.click(within(toolbar).getByRole('button', { name: '复制答复' }))
   await user.click(within(toolbar).getByRole('button', { name: '重新生成答案' }))
   expect(handlers.onCopy).toHaveBeenCalledOnce(); expect(handlers.onRegenerate).toHaveBeenCalledOnce()
-  expect(handlers.onSave).not.toHaveBeenCalled(); expect(handlers.onBranch).not.toHaveBeenCalled()
+  expect(handlers.onBranch).not.toHaveBeenCalled()
 })
 
 it('opens actual answer citations in a drawer and restores keyboard focus', async () => {
-  const user = userEvent.setup(), { container } = render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  const user = userEvent.setup(), { container } = render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...callbacks()} />)
   const trigger = screen.getByRole('button', { name: '查看依据' })
   await user.click(trigger)
   const drawer = screen.getByRole('dialog', { name: '回答来源' })
@@ -40,7 +40,7 @@ it('creates a public snapshot link and copies it after publication', async () =>
   const user = userEvent.setup(), clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
   const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => init?.method === 'POST' ? json({ id: 'share', url: 'https://share.example.test/s/snapshot-token' }) : json({ configured: true, share: null }))
   vi.stubGlobal('fetch', fetcher)
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '分享答复' }))
   const dialog = screen.getByRole('dialog', { name: '分享研究答复' })
   await user.click(await within(dialog).findByRole('button', { name: '创建分享链接' }))
@@ -53,7 +53,7 @@ it('creates a public snapshot link and copies it after publication', async () =>
 
 it('supports menu keyboard navigation and branching without triggering regeneration', async () => {
   const user = userEvent.setup(), handlers = callbacks()
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...handlers} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...handlers} />)
   screen.getByRole('button', { name: '更多回答操作' }).focus()
   await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
   expect(handlers.onBranch).toHaveBeenCalledOnce()
@@ -63,8 +63,8 @@ it('supports menu keyboard navigation and branching without triggering regenerat
 
 it('keeps reading, copying and sharing available during research while writes are locked', async () => {
   const user = userEvent.setup()
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked saved={false} savingNote={false} {...callbacks()} />)
-  for (const name of ['重新生成答案', '保存为研究笔记', '加入关注']) expect(screen.getByRole('button', { name })).toBeDisabled()
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked {...callbacks()} />)
+  for (const name of ['重新生成答案', '加入关注']) expect(screen.getByRole('button', { name })).toBeDisabled()
   expect(screen.getByRole('button', { name: '复制答复' })).toBeEnabled()
   await user.click(screen.getByRole('button', { name: '更多回答操作' }))
   expect(screen.getByRole('menuitem', { name: /查看来源/ })).toBeEnabled()
@@ -73,7 +73,7 @@ it('keeps reading, copying and sharing available during research while writes ar
 
 it('shows missing sources explicitly instead of inventing citations', async () => {
   const user = userEvent.setup()
-  render(<ResearchAnswerTools conversation={conversation} message={{ ...message, content: '尚待核实' }} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  render(<ResearchAnswerTools conversation={conversation} message={{ ...message, content: '尚待核实' }} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '更多回答操作' }))
   await user.click(screen.getByRole('menuitem', { name: /查看来源/ }))
   expect(await screen.findByText('这条答复没有附可查看的来源。')).toBeInTheDocument()
@@ -100,7 +100,7 @@ it('labels the downloaded file as a loaded fragment and keeps the selected-answe
   vi.stubGlobal('URL', class extends URL { static createObjectURL = createObjectURL; static revokeObjectURL = vi.fn() })
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
   const later: ConversationMessage = { ...message, id: 'later', content: '后续回答不应导出' }
-  render(<ResearchAnswerTools conversation={{ ...conversation, messages: [question, message, later] }} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  render(<ResearchAnswerTools conversation={{ ...conversation, messages: [question, message, later] }} message={message} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '分享答复' }))
   expect(screen.getByText('下载仅包含当前已加载的消息，截至所选回答；较早的对话可能未包含。')).toBeVisible()
   await user.click(screen.getByRole('button', { name: '下载已加载对话' }))
@@ -127,7 +127,7 @@ it.each(['create', 'revoke'] as const)('keeps the %s result when the share dialo
     return new Promise<Response>(resolve => { finishRead = resolve })
   })
   vi.stubGlobal('fetch', fetcher)
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '分享答复' }))
   const action = await screen.findByRole('button', { name: operation === 'create' ? '创建分享链接' : '撤销分享链接' })
   await waitFor(() => expect(action).toBeEnabled())
@@ -156,7 +156,7 @@ it('ignores a stale share lookup that finishes after revocation', async () => {
     reads += 1
     return reads === 1 ? Promise.resolve(json({ configured: true, share: snapshot })) : new Promise<Response>(resolve => { finishRead = resolve })
   }))
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '分享答复' }))
   await screen.findByRole('textbox', { name: '研究对话分享链接' })
   await user.click(screen.getByRole('button', { name: '关闭分享' }))
@@ -179,7 +179,7 @@ it('keeps a failed pending creation retryable after the share dialog is reopened
     return writes === 1 ? new Promise<Response>((_resolve, reject) => { rejectWrite = reject }) : Promise.resolve(json(snapshot))
   })
   vi.stubGlobal('fetch', fetcher)
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '分享答复' }))
   const create = await screen.findByRole('button', { name: '创建分享链接' })
   await waitFor(() => expect(create).toBeEnabled())
@@ -200,7 +200,7 @@ it('keeps a failed pending creation retryable after the share dialog is reopened
 
 it('highlights actual evidence and exposes screening as a confirmed draft action', async () => {
   const handlers = callbacks(), user = userEvent.setup()
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...handlers} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...handlers} />)
   const toolbar = screen.getByRole('group', { name: '回答操作' })
   expect(within(toolbar).getByRole('button', { name: '查看依据' })).toHaveAttribute('data-primary-action', 'true')
   expect(within(toolbar).getByRole('button', { name: '加入关注' })).not.toHaveAttribute('data-primary-action', 'true')
@@ -208,12 +208,9 @@ it('highlights actual evidence and exposes screening as a confirmed draft action
   expect(handlers.onDraft).toHaveBeenCalledOnce()
 })
 
-it('prefers notes only with the answer own structured summary and remains neutral otherwise', () => {
-  const plain = { ...message, turn_id: 'answer-turn', content: '没有附来源的答复' }
-  const withSummary = { ...conversation, turns: [{ id: 'answer-turn', result: { research_summary: { version: 1, conclusion: '结论' } } }] } as unknown as Conversation
-  const view = render(<ResearchAnswerTools conversation={withSummary} message={plain} locked={false} saved={false} savingNote={false} {...callbacks()} />)
-  expect(screen.getByRole('button', { name: '保存为研究笔记' })).toHaveAttribute('data-primary-action', 'true')
-  view.rerender(<ResearchAnswerTools conversation={conversation} message={plain} locked saved={false} savingNote={false} {...callbacks()} />)
+it('keeps the source action neutral when the answer has no citations', () => {
+  const plain = { ...message, content: '没有附来源的答复' }
+  const view = render(<ResearchAnswerTools conversation={conversation} message={plain} locked {...callbacks()} />)
   expect(view.container.querySelector('[data-primary-action="true"]')).toBeNull()
   expect(within(screen.getByRole('group', { name: '回答操作' })).getByRole('button', { name: '转为选股草稿' })).toBeDisabled()
 })
@@ -221,7 +218,7 @@ it('prefers notes only with the answer own structured summary and remains neutra
 it('copies original answer with only recorded provenance and keeps ordinary copy', async () => {
   const user = userEvent.setup(), clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(), handlers = callbacks()
   vi.stubGlobal('fetch', vi.fn(async () => json({ items: [{ kind: 'web', title: '公告原文', url: 'https://example.com/notice', published_at: '2026-09-30', retrieved_at: '2026-10-10T01:00:00Z' }, { kind: 'financial', source_id: 'fact-id', title: '财务原值', report_period: '2025-12-31', unit: '元', excerpt: '12340000000 元' }] })))
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...handlers} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...handlers} />)
   await user.click(screen.getByRole('button', { name: '更多回答操作' }))
   await user.click(screen.getByRole('menuitem', { name: '复制并附来源/日期' }))
   expect(await screen.findByText('已复制答复及已有来源信息')).toBeInTheDocument()
@@ -238,7 +235,7 @@ it('copies original answer with only recorded provenance and keeps ordinary copy
 })
 it('reports clipboard refusal without claiming a successful provenance copy', async () => {
   const user = userEvent.setup(); vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('剪贴板拒绝'))
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '更多回答操作' }))
   await user.click(screen.getByRole('menuitem', { name: '复制并附来源/日期' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('剪贴板拒绝')
@@ -249,10 +246,10 @@ it('does not copy a late source response after the answer identity changes', asy
   const user = userEvent.setup(), clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
   let finish!: (response: Response) => void
   vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { finish = resolve })))
-  const view = render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  const view = render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '更多回答操作' }))
   await user.click(screen.getByRole('menuitem', { name: '复制并附来源/日期' }))
-  view.rerender(<ResearchAnswerTools conversation={conversation} message={{ ...message, id: 'other', content: '新答复' }} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  view.rerender(<ResearchAnswerTools conversation={conversation} message={{ ...message, id: 'other', content: '新答复' }} locked={false} {...callbacks()} />)
   await act(async () => finish(json({ items: [] })))
   expect(clipboard).not.toHaveBeenCalled()
   expect(screen.queryByText('已复制答复及已有来源信息')).not.toBeInTheDocument()
@@ -261,7 +258,7 @@ it('does not copy a late source response after the answer identity changes', asy
 it('does not silently copy partial provenance when the source read fails', async () => {
   const user = userEvent.setup(), clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ message: '来源暂不可读' }), { status: 503, headers: { 'Content-Type': 'application/json' } })))
-  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} saved={false} savingNote={false} {...callbacks()} />)
+  render(<ResearchAnswerTools conversation={conversation} message={message} locked={false} {...callbacks()} />)
   await user.click(screen.getByRole('button', { name: '更多回答操作' }))
   await user.click(screen.getByRole('menuitem', { name: '复制并附来源/日期' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('来源暂不可读')

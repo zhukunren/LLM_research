@@ -15,7 +15,7 @@ import './usability.css'
 import './news.css'
 import './observation.css'
 import './visual-polish.css'
-import './research-projects.css'
+import './research-results.css'
 import './page-experience.css'
 import './workspace-redesign.css'
 import './research-redesign.css'
@@ -44,6 +44,7 @@ import './chart-feedback.css'
 import './library-layout.css'
 import './workspace-chrome.css'
 import './deployment-layout.css'
+import './research-navigation.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

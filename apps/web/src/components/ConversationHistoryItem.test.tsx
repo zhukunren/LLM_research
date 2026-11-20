@@ -16,7 +16,7 @@ async function open(user: ReturnType<typeof userEvent.setup>) { await user.click
 it('opens all six actions without navigating and restores focus on Escape', async () => {
   const { user, onOpen } = setup()
   await open(user)
-  for (const name of ['重命名', '置顶', '分享', '归档', '删除', '移至项目']) expect(screen.getByRole('menuitem', { name })).toBeInTheDocument()
+  for (const name of ['重命名', '置顶', '分享', '归档', '删除']) expect(screen.getByRole('menuitem', { name })).toBeInTheDocument()
   expect(onOpen).not.toHaveBeenCalled()
   expect(screen.getByRole('menuitem', { name: '重命名' })).toHaveFocus()
   await user.keyboard('{ArrowDown}')
@@ -79,7 +79,7 @@ it('requires delete confirmation and allows cancellation', async () => {
   const { user, onChange } = setup()
   await open(user); await user.click(screen.getByRole('menuitem', { name: '删除' }))
   expect(api).not.toHaveBeenCalled()
-  expect(screen.getByRole('dialog', { name: '删除对话' })).toHaveTextContent('已保存的研究笔记会保留')
+  expect(screen.getByRole('dialog', { name: '删除对话' })).toHaveTextContent('删除后将无法从对话记录中恢复')
   await user.click(screen.getByRole('button', { name: '取消' }))
   expect(onChange).not.toHaveBeenCalled()
   await open(user); await user.click(screen.getByRole('menuitem', { name: '删除' })); await user.click(screen.getByRole('button', { name: '确认删除' }))
@@ -87,17 +87,11 @@ it('requires delete confirmation and allows cancellation', async () => {
   expect(api).toHaveBeenCalledWith('/conversations/research-one', { method: 'DELETE', body: undefined })
 })
 
-it('loads active projects and moves without opening the conversation', async () => {
-  vi.mocked(api).mockImplementation(async path => path === '/research-projects' ? { items: [
-    { id: 'active', name: '产业链', status: 'active' }, { id: 'archived', name: '旧项目', status: 'archived' },
-  ] } as never : {} as never)
-  const { user, onChange, onOpen } = setup()
-  await open(user); await user.click(screen.getByRole('menuitem', { name: '移至项目' }))
-  await user.click(await screen.findByRole('menuitemradio', { name: '产业链' }))
-  expect(screen.queryByRole('menuitemradio', { name: '旧项目' })).not.toBeInTheDocument()
-  await waitFor(() => expect(onChange).toHaveBeenCalledWith(item.id, { project_id: 'active' }))
-  expect(api).toHaveBeenCalledWith('/conversations/research-one/project', { method: 'PATCH', body: JSON.stringify({ project_id: 'active' }) })
-  expect(onOpen).not.toHaveBeenCalled()
+it('keeps project commands out of the conversation menu', async () => {
+  const { user } = setup()
+  await open(user)
+  expect(screen.queryByRole('menuitem', { name: '移至项目' })).not.toBeInTheDocument()
+  expect(api).not.toHaveBeenCalled()
 })
 
 it('creates a public snapshot for the latest answer and provides a download', async () => {
@@ -116,10 +110,10 @@ it('creates a public snapshot for the latest answer and provides a download', as
   expect(await screen.findByRole('status')).toHaveTextContent('对话链接已复制')
 })
 
-it('disables destructive operations and reassignment while a task is active', async () => {
+it('disables destructive operations while a task is active', async () => {
   const { user } = setup({ last_turn_state: 'running' })
   await open(user)
-  for (const name of ['归档', '删除', '移至项目']) expect(screen.getByRole('menuitem', { name })).toBeDisabled()
+  for (const name of ['归档', '删除']) expect(screen.getByRole('menuitem', { name })).toBeDisabled()
   expect(screen.getByRole('menuitem', { name: '重命名' })).toBeEnabled()
   expect(screen.getByRole('menuitem', { name: '分享' })).toBeEnabled()
 })

@@ -12,12 +12,15 @@ const strategy = (id: string, extra: Record<string, unknown> = {}) => ({
   sample_count: 2, known_pnl_count: 2, sample_start: '2026-11-01', sample_end: '2026-11-10',
   ann_return_start: '', ann_return_end: '', ann_return_day_count: 0, data_end: '2026-11-12', ...extra,
 })
+const activeTitle = '量价突破趋势动量'
+const inactiveTitle = '市场广度冲击温和领涨'
+const uncoveredTitle = '深度缺口反转'
 const payload = {
   schema_version: 1, date: '2026-11-12', dates: ['2026-11-10', '2026-11-12'], n: 20, unavailable_count: 1,
   strategies: [
-    strategy('signal-first', { strategy_title: '云岫择时策略', buy_signals: [{ code: '300001.SZ', name: '' }], buy_count: 1 }),
-    strategy('signal-second', { strategy_title: '听澜短线策略' }),
-    strategy('signal-third', { strategy_title: '青禾逆转策略', covers_date: false, buy_signals: [{ code: '600000.SH', name: '旧信号' }], win_rate: 0.9 }),
+    strategy('signal-first', { strategy_title: activeTitle, buy_signals: [{ code: '300001.SZ', name: '' }], buy_count: 1 }),
+    strategy('signal-second', { strategy_title: inactiveTitle }),
+    strategy('signal-third', { strategy_title: uncoveredTitle, covers_date: false, buy_signals: [{ code: '600000.SH', name: '旧信号' }], win_rate: 0.9 }),
   ], extra_future_field: true,
 }
 const response = (data: unknown) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
@@ -26,10 +29,10 @@ afterEach(() => vi.unstubAllGlobals())
 it('reads the named strategies from the local endpoint, preserves zero/null, and separates uncovered data from no signals', async () => {
   const fetcher = vi.fn(async (url: string, _init?: RequestInit) => response(url.startsWith(dailySignalsEndpoint) ? payload : { items: [] })); vi.stubGlobal('fetch', fetcher)
   const user = userEvent.setup(); render(<DailySignalsPage />)
-  const active = await screen.findByRole('article', { name: '云岫择时策略' })
+  const active = await screen.findByRole('article', { name: activeTitle })
   expect(screen.getAllByRole('article')).toHaveLength(2)
-  const missing = screen.getByRole('article', { name: '青禾逆转策略' })
-  expect(within(active).getByRole('heading', { name: '云岫择时策略' })).toBeInTheDocument()
+  const missing = screen.getByRole('article', { name: uncoveredTitle })
+  expect(within(active).getByRole('heading', { name: activeTitle })).toBeInTheDocument()
   expect(within(active).getByText('300001.SZ')).toBeInTheDocument()
   expect(within(active).getByText('0.00%')).toBeInTheDocument()
   expect(within(active).getByText('-2.50%')).toBeInTheDocument()
@@ -38,10 +41,10 @@ it('reads the named strategies from the local endpoint, preserves zero/null, and
   expect(within(missing).queryByText('旧信号')).not.toBeInTheDocument()
   expect(within(missing).queryByText('90.00%')).not.toBeInTheDocument()
   expect(screen.queryByText('当日无信号')).not.toBeInTheDocument()
-  expect(screen.queryByRole('article', { name: '听澜短线策略' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('article', { name: inactiveTitle })).not.toBeInTheDocument()
   await user.click(screen.getByLabelText('仅看有信号的策略'))
   expect(screen.getAllByRole('article')).toHaveLength(3)
-  expect(screen.getByRole('article', { name: '听澜短线策略' })).toHaveTextContent('当日无信号')
+  expect(screen.getByRole('article', { name: inactiveTitle })).toHaveTextContent('当日无信号')
   const signalCalls = fetcher.mock.calls.filter(([url]) => url.startsWith(dailySignalsEndpoint))
   expect(signalCalls).toHaveLength(1)
   const [url, init] = signalCalls[0]
@@ -67,23 +70,23 @@ it('queries an explicit historical date and sample count, then returns to the la
   expect(fetcher.mock.calls.filter(([url]) => url.startsWith(dailySignalsEndpoint)).at(-1)?.[0]).toBe('/api/v1/daily-signals/signals?n=10')
 })
 
-it('uses the new name for searching, chart context, and signal marker tooltips', async () => {
+it('uses the upstream title for searching, chart context, and signal marker tooltips', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url.startsWith(dailySignalsEndpoint) ? payload : url.includes('/daily-signals/chart/') ? {
     items: [{ trade_date: payload.date, open: 10, high: 12, low: 9, close: 11, volume: 100 }], volume_unit: '手',
   } : { items: [] })))
   const user = userEvent.setup()
   render(<StockInteractionsProvider><DailySignalsPage /></StockInteractionsProvider>)
-  await screen.findByRole('article', { name: '云岫择时策略' })
+  await screen.findByRole('article', { name: activeTitle })
   const search = screen.getByRole('searchbox', { name: '筛选策略或股票' })
-  await user.type(search, '云岫择时策略')
+  await user.type(search, activeTitle)
   expect(screen.getAllByRole('article')).toHaveLength(1)
   await user.clear(search)
   await user.type(search, '300001')
-  expect(screen.getByRole('article', { name: '云岫择时策略' })).toBeInTheDocument()
+  expect(screen.getByRole('article', { name: activeTitle })).toBeInTheDocument()
   await user.click(screen.getByRole('link', { name: '查看300001.SZ行情' }))
   const chart = await screen.findByRole('dialog', { name: '筛选当日的股票走势' })
-  expect(await within(chart).findByText('云岫择时策略 · 标记为所选日期的策略信号')).toBeInTheDocument()
-  expect(within(chart).getByLabelText(`${payload.date}买入信号`).querySelector('title')).toHaveTextContent(`${payload.date} 买入 · 云岫择时策略`)
+  expect(await within(chart).findByText(`${activeTitle} · 标记为所选日期的策略信号`)).toBeInTheDocument()
+  expect(within(chart).getByLabelText(`${payload.date}买入信号`).querySelector('title')).toHaveTextContent(`${payload.date} 买入 · ${activeTitle}`)
 })
 
 it('shows service/protocol failures and can retry without turning a failed request into no signals', async () => {

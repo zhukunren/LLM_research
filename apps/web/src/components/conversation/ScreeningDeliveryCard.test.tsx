@@ -56,7 +56,7 @@ it('explains a result read failure without presenting zero matches or completed 
 
 it('keeps completed counts identifiable when a later request fails instead of claiming that request completed', () => {
   render(<ScreeningDeliveryCard {...state} {...callbacks()} currentRun={{ ...summary, status: 'partial' }} viewedRun={completed} failed />)
-  expect(screen.getByRole('status')).toHaveTextContent('本轮处理未完成')
-  expect(screen.getByText('已取得的筛选结果')).toBeVisible()
-  expect(screen.getByText('3')).toBeVisible()
+  expect(screen.getByRole('status')).toHaveTextContent('已有 3 只符合，2 只资料不足')
+  expect(screen.getByText('已有批次 · 截至 2026-10-20 · v1。本轮选股请求未完成。')).toBeVisible()
+  expect(screen.getByRole('button', { name: '查看名单' })).toBeEnabled()
 })

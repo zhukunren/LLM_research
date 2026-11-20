@@ -12,9 +12,6 @@
 .data-services-dialog .service-status-details > p { margin: 8px 0; }
 .data-services-dialog .service-status-details > details { margin-top: 10px; }
 .data-services-dialog .service-status-details .data-update-progress { margin-top: 10px; }
-.data-services-dialog .service-research-entry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 13px 0; color: var(--ui-text-muted); font-size: 11px; line-height: 1.8; }
-.data-services-dialog .service-research-entry p { margin: 0; }
-.data-services-dialog .service-research-entry button { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
 .data-services-dialog details.support-details { margin: 0; padding: 12px 14px; border: 1px solid var(--ui-border-subtle); border-radius: 7px; box-shadow: none; }
 @media (max-width: 620px) {
   .data-services-dialog.workspace-drawer .drawer-body { padding: 2px 16px 16px; }
@@ -23,3 +20,4 @@
   .data-services-dialog .service-status-actions > button { min-height: 38px; font-size: 12px; }
   .data-services-dialog .service-status-row { padding: 12px 0; }
 }
+.news-retention-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

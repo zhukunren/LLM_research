@@ -3,7 +3,7 @@ from . import market, runtime_executor
 from .db import connect
 from .indicators import INDICATORS
 from .screening_capabilities import build_manifest, market_coverage
-from .settings import llm_settings
+from .settings import llm_settings, tushare_settings
 
 
 def screening_capability_manifest(*, stock_file=None, model_configured: bool | None = None):
@@ -18,6 +18,7 @@ def screening_capability_manifest(*, stock_file=None, model_configured: bool | N
         builtin_indicators=INDICATORS,
         model_configured=bool(llm_settings()["configured"]) if model_configured is None else model_configured,
         registered_tool_names=registry.registered_tool_names(), runtime_ready=runtime_executor.readiness()["ready"],
+        tushare_configured=bool(tushare_settings()["configured"]),
     )
 
 

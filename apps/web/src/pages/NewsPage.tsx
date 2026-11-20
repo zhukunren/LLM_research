@@ -19,6 +19,9 @@ type NewsRecord = {
   chart_companies?: NewsChartCompany[]
 }
 type NewsList = { items: NewsRecord[]; total: number; next_offset: number | null }
+const views = { today: '今日', recent: '近30天', manual: '手动导入' } as const
+type NewsView = keyof typeof views
+const isNewsView = (value: unknown): value is NewsView => value === 'today' || value === 'recent' || value === 'manual'
 const emptyList: NewsList = { items: [], total: 0, next_offset: null }
 const sourceNames: Record<string, string> = { eastmoney: '东方财富', wallstreetcn: '华尔街见闻', sina: '新浪财经', '10jqka': '同花顺', yuncaijing: '云财经', fenghuang: '凤凰财经', jinrongjie: '金融界' }
 const sourceLabel = (source: string) => sourceNames[source.replace(/^Tushare news\//, '')] ?? source.split(' · ')[0]
@@ -29,6 +32,7 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
   const [query, setQuery] = useSessionState('news.query', '', isText)
   const [startDate, setStartDate] = useSessionState('news.start', '', isText)
   const [endDate, setEndDate] = useSessionState('news.end', '', isText)
+  const [view, setView] = useSessionState<NewsView>('news.view', startDate || endDate ? 'recent' : 'today', isNewsView)
   const [offset, setOffset] = useSessionState('news.offset', 0, isPageOffset)
   const [selectedId, setSelectedId] = useSessionState('news.selected', '', isText)
   const [refresh, setRefresh] = useState(0)
@@ -70,7 +74,7 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
     }
   }, [mobileView])
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = 0 }, [list.items])
-  const invalidRange = !!(startDate && endDate && startDate > endDate)
+  const invalidRange = view !== 'today' && !!(startDate && endDate && startDate > endDate)
 
   useEffect(() => { try { localStorage.setItem('news.fontSize', String(fontSize)); localStorage.setItem('news.compactFontApplied', 'true') } catch { /* Keep reading available. */ } }, [fontSize])
   useEffect(() => { selection.current = selectedId }, [selectedId])
@@ -79,10 +83,10 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
     setListError(''); setLoading(true)
     if (invalidRange) { setLoading(false); return }
     const timer = setTimeout(() => {
-      const params = new URLSearchParams({ offset: String(offset), limit: '20' })
+      const params = new URLSearchParams({ offset: String(offset), limit: '20', view })
       if (query.trim()) params.set('query', query.trim())
-      if (startDate) params.set('start_date', startDate)
-      if (endDate) params.set('end_date', endDate)
+      if (view !== 'today' && startDate) params.set('start_date', startDate)
+      if (view !== 'today' && endDate) params.set('end_date', endDate)
       void api<NewsList>('/news?' + params, { signal: controller.signal }).then(result => {
         if (controller.signal.aborted) return
         if (!result.items.length && result.total > 0 && offset >= result.total) { setOffset(Math.floor((result.total - 1) / 20) * 20); return }
@@ -94,7 +98,7 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
         .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     }, query ? 250 : 0)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [query, startDate, endDate, offset, refresh, invalidRange])
+  }, [view, query, startDate, endDate, offset, refresh, invalidRange])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -117,6 +121,12 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
     setMobileView('catalog')
   }
   function clearFilters() { setQuery(''); setStartDate(''); setEndDate(''); setOffset(0) }
+  function changeView(next: NewsView) { setView(next); setStartDate(''); setEndDate(''); setOffset(0) }
+  function changeDate(update: (value: string) => void, value: string) {
+    if (view === 'today') setView('recent')
+    update(value)
+    setOffset(0)
+  }
   function closeImport() { setLocalImportOpen(false); onImportClose?.() }
   async function importUrl() {
     setBusy(true); setImportError(''); setNotice('')
@@ -127,6 +137,7 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
       })
       setNotice('已保存 ' + result.created + ' 条，跳过重复内容 ' + result.duplicates + ' 条。')
       importedId.current = result.items?.[0]?.id ?? ''
+      setView('manual')
       clearFilters(); setRefresh(value => value + 1); closeImport()
     } catch (reason) { setImportError((reason as Error).message) }
     finally { setBusy(false) }
@@ -146,15 +157,22 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
       <section className="local-news-panel news-catalog library-catalog-pane" ref={catalog} aria-label="资讯列表" aria-busy={loading}>
         <div className="library-catalog-heading"><div className="library-catalog-title"><h2>本地资讯</h2><span>{loading ? '加载中' : list.total + ' 条'}</span></div><LibraryManagementMenu context="news" busy={busy ? '正在导入…' : ''}>{close => <><button type="button" role="menuitem" className="workspace-button" onClick={() => { close(); setLocalImportOpen(true) }}><Upload size={14} />导入资讯</button><button type="button" role="menuitem" className="workspace-button" disabled={loading} onClick={() => { close(); setRefresh(value => value + 1) }}><RefreshCw size={14} />刷新资讯</button></>}</LibraryManagementMenu></div>
         <div className="library-search workspace-field-shell"><Search size={15} /><input aria-label="搜索资讯" placeholder="搜索标题或正文" value={query} onChange={event => { setQuery(event.target.value); setOffset(0) }} className="workspace-field" />{query && <button className="icon-button workspace-button" aria-label="清除资讯搜索" onClick={() => { setQuery(''); setOffset(0) }}><X size={13} /></button>}</div>
+        <div className="news-range-controls" role="group" aria-label="资讯范围">
+          {(Object.keys(views) as NewsView[]).map(key => <button key={key} type="button" className="workspace-button"
+            aria-pressed={view === key} onClick={() => changeView(key)}>{views[key]}</button>)}
+        </div>
         <details className="news-date-filter"><summary><CalendarRange size={13} /><span>{startDate || endDate ? (startDate || '不限') + ' — ' + (endDate || '不限') : '日期筛选'}</span></summary>
         <div className="local-news-date-range">
-          <label className="workspace-field-label">从<input aria-label="资讯开始日期" type="date" max={endDate || undefined} value={startDate} onInput={event => { setStartDate(event.currentTarget.value); setOffset(0) }} onChange={event => { setStartDate(event.target.value); setOffset(0) }} className="workspace-field" /></label>
-          <label className="workspace-field-label">至<input aria-label="资讯结束日期" type="date" min={startDate || undefined} value={endDate} onInput={event => { setEndDate(event.currentTarget.value); setOffset(0) }} onChange={event => { setEndDate(event.target.value); setOffset(0) }} className="workspace-field" /></label>
+          <label className="workspace-field-label">从<input aria-label="资讯开始日期" type="date" max={endDate || undefined} value={startDate} onInput={event => changeDate(setStartDate, event.currentTarget.value)} onChange={event => changeDate(setStartDate, event.target.value)} className="workspace-field" /></label>
+          <label className="workspace-field-label">至<input aria-label="资讯结束日期" type="date" min={startDate || undefined} value={endDate} onInput={event => changeDate(setEndDate, event.currentTarget.value)} onChange={event => changeDate(setEndDate, event.target.value)} className="workspace-field" /></label>
         </div></details>
         {(startDate || endDate || query) && <button className="text-button workspace-button" aria-label="重置资讯筛选" onClick={clearFilters}>重置筛选</button>}
-        {invalidRange ? <p role="alert" className="library-error workspace-error">开始日期不能晚于结束日期。</p> : listError ? <div role="alert" className="library-error workspace-error">{listError}<button className="text-button workspace-button" onClick={() => setRefresh(value => value + 1)}>重新加载资讯</button></div> : loading ? <LoadingState compact label="正在加载资讯…" /> : !list.items.length ? <EmptyState compact title={query || startDate || endDate ? '没有找到符合筛选条件的资讯。' : '暂无资讯。'} description={query || startDate || endDate ? '调整关键词或日期范围，查看其他资讯。' : '导入资讯后，可以在这里阅读原文并发起研究。'} actions={(query || startDate || endDate) && <button className="secondary-button workspace-button" onClick={clearFilters}>查看全部资讯</button>} /> :
+        {invalidRange ? <p role="alert" className="library-error workspace-error">开始日期不能晚于结束日期。</p> : listError ? <div role="alert" className="library-error workspace-error">{listError}<button className="text-button workspace-button" onClick={() => setRefresh(value => value + 1)}>重新加载资讯</button></div> : loading ? <LoadingState compact label="正在加载资讯…" /> : !list.items.length ? <EmptyState compact
+          title={query || startDate || endDate ? '没有找到符合筛选条件的资讯。' : view === 'today' ? '今天还没有资讯。' : '暂无资讯。'}
+          actions={view === 'today' ? <button className="secondary-button workspace-button" onClick={() => changeView('recent')}>查看近30天</button>
+            : (query || startDate || endDate) && <button className="secondary-button workspace-button" onClick={clearFilters}>重置筛选</button>} /> :
           <div className="local-news-list" ref={listRef}>{list.items.map(item => <button key={item.id} onClick={() => read(item.id)} aria-current={selectedId === item.id ? 'true' : undefined} className={["workspace-button", selectedId === item.id ? 'selected' : ''].filter(Boolean).join(' ')}>
-            <strong>{item.title}</strong>{item.snippet && <p className="news-item-snippet">{item.snippet}</p>}<div className="news-item-meta"><span>{sourceLabel(item.source)}</span><small>{chinaTime(item.available_at ?? item.published_at)}</small></div>
+            <strong>{item.title}</strong>{item.snippet && <p className="news-item-snippet">{item.snippet}</p>}<div className="news-item-meta"><span>{sourceLabel(item.source)}</span><small>{chinaTime(item.published_at ?? item.available_at)}</small></div>
           </button>)}</div>}
         <Pagination offset={offset} total={list.total} pageSize={20} nextOffset={list.next_offset} disabled={loading || invalidRange || !!listError} onChange={setOffset} label="资讯列表分页" summary={invalidRange ? '请先修正日期范围' : listError ? '暂时无法读取资讯列表' : undefined} />
       </section>

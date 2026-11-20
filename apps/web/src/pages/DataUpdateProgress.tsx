@@ -8,13 +8,13 @@ type UpdateStage = {
   rows_received?: number; rows_rejected?: number; rows_written?: number
   deferred_days?: string[]; deferred_days_count?: number; missing_or_failed_days?: { date: string; reason: string }[]
   import?: { created: number; duplicates: number }; failed_sources?: { source: string; reason: string }[]
-  coverage_note?: string; started_at?: string; finished_at?: string
+  coverage_note?: string; latest_returned_at?: string | null; started_at?: string; finished_at?: string
 }
 export type UpdateJob = {
   id: string; state: string; message: string; progress: number; created_at?: string; updated_at: string
   result?: Partial<Record<'names' | 'market' | 'news', UpdateStage>> & { events?: { at: string; stage: string; message: string }[] }
 }
-const stages = [['names', '股票名称'], ['market', '日线行情'], ['news', '最近30天资讯']] as const
+const stages = [['names', '股票名称'], ['news', '最近30天资讯'], ['market', '日线行情']] as const
 const labels: Record<string, string> = {
   pending: '待更新', running: '更新中', updated: '已完成', completed: '已完成',
   up_to_date: '已是最新', no_new_rows: '无新增', partial: '部分完成', failed: '更新失败',
@@ -61,6 +61,7 @@ export default function DataUpdateProgress({ job }: { job: UpdateJob }) {
           {stage?.rows_received !== undefined && <p>已接收 {stage.rows_received.toLocaleString()} 条 · 已写入 {(stage.rows_written ?? 0).toLocaleString()} 条{stage.rows_rejected ? ` · 无效 ${stage.rows_rejected.toLocaleString()} 条` : ''}</p>}
           {stage?.new_watermark && <p>行情最新日期 {stage.new_watermark}</p>}
           {stage?.import && <p>新增 {stage.import.created.toLocaleString()} 条资讯 · 重复 {stage.import.duplicates.toLocaleString()} 条</p>}
+          {stage?.latest_returned_at && <p>最新资讯 {new Date(stage.latest_returned_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })}</p>}
           {stage?.coverage_note && <p>{stage.coverage_note}</p>}
           {stage?.reason && stage.reason !== stage.message && <p className="data-update-issue">{stage.reason}</p>}
           {deferred > 0 && <p className="data-update-issue">另有 {deferred.toLocaleString()} 个历史交易日待后续更新补齐。</p>}

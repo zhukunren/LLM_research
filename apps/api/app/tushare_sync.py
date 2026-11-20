@@ -1,4 +1,4 @@
-"""Controlled ingestion from the official Tushare Pro API.
+"""Controlled ingestion from the configured Tushare Pro service.
 
 Data ingestion is intentionally kept outside request handling. Running the sync
 command stages external data, validates it, and only then replaces the market
@@ -14,14 +14,14 @@ import re
 import time
 from datetime import date, datetime, time as clock_time, timedelta, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterator, Mapping
 from uuid import uuid4
 
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from . import news_sources
+from . import news_retention, news_sources
 from .db import utc_now
 from .settings import ALLOWED_MARKETS, STOCK_FILE, tushare_settings
 from .tushare_client import TushareClient, TushareError
@@ -39,6 +39,7 @@ NEWS_ENDPOINT_SOURCES = (
 SOURCE_ZONE = timezone(timedelta(hours=8))
 DAILY_PAGE_SIZE = 1_000
 DAILY_MAX_PAGES = 20
+NEWS_ROW_LIMIT = 1_500
 MARKET_DAYS_PER_SYNC = 30
 SOURCE_DELAY_SECONDS = 0.15
 STOCK_CODE_PATTERN = re.compile(r"(?<!\d)(\d{6})\.(SH|SZ|BJ)(?![A-Z])", re.I)
@@ -51,11 +52,13 @@ def _report_progress(callback: SyncProgress | None, stage: str, **details: Any) 
 
 
 def create_client() -> TushareClient:
-    """Create a direct official API client using the configured token."""
+    """Create a client for the configured Tushare endpoint."""
     config = tushare_settings()
     from .tushare_limits import configured_limiter
-    return TushareClient(str(config["token"]), timeout=float(config["timeout"]), retries=int(config["retries"]),
-                         limiter=configured_limiter())
+    return TushareClient(
+        str(config["token"]), api_url=str(config["api_url"]), timeout=float(config["timeout"]),
+        retries=int(config["retries"]), limiter=configured_limiter(),
+    )
 
 
 def _as_date(value: date | str | None) -> date:
@@ -485,59 +488,106 @@ def _chunks(values: list[Any], size: int) -> list[list[Any]]:
     return [values[index : index + size] for index in range(0, len(values), size)]
 
 
-def sync_news(client: Any, *, start: date, as_of: date, on_progress: SyncProgress | None = None) -> dict[str, Any]:
-    """Fetch official news while recording whether the requested history was supplied."""
+def _news_end_at(value: date | datetime) -> datetime:
+    stamp = value if isinstance(value, datetime) else datetime.combine(value, clock_time(23, 59, 59))
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=SOURCE_ZONE)
+    return stamp.astimezone(SOURCE_ZONE).replace(microsecond=0)
 
+
+def _news_windows(client: Any, source: str, start: datetime, end: datetime) -> Iterator[list[dict[str, Any]]]:
+    """Read inclusive time ranges, splitting capped requests newest first."""
+    try:
+        rows = _query(
+            client, "news", src=source,
+            start_date=start.strftime("%Y-%m-%d %H:%M:%S"),
+            end_date=end.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+    except TushareError as exc:
+        if not any(marker in str(exc) for marker in ("超出最大行数", "超过单次上限")):
+            raise
+    else:
+        if len(rows) < NEWS_ROW_LIMIT:
+            yield rows
+            return
+
+    if start == end:
+        raise TushareError(f"{source} 在 {start.isoformat()} 达到资讯单次上限 {NEWS_ROW_LIMIT:,} 条")
+    middle = start + timedelta(seconds=int((end - start).total_seconds()) // 2)
+    yield from _news_windows(client, source, middle + timedelta(seconds=1), end)
+    yield from _news_windows(client, source, start, middle)
+
+
+def sync_news(
+    client: Any, *, start: date, as_of: date | datetime, on_progress: SyncProgress | None = None,
+) -> dict[str, Any]:
+    """Import news as each complete time range becomes available."""
+
+    end_at = _news_end_at(as_of)
+    end_day = end_at.date()
+    if start > end_day:
+        raise ValueError("资讯开始日期不能晚于截止时间")
+    retained_start = news_retention.cutoff_day(news_retention.today())
+    if end_day < retained_start:
+        return {
+            "status": "no_new_rows", "requested_start": start.isoformat(), "requested_end": end_day.isoformat(),
+            "import": {"created": 0, "duplicates": 0, "requests": 0},
+            "coverage_note": "请求日期已超出近 30 天的资讯保留范围。",
+        }
+    start = max(start, retained_start)
+    start_at = datetime.combine(start, clock_time.min, SOURCE_ZONE)
     failures: list[dict[str, str]] = []
-    returned_timestamps: list[datetime] = []
+    earliest = latest = None
     imported = {"created": 0, "duplicates": 0, "requests": 0}
+
     def report_source(message: str, completed: int, source: str) -> None:
         _report_progress(on_progress, "news", status="running", message=message,
                          completed=completed, total=len(NEWS_ENDPOINT_SOURCES), unit="资讯来源",
                          current=source, **{"import": dict(imported)}, failed_sources=list(failures),
-                         requested_start=start.isoformat(), requested_end=as_of.isoformat())
+                         requested_start=start.isoformat(), requested_end=end_day.isoformat(),
+                         latest_returned_at=latest.isoformat() if latest else None)
 
     for index, source in enumerate(NEWS_ENDPOINT_SOURCES):
         report_source(f"正在读取 {source} 资讯（{index + 1}/{len(NEWS_ENDPOINT_SOURCES)} 个来源）", index, source)
+        received = 0
         try:
-            rows = _query(
-                client,
-                "news",
-                src=source,
-                start_date=f"{start.isoformat()} 00:00:00",
-                end_date=f"{as_of.isoformat()} 23:59:59",
-            )
+            for rows in _news_windows(client, source, start_at, end_at):
+                received += len(rows)
+                items = [
+                    item for row in rows if (item := _news_item(row, source)) is not None
+                    and (item.published_at is None or start_at <= item.published_at <= end_at)
+                ]
+                for item in items:
+                    if item.published_at:
+                        published_at = item.published_at.astimezone(SOURCE_ZONE)
+                        earliest = min(earliest or published_at, published_at)
+                        latest = max(latest or published_at, published_at)
+                for batch in _chunks(items, 100):
+                    fingerprint = hashlib.sha256(
+                        "\n".join(item.model_dump_json() for item in batch).encode("utf-8")
+                    ).hexdigest()[:24]
+                    response = news_sources.import_items(news_sources.NewsImport(
+                        request_id=f"tushare-news-{source}-{start:%Y%m%d}-{end_day:%Y%m%d}-{fingerprint}",
+                        items=batch,
+                    ), origin="tushare")
+                    if response["replay"]:
+                        imported["duplicates"] += len(batch)
+                    else:
+                        imported["created"] += response["created"]
+                        imported["duplicates"] += response["duplicates"]
+                    imported["requests"] += 1
+                    report_source(f"{source} 正在保存资讯，累计新增 {imported['created']:,} 条、重复 {imported['duplicates']:,} 条", index, source)
         except TushareError as exc:
             failures.append({"source": source, "reason": str(exc)})
             report_source(f"{source} 资讯读取失败，继续处理其他来源", index + 1, source)
             continue
-        items = [item for row in rows if (item := _news_item(row, source)) is not None]
-        for item in items:
-            if item.published_at:
-                returned_timestamps.append(item.published_at)
-        for batch in _chunks(items, 100):
-            fingerprint = hashlib.sha256(
-                "\n".join(item.model_dump_json() for item in batch).encode("utf-8")
-            ).hexdigest()[:24]
-            response = news_sources.import_items(
-                news_sources.NewsImport(
-                    request_id=f"tushare-news-{source}-{start:%Y%m%d}-{as_of:%Y%m%d}-{fingerprint}",
-                    items=batch,
-                )
-            )
-            imported["created"] += response["created"]
-            imported["duplicates"] += response["duplicates"]
-            imported["requests"] += 1
-            report_source(f"{source} 正在保存资讯，累计新增 {imported['created']:,} 条、重复 {imported['duplicates']:,} 条", index, source)
-        report_source(f"{source} 已处理，返回 {len(rows):,} 条资讯", index + 1, source)
+        report_source(f"{source} 已处理，返回 {received:,} 条资讯", index + 1, source)
         time.sleep(SOURCE_DELAY_SECONDS)
-    earliest = min(returned_timestamps) if returned_timestamps else None
-    latest = max(returned_timestamps) if returned_timestamps else None
-    history_complete = bool(earliest and earliest.date() <= start and latest and latest.date() >= as_of)
+    history_complete = bool(not failures and earliest and earliest.date() <= start and latest and latest.date() >= end_day)
     return {
         "source": "tushare.news",
         "requested_start": start.isoformat(),
-        "requested_end": as_of.isoformat(),
+        "requested_end": end_day.isoformat(),
         "configured_sources": list(NEWS_ENDPOINT_SOURCES),
         "failed_sources": failures,
         "earliest_returned_at": earliest.isoformat() if earliest else None,
@@ -547,7 +597,7 @@ def sync_news(client: Any, *, start: date, as_of: date, on_progress: SyncProgres
         "completed": len(NEWS_ENDPOINT_SOURCES),
         "total": len(NEWS_ENDPOINT_SOURCES),
         "unit": "资讯来源",
-        "status": "partial" if failures or not history_complete else "completed",
+        "status": "completed" if history_complete else "partial",
         "coverage_note": (
             "Tushare 未返回完整的请求时间窗；已导入实际返回的原文，未把缺失日期当作无资讯。"
             if not history_complete
@@ -559,13 +609,14 @@ def sync_news(client: Any, *, start: date, as_of: date, on_progress: SyncProgres
 def sync_tushare(
     *,
     as_of: date | str | None = None,
+    news_as_of: datetime | None = None,
     days: int = 30,
     include_market: bool = True,
     include_news: bool = True,
     client: Any | None = None,
     on_progress: SyncProgress | None = None,
 ) -> dict[str, Any]:
-    """Run the requested official API sync stages and retain useful partial results."""
+    """Run the requested Tushare sync stages and retain useful partial results."""
 
     if type(days) is not int or not 1 <= days <= 365:
         raise ValueError("同步窗口必须是 1 至 365 个自然日")
@@ -580,10 +631,12 @@ def sync_tushare(
         "stages": {},
     }
     stages: list[tuple[str, Any]] = []
+    if include_news:
+        news_end = _news_end_at(news_as_of if news_as_of is not None else cutoff)
+        news_start = news_end.date() - timedelta(days=days - 1)
+        stages.append(("news", lambda: sync_news(client, start=news_start, as_of=news_end, on_progress=on_progress)))
     if include_market:
         stages.append(("market", lambda: sync_market_data(client, as_of=cutoff, initial_days=days, on_progress=on_progress)))
-    if include_news:
-        stages.append(("news", lambda: sync_news(client, start=start, as_of=cutoff, on_progress=on_progress)))
     for name, action in stages:
         _report_progress(on_progress, name, status="running", message="正在更新行情…" if name == "market" else "正在更新资讯…")
         try:

@@ -49,8 +49,9 @@ include = ["apps.api*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-"apps.api" = ["assets/research-pdf/*", "skills/*/SKILL.md"]
+"apps.api" = ["assets/research-pdf/*"]
 "apps.api.app" = ["assets/qmt/catalog.json", "assets/qmt/official/*.md", "assets/qmt/manuals/*.md", "assets/qmt/examples/*.py", "assets/client-service/*.json"]
+"apps.api.app.skills" = ["*/SKILL.md", "LICENSE.china-stock-research-skills"]
 
 [tool.ruff]
 line-length = 100

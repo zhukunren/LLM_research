@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import logging
+from threading import Lock
 from uuid import uuid4
+from weakref import WeakValueDictionary
 
 from . import codex_runtime, conversation_store, screening_service
-from .db import connect, json_dump, utc_now
+from .db import connect, database_path, json_dump, utc_now
 
 
 logger = logging.getLogger(__name__)
+_conversation_locks = WeakValueDictionary()
+_conversation_locks_guard = Lock()
 
 
 def enqueue_turn(conversation_id: str, turn_id: str) -> dict:
@@ -17,7 +21,13 @@ def enqueue_turn(conversation_id: str, turn_id: str) -> dict:
         existing = connection.execute(
             "SELECT job_id FROM research_turn_jobs WHERE turn_id=? AND conversation_id=?", (turn_id, conversation_id)
         ).fetchone()
+    if not existing and turn["state"] == "awaiting_agent" and turn["workflow_type"] == "screening":
+        from .screening_templates import apply_message_template
+        turn = apply_message_template(conversation_id, turn) or turn
     if existing or turn["state"] in {"succeeded", "awaiting_user", "failed", "cancelled"}:
+        if (not existing and turn["state"] == "succeeded" and turn["result"].get("template_parameters") is not None
+                and conversation_store.get_pending_execute_message(conversation_id) == turn["user_message_id"]):
+            screening_service.enqueue_turn(conversation_id, turn_id)
         return turn
     available = codex_runtime.availability()
     if not available["available"]:
@@ -30,7 +40,8 @@ def enqueue_turn(conversation_id: str, turn_id: str) -> dict:
             (turn_id, conversation_id),
         ).fetchone()
         existing = connection.execute("SELECT 1 FROM research_turn_jobs WHERE turn_id=?", (turn_id,)).fetchone()
-        if not existing:
+        already_finished = turn_row and turn_row["state"] in {"succeeded", "awaiting_user", "failed", "cancelled"}
+        if not existing and not already_finished:
             if not turn_row or turn_row["state"] != "awaiting_agent" or turn_row["conversation_state"] != "active":
                 raise conversation_store.ConversationConflict("此回合已被处理或已经结束")
             job_id, now = str(uuid4()), utc_now()
@@ -57,20 +68,24 @@ def active(conversation_id: str, turn_id: str) -> bool:
 
 def execute_turn(lease) -> None:
     conversation_id, turn_id = lease.payload["conversation_id"], lease.payload["turn_id"]
-    try:
-        if not lease.active():
-            return
-        turn = conversation_store.get_turn(conversation_id, turn_id)
-        if turn["state"] in {"succeeded", "awaiting_user", "failed", "cancelled"}:
-            lease.finish("cancelled" if turn["state"] == "cancelled" else "failed" if turn["state"] == "failed" else "succeeded", "研究回合已结束")
-            return
-        conversation_store.start_turn(conversation_id, turn_id)
-        turn = codex_runtime.process_conversation_turn(conversation_id, turn_id)
-        if turn["result"].get("ready_to_execute") and lease.active():
-            screening_service.enqueue_turn(conversation_id, turn_id)
-        status = "cancelled" if turn["state"] == "cancelled" else "failed" if turn["state"] == "failed" else "succeeded"
-        lease.finish(status, "研究已完成" if status == "succeeded" else "研究已结束")
-    except Exception as exc:
-        conversation_store.fail_turn(conversation_id, turn_id, str(exc), include_queued=True)
-        lease.finish("failed", f"研究处理失败：{str(exc)[:500]}")
-        logger.exception("Background research turn failed: %s", turn_id)
+    with _conversation_locks_guard:
+        lock = _conversation_locks.setdefault((database_path(), conversation_id), Lock())
+    # A cancelled job can still be shutting down its Codex process for this conversation.
+    with lock:
+        try:
+            if not lease.active():
+                return
+            turn = conversation_store.get_turn(conversation_id, turn_id)
+            if turn["state"] in {"succeeded", "awaiting_user", "failed", "cancelled"}:
+                lease.finish("cancelled" if turn["state"] == "cancelled" else "failed" if turn["state"] == "failed" else "succeeded", "研究回合已结束")
+                return
+            conversation_store.start_turn(conversation_id, turn_id)
+            turn = codex_runtime.process_conversation_turn(conversation_id, turn_id)
+            if turn["result"].get("ready_to_execute") and lease.active():
+                screening_service.enqueue_turn(conversation_id, turn_id)
+            status = "cancelled" if turn["state"] == "cancelled" else "failed" if turn["state"] == "failed" else "succeeded"
+            lease.finish(status, "研究已完成" if status == "succeeded" else "研究已结束")
+        except Exception as exc:
+            conversation_store.fail_turn(conversation_id, turn_id, str(exc), include_queued=True)
+            lease.finish("failed", f"研究处理失败：{str(exc)[:500]}")
+            logger.exception("Background research turn failed: %s", turn_id)

@@ -5,7 +5,7 @@ from datetime import date, datetime, time, timedelta, timezone
 import hashlib
 import re
 
-from . import company_research, report_search, documents
+from . import company_research, report_search, documents, news_retention
 from .db import connect, utc_now
 
 MAX_CHUNKS = 12
@@ -89,6 +89,7 @@ def fingerprint(text: str) -> str:
 def snapshot(project_id: str, codes: list[str], as_of: str, *, questions: list[str] | None = None) -> dict:
     cutoff = date.fromisoformat(as_of)
     cutoff_end = datetime.combine(cutoff + timedelta(days=1), time(), timezone(timedelta(hours=8))).astimezone(timezone.utc).isoformat()
+    news_start, news_end = news_retention.window(news_retention.today())
     companies = {}
     groups = [_question_terms(question) for question in (questions or [])[:6]]
     terms = list(dict.fromkeys(term for group in groups for term in group))[:40]
@@ -100,11 +101,13 @@ def snapshot(project_id: str, codes: list[str], as_of: str, *, questions: list[s
                 WHERE material_kind='report' AND stock_code=? AND stock_code_status='confirmed' AND available_at_status='confirmed'
                   AND available_at IS NOT NULL AND available_at<=? AND parse_status='indexed'
                 ORDER BY available_at DESC,id LIMIT ?""", (code, as_of, MAX_INVENTORY + 1)).fetchall()
-            news = connection.execute("""SELECT n.id,n.root_id,n.version,n.title,n.available_at,n.published_at FROM news_records n WHERE n.available_at IS NOT NULL AND n.available_at<?
+            article_time = news_retention.article_time("n")
+            news = connection.execute(f"""SELECT n.id,n.root_id,n.version,n.title,n.available_at,n.published_at FROM news_records n WHERE n.available_at IS NOT NULL AND n.available_at<?
+                AND {article_time}>=? AND {article_time}<?
                 AND EXISTS(SELECT 1 FROM json_each(n.stock_codes_json) WHERE value=?)
                 AND n.version=(SELECT MAX(v.version) FROM news_records v WHERE v.root_id=n.root_id AND v.available_at<?)
                 AND NOT EXISTS(SELECT 1 FROM news_records v WHERE v.root_id=n.root_id AND v.version>n.version AND v.available_at IS NULL)
-                ORDER BY n.available_at DESC,n.id LIMIT ?""", (cutoff_end, code, cutoff_end, MAX_INVENTORY + 1)).fetchall()
+                ORDER BY n.available_at DESC,n.id LIMIT ?""", (cutoff_end, news_start, news_end, code, cutoff_end, MAX_INVENTORY + 1)).fetchall()
             complete = len(reports) <= MAX_INVENTORY and len(news) <= MAX_INVENTORY
             reports, news = reports[:MAX_INVENTORY], news[:MAX_INVENTORY]
             primary = connection.execute("""SELECT v.id,v.disclosure_id,v.document_id,v.sha256,v.version,m.revision,m.metadata_json,d.pages,d.source_path

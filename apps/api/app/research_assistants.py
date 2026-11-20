@@ -4,13 +4,29 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NotRequired, TypedDict
 from uuid import uuid4
 
 from .db import connect, json_dump, json_load, utc_now
 from .settings import PROJECT_ROOT
 
 SKILLS = PROJECT_ROOT / "apps" / "api" / "app" / "skills"
+
+
+class MethodSource(TypedDict):
+    name: str
+    url: str
+    revision: str
+
+
+class MethodGuide(TypedDict):
+    use_when: str
+    inputs: str
+    outputs: str
+    example_prompt: str
+    source: NotRequired[MethodSource]
+
+
 @dataclass(frozen=True)
 class AssistantDefinition:
     """Server-owned launch contract; adding a task requires no client branching."""
@@ -25,14 +41,86 @@ class AssistantDefinition:
     default_prompt: str = ""
     input_schema: dict = field(default_factory=lambda: {"type": "object", "properties": {}, "additionalProperties": False})
     revision: int = 1
+    method_guide: MethodGuide | None = None
+
+
+CHINA_STOCK_RESEARCH_REVISION = "66bea91d78f55aee97011b29aa64afa641824584"
+CHINA_STOCK_RESEARCH_SOURCE: MethodSource = {
+    "name": "china-stock-research-skills",
+    "url": f"https://github.com/spikeHongg/china-stock-research-skills/tree/{CHINA_STOCK_RESEARCH_REVISION}",
+    "revision": CHINA_STOCK_RESEARCH_REVISION,
+}
 
 
 BUILTINS = (
-    AssistantDefinition("general", "通用投研", "综合研究公司、行业和投资问题"),
-    AssistantDefinition("financial", "财报分析", "核对业绩变化、现金流与财务质量", "financial-analysis"),
-    AssistantDefinition("reports", "研报解读", "提炼研报判断，区分事实、预测和假设", "report-reading"),
-    AssistantDefinition("supply-chain", "产业链研究", "识别供给约束层级，核验公司敞口、反方证据和失效条件", "supply-chain-research", revision=2),
-    AssistantDefinition("risk", "风险复核", "寻找反证，检验关键假设和失效条件", "risk-review"),
+    AssistantDefinition(
+        "general", "通用投研", "综合研究公司、行业和投资问题",
+        method_guide=MethodGuide(
+            use_when="想快速了解一家公司或一个行业，或有几个问题需要一起核对。",
+            inputs="说明研究对象和想弄清的问题。可指定截止日期或附上已有材料。",
+            outputs="围绕问题给出直接结论、可回查的证据和待核实事项。",
+            example_prompt="研究比亚迪的主要收入来源，核对最近公开披露的经营变化，并列出值得继续验证的问题。",
+        ),
+    ),
+    AssistantDefinition(
+        "financial", "财报分析", "核对业绩变化、现金流与财务质量", "financial-analysis",
+        method_guide=MethodGuide(
+            use_when="看到利润、经营现金流或资产负债有变化，想弄清变化来自哪里。",
+            inputs="公司名称或股票代码、关注的报告期。有明确的财务指标也可一并列出。",
+            outputs="同口径的期间对比、变化原因、财务质量判断及其财报出处。",
+            example_prompt="核对宁德时代近两年的归母净利润和经营现金流，解释两者变化是否一致，并标明数据出处。",
+        ),
+    ),
+    AssistantDefinition(
+        "reports", "研报解读", "提炼研报判断，区分事实、预测和假设", "report-reading",
+        method_guide=MethodGuide(
+            use_when="手上已有一份研报，想看懂作者的判断、盈利预测和关键假设。",
+            inputs="研报附件、链接或资料库中的报告。可指定章节、数据或结论。",
+            outputs="核心观点、假设及其影响、需要回到原始披露核验的问题，附研报定位。",
+            example_prompt="解读我附上的研报，梳理盈利预测依赖的关键假设，并列出需要回到公司公告核实的说法。",
+        ),
+    ),
+    AssistantDefinition(
+        "supply-chain", "产业链研究", "识别供给约束层级，核验公司敞口、反方证据和失效条件",
+        "supply-chain-research", revision=2,
+        method_guide=MethodGuide(
+            use_when="想知道一个产业趋势受哪个供给环节限制，以及哪些公司有可验证的业务敞口。",
+            inputs="产业主题、产品或技术路线。可指定关注市场、公司范围和时间窗。",
+            outputs="产业链及约束环节、相关公司的业务证据和研究优先级，以及会推翻判断的变化。",
+            example_prompt="拆解 A 股光模块产业链，找出可能限制放量的环节，用公开披露核对相关公司的实际业务敞口。",
+        ),
+    ),
+    AssistantDefinition(
+        "risk", "风险复核", "寻找反证，检验关键假设和失效条件", "risk-review",
+        method_guide=MethodGuide(
+            use_when="手上已有投资假设或研究结论，想找出它最容易出错的地方。",
+            inputs="待检验的结论和依据。可补充原报告、关键数字和需要核实的假设。",
+            outputs="最影响结论的假设、支持和反对的证据、失效条件及可跟踪的指标。",
+            example_prompt="复核「贵州茅台未来两年能维持当前毛利率水平」这一假设，找出最可能推翻它的证据和跟踪指标。",
+        ),
+    ),
+    AssistantDefinition(
+        "a-share-company-research", "A股公司研究", "核验业务转型、订单兑现和竞争优势",
+        "a-share-company-research",
+        method_guide=MethodGuide(
+            use_when="想验证一家 A 股公司的新业务、扩产或订单是否已经体现在经营成果里。",
+            inputs="公司名称或股票代码、关注的业务或项目。可指定报告期及已有公告。",
+            outputs="经营事件和披露证据、订单到回款的进展、竞争对手参照及仍需核验的环节。",
+            example_prompt="研究中际旭创业绩增长来自哪些业务，核对出货、收入确认和经营现金流的变化是否同步。",
+            source=CHINA_STOCK_RESEARCH_SOURCE,
+        ),
+    ),
+    AssistantDefinition(
+        "a-share-valuation", "A股估值分析", "比较同行估值，测算不同假设下的估值区间",
+        "a-share-valuation",
+        method_guide=MethodGuide(
+            use_when="想判断一家公司的估值处在哪个位置，或看清增长、利润率等假设对估值的影响。",
+            inputs="股票代码或公司名称、估值日期。可提供可比公司或希望检验的假设。",
+            outputs="同口径估值比较和来源。需要测算区间时，列出情景假设、计算方法和敏感因素。",
+            example_prompt="用同一交易日的 TTM 市盈率和市净率比较宁德时代、亿纬锂能和国轩高科，注明口径、来源及差异原因。",
+            source=CHINA_STOCK_RESEARCH_SOURCE,
+        ),
+    ),
     AssistantDefinition(
         "qmt-script", "QMT 脚本生成", "用自然语言编写、检查和下载 QMT 客户端内置 Python 策略", "qmt-script",
         launch_label="编写 QMT 脚本", launch_description="描述策略，在对话中生成代码、静态检查并下载 .py 文件。",
@@ -71,6 +159,7 @@ def _body(content: str) -> str:
 def _builtins() -> list[dict]:
     return [{"id": item.id, "name": item.name, "description": item.description, "builtin": True,
              "enabled": True, "revision": item.revision, **{key: getattr(item, key) for key in LAUNCH_FIELDS},
+             **({"method_guide": item.method_guide} if item.method_guide else {}),
              "instructions": _body((SKILLS / item.skill / "SKILL.md").read_text(encoding="utf-8-sig")) if item.skill else
              "根据用户的问题选择研究方法，综合核对公司、行业、市场数据与原始资料。简短问题直接回答；需要深入判断时说明证据、风险和待验证事项。"}
             for item in BUILTINS]

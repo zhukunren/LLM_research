@@ -9,6 +9,30 @@ export const screeningMethods = [
 
 export type ScreeningMethod = (typeof screeningMethods)[number]['id']
 export type ScreeningFormMethod = Exclude<ScreeningMethod, 'pattern'>
+export type ScreeningDestination = 'conversation' | 'compose'
+export type ScreeningPatternSelection = {
+  id: string
+  version: number
+  name: string
+  minimumSimilarity: number
+  matchMode: 'current' | 'recent'
+  recentBars: number
+}
+export function isScreeningPatternSelection(value: unknown): value is ScreeningPatternSelection {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<ScreeningPatternSelection>
+  return typeof item.id === 'string' && /^[\w-]+$/.test(item.id)
+    && typeof item.version === 'number' && Number.isInteger(item.version) && item.version > 0
+    && typeof item.name === 'string' && !!item.name.trim()
+    && typeof item.minimumSimilarity === 'number' && item.minimumSimilarity >= 0 && item.minimumSimilarity <= 100
+    && (item.matchMode === 'current' || item.matchMode === 'recent')
+    && typeof item.recentBars === 'number' && Number.isInteger(item.recentBars) && item.recentBars >= 1 && item.recentBars <= 120
+}
+
+export function screeningPatternReference(pattern: ScreeningPatternSelection) {
+  return { op: 'pattern_ref' as const, pattern_id: pattern.id, version: pattern.version, min_similarity: pattern.minimumSimilarity,
+    match_mode: pattern.matchMode, recent_bars: pattern.recentBars, score_weight: 1 }
+}
 export const isScreeningMethod = (value: unknown): value is ScreeningMethod => screeningMethods.some(item => item.id === value)
 export const screeningMethodLabel = (method: ScreeningMethod) => screeningMethods.find(item => item.id === method)!.label
 export const methodScope = (method: ScreeningMethod): ConversationScope => method

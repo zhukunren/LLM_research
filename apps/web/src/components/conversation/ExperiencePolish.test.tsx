@@ -7,7 +7,6 @@ import AnswerSources from './AnswerSources'
 import ActiveTasks from '../ActiveTasks'
 import type { Conversation } from '../../api'
 
-vi.mock('./ProjectMembership', () => ({ default: () => <span>项目归属</span> }))
 const timestamp = '2026-10-05T00:00:00Z'
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
 function restore(content: string, failed = false) {
@@ -17,7 +16,7 @@ function restore(content: string, failed = false) {
   const writes: string[] = []
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
     const path = new URL(String(input), 'http://localhost').pathname
-    if (options?.method === 'POST') { writes.push(path); return json({ id: 'note', project_id: 'inbox' }) }
+    if (options?.method === 'POST') { writes.push(path); return json({ items: [] }) }
     return json(path === '/api/v1/conversations' ? { items: [{ ...stored, title: '现金流研究' }] } : path === '/api/v1/conversations/research' ? stored : { items: [] })
   }))
   return writes
@@ -33,17 +32,14 @@ it('shows a recoverable failure without exposing logs as a research answer or of
   expect(writes).toHaveLength(0)
 })
 
-it('saves an independent answer to the inbox without changing project membership or starting research', async () => {
+it('keeps regular answer actions without project membership or project note controls', async () => {
   const writes = restore('经营改善仍需核对现金流。')
-  const openProject = vi.fn(), user = userEvent.setup()
-  render(<ConversationWorkspace initialScope="report" initialConversationId="research" onOpenProject={openProject} />)
-  await user.click(await screen.findByRole('button', { name: '保存为研究笔记' }))
-  await screen.findByText(/研究笔记已保存/)
-  await user.click(screen.getByRole('button', { name: '查看笔记' }))
-  expect(openProject).toHaveBeenCalledWith('inbox')
-  expect(writes).toEqual(['/api/v1/conversations/research/notes/from-message'])
-  await user.click(screen.getByRole('button', { name: '研究对话选项' }))
-  expect(screen.getByRole('dialog', { name: '项目归属' })).toBeInTheDocument()
+  render(<ConversationWorkspace initialScope="report" initialConversationId="research" />)
+  expect(await screen.findByRole('button', { name: '复制答复' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '查看依据' })).toBeEnabled()
+  expect(screen.queryByRole('button', { name: '保存为研究笔记' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '研究对话选项' })).not.toBeInTheDocument()
+  expect(writes).toHaveLength(0)
 })
 
 it('keeps long research answers readable without opening nested sections', async () => {

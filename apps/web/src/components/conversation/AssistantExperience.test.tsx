@@ -1,5 +1,5 @@
 import { openResearchSettings } from '../../test/openResearchSettings'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import ConversationWorkspace from './ConversationWorkspace'
@@ -30,9 +30,21 @@ it('persists a draft assistant, submits it with its revision and restores the sa
   let view = render(<ConversationWorkspace initialNewDraft />)
   await waitFor(() => expect(screen.getByRole('button', { name: '添加文件' })).toBeEnabled())
   await openResearchSettings(user)
-  await user.click(screen.getByRole('button', { name: '研究方法' }))
+  const methodButton = screen.getByRole('button', { name: '研究方法' })
+  await user.click(methodButton)
   expect(await screen.findByRole('menuitem', { name: '使用通用投研' })).toHaveAttribute('aria-current', 'true')
-  await user.click(await screen.findByRole('menuitem', { name: '使用财报分析' }))
+  await user.click(screen.getByRole('menuitem', { name: '浏览方法' }))
+  const library = within(screen.getByRole('dialog', { name: '研究方法库' }))
+  await user.click(library.getByRole('button', { name: '风险复核' }))
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog', { name: '研究方法库' })).not.toBeInTheDocument()
+  expect(methodButton).toHaveFocus()
+  expect(methodButton).toHaveTextContent('研究方法')
+  await user.click(methodButton)
+  await user.click(screen.getByRole('menuitem', { name: '浏览方法' }))
+  const reopened = within(screen.getByRole('dialog', { name: '研究方法库' }))
+  await user.click(reopened.getByRole('button', { name: '财报分析' }))
+  await user.click(reopened.getByRole('button', { name: '使用此方法' }))
   expect(writes).toHaveLength(0)
   view.unmount()
   view = render(<ConversationWorkspace initialNewDraft />)

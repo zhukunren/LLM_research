@@ -10,8 +10,11 @@ export function useSessionState<T>(key: string, initial: T, valid: (value: unkno
   const read = () => {
     let value = initial
     try {
-      const saved: unknown = JSON.parse(sessionStorage.getItem(key) ?? (session.legacy ? sessionStorage.getItem(legacyKey) : null) ?? 'null')
-      if (valid(saved)) value = saved
+      const stored = sessionStorage.getItem(key) ?? (session.legacy ? sessionStorage.getItem(legacyKey) : null)
+      if (stored !== null) {
+        const saved: unknown = JSON.parse(stored)
+        if (valid(saved)) value = saved
+      }
     } catch { /* Reading still works when storage is unavailable. */ }
     return { key, value, persisted: false }
   }

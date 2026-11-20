@@ -1,13 +1,17 @@
+from datetime import date
+
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import db, main, news_sources
+from apps.api.app import db, main, news_retention, news_sources
 from apps.api.app.evidence_sources import EvidenceSourceError
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "news.db")
+    monkeypatch.setattr(news_retention, "today", lambda: date(2026, 9, 20))
+    monkeypatch.setattr(news_sources, "utc_now", lambda: "2026-09-20T01:00:00+00:00")
     with TestClient(main.app) as session:
         yield session
 

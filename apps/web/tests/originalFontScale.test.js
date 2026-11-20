@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { parse } from 'postcss'
 
 const readStyle = path => readFileSync(resolve(process.cwd(), 'src', path), 'utf8')
 const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -28,8 +29,20 @@ describe('original typography scale', () => {
     expect(fontSize('research-chat.css', '.chat-page .research-studio .conversation-message-meta')).toBe('12px')
     // The final title/prose declarations continue to own the scale on small
     // screens; later responsive rules only alter layout and control dimensions.
-    const responsive = readStyle('research-chat.css').split('@media (max-width: 700px)')[1]
-    expect(responsive).not.toMatch(/font-size\s*:/)
+    const protectedSelectors = [
+      '.chat-page .chat-empty-heading h1',
+      '.chat-page .research-studio .research-answer',
+      '.chat-page .research-studio .research-answer :is(p, li, blockquote)',
+      '.chat-page .research-studio .conversation-message-meta',
+    ]
+    const responsiveFontOverrides = []
+    parse(readStyle('research-chat.css')).walkRules(rule => {
+      if (!protectedSelectors.includes(rule.selector.trim())) return
+      let parent = rule.parent
+      while (parent && !(parent.type === 'atrule' && parent.name === 'media')) parent = parent.parent
+      if (parent) rule.walkDecls('font-size', declaration => responsiveFontOverrides.push(`${rule.selector}: ${declaration.value}`))
+    })
+    expect(responsiveFontOverrides).toEqual([])
   })
 
   it('retains the original research-shortcut title and secondary-text scale', () => {

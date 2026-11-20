@@ -44,11 +44,12 @@ def test_quote_batch_preserves_zero_and_omits_missing_codes(client, monkeypatch)
 
 def test_market_cache_is_bounded_and_keeps_tushare_units(monkeypatch):
     service._market_cache.clear()
-    monkeypatch.setattr(service, 'tushare_settings', lambda: {'token': 'test-secret'})
+    monkeypatch.setattr(service, 'tushare_settings', lambda: {'token': 'test-secret', 'api_url': 'http://relay.example.test'})
     monkeypatch.setattr(service, 'configured_limiter', lambda: None)
     calls = []
     class Client:
-        def __init__(self, *_args, **_kwargs): pass
+        def __init__(self, *_args, api_url, **_kwargs):
+            assert api_url == 'http://relay.example.test'
         def raw_query(self, _api, **params):
             calls.append(params['trade_date'])
             return {'data': {'fields': ['ts_code', 'trade_date', 'vol'], 'items': [[CODE, params['trade_date'], 0], ['600000.SH', '20990101', 999]]}}
@@ -65,13 +66,13 @@ def test_market_cache_is_bounded_and_keeps_tushare_units(monkeypatch):
 
 def named_snapshot():
     source = snapshot()
-    source.update(dates=[DAY], n=20, unavailable_count=0, items=[{'strategy_title': '原始名称不得返回'}])
-    source['strategies'][0].update(strategy_name='private_original_name', strategy_title='原始名称不得返回',
-                                   generation_id='private_original_name-generation', private_metadata='原始名称不得返回')
+    source.update(dates=[DAY], n=20, unavailable_count=0, items=[{'private_metadata': '未公开的元数据'}])
+    source['strategies'][0].update(strategy_name='private_original_name', strategy_title='量价突破趋势动量',
+                                   generation_id='private_original_name-generation', private_metadata='未公开的元数据')
     return source
 
 
-def test_signal_names_and_ids_are_replaced_without_leaking_upstream_metadata(client, monkeypatch):
+def test_signals_return_the_upstream_title_without_exposing_internal_metadata(client, monkeypatch):
     source = named_snapshot()
     upstream = Mock(return_value=httpx.Response(200, json=source, request=httpx.Request('GET', 'https://example.test')))
     monkeypatch.setattr(service.httpx, 'get', upstream)
@@ -80,34 +81,37 @@ def test_signal_names_and_ids_are_replaced_without_leaking_upstream_metadata(cli
     result = response.json()
     strategy = result['strategies'][0]
     assert strategy['strategy_name'].startswith('signal-')
-    assert strategy['strategy_title'] and strategy['strategy_title'] != source['strategies'][0]['strategy_title']
+    assert strategy['strategy_title'] == source['strategies'][0]['strategy_title']
     assert strategy['generation_id'] == ''
     assert strategy['buy_signals'] == source['strategies'][0]['buy_signals']
     assert strategy['win_rate'] == 1.0 and strategy['ann_return'] == 10.0
     assert 'private_original_name' not in response.text
-    assert '原始名称不得返回' not in json.dumps(result, ensure_ascii=False)
+    assert '未公开的元数据' not in json.dumps(result, ensure_ascii=False)
     assert 'items' not in result and 'private_metadata' not in strategy
     assert upstream.call_args.kwargs['params'] == {'n': '10', 'date': DAY}
     client.get('/api/v1/daily-signals/signals')
     assert upstream.call_args.kwargs['params'] == {'n': '20'}
 
 
-def test_signal_names_remain_stable_when_titles_dates_and_order_change():
+def test_signal_ids_remain_stable_and_titles_follow_upstream_renames():
     source = named_snapshot()
-    source['strategies'].append({**source['strategies'][0], 'strategy_name': 'another_private_name'})
+    source['strategies'].append({**source['strategies'][0], 'strategy_name': 'another_private_name', 'strategy_title': '深度缺口反转'})
     original = copy.deepcopy(source)
     first = service.named_signals(source)
     assert source == original
     source['date'] = '2026-11-11'
     source['n'] = 10
     source['strategies'].reverse()
-    for item in source['strategies']:
-        item['strategy_title'] = '上游更名'
-        item['generation_id'] = 'new-generation'
+    source['strategies'][1].update(strategy_title='  上游更名  ', generation_id='new-generation')
     second = service.named_signals(source)
-    assert {s['strategy_name']: s['strategy_title'] for s in first['strategies']} == {
-        s['strategy_name']: s['strategy_title'] for s in second['strategies']}
-    assert len({s['strategy_title'] for s in first['strategies']}) == 2
+    assert [s['strategy_name'] for s in first['strategies']] == [s['strategy_name'] for s in reversed(second['strategies'])]
+    assert [s['strategy_title'] for s in second['strategies']] == ['深度缺口反转', '上游更名']
+
+
+def test_signal_without_a_title_is_marked_unnamed():
+    source = named_snapshot()
+    source['strategies'][0].pop('strategy_title')
+    assert service.named_signals(source)['strategies'][0]['strategy_title'] == '未命名策略'
 
 
 def test_signals_reject_invalid_queries_and_do_not_return_upstream_errors(client, monkeypatch):

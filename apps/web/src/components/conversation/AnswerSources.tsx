@@ -14,6 +14,7 @@ const sourceTypeLabels: Record<string, string> = {
   public_web: '外部网页', web: '外部网页', local_report: '本地研报', report_page: '本地研报',
   local_news: '本地资讯', news_item: '本地资讯', financial_record: '财务依据', financial: '财务依据',
   disclosure_record: '披露依据', disclosure: '披露依据', security_reference: '证券资料',
+  saved_screening_task: '对话方案', screening_strategy: '条件组合',
 }
 const evidenceLabels: Record<string, string> = {
   original_text: '原文摘录', frozen_financial: '冻结数字依据', search_snippet: '检索摘要',
@@ -60,6 +61,7 @@ export default function AnswerSources({ references, expanded = false }: { refere
   }, [selected])
   return <StockText><><details open={expanded || undefined} className={`studio-message-sources${expanded ? ' research-source-list' : ''}`}><summary><FileSearch size={14} />资料来源 · {references.length}</summary>{expanded && <small className="research-source-domain">回答引用 {citedCount} · 研究中查阅 {consultedCount} · 原文或冻结数字依据 {originalCount} · 检索摘要 {snippetCount}</small>}<div className="conversation-source-refs" data-stock-ignore={expanded || undefined}>{references.map((ref, index) => {
     const title = String(ref.title ?? ref.source_id ?? '资料来源')
+    if (ref.kind === 'saved_screening_task' || ref.kind === 'screening_strategy') return <span key={index}>@{title} · v{String(ref.version)} · {sourceTypeLabels[String(ref.kind)]}</span>
     if ((ref.kind === 'financial' || ref.kind === 'disclosure') && typeof ref.source_id === 'string' && /^[a-f0-9]{64}$/.test(ref.source_id)) return <article key={index} className="research-source-card"><ReferenceMeta reference={ref} /><a className="text-button workspace-button" href={'/api/v1/research-evidence/' + ref.source_id + '/view'} target="_blank" rel="noopener noreferrer">{title} · {ref.kind === 'financial' ? '独立数字依据' : '披露物理页依据'}</a>{typeof ref.excerpt === 'string' && <details className="research-source-excerpt"><summary>查看保存的依据</summary><p style={{ whiteSpace: 'pre-wrap' }}>{ref.excerpt}</p></details>}</article>
     if (ref.kind === 'report_page' && ref.source_id) {
       const link = <a key={index} className="text-button workspace-button" href={`${reportUrl(ref)}#page=${citedPage(ref)}`} target="_blank" rel="noopener noreferrer" onClick={event => { if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); setPage(citedPage(ref)); setSelected(ref) }}>{title} · 第 {citedPage(ref)} 页</a>

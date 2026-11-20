@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 import time
 
 from fastapi.testclient import TestClient
@@ -97,6 +97,115 @@ def test_failure_before_start_releases_the_queued_turn_and_job(research, monkeyp
     failed = conversation_store.get_turn(cid, tid)
     assert failed["state"] == failed["job"]["state"] == "failed"
     assert "启动失败" in failed["response_text"]
+
+
+@pytest.mark.parametrize("backlog_is_client_service", [True, False])
+def test_background_turns_reserve_capacity_for_each_group(research, monkeypatch, backlog_is_client_service):
+    first_conversation, first_turn = research
+    turns = [(first_conversation, first_turn)]
+    for index in range(3):
+        conversation_id = conversation_store.create_conversation("news", workflow_type="research")["id"]
+        turn_id = conversation_store.add_user_message(conversation_id, f"parallel-{index}", 0, "并行任务")["turn_id"]
+        turns.append((conversation_id, turn_id))
+
+    for index, (conversation_id, turn_id) in enumerate(turns):
+        backlog = index < 3
+        if backlog == backlog_is_client_service:
+            with db.connect() as connection:
+                connection.execute("INSERT INTO client_service_turns VALUES (?,?)", (conversation_id, turn_id))
+        job = research_turn_service.enqueue_turn(conversation_id, turn_id)["job"]
+        if backlog:
+            with db.connect() as connection:
+                connection.execute("UPDATE jobs SET created_at=? WHERE id=?", ("2000-01-01T00:00:00+00:00", job["id"]))
+
+    stop, all_slots_busy, release = Event(), Event(), Event()
+    started = []
+    started_lock = Lock()
+
+    def process(conversation_id, turn_id):
+        with started_lock:
+            started.append(turn_id)
+            if len(started) == 3:
+                all_slots_busy.set()
+        assert release.wait(10)
+        conversation_store.finish_turn(conversation_id, turn_id, 0, "succeeded", "处理完成", {})
+        return conversation_store.get_turn(conversation_id, turn_id)
+
+    monkeypatch.setattr(codex_runtime, "process_conversation_turn", process)
+    thread = Thread(target=worker.run_worker, kwargs={"poll_seconds": 0.01, "stop_event": stop}, daemon=True)
+    thread.start()
+    try:
+        assert all_slots_busy.wait(5)
+        assert turns[-1][1] in started
+        assert len({turn_id for _, turn_id in turns[:3]}.intersection(started)) == 2
+        with db.connect() as connection:
+            assert connection.execute("SELECT COUNT(*) FROM jobs WHERE state='queued'").fetchone()[0] == 1
+    finally:
+        stop.set()
+        release.set()
+        thread.join(timeout=5)
+    assert not thread.is_alive()
+    for conversation_id, turn_id in turns:
+        expected = "succeeded" if turn_id in started else "queued"
+        assert conversation_store.get_turn(conversation_id, turn_id)["job"]["state"] == expected
+
+
+def test_background_job_finishes_before_a_followup_in_the_same_conversation_is_claimed(research):
+    cid, tid = research
+    first = research_turn_service.enqueue_turn(cid, tid)["job"]
+    lease = jobs.claim(first["id"])
+    conversation_store.start_turn(cid, tid)
+    conversation_store.finish_turn(cid, tid, 0, "succeeded", "已有答复", {})
+
+    next_turn = conversation_store.add_user_message(cid, "followup", 0, "继续解释")["turn_id"]
+    followup = research_turn_service.enqueue_turn(cid, next_turn)["job"]
+    assert jobs.claim(followup["id"]) is None
+    assert conversation_store.get_turn(cid, next_turn)["job"]["state"] == "queued"
+    assert lease.finish("succeeded", "后台已收尾")
+    assert jobs.claim(followup["id"]) is not None
+
+
+def test_followup_waits_for_cancelled_codex_process_to_exit(research, monkeypatch):
+    cid, tid = research
+    first = research_turn_service.enqueue_turn(cid, tid)["job"]
+    entered, release, followup_claimed, followup_started = Event(), Event(), Event(), Event()
+
+    def process(conversation_id, turn_id):
+        if turn_id == tid:
+            entered.set()
+            assert release.wait(10)
+            return conversation_store.get_turn(conversation_id, turn_id)
+        followup_started.set()
+        conversation_store.finish_turn(conversation_id, turn_id, 0, "succeeded", "继续研究", {})
+        return conversation_store.get_turn(conversation_id, turn_id)
+
+    def claim(job_id, **options):
+        lease = jobs.claim(job_id, **options)
+        if lease and job_id != first["id"]:
+            followup_claimed.set()
+        return lease
+
+    monkeypatch.setattr(codex_runtime, "process_conversation_turn", process)
+    monkeypatch.setattr(worker, "claim", claim)
+    old_worker = Thread(target=worker.execute_job, args=(first["id"],), daemon=True)
+    old_worker.start()
+    new_worker = None
+    try:
+        assert entered.wait(5)
+        assert jobs.cancel(first["id"])["state"] == "cancelled"
+        next_turn = conversation_store.add_user_message(cid, "followup", 0, "继续解释")["turn_id"]
+        followup = research_turn_service.enqueue_turn(cid, next_turn)["job"]
+        new_worker = Thread(target=worker.execute_job, args=(followup["id"],), daemon=True)
+        new_worker.start()
+        assert followup_claimed.wait(5)
+        assert not followup_started.wait(0.2)
+    finally:
+        release.set()
+        old_worker.join(timeout=5)
+        if new_worker is not None:
+            new_worker.join(timeout=5)
+    assert not old_worker.is_alive() and not new_worker.is_alive()
+    assert conversation_store.get_turn(cid, next_turn)["job"]["state"] == "succeeded"
 
 
 def test_background_codex_can_wait_for_scan_without_blocking_computation(research, monkeypatch):

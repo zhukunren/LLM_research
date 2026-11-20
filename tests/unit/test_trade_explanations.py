@@ -65,12 +65,13 @@ def test_only_actual_search_and_opened_public_sources_are_accepted(configured):
 def test_history_fetches_180_real_bars_and_excludes_future_or_other_securities(monkeypatch):
     from datetime import timedelta
     daily_signals_api._history_cache.clear()
-    monkeypatch.setattr(daily_signals_api,'tushare_settings',lambda:{'token':'test'})
+    monkeypatch.setattr(daily_signals_api,'tushare_settings',lambda:{'token':'test','api_url':'http://relay.example.test'})
     monkeypatch.setattr(daily_signals_api,'configured_limiter',lambda:None)
     items=[['300001.SZ',(date(2026,11,12)-timedelta(days=i)).strftime('%Y%m%d'),10,12,9,11,100] for i in range(200)]
     items.append(['300001.SZ','20261113',10,12,9,11,999]);items.append(['600000.SH','20261112',10,12,9,11,888])
     class Client:
-        def __init__(self,*a,**kw):pass
+        def __init__(self, *args, api_url, **kwargs):
+            assert api_url == 'http://relay.example.test'
         def raw_query(self,*a,**kw):return {'data':{'fields':['ts_code','trade_date','open','high','low','close','vol'],'items':items}}
     monkeypatch.setattr(daily_signals_api,'TushareClient',Client)
     data=daily_signals_api.chart_history('300001.SZ',date(2026,11,12))

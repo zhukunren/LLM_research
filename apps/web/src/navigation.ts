@@ -1,11 +1,10 @@
-import { BookOpen, Code2, FileText, FolderOpen, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Radio, Send, Shapes, Star } from 'lucide-react'
+import { BookOpen, Code2, FileText, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Radio, Send, Shapes, Star } from 'lucide-react'
 
 export const workspaceMenus = [
   { id: 'intelligence', label: '情报台', mobileLabel: '情报', description: '市场简报、政策追踪与产业跟踪，核对证据和历史版本', icon: Newspaper },
   { id: 'library', label: '资料库', mobileLabel: '资料', description: '统一检索与阅读资讯、研报和公告', icon: BookOpen },
   { id: 'home', label: '开始研究', mobileLabel: '研究', description: '打开新的研究草稿', icon: LayoutDashboard },
   { id: 'screening', label: '研究对话', mobileLabel: '对话', description: '讨论研究问题，计算并整理结果', icon: MessageCircle },
-  { id: 'research', label: '研究项目', mobileLabel: '项目', description: '整理项目、公司、笔记与证据', icon: FolderOpen },
   { id: 'conditions', label: '条件选股', mobileLabel: '选股', description: '描述条件、组合执行并回看判断依据', icon: ListFilter },
   { id: 'watchlist', label: '观察池', mobileLabel: '观察', description: '跟踪研究候选与筛选批次', icon: Star },
   { id: 'news', label: '资讯库', mobileLabel: '资讯', description: '阅读资讯，查找业务变化与催化', icon: Newspaper },

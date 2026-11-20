@@ -3,11 +3,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from . import market, program_conditions, runtime_executor, ranking, report_adapter, news_adapter, pattern_adapter
+from . import industry_valuation, market, program_conditions, runtime_executor, ranking, report_adapter, news_adapter, pattern_adapter
 from .evidence_analysis import EvidenceAnalysisCancelled
 from .screening_contracts import (
     ConditionDecision,
     CustomProgram,
+    IndustryValuationRule,
     ScreeningRunResult,
     ScreeningTaskRevision,
     StockDecision,
@@ -20,6 +21,7 @@ from .screening_contracts import (
 )
 
 EXECUTION_VERSION = "screening-task-v1"
+DECISION_BATCH_SIZE = 100
 
 
 def evaluate_reference(
@@ -37,6 +39,13 @@ def evaluate_reference(
         return report_adapter.evaluate(
             condition, reference, stock_code, as_of,
             lookback_days=reference.get("_report_lookback_days"), active=reference.get("_active", lambda: True),
+        )
+    if condition.get("library") == "fundamentals":
+        return industry_valuation.evaluate(
+            IndustryValuationRule.model_validate(condition["expression"]),
+            reference["_industry_inputs"], stock_code, reference["_bars"],
+            condition_id=condition["condition_id"], reference_id=reference["reference_id"],
+            condition_version=reference.get("condition_version"),
         )
     return ConditionDecision(
         stock_code=stock_code,
@@ -173,6 +182,9 @@ def execute_snapshot(
     bars_by_stock: dict[str, list[dict[str, Any]]] = {code: [] for code in codes}
     pattern_assets = snapshot.get("pattern_assets", {})
     history_requirements = [program.required_history_bars for program in programs]
+    valuation_rules = [IndustryValuationRule.model_validate(item.expression) for item in task.conditions
+                       if item.library == "fundamentals"]
+    history_requirements.extend(rule.amount_window for rule in valuation_rules if rule.amount_window is not None)
     history_requirements.extend(
         pattern_adapter.required_history_bars(
             definitions[reference["condition_id"]], reference,
@@ -182,10 +194,18 @@ def execute_snapshot(
         if definitions[reference["condition_id"]].get("library") == "pattern"
     )
     if history_requirements:
+        progress(0, "正在读取本批次的日线行情")
         history_limit = max(history_requirements)
         for code, bars in market.iter_recent_bars(as_of, history_limit, list(codes)) or ():
             if code in bars_by_stock:
                 bars_by_stock[code] = bars
+
+    source_manifests = list(snapshot["source_manifests"])
+    valuation_inputs = None
+    if valuation_rules and active():
+        day = snapshot.get("effective_market_date")
+        valuation_inputs = industry_valuation.prepare(valuation_rules, day, codes, active=active, progress=progress)
+        source_manifests.extend(valuation_inputs.manifests)
 
     program_results: dict[str, dict[str, dict[str, Any]]] = {}
     for reference in references:
@@ -195,6 +215,7 @@ def execute_snapshot(
         condition = definitions[reference["condition_id"]]
         if condition.get("program") is None:
             continue
+        progress(0, f"正在计算条件：{condition['description'][:80]}")
         try:
             program_results[reference["reference_id"]] = program_conditions.evaluate_batch(
                 condition,
@@ -241,8 +262,8 @@ def execute_snapshot(
                 break
 
     for index, stock_code in enumerate(codes):
-        should_process = active()
-        cancelled = cancelled or not should_process
+        if not cancelled and index % DECISION_BATCH_SIZE == 0:
+            cancelled = not active()
         condition_decisions = []
         for reference in references:
             condition = definitions[reference["condition_id"]]
@@ -265,6 +286,8 @@ def execute_snapshot(
                     if condition["library"] == "pattern":
                         runtime_reference = {**reference, "_pattern_template": pattern_assets.get(condition["condition_id"]),
                                              "_bars": bars_by_stock[stock_code], "_effective_market_date": snapshot.get("effective_market_date")}
+                    if condition["library"] == "fundamentals":
+                        runtime_reference = {**reference, "_industry_inputs": valuation_inputs, "_bars": bars_by_stock[stock_code]}
                     decision = evaluate_reference(condition, runtime_reference, stock_code, as_of)
                     if not isinstance(decision, ConditionDecision):
                         decision = ConditionDecision.model_validate(decision)
@@ -277,7 +300,7 @@ def execute_snapshot(
                     decision = _failed_decision(condition, reference, stock_code, as_of)
             condition_decisions.append(decision)
         decisions.append(_stock_decision(task, stock_code, condition_decisions))
-        if index % 100 == 0:
+        if not cancelled and ((index + 1) % DECISION_BATCH_SIZE == 0 or index + 1 == len(codes)):
             progress((index + 1) / max(1, len(codes)), f"已处理 {index + 1}/{len(codes)} 只证券")
 
     if task.scope.ranking is not None:
@@ -316,6 +339,7 @@ def execute_snapshot(
             ]) for item in decisions
         ]
 
+    cancelled = cancelled or not active()
     counts = {state: sum(item.state == state for item in decisions) for state in ("true", "false", "unknown")}
     failed_count = sum(item.evaluation_status == "failed" for item in decisions)
     not_evaluated_count = sum(item.evaluation_status == "not_evaluated" for item in decisions)
@@ -337,7 +361,7 @@ def execute_snapshot(
         coverage=coverage,
         stock_decisions=decisions,
         execution_request_id=request["request_id"],
-        source_manifests=snapshot["source_manifests"],
+        source_manifests=source_manifests,
         tool_call_ids=snapshot["tool_call_ids"],
         model_metadata=snapshot["model_metadata"],
     )

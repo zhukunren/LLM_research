@@ -7,6 +7,17 @@ beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => window.history.replaceState(null, '', '/'))
 
 describe('stable workspace URLs', () => {
+  it.each(['suggestions', 'templates', 'robots', 'deliveries'] as const)('round-trips the service %s destination and rejects unknown views', serviceView => {
+    const route: WorkspaceRoute = { page: 'client-service', serviceView }
+    expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route)
+    expect(parseWorkspaceRoute('#/tools/client-service?view=invalid')).toBeNull()
+    expect(parseWorkspaceRoute('#/tools/client-service')).toEqual({ page: 'client-service' })
+  })
+  it('opens legacy diagnosis links in the suggestion editor', () => {
+    const route = parseWorkspaceRoute('#/tools/client-service?view=diagnosis')!
+    expect(route).toEqual({ page: 'client-service', serviceView: 'suggestions' })
+    expect(workspaceRouteHash(route)).toBe('#/tools/client-service?view=suggestions')
+  })
   it.each(['technical', 'news', 'report', 'pattern'] as const)('round-trips the dedicated %s entry without confusing it with a conversation id', method => {
     const route = screeningMethodRoute(method)
     expect(workspaceRouteHash(route)).toBe(`#/screening/method/${method}`)
@@ -32,7 +43,7 @@ describe('stable workspace URLs', () => {
     { page: 'client-service' }, { page: 'client-service', workspace: 'screening' },
     { page: 'screening', newDraft: true }, { page: 'screening', conversationId: 'one', scope: 'report' },
     { page: 'conditions', conversationId: 'task-1', scope: 'news', view: 'conversation' },
-    { page: 'conditions', view: 'compose' }, { page: 'research', projectId: 'project-1' },
+    { page: 'conditions', view: 'compose' }, { page: 'watchlist' },
     { page: 'watchlist', candidateId: 'candidate-1', observationTab: 'candidates' },
     { page: 'watchlist', runId: 'batch-1', observationTab: 'batches' },
     { page: 'watchlist', runId: 'batch-1', observationCode: '600000.SH', observationTab: 'batches' },
@@ -46,7 +57,6 @@ describe('stable workspace URLs', () => {
     expect(parseWorkspaceRoute('#/research/new')).toEqual({ page: 'screening', newDraft: true })
     expect(parseWorkspaceRoute('#/screening/new')).toEqual({ page: 'conditions', newDraft: true, view: 'conversation' })
     expect(workspaceRouteHash({ page: 'screening' })).toBe('#/research')
-    expect(workspaceRouteHash({ page: 'research' })).toBe('#/projects')
     expect(workspaceRouteHash({ page: 'conditions', view: 'library' })).toBe('#/screening?view=library')
   })
 
@@ -61,7 +71,7 @@ describe('stable workspace URLs', () => {
   })
 
   it('normalizes a legacy home navigation into a new research route', () => {
-    window.history.replaceState(null, '', '#/projects')
+    window.history.replaceState(null, '', '#/observation')
     const { result } = renderHook(() => useWorkspaceRoute())
     act(() => result.current.navigate({ page: 'home' }))
     expect(result.current.route).toEqual({ page: 'screening', newDraft: true })
@@ -78,6 +88,13 @@ describe('stable workspace URLs', () => {
     expect(window.location.hash).toBe('#/library?type=news')
   })
 
+  it.each(['all', 'updates', 'expectations', 'portfolio'])('redirects the old observation %s tab to the list', tab => {
+    window.history.replaceState(null, '', `#/observation/${tab}?workspace=screening`)
+    const { result } = renderHook(() => useWorkspaceRoute())
+    expect(result.current.route).toEqual({ page: 'watchlist', workspace: 'screening' })
+    expect(window.location.hash).toBe('#/observation?workspace=screening')
+  })
+
   it.each(['#workspace-main', '#/unknown', '#/research/a/b', '#/research/%2f', '#/research/%', '#/projects/..', '#/screening?view=unknown', '#/research?scope=invalid', '#/observation/batches/a/b', '#/observation/candidates/a/600000.SH'])('rejects malformed or unrelated locations %s', hash => {
     expect(parseWorkspaceRoute(hash)).toBeNull()
   })
@@ -90,7 +107,7 @@ describe('stable workspace URLs', () => {
     expect(legacyWorkspaceRoute()).toEqual({ page: 'watchlist', runId: 'old-run', observationTab: 'batches' })
     sessionStorage.setItem('app.page', '"research"')
     sessionStorage.setItem('research.selectedProject', '"old-project"')
-    expect(legacyWorkspaceRoute()).toEqual({ page: 'research', projectId: 'old-project' })
+    expect(legacyWorkspaceRoute()).toEqual({ page: 'screening', newDraft: true })
     sessionStorage.setItem('app.page', '"conditions"')
     sessionStorage.setItem('conditions.section', '"history"')
     expect(legacyWorkspaceRoute()).toEqual({ page: 'conditions', scope: 'screening', view: 'history' })
@@ -108,14 +125,14 @@ describe('stable workspace URLs', () => {
 
   it('does not depend on writable storage', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage disabled') })
-    expect(() => persistWorkspaceRoute({ page: 'research', projectId: 'one' })).not.toThrow()
-    window.history.replaceState(null, '', '#/projects/one')
+    expect(() => persistWorkspaceRoute({ page: 'screening', conversationId: 'one' })).not.toThrow()
+    window.history.replaceState(null, '', '#/observation/candidates/one')
     const { result } = renderHook(() => useWorkspaceRoute())
-    expect(result.current.route.projectId).toBe('one')
+    expect(result.current.route.candidateId).toBe('one')
   })
 
   it('restores exact objects with browser Back and Forward without adding duplicate steps', async () => {
-    window.history.replaceState(null, '', '#/projects/one')
+    window.history.replaceState(null, '', '#/observation/candidates/one')
     const onHistoryChange = vi.fn()
     const { result } = renderHook(() => useWorkspaceRoute(onHistoryChange))
     act(() => result.current.navigate({ page: 'screening', conversationId: 'two' }))
@@ -124,7 +141,7 @@ describe('stable workspace URLs', () => {
     act(() => result.current.navigate({ page: 'screening', conversationId: 'two' }))
     expect(window.history.length).toBe(historyLength)
     act(() => window.history.back())
-    await waitFor(() => expect(result.current.route).toEqual({ page: 'research', projectId: 'one' }))
+    await waitFor(() => expect(result.current.route).toEqual({ page: 'watchlist', observationTab: 'candidates', candidateId: 'one' }))
     act(() => window.history.forward())
     await waitFor(() => expect(result.current.route).toEqual({ page: 'screening', conversationId: 'two' }))
     expect(onHistoryChange).toHaveBeenCalledTimes(2)

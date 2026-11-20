@@ -1,9 +1,1 @@
-/* Default desktop density; keep mobile text readable and browser zoom usable. */
-@media (min-width: 769px) {
-  body { zoom: .8; }
-  .redesigned-workspace.chat-layout,
-  .chat-layout > .main-shell,
-  .chat-layout .chat-sidebar { height: 125dvh; }
-}
-
 .chat-workspace-name { font-size: 13px; font-weight: 400; line-height: 1.6; }

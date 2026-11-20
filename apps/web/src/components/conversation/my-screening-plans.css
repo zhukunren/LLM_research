@@ -1,0 +1,17 @@
+.my-screening-plans-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 5px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ui-text-muted); cursor: pointer; font-size: 12px; white-space: nowrap; }
+.my-screening-plans-trigger:hover:not(:disabled) { color: var(--ui-primary); background: var(--ui-primary-soft); }
+.screening-plan-picker-toolbar { display: flex; align-items: center; gap: 10px; }
+.screening-plan-picker-toolbar > label { flex: 1; min-width: 0; }
+.screening-plan-picker-types { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 16px; }
+.screening-plan-picker-types > button { padding: 7px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ui-text-muted); cursor: pointer; font-size: 12px; }
+.screening-plan-picker-types > button[aria-pressed=true] { background: var(--ui-primary-soft); color: var(--ui-primary); }
+.screening-plan-picker-list > article { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-block: 15px; border-bottom: 1px solid var(--ui-border-subtle); }
+.screening-plan-picker-list > article > div { display: grid; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.screening-plan-picker-list strong { font-size: 14px; font-weight: 600; }
+.screening-plan-picker-list small { color: var(--ui-text-muted); font-size: 12px; }
+.screening-plan-picker-list button { flex-shrink: 0; }
+.conversation-pending-source[data-plan=true] { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; width: fit-content; max-width: 100%; padding: 6px 10px; color: var(--ui-primary); }
+.conversation-pending-source[data-plan=true] > span:first-child { flex: 0 0 auto; }
+.conversation-pending-source[data-plan=true] > span:nth-child(2) { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; text-align: left; }
+.conversation-pending-source[data-plan=true] > button { flex: 0 0 auto; margin-left: 2px; }
+@media (pointer: coarse) { .my-screening-plans-trigger, .screening-plan-picker-types > button, .screening-plan-picker-list button { min-height: 44px; } }

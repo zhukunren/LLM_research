@@ -54,30 +54,33 @@ export default function ScreeningDeliveryCard(props: Props) {
   const running = !props.processing && !!status && ['queued', 'running'].includes(status)
   const finished = !props.processing && !!status && ['succeeded', 'partial'].includes(status)
   const readError = currentRun && props.viewedRunId === currentRun.id ? props.readError : error
+  const coverage = finished && !readError ? detail?.result?.coverage : undefined
   const title = props.processing ? task ? '正在更新筛选方案' : '正在整理筛选方案'
     : readError ? '筛选状态暂时无法读取'
-      : props.failed ? '本轮处理未完成' : props.cancelled ? '本次整理已停止'
+      : finished && props.failed ? coverage ? `已有 ${coverage.true_count} 只符合，${coverage.unknown_count} 只资料不足` : '已有筛选名单可查看'
+        : props.failed ? '本轮处理未完成' : props.cancelled ? '本次整理已停止'
       : running ? status === 'queued' ? '筛选已排队' : '正在筛选'
         : finished ? status === 'partial' ? '筛选完成 · 部分待判断' : '筛选完成'
           : status === 'failed' ? '筛选未完成' : status === 'cancelled' ? '筛选已停止'
             : task?.unresolved.length ? '需要补充筛选条件' : props.pending ? '等待启动筛选'
               : task ? props.paused ? '方案已生成，按要求暂不筛选' : '筛选方案已整理'
                 : props.failed ? '方案未完成' : '尚未形成筛选方案'
-  const coverage = finished ? detail?.result?.coverage : undefined
+  const savedAfterFailure = props.failed && finished && currentRun
   const progress = detail?.job?.progress
-  const ranking = task?.scope.ranking
+  const ranking = savedAfterFailure ? undefined : task?.scope.ranking
   const contentChange = useRef(props.onContentChange)
   contentChange.current = props.onContentChange
-  useEffect(() => { contentChange.current() }, [props.processing, task?.revision, task?.unresolved.length, status, coverage?.true_count, coverage?.unknown_count, readError])
+  useEffect(() => { contentChange.current() }, [title, task?.revision, task?.unresolved.length, status, coverage?.true_count, coverage?.unknown_count, readError])
   return <section className="screening-delivery-card" aria-label="本次选股进展">
     <header><span className="screening-delivery-icon" aria-hidden="true">{props.processing || running || props.pending ? <LoaderCircle size={17} className="spin" /> : finished ? <Check size={17} /> : <FileSearch size={17} />}</span><div>
       <strong role="status" aria-live="polite" aria-atomic="true">{title}</strong>
-      {task && <p>{task.conditions.length} 项条件 · {taskUniverseLabel(task)} · 截至 {task.scope.as_of || '待确定'}</p>}
+      {savedAfterFailure ? <p>已有批次 · 截至 {currentRun.as_of} · v{currentRun.task_revision}。本轮选股请求未完成。</p>
+        : task && <p>{task.conditions.length} 项条件 · {taskUniverseLabel(task)} · 截至 {task.scope.as_of || '待确定'}</p>}
     </div></header>
-    {task && <p className="screening-delivery-rules">{task.conditions.slice(0, 2).map(item => item.description).join('；')}{task.conditions.length > 2 ? '；…' : ''}</p>}
+    {task && !savedAfterFailure && <p className="screening-delivery-rules">{task.conditions.slice(0, 2).map(item => item.description).join('；')}{task.conditions.length > 2 ? '；…' : ''}</p>}
     {ranking && <p className="screening-delivery-ranking"><span>{({ industry: '行业内', all_a_shares: '全部A股', watchlist: '自选股票池', after_filters: '满足指定条件的股票' } as Record<string, string>)[String(ranking.ranking_universe)] || '排名范围待确定'}</span><span>前 {String(ranking.top_n ?? '待确定')} 名</span><span>{ranking.ties_policy === 'include_all' ? '保留全部并列' : '同分按股票代码排序'}</span><span>{ranking.missing_policy === 'exclude_with_notice' ? '排除缺失并说明' : '范围不完整时保留未知'}</span></p>}
     {running && <div className="screening-delivery-progress">{typeof progress === 'number' && Number.isFinite(progress) && <progress aria-label="筛选进度" max={1} value={Math.max(0, Math.min(1, progress))} />}<span>{detail?.job?.message || '正在读取真实执行进度…'}</span></div>}
-    {coverage && <div className="screening-delivery-counts">{(readError || props.failed) && <span>{props.failed ? '已取得的筛选结果' : '上次读取结果'}</span>}<span>符合 <strong>{coverage.true_count}</strong> 只</span><span>尚无法判断 <strong>{coverage.unknown_count}</strong> 只</span><span>已判断 {coverage.true_count + coverage.false_count} / {coverage.target_total} 只</span>{!!coverage.failed_count && <span>其中 {coverage.failed_count} 只处理失败</span>}{!!coverage.not_evaluated_count && <span>{coverage.not_evaluated_count} 只未处理</span>}</div>}
+    {coverage && <div className="screening-delivery-counts">{!savedAfterFailure && <><span>符合 <strong>{coverage.true_count}</strong> 只</span><span>尚无法判断 <strong>{coverage.unknown_count}</strong> 只</span></>}<span>已判断 {coverage.true_count + coverage.false_count} / {coverage.target_total} 只</span>{!!coverage.failed_count && <span>其中 {coverage.failed_count} 只处理失败</span>}{!!coverage.not_evaluated_count && <span>{coverage.not_evaluated_count} 只未处理</span>}</div>}
     {readError && <p className="workspace-error">{readError}。暂不能据此判断是否有匹配结果。</p>}
     {!!task?.unresolved.length && <ScreeningClarifications key={`${task.task_id}:${task.revision}`} items={task.unresolved} disabled={props.disabled} onCompose={props.onClarify} actionLabel={props.paused ? '补充并更新方案' : '补充并继续筛选'} helpText="补充回答将与输入框中的草稿一起提交。" />}
     <div className="screening-delivery-actions">

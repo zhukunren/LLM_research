@@ -5,7 +5,6 @@ import App from './App'
 import { defaultBriefScope } from './intelligence'
 
 vi.mock('./pages/ResearchWorkspace', () => ({ default: () => <h1>新研究草稿</h1> }))
-vi.mock('./pages/ResearchProjectsPage', () => ({ default: () => <h1>研究项目目录</h1> }))
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
 beforeEach(() => { localStorage.clear(); sessionStorage.clear(); window.history.replaceState({}, '', '#/research/new') })
 

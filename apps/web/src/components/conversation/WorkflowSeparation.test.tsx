@@ -5,7 +5,6 @@ import ConversationWorkspace from './ConversationWorkspace'
 import type { Conversation } from '../../api'
 import { SecuritiesProvider } from '../StockSearch'
 
-vi.mock('./ProjectMembership', () => ({ default: () => <span>项目归属</span> }))
 
 it('keeps research free of stock/date controls when market data arrives or changes', async () => {
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ items: [] })))

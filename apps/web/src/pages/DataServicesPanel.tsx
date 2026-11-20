@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, Database, Globe, Sparkles } from 'lucide-react'
+import { Database, Globe, Sparkles } from 'lucide-react'
 import { api, type DataStatus } from '../api'
 import { useSecurities } from '../components/StockSearch'
 import { trapDialogTab } from '../keyboard'
 import DataUpdateProgress, { type UpdateJob } from './DataUpdateProgress'
+import NewsRetentionPanel from './NewsRetentionPanel'
 import FinancialProbePanel from './FinancialProbePanel'
 import FinancialSyncStatusRow from './FinancialSyncStatusRow'
 import './data-services-list.css'
 
 type Settings = {
   text_model: { configured: boolean; model: string | null; api_mode?: string | null }
-  tushare: { configured: boolean }
+  tushare: { configured: boolean; provider?: 'official' | 'relay' }
   codex_runtime?: {
     available: boolean; reason?: string
     web_search?: { enabled: boolean; mode: 'live' | 'cached' | 'disabled' | null; state: string; verification?: string }
@@ -29,7 +30,7 @@ function webSearchLabel(runtime: Settings['codex_runtime']) {
   return '当前不可用'
 }
 
-export default function DataServicesPanel({ data, onClose, onRefresh, onOpenCompanyResearch }: { data: DataStatus | null; onClose: () => void; onRefresh: () => void; onOpenCompanyResearch?: () => void }) {
+export default function DataServicesPanel({ data, onClose, onRefresh }: { data: DataStatus | null; onClose: () => void; onRefresh: () => void }) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [settingsRetry, setSettingsRetry] = useState(0)
   const [updateDetailsOpen, setUpdateDetailsOpen] = useState(false)
@@ -149,10 +150,13 @@ export default function DataServicesPanel({ data, onClose, onRefresh, onOpenComp
           {data?.quality_status === 'issues_found' && <p className="service-status-message workspace-feedback-warning">部分行情有异常，相关条件会显示“数据不足”。</p>}
           <details className="service-status-details" open={updateDetailsOpen} onToggle={event => setUpdateDetailsOpen(event.currentTarget.open)}><summary>更新进度与数据口径</summary>
             <p>{data?.available ? '本地行情可供查询，价格为未复权日线。' : '尚无可用行情。'}{data?.formal_blockers?.length ? '成交量、成交额单位及证券基础资料和历史交易日历仍需核实。' : ''}</p>
-            {settings && <p>{settings.tushare.configured ? 'Tushare 官方 token 已配置，数据权限以官方账户为准。' : 'Tushare 官方 token 待配置，完成配置后可更新外部数据。'}</p>}
+            {settings && <p>{settings.tushare.configured
+              ? settings.tushare.provider === 'relay' ? 'Tushare 中转服务已配置。' : 'Tushare token 已配置。'
+              : 'Tushare token 待配置，完成配置后可更新外部数据。'}</p>}
             {job && <DataUpdateProgress job={job} />}
             {job && ['failed', 'partial'].includes(job.state) && <p>本次更新未全部完成，请查看各阶段详情；原有资料仍可使用。</p>}
           </details>
+          <NewsRetentionPanel />
         </section>
         <FinancialProbePanel refreshKey={poll} />
         <FinancialSyncStatusRow refreshKey={poll} />
@@ -166,7 +170,6 @@ export default function DataServicesPanel({ data, onClose, onRefresh, onOpenComp
           <p className="service-status-message" role="status">{webSearchResult || '配置状态不代表实时搜索已成功。'}</p>
         </section>
       </div>
-      <div className="service-research-entry"><p>指标与计算依据：在研究项目中选择公司，打开“公司资料与跟踪”。</p>{onOpenCompanyResearch && <button className="text-button workspace-button" onClick={() => { onClose(); onOpenCompanyResearch() }}>前往公司研究<ArrowUpRight size={14} /></button>}</div>
       <details className="drawer-section support-details"><summary>诊断与维护信息</summary><button className="secondary-button compact workspace-button" onClick={downloadDiagnostics}>保存诊断信息</button><p>模型：{settings?.text_model.model || '未配置'} · {settings?.text_model.api_mode || '未配置'}</p><p>行情记录 {data?.rows?.toLocaleString() || '—'} 条，证券 {data?.securities?.toLocaleString() || '—'} 只。</p>{data?.formal_blockers?.map(item => <p key={item}>{item}</p>)}</details>
       </div>
       <div className="drawer-footer"><button className="secondary-button workspace-button" onClick={() => { onRefresh(); setPoll(i => i + 1); setSettingsRetry(value => value + 1) }}>重新检查状态</button></div>

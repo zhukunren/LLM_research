@@ -153,12 +153,14 @@ def test_mcp_receives_the_configured_tushare_token_variable_without_its_value(mo
     assert "private-official-token" not in overrides
 
 
-def test_tushare_research_query_explains_missing_official_token(monkeypatch):
+def test_tushare_research_query_explains_missing_token(monkeypatch):
     from apps.api.app import research_tools
     from apps.api.app.screening_tools import ToolDispatchError
 
-    monkeypatch.setattr(research_tools.tushare_sync, "tushare_settings", lambda: {"token": "", "timeout": 30, "retries": 3})
-    with pytest.raises(ToolDispatchError, match="未配置 Tushare 官方 token"):
+    monkeypatch.setattr(research_tools.tushare_sync, "tushare_settings", lambda: {
+        "token": "", "api_url": "https://api.tushare.pro", "timeout": 30, "retries": 3,
+    })
+    with pytest.raises(ToolDispatchError, match="未配置 Tushare token"):
         research_tools.query_tushare(research_tools.TushareQueryArgs(
             api_name="daily", params={"ts_code": "000001.SZ"}, save_to_file=False), None)
 
@@ -267,6 +269,9 @@ def test_codex_gets_frozen_selected_model_effort_on_new_and_resumed_threads(tmp_
     result = codex_runtime.run_conversation_turn(cid, msg["turn_id"])
     assert result["response"] == "已核对原文"
     assert observed["resumed"] is resume
+    instructions = observed["thread"]["developer_instructions"]
+    assert "面向用户的对话默认用 ELI5 风格" in instructions
+    assert "用户明确要求深入、详细或专业讲解时，按要求展开" in instructions
     assert observed["thread"]["model"] == "gpt-5.6-luna"
     assert observed["turn"]["model"] == "gpt-5.6-luna"
     assert observed["thread"]["sandbox"] == openai_codex.Sandbox.workspace_write
@@ -333,6 +338,36 @@ def test_codex_finish_turn_publishes_structured_execution_state_after_tool_mutat
     assert result["result"]["task_revision"] == 1
     assert result["result"]["execution_authorized"] is True
     assert result["result"]["ready_to_execute"] is True
+
+
+@pytest.mark.parametrize(("first_request", "continues"), [
+    ("收盘价高于20日均线并明显放量，筛一下。", True),
+    ("收盘价高于20日均线并明显放量，只生成选股方案。", False),
+])
+def test_replying_to_a_screening_clarification_respects_the_original_action(tmp_path, monkeypatch, first_request, continues):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "screening-clarification.db")
+    db.init_db()
+    cid = conversation_store.create_conversation("screening", workflow_type="screening")["id"]
+    first = conversation_store.add_user_message(cid, "first", 0, first_request)
+    conversation_store.start_turn(cid, first["turn_id"])
+    task = _task(cid)
+    draft = ScreeningTaskRevision.model_validate({
+        **task.model_dump(mode="json"), "original_user_messages": [first_request],
+        "unresolved": [{"kind": "clarification", "source_quote": "明显放量", "question": "放量按几倍计算？"}],
+    })
+    conversation_store.save_task_revision(cid, 0, first["message_id"], draft)
+    monkeypatch.setattr(codex_runtime, "run_conversation_turn", lambda *_: {
+        "thread_id": "thread", "codex_turn_id": "turn", "event_count": 1, "model": "gpt-6-luna", "response": "已核对放量口径。",
+    })
+    assert codex_runtime.process_conversation_turn(cid, first["turn_id"])["state"] == "awaiting_user"
+    assert conversation_store.get_pending_execute_message(cid) == (first["message_id"] if continues else None)
+    answer = conversation_store.add_user_message(cid, "answer", 1, "成交量按20日均量的1.5倍。")
+    conversation_store.start_turn(cid, answer["turn_id"])
+    ready = task.model_copy(update={"revision": 2, "original_user_messages": [first_request, "成交量按20日均量的1.5倍。"]})
+    conversation_store.save_task_revision(cid, 1, answer["message_id"], ready)
+    result = codex_runtime.process_conversation_turn(cid, answer["turn_id"])
+    assert result["result"]["ready_to_execute"] is continues
+    assert result["result"]["execution_authorization_message_id"] == (first["message_id"] if continues else None)
 
 
 def test_failure_after_task_mutation_finishes_turn_and_allows_followup(tmp_path, monkeypatch):
@@ -431,7 +466,12 @@ def test_mcp_preserves_virtualenv_python_symlink(tmp_path, monkeypatch):
     import sys
     venv_python = tmp_path / '.venv' / 'bin' / 'python'
     venv_python.parent.mkdir(parents=True)
-    venv_python.symlink_to(sys.executable)
+    try:
+        venv_python.symlink_to(sys.executable)
+    except OSError as exc:
+        if getattr(exc, 'winerror', None) == 1314:
+            pytest.skip('Windows account lacks permission to create symbolic links')
+        raise
     monkeypatch.setattr(codex_runtime.sys, 'executable', str(venv_python))
     command = next(value for value in codex_runtime._mcp_overrides({})
                    if value.startswith('mcp_servers.llm_research.command='))

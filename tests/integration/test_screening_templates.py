@@ -2,8 +2,8 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from apps.api.app import conversation_store, db, main, market, runtime_executor, screening_runner, worker
-from apps.api.app.screening_templates import TEMPLATES
+from apps.api.app import conversation_store, db, main, market, runtime_executor, screening_runner, tushare_sync, worker
+from apps.api.app.screening_templates import INDUSTRY_TEMPLATE_ID, TEMPLATES
 
 
 @pytest.fixture
@@ -35,6 +35,138 @@ def test_dedicated_catalog_exposes_single_rules_without_changing_existing_starte
     dedicated = client.get('/api/v1/screening-templates?include_singles=true').json()['items']
     assert {item['id'] for item in existing} == {'trend_momentum', 'cross_confirm', 'cross_momentum'}
     assert {item['id'] for item in dedicated} == {item['id'] for item in TEMPLATES}
+    fixed = client.get('/api/v1/screening-templates?include_singles=true&include_industry=true').json()['items']
+    assert fixed[-1]['id'] == INDUSTRY_TEMPLATE_ID and fixed[-1]['requires_industry']
+
+
+def test_industry_valuation_uses_dated_inputs_for_preview_and_run(client, tmp_path, monkeypatch):
+    codes = ['600000.SH', '600001.SH', '600002.SH', '600003.SH']
+    start, end = '2026-09-11', '2026-09-14'
+    calls = []
+
+    def member(code, entry='19981005', exit=None):
+        return dict(ts_code=code, in_date=entry, out_date=exit, l1_code='801080.SI', l1_name='电子',
+                    l2_code='801081.SI', l2_name='半导体', l3_code='850811.SI', l3_name='数字芯片设计')
+
+    class Feed:
+        def raw_query(self, name, **params):
+            calls.append((name, params))
+            if name == 'index_member_all':
+                if params['is_new'] == 'Y':
+                    return [member(codes[0]), member(codes[1]), member(codes[2], '20260915'), member(codes[3])]
+                return [member(codes[2], exit='20260914')]
+            if name == 'daily_basic':
+                assert params['trade_date'] == '20260914'
+                return [dict(ts_code=code, trade_date='20260914', pe_ttm=pe)
+                        for code, pe in zip(codes, (10, 30, None, 60), strict=True)]
+            if name == 'trade_cal':
+                return [dict(cal_date=value.replace('-', ''), is_open=1) for value in (start, end)]
+            assert name == 'daily' and params['trade_date'] == '20260911'
+            return [dict(ts_code=code, trade_date='20260911', amount=40000) for code in codes]
+
+    def bars(*_):
+        return [dict(trade_date=start, amount=40000000, quality_valid=True),
+                dict(trade_date=end, amount=60000, quality_valid=True)]
+
+    monkeypatch.setattr(tushare_sync, 'STOCK_FILE', tmp_path / 'stock_daily.parquet')
+    monkeypatch.setattr(tushare_sync, 'create_client', Feed)
+    monkeypatch.setattr(tushare_sync, '_market_completion', lambda: {'complete_days': [end]})
+    monkeypatch.setattr(market, 'get_bars', bars)
+    monkeypatch.setattr(market, 'iter_recent_bars', lambda as_of, limit, stocks: [(code, bars()) for code in stocks])
+    assert {'code': '801081.SI', 'name': '半导体', 'level': 2} in client.get('/api/v1/screening-industries').json()['items']
+
+    inputs = {'version': 1, 'as_of': end, 'parameters': {'amount_window': 2, 'min_daily_amount_yi': 0.5},
+              'industry': {'industry_code': '801081.SI', 'pe_comparison': 'below_industry_median'}}
+    preview_url = f'/api/v1/screening-templates/{INDUSTRY_TEMPLATE_ID}/preview'
+    preview = client.post(preview_url, json={**inputs, 'stock_code': codes[0]})
+    assert preview.status_code == 200, preview.text
+    assert preview.json()['state'] == 'true'
+    detail = preview.json()['details'][0]
+    assert detail['data_as_of'] == end
+    assert detail['actual_values']['市盈率（TTM）'] == 10
+    assert detail['actual_values']['日均成交额'] == 0.5
+    assert detail['actual_values']['行业正市盈率样本'] == 3
+    assert detail['thresholds']['市盈率（TTM）'] == 30
+
+    cid = client.post('/api/v1/conversations', json={'entry_scope': 'screening', 'workflow_type': 'screening'}).json()['id']
+    base = f'/api/v1/conversations/{cid}'
+    published = client.post(f'{base}/screening-templates/{INDUSTRY_TEMPLATE_ID}', json={
+        **inputs, 'base_revision': 0, 'client_message_id': 'industry-valuation', 'universe': {'kind': 'all_a_shares'},
+    })
+    assert published.status_code == 201, published.text
+    saved = published.json()
+    assert saved['task']['conditions'][0]['library'] == 'fundamentals'
+    assert saved['task']['conditions'][0]['program'] is None
+    queued = client.post(f"{base}/turns/{saved['turn_id']}/execute", json={'action': 'message'})
+    assert queued.status_code == 202, queued.text
+    assert worker.execute_job(queued.json()['job_id'])
+
+    run_url = f"{base}/screening-runs/{queued.json()['run_id']}"
+    run = client.get(run_url).json()
+    assert run['status'] == 'partial'
+    assert any(item.startswith(f'tushare:daily_basic-{end}:sha256:') for item in run['result']['source_manifests'])
+    decisions = {row['stock_code']: row for row in client.get(f'{run_url}/decisions').json()['items']}
+    assert [decisions[code]['state'] for code in codes[:3]] == ['true', 'false', 'unknown']
+    assert decisions[codes[0]]['condition_decisions'][0]['actual_values'] == detail['actual_values']
+    assert '缺少可确认的申万行业成分记录' in decisions[codes[2]]['condition_decisions'][0]['explanation']
+    assert [name for name, _ in calls].count('daily_basic') == 1
+    assert [name for name, _ in calls].count('daily') == 1
+
+
+def test_home_trend_shorthand_and_same_conversation_edit_use_the_same_rules(client, monkeypatch):
+    from apps.api.app import codex_runtime
+
+    def unexpected_model():
+        pytest.fail('已匹配的固定公式不需要排队调用模型')
+
+    monkeypatch.setattr(codex_runtime, 'availability', unexpected_model)
+    cid = client.post('/api/v1/conversations', json={'entry_scope': 'screening', 'workflow_type': 'research'}).json()['id']
+    url = f'/api/v1/conversations/{cid}'
+    body = {'client_message_id': 'trend', 'base_revision': 0, 'route_screening': True,
+            'content': '收盘价高于 20 日均线、近 5 个交易日涨幅超过 3%'}
+    accepted = client.post(url + '/messages', json=body)
+    assert accepted.status_code == 202, accepted.text
+    turn = accepted.json()['turn']
+    assert turn['state'] == 'succeeded' and turn['workflow_type'] == 'screening'
+    assert turn['result']['template_parameters'] == {'ma_window': 20, 'return_window': 5, 'threshold': 3}
+    replay = client.post(url + '/messages', json=body)
+    assert replay.status_code == 200, replay.text
+    assert replay.json()['turn']['id'] == turn['id']
+    first_runs = client.get(url + '/screening-runs').json()['items']
+    assert len(first_runs) == 1
+    assert first_runs[0]['as_of'] == '2026-09-14'
+
+    update = client.post(url + '/messages', json={'client_message_id': 'threshold', 'base_revision': 1,
+                         'content': '把近 5 个交易日涨幅门槛从 3% 改成超过 5%，其他条件、股票范围和日期沿用，再筛一次。'}).json()
+    modified = client.post(f"{url}/turns/{update['turn_id']}/process")
+    assert modified.status_code == 200, modified.text
+    assert modified.json()['result']['template_parameters']['threshold'] == 5
+
+    revisions = [client.get(f'{url}/revisions/{value}').json() for value in (1, 2)]
+    assert revisions[0]['scope'] == revisions[1]['scope']
+    assert revisions[0]['conditions'][0] == revisions[1]['conditions'][0]
+    assert revisions[0]['conditions'][1]['program']['source_code'] == revisions[1]['conditions'][1]['program']['source_code']
+    assert revisions[1]['conditions'][1]['program']['parameters']['threshold'] == 5
+    assert sorted(run['task_revision'] for run in client.get(url + '/screening-runs').json()['items']) == [1, 2]
+
+
+@pytest.mark.parametrize('content', [
+    '收盘价高于20日均线、近5个交易日涨幅超过3%，不要执行。',
+    '截至2026-09-10，筛选收盘价高于20日均线、近5个交易日涨幅超过3%的股票。',
+    '筛选收盘价高于20日均线、近5个交易日涨幅超过3%的股票，再加成交量超过1亿元。',
+    '收盘价高于20日均线、近5个交易日涨幅超过3%。\n\n[选股工作台指令]\n行情截止日期以界面设置为准：2026-09-10。',
+])
+def test_custom_or_preview_request_still_uses_the_agent(client, monkeypatch, content):
+    from apps.api.app import codex_runtime
+
+    monkeypatch.setattr(codex_runtime, 'availability', lambda: {'available': True})
+    cid = client.post('/api/v1/conversations', json={'entry_scope': 'screening', 'workflow_type': 'screening'}).json()['id']
+    url = f'/api/v1/conversations/{cid}'
+    message = client.post(url + '/messages', json={'client_message_id': 'custom', 'base_revision': 0, 'content': content}).json()
+    processed = client.post(f"{url}/turns/{message['turn_id']}/process")
+    assert processed.status_code == 202, processed.text
+    assert processed.json()['job']['state'] == 'queued'
+    assert client.get(url + '/screening-runs').json()['items'] == []
 
 
 def preview_bars(count=35):

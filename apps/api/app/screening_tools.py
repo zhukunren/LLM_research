@@ -15,10 +15,17 @@ from . import conversation_store, documents, market, screening_artifacts, eviden
 from .db import connect, json_dump, json_load, utc_now
 from .tool_protocol import ToolCall, ToolDefinition
 from . import saved_screening_tasks
-from .execution_policy import denies_execution, requests_execution
+from .execution_policy import (
+    WORKBENCH_MARKER,
+    asks_about_screening_result,
+    denies_execution,
+    message_requests_execution,
+    requests_plan_save,
+    starts_screening,
+)
 from .models import StrictModel
 from .screening_artifacts import ArtifactError, store_artifact
-from .screening_contracts import ScreeningTaskRevision, validate_executable_task
+from .screening_contracts import INDUSTRY_VALUATION_IMPLEMENTATION, ScreeningTaskRevision, validate_executable_task
 from .settings import ALLOWED_MARKETS, research_settings
 
 MAX_TOOL_ARGUMENT_BYTES = 64 * 1024
@@ -30,7 +37,7 @@ TASK_MUTATION_TOOLS = frozenset({"propose_screening_task"})
 SCREENING_WORKFLOW_TOOLS = frozenset({
     "propose_screening_task", "save_screening_plan", "authorize_screening_execution",
     "revoke_screening_execution", "preview_screening_program", "execute_screening_task",
-    "build_indicator_condition",
+    "build_indicator_condition", "search_screening_industries",
 })
 FIXED_CUTOFF_EVIDENCE_TOOLS = frozenset({
     "list_report_sources", "read_evidence_chunk", "list_news_sources", "read_news_chunk",
@@ -56,6 +63,10 @@ class SearchSecuritiesArgs(ToolArgs):
     query: str = Field(max_length=80)
     market_code: Literal["SH", "SZ", "BJ"] | None
     limit: int = Field(ge=1, le=MAX_STOCK_SEARCH_RESULTS)
+
+
+class SearchScreeningIndustriesArgs(ToolArgs):
+    query: str = Field(min_length=1, max_length=80)
 
 
 class ReadMarketWindowArgs(ToolArgs):
@@ -105,19 +116,26 @@ class ReadArtifactChunkArgs(ToolArgs):
 
 
 class ScreeningTaskPayload(ToolArgs):
-    """Top-level task shape; nested contract validation stays server-owned."""
+    """Model-facing task schema, with structural normalization before validation."""
 
     task_id: str
     revision: int
     original_user_messages: list[str]
     conditions: list[Any] = Field(
         description=(
-            "Condition objects. Technical conditions MUST include program with contract_version "
+            "Use condition_id, library, description, source_quote, expression and optional program. "
+            "A definition has no version field; use condition_version on its reference when applicable. "
+            "Technical conditions MUST include program with contract_version "
             "python-screen-v1 and expression={} ; do not use indicator or formula DSL. "
             "program.source_code defines screen(context, frames, params). Return ONLY "
             "{decisions: {stock_code: Python True/False/None}, metrics: {stock_code: {metric: finite number or null}}, "
             "units: {metric: unit string}}. Do not return string decisions, dates, booleans or explanatory text in metrics."
-            " Supply human-readable metric names and units for prices/percentages; label fractional returns as ratios or convert consistently to percent."
+            " Metric keys start with a letter, digit or Chinese character and use only these characters or underscore (1 to 40 characters)."
+            " Use the same keys in metrics and units, e.g. return_pct:'%' and close:'元/股'. Never put dates or punctuation in metric keys."
+            " For Shenwan industry valuation use library='fundamentals' and expression with industry_code, "
+            "pe_comparison ('at_most', 'below_value', or 'below_industry_median'), max_pe_ttm for a fixed comparison, "
+            "and optional amount_window (1–60 trading days) paired with min_daily_amount_yi (hundred million CNY). "
+            "Resolve industry codes with search_screening_industries. Omit program for this condition."
         )
     )
     references: list[Any] = Field(
@@ -255,6 +273,19 @@ def _market_coverage(_: ToolArgs, __: ToolContext) -> dict[str, Any]:
     from .capability_service import data_coverage
 
     return data_coverage()
+
+
+def _search_screening_industries(args: SearchScreeningIndustriesArgs, _: ToolContext) -> dict[str, Any]:
+    from .tushare_client import TushareError
+    from .tushare_screening_data import list_industries
+
+    try:
+        items = list_industries()
+    except TushareError as exc:
+        raise ToolDispatchError("industry_data_unavailable", f"暂时无法读取申万行业。{exc}") from exc
+    query = args.query.casefold()
+    matches = [item for item in items if query in item["code"].casefold() or query in item["name"].casefold()]
+    return {"items": matches[:25], "total": len(matches)}
 
 
 def _search_securities(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
@@ -550,6 +581,11 @@ def _current_turn_user_message(context: ToolContext) -> dict[str, Any]:
         raise ToolDispatchError("conversation_turn_not_found", "找不到当前研究回合") from exc
 
 
+def _require_screening_write_request(message: dict[str, Any]) -> None:
+    if asks_about_screening_result(message["content"]):
+        raise ToolDispatchError("screening_result_read_only", "这条消息引用了已保存的筛选结果。请读取原批次回答；写入请回到当前方案。")
+
+
 def _research_state(_: ToolArgs, context: ToolContext) -> dict[str, Any]:
     conversation = conversation_store.get_conversation(context.conversation_id, message_limit=50)
     if context.workflow_type == "research":
@@ -572,11 +608,14 @@ def _research_state(_: ToolArgs, context: ToolContext) -> dict[str, Any]:
             ).model_dump(mode="json")
         except conversation_store.ConversationNotFound:
             task = None
+    with connect() as connection:
+        watchlists = [dict(row) for row in connection.execute("SELECT id,name FROM watchlists ORDER BY name,id")]
     return {
         "conversation_id": context.conversation_id,
         "turn_id": context.turn_id,
         "task_revision": conversation["task_revision"],
         "pending_execution_message_id": conversation_store.get_pending_execute_message(context.conversation_id),
+        "watchlists": watchlists,
         "task": task,
         "user_messages": [
             {"id": item["id"], "content": item["content"], "created_at": item["created_at"]}
@@ -585,6 +624,28 @@ def _research_state(_: ToolArgs, context: ToolContext) -> dict[str, Any]:
         ],
         "note": "任务修订必须覆盖当前用户要求；执行授权只由明确的执行动作触发。",
     }
+
+
+def _normalize_universe(scope: dict[str, Any]) -> Any:
+    universe = scope.get("universe")
+    codes = scope.get("stock_codes")
+    if isinstance(universe, str):
+        universe = {"kind": universe}
+    if universe is None:
+        return {"kind": "explicit", "stock_codes": codes} if codes else None
+    if not isinstance(universe, dict):
+        return universe
+    universe = dict(universe)
+    kind = universe.pop("type", None)
+    if kind is not None:
+        if universe.get("kind", kind) != kind:
+            raise ValueError("股票范围类型冲突，请确认使用明确名单、股票池或全部A股")
+        universe["kind"] = kind
+    if codes:
+        if universe.get("kind", "explicit") != "explicit" or universe.get("stock_codes") not in (None, [], codes):
+            raise ValueError("股票范围与指定名单冲突，请确认后再提交")
+        universe.update(kind="explicit", stock_codes=codes)
+    return universe
 
 
 def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前筛选要求") -> dict[str, Any]:
@@ -610,6 +671,8 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
         condition.pop("domain", None)
         condition.pop("condition_type", None)
         condition.pop("name", None)
+        if condition.get("program") and condition.get("version") == 1:
+            condition.pop("version")
         condition_parameters = condition.get("parameters") if isinstance(condition.get("parameters"), dict) else {}
         condition.pop("parameters", None)
         if condition.get("library") == "technical" and isinstance(condition.get("program"), dict):
@@ -641,6 +704,9 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
                 condition.pop("implementation_version", None)
         elif condition.get("library") == "technical" and not condition.get("program"):
             condition["expression"] = condition.get("expression") or {"draft_parameters": condition_parameters}
+        elif condition.get("library") == "fundamentals":
+            condition.setdefault("implementation_id", INDUSTRY_VALUATION_IMPLEMENTATION)
+            condition.setdefault("implementation_version", INDUSTRY_VALUATION_IMPLEMENTATION)
         normalized_conditions.append(condition)
     candidate["conditions"] = normalized_conditions
     scope = candidate.get("scope") if isinstance(candidate.get("scope"), dict) else {}
@@ -648,7 +714,7 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
     if not isinstance(price_basis, str) or price_basis == "unknown":
         price_basis = market.PRICE_BASIS
     candidate["scope"] = {
-        "universe": scope.get("universe"),
+        "universe": _normalize_universe(scope),
         "as_of": scope.get("as_of"),
         "report_lookback_calendar_days": scope.get("report_lookback_calendar_days"),
         "news_lookback_calendar_days": scope.get("news_lookback_calendar_days"),
@@ -686,7 +752,7 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
             raise ValueError("组合逻辑节点必须是对象，不能忽略损坏的条件")
         if set(node) - {"op", "type", "operator", "children", "reference_id", "condition_id"}:
             raise ValueError("组合逻辑包含无法识别的字段，请使用明确的 all、any、not 结构")
-        aliases = {"all": "all", "and": "all", "any": "any", "or": "any", "not": "not", "condition": "condition"}
+        aliases = {"all": "all", "and": "all", "any": "any", "or": "any", "not": "not", "condition": "condition", "ref": "condition"}
         operators = [node[key] for key in ("op", "type", "operator") if key in node]
         if any(not isinstance(value, str) or value.lower() not in aliases for value in operators):
             raise ValueError("无法识别组合逻辑运算符，不能替换为默认关系")
@@ -736,17 +802,57 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
 
 
 def _screening_date_intent_text(content: str) -> str:
-    """Do not interpret a saved indicator's quoted name as a new cutoff.
-
-    This applies only to the explicit My Indicators handoff template. Keep all
-    free-form user additions so an appended historical/latest-date change still
-    wins under the existing date rules; original messages remain untouched.
-    """
+    """Keep the original request and remove generated indicator metadata for cutoff matching."""
     if "build_indicator_condition" not in content or "沿用已有选股方案的股票范围与截止日期" not in content:
         return content
     value = re.sub(r'^请将我已保存的指标 [^\n]*的固定版本加入选股草稿：\s*$', '', content, flags=re.MULTILINE)
     value = re.sub(r'^(?:indicator_id|version|definition_hash|output|operator|threshold)=[^\n]*$', '', value, flags=re.MULTILINE)
     return re.sub(r'数值输出“[^\n]*?才构成布尔条件。', '', value, count=1)
+
+
+_DATE = r"20\d{2}[-/年]\d{1,2}[-/月]\d{1,2}日?"
+_CUTOFF_PREFIX = r"截至|截止(?:日期|日)?\s*(?:(?:改[为成到]|设为|设在|设定为|用|为|在|[:：])\s*)?|按|用|以"
+_EXPLICIT_CUTOFF = re.compile(rf"(?:{_CUTOFF_PREFIX})\s*({_DATE})(?!\d)|({_DATE})\s*(?:为截止|的行情|的收盘)")
+_LATEST_CUTOFF = re.compile(
+    r"(?:截至|截止(?:日期|日)?\s*(?:改[为成到]|设为|用|为|[:：])?\s*)(?:今天|现在|目前|最新)|"
+    r"(?:按|以|用|换成|改为|更新到)\s*(?:今天|最新)|(?:最新|最近一个|最近一)\s*(?:个)?(?:交易日|行情|收盘)|"
+    r"(?:今天|当日)\s*(?:的)?(?:日线|行情|收盘)|^(?:今天|最新)[。！!\s]*$"
+)
+_RELATIVE_CUTOFF = re.compile(r"(?:截至|截止(?:日期|日)?(?:改[为成到]|为|[:：])?)\s*(?:昨|上|本|去|今|\d)")
+_PERIOD_CONDITION = re.compile(r"(?:最近|近期|近(?:\d+|[一二三四五六七八九十]+)?(?:个)?(?:交易日|工作日|日|周|月|季度|年))")
+_REUSE_CUTOFF = re.compile(r"(?:沿用|继续用|保持|保留)(?:上次|原来|原有|原先|原|已有|当前|之前|先前)?(?:的)?(?:股票范围(?:与|和|及|、))?(?:行情)?(?:截止日期|截止日|日期)|(?:日期|截止日)(?:沿用|不变)")
+_WORKBENCH_CUTOFF = re.compile(r"行情截止日期以界面设置为准：(" + _DATE + r")|默认使用(" + _DATE + r")的行情")
+
+
+def _screening_cutoff(conversation_id: str, base_revision: int, content: str, proposed: str | None) -> str | None:
+    user_text, _, workbench = content.partition(WORKBENCH_MARKER)
+    user_text = re.sub(r'“[^”]*”|「[^」]*」|『[^』]*』|"[^"\n]*"|`[^`\n]*`', '', _screening_date_intent_text(user_text))
+    interface_date = _WORKBENCH_CUTOFF.search(workbench)
+    explicit = _EXPLICIT_CUTOFF.findall(user_text)
+    fixed = interface_date.group(1) if interface_date else None
+    if not fixed and explicit:
+        prefixed_date, suffixed_date = explicit[-1]
+        fixed = prefixed_date or suffixed_date
+    if fixed:
+        try:
+            return date(*map(int, re.findall(r"\d+", fixed))).isoformat()
+        except ValueError as exc:
+            raise ToolDispatchError("invalid_screening_cutoff", "筛选截止日无效，请核对年月日。") from exc
+    latest = _LATEST_CUTOFF.search(user_text)
+    reuse = _REUSE_CUTOFF.search(user_text)
+    if latest and (reuse is None or latest.start() > reuse.start()):
+        return market.latest_market_date(datetime.now(news_sources.LOCAL_ZONE).date().isoformat())
+    if _RELATIVE_CUTOFF.search(user_text):
+        return proposed
+    if base_revision:
+        previous = conversation_store.get_task_revision(conversation_id, base_revision).scope.as_of
+        if previous:
+            return previous.isoformat()
+    if interface_date:
+        return interface_date.group(2)
+    if starts_screening(user_text) or _PERIOD_CONDITION.search(user_text):
+        return market.latest_market_date(datetime.now(news_sources.LOCAL_ZONE).date().isoformat())
+    return None
 
 
 def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
@@ -765,63 +871,44 @@ def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, A
                     "suggestion": "需要 screen(context, frames, params) 及明确的历史长度、字段和参数。",
                 })
     raw["unresolved"] = unsupported
+    current_user = _current_turn_user_message(context)
+    _require_screening_write_request(current_user)
     try:
         conversation = conversation_store.get_conversation(context.conversation_id, message_limit=100)
         base_revision = conversation["task_revision"]
-        current_user = _current_turn_user_message(context)
-        raw = _normalize_task_shape(raw, fallback_quote=current_user["content"])
-        user_text = re.sub(r"\s+", "", current_user["content"])
+        user_request = current_user["content"].partition(WORKBENCH_MARKER)[0]
+        user_messages = [item["content"].partition(WORKBENCH_MARKER)[0] for item in conversation["messages"] if item["role"] == "user"]
+        if user_request not in user_messages:
+            user_messages.append(user_request)
+        normalized_messages = [re.sub(r"\s+", "", message) for message in user_messages]
+        raw = _normalize_task_shape(raw, fallback_quote=user_request[:1000])
         for condition in raw.get("conditions", []):
             if isinstance(condition, dict):
                 quote = re.sub(r"\s+", "", str(condition.get("source_quote") or ""))
-                if not quote or quote not in user_text:
-                    condition["source_quote"] = current_user["content"]
+                if not quote or not any(quote in message for message in normalized_messages):
+                    condition["source_quote"] = user_request[:2000]
         for reference in raw.get("references", []):
             if isinstance(reference, dict) and reference.get("source_quote"):
                 quote = re.sub(r"\s+", "", str(reference["source_quote"]))
-                if quote not in user_text:
-                    reference["source_quote"] = current_user["content"]
-        date_intent_text = _screening_date_intent_text(current_user["content"])
+                if not any(quote in message for message in normalized_messages):
+                    reference["source_quote"] = user_request[:2000]
+        date_intent_text = _screening_date_intent_text(user_request)
         board_match = re.search(r"科创板|创业板|北交所|主板", date_intent_text)
         if board_match:
             unresolved = raw.setdefault("unresolved", [])
             if not any(
-                isinstance(item, dict) and item.get("kind") == "clarification" and item.get("source_quote") == current_user["content"]
+                isinstance(item, dict) and item.get("kind") == "clarification" and item.get("source_quote") == user_request[:1000]
                 for item in unresolved
             ):
                 unresolved.append({
                     "kind": "clarification",
-                    "source_quote": current_user["content"],
+                    "source_quote": user_request[:1000],
                     "question": "当前股票范围合同没有可直接执行的板块字段；请改为指定证券或提供可冻结的股票池。",
                     "suggestion": "不会把板块要求静默扩大为全部A股。",
                 })
         scope = raw.get("scope") if isinstance(raw.get("scope"), dict) else {}
-        explicit_date = re.search(
-            r"20\d{2}[-/]\d{1,2}[-/]\d{1,2}|20\d{2}年\d{1,2}月\d{1,2}日",
-            date_intent_text,
-        )
-        relative_date = re.search(
-            r"最近|近期|近(?:\d+|[一二三四五六七八九十]+)?(?:个)?(?:交易日|工作日|日|周|月|季度|年)|最新|当前|今天|现在|截至目前|至今",
-            date_intent_text,
-        )
-        if relative_date:
-            local_today = datetime.now(news_sources.LOCAL_ZONE).date().isoformat()
-            scope["as_of"] = market.latest_market_date(local_today)
-        elif not explicit_date:
-            if base_revision:
-                try:
-                    previous = conversation_store.get_task_revision(context.conversation_id, base_revision)
-                    scope["as_of"] = previous.scope.as_of.isoformat() if previous.scope.as_of else None
-                except conversation_store.ConversationNotFound:
-                    scope["as_of"] = None
-            else:
-                scope["as_of"] = None
+        scope["as_of"] = _screening_cutoff(context.conversation_id, base_revision, current_user["content"], scope.get("as_of"))
         raw["scope"] = scope
-        user_messages = [
-            item["content"] for item in conversation["messages"] if item["role"] == "user"
-        ]
-        if current_user["content"] not in user_messages:
-            user_messages.append(current_user["content"])
         candidate_data = dict(raw)
         candidate_data["task_id"] = context.conversation_id
         candidate_data["revision"] = base_revision + 1
@@ -834,6 +921,8 @@ def _propose_screening_task(args: ToolArgs, context: ToolContext) -> dict[str, A
             candidate,
             turn_id=context.turn_id,
         )
+    except ToolDispatchError:
+        raise
     except (conversation_store.ConversationNotFound, conversation_store.ConversationConflict,
             conversation_store.ConversationStoreError) as exc:
         raise ToolDispatchError("task_revision_conflict", str(exc)) from exc
@@ -856,7 +945,7 @@ def _authorize_screening_execution(args: ToolArgs, context: ToolContext) -> dict
     message = _current_turn_user_message(context)
     # The server checks the user's actual message; the model cannot mint an
     # execution grant from a tool argument alone.
-    if not requests_execution(message["content"]):
+    if not message_requests_execution(message):
         raise ToolDispatchError("execution_not_explicit", "当前消息没有明确执行要求，或包含否定执行。请核对要求；用户也可从当前方案直接启动筛选。")
     task = None
     try:
@@ -872,6 +961,8 @@ def _authorize_screening_execution(args: ToolArgs, context: ToolContext) -> dict
     gap = None
     try:
         validate_executable_task(task)
+        if task.scope.as_of is None:
+            raise ValueError("执行前必须确定数据截止日")
     except ValueError as exc:
         gap = str(exc)
     return {
@@ -896,8 +987,8 @@ def _revoke_screening_execution(args: ToolArgs, context: ToolContext) -> dict[st
 
 
 def _save_screening_plan(args: ToolArgs, context: ToolContext) -> dict[str, Any]:
-    from .execution_policy import requests_plan_save
     message = _current_turn_user_message(context)
+    _require_screening_write_request(message)
     if not requests_plan_save(message["content"]):
         raise ToolDispatchError("plan_save_not_requested", "本轮用户未要求存入方案库。生成方案和执行筛选不会自动保存为可复用方案；继续交付筛选结果即可。")
     task = conversation_store.get_task_revision(context.conversation_id, args.revision)
@@ -1247,6 +1338,8 @@ def _register_default_tools(registry: ToolRegistry) -> None:
     registry.register("describe_capabilities", "List service capabilities, source coverage, units, and unavailable reasons.", DescribeCapabilitiesArgs, _describe_capabilities)
     registry.register("get_market_coverage", "Read the market watermark, fields, units, and source identity.", EmptyToolArgs, _market_coverage)
     registry.register("search_securities", "Search securities within the fixed date and universe context.", SearchSecuritiesArgs, _search_securities, "market.security_search")
+    registry.register("search_screening_industries", "Find canonical Shenwan industry names and codes for an industry valuation condition.",
+                      SearchScreeningIndustriesArgs, _search_screening_industries, "fundamentals.shenwan_valuation", open_world=True)
     registry.register("read_market_window", "Read up to 500 ordered daily bars for one security inside the fixed task scope.", ReadMarketWindowArgs, _read_market_window, "market.daily_bars")
     registry.register("search_report_pages", "Find local report page text by relevance; smart uses lexical expansion, exact requires all keywords on one page. Read originals to verify claims.", SearchReportPagesArgs, _search_report_pages, "report.page_search")
     registry.register("read_report_page", "Read one page with availability and security-binding status.", ReadReportPageArgs, _read_report_page, "report.page_search")

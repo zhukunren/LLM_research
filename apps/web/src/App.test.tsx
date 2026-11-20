@@ -18,7 +18,7 @@ const assistants = [
 beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => window.history.replaceState(null, '', '/'))
 
-it('opens dedicated screening workspaces without executing and restores their independent form drafts', async () => {
+it('restores drafts from legacy screening links without executing', async () => {
   window.history.replaceState(null, '', '#/screening/method/news')
   const fetcher = vi.fn(async (input: RequestInfo | URL) => {
     const path = new URL(String(input), 'http://localhost').pathname
@@ -33,13 +33,12 @@ it('opens dedicated screening workspaces without executing and restores their in
   await user.selectOptions(screen.getByLabelText('选股股票范围'), 'pool-1')
   fireEvent.change(screen.getByLabelText('资讯发布窗口天数'), { target: { value: '90' } })
   fireEvent.change(screen.getByLabelText('选股截止日期'), { target: { value: '2026-10-15' } })
-  await user.click(screen.getByRole('button', { name: '开始选股' }))
-  await user.click(within(await screen.findByRole('region', { name: '选择选股方式' })).getByRole('button', { name: /研报选股/ }))
+  const openLegacy = (hash: string) => act(() => { window.history.pushState(null, '', hash); window.dispatchEvent(new HashChangeEvent('hashchange')) })
+  openLegacy('#/screening/method/report')
   await waitFor(() => expect(window.location.hash).toBe('#/screening/method/report'))
-  expect(screen.getByLabelText('专用选股要求')).toHaveValue('')
-  await user.click(screen.getByRole('button', { name: '开始选股' }))
-  await user.click(within(await screen.findByRole('region', { name: '选择选股方式' })).getByRole('button', { name: /资讯选股/ }))
-  expect(screen.getByLabelText('专用选股要求')).toHaveValue('近30日实际实施回购')
+  await waitFor(() => expect(screen.getByLabelText('专用选股要求')).toHaveValue(''))
+  openLegacy('#/screening/method/news')
+  await waitFor(() => expect(screen.getByLabelText('专用选股要求')).toHaveValue('近30日实际实施回购'))
   view.unmount()
   render(<App />)
   await waitFor(() => expect(screen.getByLabelText('专用选股要求')).toBeEnabled())
@@ -68,42 +67,44 @@ it('keeps mobile navigation open when a late conversation load only publishes it
   expect(screen.getByRole('dialog', { name: '工作导航' })).toBeInTheDocument()
 })
 
-it('switches whole sidebars while preserving independent drafts and shared-page context across reload', async () => {
+it('switches research task types with stable navigation and independent drafts across reload', async () => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ items: [] })))
   vi.stubGlobal('fetch', fetcher)
   const user = userEvent.setup(), view = render(<App />)
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
   await user.type(screen.getByLabelText('研究要求'), '研究公司订单兑现情况')
-  expect(screen.queryByRole('button', { name: '我的方案' })).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '切换到选股' }))
+  expect(screen.queryByRole('button', { name: '管理方案' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '选股对话' }))
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
   expect(screen.queryByRole('button', { name: '研究项目' })).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: '我的方案' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '选股工具' })).toHaveAttribute('aria-expanded', 'false')
   await user.type(screen.getByLabelText('选股要求'), '收盘价高于20日均线')
-  await user.click(screen.getByRole('button', { name: '切换到研究' }))
+  await user.click(screen.getByRole('button', { name: '研究对话' }))
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('研究公司订单兑现情况'))
-  await user.click(screen.getByRole('button', { name: '切换到选股' }))
+  await user.click(screen.getByRole('button', { name: '选股对话' }))
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toHaveValue('收盘价高于20日均线'))
   await user.click(screen.getByRole('button', { name: '资料库' }))
   expect(window.location.hash).toBe('#/library?type=news&workspace=screening')
   view.unmount(); render(<App />)
-  expect(screen.getByRole('button', { name: '切换到选股' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.queryByRole('group', { name: '研究任务类型' })).not.toBeInTheDocument()
+  expect(screen.getByRole('navigation', { name: '选股工具' })).toBeVisible()
+  await user.click(screen.getByRole('tab', { name: '新选股' }))
+  await waitFor(() => expect(screen.getByLabelText('选股要求')).toHaveValue('收盘价高于20日均线'))
   expect(screen.queryByRole('button', { name: '研究助手' })).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '切换到研究' }))
+  await user.click(screen.getByRole('button', { name: '研究对话' }))
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('研究公司订单兑现情况'))
   expect(fetcher.mock.calls.every(call => !(call as unknown as [unknown, RequestInit])[1]?.method)).toBe(true)
 })
 
-vi.mock('./pages/ResearchProjectsPage', () => ({ default: ({ onOpenConversation, initialProjectId, onLocationChange }: { onOpenConversation: (id: string, scope: 'screening') => void; initialProjectId?: string; onLocationChange: (id: string, userNavigation?: boolean) => void }) => <><p>项目定位：{initialProjectId || '目录'}</p><button onClick={() => onOpenConversation('one', 'screening')}>打开项目对话</button><button onClick={() => onLocationChange(initialProjectId || 'project-one', false)}>发布项目定位</button></> }))
 vi.mock('./pages/LibraryWorkspace', () => ({ default: () => <h1>资料阅读</h1> }))
-vi.mock('./pages/ObservationPage', () => ({ default: ({ initialRunId, initialCandidateId, onLocationChange }: { initialRunId?: string; initialCandidateId?: string; onLocationChange: (tab: 'candidates' | 'batches', id: string) => void }) => <><h1>观察定位：{initialRunId || initialCandidateId || '目录'}</h1><button onClick={() => onLocationChange('candidates', 'candidate-two')}>选择第二候选</button><button onClick={() => onLocationChange('batches', 'run-two')}>选择第二批次</button></> }))
+vi.mock('./pages/ObservationPage', () => ({ default: ({ initialRunId, initialCandidateId, onLocationChange }: { initialRunId?: string; initialCandidateId?: string; onLocationChange: (tab: 'candidates' | 'batches', id: string, userNavigation?: boolean) => void }) => <><h1>观察定位：{initialRunId || initialCandidateId || '目录'}</h1><button onClick={() => onLocationChange('candidates', 'candidate-two')}>选择第二候选</button><button onClick={() => onLocationChange('batches', 'run-two')}>选择第二批次</button><button onClick={() => onLocationChange('candidates', 'candidate-one', false)}>发布观察定位</button></> }))
 vi.mock('./pages/WorkbenchPage', async () => {
   const { default: Workspace } = await import('./components/conversation/ConversationWorkspace')
   return { default: ({ screeningMethod, onScreeningMethod, conversationScope, data, conversationId, conversationPrompt, onPromptConsumed, newResearchKey, onNewResearchConsumed, conversationWorkflowType, workflowOnly, onLocationChange, conversationNewDraft, onOpenDataServices }: ComponentProps<typeof import('./pages/WorkbenchPage').default>) => <Workspace screeningMethod={screeningMethod} onScreeningMethod={onScreeningMethod} initialScope={conversationScope} data={data} onOpenDataServices={onOpenDataServices} initialWorkflowType={workflowOnly ? 'screening' : conversationWorkflowType} initialConversationId={conversationId} initialNewDraft={conversationNewDraft} initialPrompt={conversationPrompt} onPromptConsumed={onPromptConsumed} newResearchKey={newResearchKey} onNewResearchConsumed={onNewResearchConsumed} onLocationChange={onLocationChange} /> }
 })
 
-it('opens research by default and moves projects and optional tools into the sidebar without starting jobs', async () => {
+it('opens research by default with shared tools and without a project entry', async () => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   const fetcher = vi.fn(async () => new Response(JSON.stringify({ items: [] })))
   vi.stubGlobal('fetch', fetcher)
@@ -118,25 +119,22 @@ it('opens research by default and moves projects and optional tools into the sid
   expect(menu.getByRole('button', { name: '观察池' })).toBeInTheDocument()
   expect(menu.queryByRole('button', { name: '研究助手' })).not.toBeInTheDocument()
   expect(menu.queryByRole('button', { name: '情报台' })).not.toBeInTheDocument()
-  await user.click(menu.getByRole('button', { name: '研究项目' }))
-  expect(await screen.findByRole('button', { name: '打开项目对话' })).toBeInTheDocument()
+  expect(menu.queryByRole('button', { name: '研究项目' })).not.toBeInTheDocument()
   expect(menu.getByRole('button', { name: '资料库' })).toBeInTheDocument()
   expect(menu.queryByRole('button', { name: '内置指标参考' })).not.toBeInTheDocument()
   expect(menu.queryByRole('button', { name: '内置指标参考', hidden: true })).not.toBeInTheDocument()
   expect(menu.queryByRole('button', { name: '高级工具' })).not.toBeInTheDocument()
   await user.click(menu.getByRole('button', { name: '资料库' }))
   await screen.findByRole('heading', { name: '资料阅读' })
-  await user.click(menu.getByRole('button', { name: '研究项目' }))
-  expect(window.location.hash).toBe('#/projects')
+  expect(window.location.hash).toBe('#/library?type=news')
   view.unmount()
   render(<App />)
-  expect(await screen.findByRole('button', { name: '打开项目对话' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: '资料阅读' })).toBeInTheDocument()
   expect(fetcher.mock.calls.every(call => !(call as unknown as [unknown, RequestInit])[1]?.method)).toBe(true)
 })
 it('opens a saved screening conversation in condition screening instead of the research assistant', async () => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-  sessionStorage.setItem('app.page', JSON.stringify('research'))
-  window.history.replaceState(null, '', '#/projects')
+  window.history.replaceState(null, '', '#/research/new')
   const date = '2026-10-04T08:00:00Z'
   const stored = { id: 'one', task_id: 'one', entry_scope: 'screening', workflow_type: 'screening', research_depth: 'standard', task_revision: 0, pending_execution: false, active_run_id: null, state: 'active', messages: [], turns: [], created_at: date, updated_at: date }
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
@@ -145,11 +143,20 @@ it('opens a saved screening conversation in condition screening instead of the r
   }))
   const user = userEvent.setup()
   render(<App />)
-  await user.click(await screen.findByRole('button', { name: '打开项目对话' }))
+  await user.click(await screen.findByRole('button', { name: '继续选股：订单选股' }))
   expect(await screen.findByRole('heading', { name: '选股对话' }, { timeout: 5000 })).toBeInTheDocument()
-  expect(await screen.findByRole('button', { name: '开始选股' })).toHaveAttribute('aria-current', 'page')
+  expect(screen.queryByRole('group', { name: '研究任务类型' })).not.toBeInTheDocument()
   expect(screen.getByLabelText('选股要求')).toBeInTheDocument()
   expect(screen.queryByLabelText('研究要求')).not.toBeInTheDocument()
+  const savedTab = screen.getByRole('tab', { selected: true })
+  await user.click(screen.getByRole('tab', { name: '新研究' }))
+  await user.click(await screen.findByRole('button', { name: '选股对话' }))
+  await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
+  expect(window.location.hash).toBe('#/screening/new')
+  expect(screen.getByRole('button', { name: '选股对话' })).toHaveAttribute('aria-pressed', 'true')
+  await user.click(savedTab)
+  expect(window.location.hash).toBe('#/screening/one')
+  expect(screen.queryByRole('group', { name: '研究任务类型' })).not.toBeInTheDocument()
 })
 
 it('restores a legacy home question and consumes explicit new research only once across navigation', async () => {
@@ -170,25 +177,24 @@ it('restores a legacy home question and consumes explicit new research only once
   await user.click(screen.getByRole('button', { name: '继续未发送的问题' }))
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('核对订单的实际兑现情况'))
   await user.keyboard('{Control>}k{/Control}')
-  const search = await screen.findByRole('combobox', { name: '搜索页面、项目或对话' })
+  const search = await screen.findByRole('combobox', { name: '搜索页面或对话' })
   await user.type(search, '开始新研究')
   await user.keyboard('{Enter}')
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue(''))
   await user.type(screen.getByLabelText('研究要求'), '新的待完成草稿')
-  await user.click(screen.getByRole('button', { name: '研究项目' }))
-  await screen.findByRole('button', { name: '打开项目对话' })
+  await user.click(screen.getByRole('button', { name: '资料库' }))
+  await screen.findByRole('heading', { name: '资料阅读' })
   await user.click(screen.getAllByRole('tab', { name: '新研究' }).at(-1)!)
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
   expect(screen.getByLabelText('研究要求')).toHaveValue('新的待完成草稿')
   expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
 })
 
-it('returns to the chosen conversation and then an unsent draft after opening a project conversation', async () => {
+it('opens a conversation with an old project association and restores an unsent draft', async () => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-  sessionStorage.setItem('app.page', JSON.stringify('research'))
-  window.history.replaceState(null, '', '#/projects')
+  window.history.replaceState(null, '', '#/research/new')
   const date = '2026-10-03T08:00:00Z'
-  const conversations = ['one', 'two'].map(id => ({ id, task_id: id, entry_scope: 'screening', research_mode: 'research', task_revision: 0, active_run_id: null, pending_execution: false, state: 'active', messages: [{ id: id + '-m', role: 'user', content: '研究' + id, source_refs: [], created_at: date }], turns: [], created_at: date, updated_at: date }))
+  const conversations = ['one', 'two'].map(id => ({ id, task_id: id, entry_scope: 'screening', project_id: 'old-project', research_mode: 'research', task_revision: 0, active_run_id: null, pending_execution: false, state: 'active', messages: [{ id: id + '-m', role: 'user', content: '研究' + id, source_refs: [], created_at: date }], turns: [], created_at: date, updated_at: date }))
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), 'http://localhost')
     const response = url.pathname.endsWith('/data/status') ? { available: true, last_date: '2026-09-28' }
@@ -199,7 +205,7 @@ it('returns to the chosen conversation and then an unsent draft after opening a 
   }))
   const user = userEvent.setup()
   render(<App />)
-  await user.click(await screen.findByRole('button', { name: '打开项目对话' }))
+  await user.click(await screen.findByRole('button', { name: '继续研究：研究one' }))
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('研究one'))
   await user.click(await screen.findByRole('button', { name: '继续研究：研究two' }))
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('研究two'))
@@ -208,7 +214,7 @@ it('returns to the chosen conversation and then an unsent draft after opening a 
   await user.click(screen.getByRole('button', { name: '继续研究：研究two' }))
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('研究two'))
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
-  await user.click(screen.getByRole('button', { name: '开始新研究' }))
+  await user.click(screen.getByRole('button', { name: '新建任务' }))
   await user.type(screen.getByLabelText('研究要求'), '尚未发送的研究草稿')
   await user.click(screen.getByRole('button', { name: '资料库' }))
   await screen.findByRole('heading', { name: '资料阅读' })
@@ -339,19 +345,16 @@ it('canonicalizes a bookmarked conversation to its actual saved workflow before 
   expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
 })
 
-it('restores project and conversation objects through browser history', async () => {
-  window.history.replaceState(null, '', '#/projects/project-one')
+it.each(['#/projects', '#/projects/project-one'])('opens a research draft from the retired bookmark %s', async origin => {
+  window.history.replaceState(null, '', origin)
   const fetcher = stubRouteApi()
-  const user = userEvent.setup()
+  const historyLength = window.history.length
   render(<App />)
-  expect(await screen.findByText('项目定位：project-one')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '打开项目对话' }))
-  await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 one'))
-  act(() => window.history.back())
-  expect(await screen.findByText('项目定位：project-one')).toBeInTheDocument()
-  act(() => window.history.forward())
-  await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 one'))
-  expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
+  await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
+  expect(window.location.hash).toBe('#/research/new')
+  expect(window.history.length).toBe(historyLength)
+  expect(screen.queryByRole('button', { name: '研究项目' })).not.toBeInTheDocument()
+  expect(fetcher.mock.calls.every(([input, options]) => !String(input).includes('/research-projects') && (!options?.method || options.method === 'GET'))).toBe(true)
 })
 
 it.each([['candidates', 'candidate-one'], ['batches', 'run-one']])('opens, selects and restores a bookmarked observation %s', async (kind, id) => {
@@ -391,7 +394,7 @@ it.each([['research', '研究要求'], ['screening', '选股要求']])('preserve
   await screen.findByRole('heading', { name: '资料阅读' })
   act(() => window.history.back())
   await waitFor(() => expect(screen.getByLabelText(inputLabel)).toHaveValue('已有未发送的研究草稿'))
-  await user.click(screen.getByRole('button', { name: workflow === 'research' ? '开始新研究' : '开始选股' }))
+  await user.click(screen.getByRole('button', { name: '新建任务' }))
   await waitFor(() => expect(screen.getByLabelText(inputLabel)).toHaveValue(''))
   await user.type(screen.getByLabelText(inputLabel), '刷新后继续的草稿')
   view.unmount()
@@ -435,39 +438,33 @@ it('publishes the new conversation URL after an explicit message without restart
   await user.click(screen.getByRole('button', { name: '发送' }))
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('核对完成的研究答复'))
   expect(window.location.hash).toBe('#/research/new-one')
+  expect(screen.queryByRole('group', { name: '研究任务类型' })).not.toBeInTheDocument()
   expect(writes.filter(item => item.path.endsWith('/messages'))).toHaveLength(1)
   expect(writes.filter(item => item.path.endsWith('/process'))).toHaveLength(1)
   expect(writes.filter(item => item.path === '/api/v1/conversations')).toHaveLength(1)
   expect(writes.some(item => item.path.endsWith('/execute'))).toBe(false)
 })
 
-it.each(['project', 'candidate', 'batch'])('keeps newer %s navigation after a slow sidebar conversation lookup completes', async target => {
-  window.history.replaceState(null, '', target === 'project' ? '#/projects/project-one' : '#/observation')
+it.each(['candidate', 'batch'])('keeps newer %s navigation after a slow sidebar conversation lookup completes', async target => {
+  window.history.replaceState(null, '', '#/observation')
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   let finish!: (response: Response) => void
   const pending = new Promise<Response>(resolve => { finish = resolve })
   const fetcher = vi.fn(async (input: RequestInfo | URL) => {
     const path = new URL(String(input), 'http://localhost').pathname
     if (path === '/api/v1/conversations/slow') return pending
-    const result = path === '/api/v1/conversations' ? { items: [{ ...conversationResponse('slow'), title: '慢速研究' }] }
-      : path === '/api/v1/research-projects' ? { items: [{ id: 'project-two', name: '第二项目', objective: '', status: 'active' }] }
-        : { items: [] }
+    const result = path === '/api/v1/conversations' ? { items: [{ ...conversationResponse('slow'), title: '慢速研究' }] } : { items: [] }
     return new Response(JSON.stringify(result))
   })
   vi.stubGlobal('fetch', fetcher)
   const user = userEvent.setup()
   render(<App />)
   await user.click(await screen.findByRole('button', { name: '继续研究：慢速研究' }))
+  expect(screen.getByRole('button', { name: '继续研究：慢速研究' })).toHaveAttribute('aria-busy', 'true')
+  expect(screen.getByText('正在打开…')).toBeVisible()
   await waitFor(() => expect(fetcher.mock.calls.some(([input]) => String(input).endsWith('/conversations/slow'))).toBe(true))
-  if (target === 'project') {
-    await user.keyboard('{Control>}k{/Control}')
-    await user.type(await screen.findByRole('combobox', { name: '搜索页面、项目或对话' }), '第二项目')
-    await user.click(await screen.findByRole('option', { name: /第二项目/ }))
-    await screen.findByText('项目定位：project-two')
-  } else {
-    await user.click(await screen.findByRole('button', { name: target === 'candidate' ? '选择第二候选' : '选择第二批次' }))
-    await screen.findByRole('heading', { name: `观察定位：${target === 'candidate' ? 'candidate-two' : 'run-two'}` })
-  }
+  await user.click(await screen.findByRole('button', { name: target === 'candidate' ? '选择第二候选' : '选择第二批次' }))
+  await screen.findByRole('heading', { name: `观察定位：${target === 'candidate' ? 'candidate-two' : 'run-two'}` })
   const expectedHash = window.location.hash
   await act(async () => { finish(new Response(JSON.stringify(conversationResponse('slow')))); await pending })
   expect(window.location.hash).toBe(expectedHash)
@@ -475,8 +472,8 @@ it.each(['project', 'candidate', 'batch'])('keeps newer %s navigation after a sl
 })
 
 
-it('allows a pending sidebar resume to complete after automatic project location publication', async () => {
-  window.history.replaceState(null, '', '#/projects/project-one')
+it('allows a pending sidebar resume to complete after automatic observation location publication', async () => {
+  window.history.replaceState(null, '', '#/observation')
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   let finish!: (response: Response) => void
   let resumed = false
@@ -492,7 +489,7 @@ it('allows a pending sidebar resume to complete after automatic project location
   const user = userEvent.setup()
   render(<App />)
   await user.click(await screen.findByRole('button', { name: '继续研究：慢速研究' }))
-  await user.click(await screen.findByRole('button', { name: '发布项目定位' }))
+  await user.click(await screen.findByRole('button', { name: '发布观察定位' }))
   await act(async () => { finish(new Response(JSON.stringify(conversationResponse('slow')))); await pending })
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 slow'))
   expect(window.location.hash).toBe('#/research/slow')
@@ -507,22 +504,25 @@ it.each(['#/research/existing', '#/screening/previous', '#/screening/new', '#/sc
   if (origin.includes('/research/')) await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 existing'))
   else if (origin.endsWith('/previous')) await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 previous'))
   else await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
-  if (origin.includes('/research/')) await user.click(screen.getByRole('button', { name: '切换到选股' }))
   const menu = within(screen.getByRole('navigation', { name: '主菜单' }))
-  await user.click(menu.getByRole('button', { name: '开始选股' }))
+  if (origin.includes('/research/')) {
+    await user.click(menu.getByRole('button', { name: '新建任务' }))
+    await user.click(await screen.findByRole('button', { name: '选股对话' }))
+  }
+  await user.click(menu.getByRole('button', { name: '新建任务' }))
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toHaveValue(''))
   expect(window.location.hash).toBe('#/screening/new')
   expect(screen.queryByLabelText('研究要求')).not.toBeInTheDocument()
   expect(screen.getByRole('log')).not.toHaveTextContent('已有研究')
   expect(JSON.parse(sessionStorage.getItem('conversation.drafts') || '{}')['research:screening:new']).toBe('保留研究草稿')
   await user.type(screen.getByLabelText('选股要求'), '另一份选股草稿')
-  await user.click(menu.getByRole('button', { name: '开始选股' }))
+  await user.click(menu.getByRole('button', { name: '新建任务' }))
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toHaveValue(''))
   expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
 })
 
 it('keeps the new screening draft when an older research resume resolves late', async () => {
-  window.history.replaceState(null, '', '#/projects')
+  window.history.replaceState(null, '', '#/library?type=news')
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   let finish!: (response: Response) => void
   const pending = new Promise<Response>(resolve => { finish = resolve })
@@ -535,8 +535,9 @@ it('keeps the new screening draft when an older research resume resolves late', 
   const user = userEvent.setup()
   render(<App />)
   await user.click(await screen.findByRole('button', { name: '继续研究：慢速研究' }))
-  await user.click(screen.getByRole('button', { name: '切换到选股' }))
-  await user.click(within(screen.getByRole('navigation', { name: '主菜单' })).getByRole('button', { name: '开始选股' }))
+  expect(screen.queryByRole('group', { name: '研究任务类型' })).not.toBeInTheDocument()
+  await user.click(within(screen.getByRole('navigation', { name: '主菜单' })).getByRole('button', { name: '新建任务' }))
+  await user.click(await screen.findByRole('button', { name: '选股对话' }))
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
   await act(async () => { finish(new Response(JSON.stringify(conversationResponse('slow')))); await pending })
   expect(window.location.hash).toBe('#/screening/new')
@@ -551,13 +552,11 @@ it('starts screening from the mobile navigation and closes the navigation dialog
   const fetcher = stubRouteApi(), user = userEvent.setup()
   render(<App />)
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 existing'))
+  expect(screen.queryByRole('group', { name: '研究任务类型' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '打开工作导航' }))
-  const navigation = within(screen.getByRole('dialog', { name: '工作导航' }))
-  await user.click(navigation.getByRole('button', { name: '切换到选股' }))
-  await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
+  await user.click(within(screen.getByRole('dialog', { name: '工作导航' })).getByRole('button', { name: '新建任务' }))
   expect(screen.queryByRole('dialog', { name: '工作导航' })).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '打开工作导航' }))
-  await user.click(within(screen.getByRole('dialog', { name: '工作导航' })).getByRole('button', { name: '开始选股' }))
+  await user.click(await screen.findByRole('button', { name: '选股对话' }))
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
   expect(screen.queryByRole('dialog', { name: '工作导航' })).not.toBeInTheDocument()
   expect(window.location.hash).toBe('#/screening/new')
@@ -621,6 +620,6 @@ it('hands a pinned numeric indicator from research to an unsent screening draft 
   expect((screen.getByLabelText('选股要求') as HTMLTextAreaElement).value).toContain('build_indicator_condition')
   expect(window.location.hash).toContain('#/screening/new')
   expect(fetcher.mock.calls.every(call => !/messages|screening-runs|execute/.test(String(call[0])))).toBe(true)
-  await user.click(screen.getByRole('button', { name: '切换到研究' }))
+  await user.click(screen.getByRole('button', { name: '研究对话' }))
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toHaveValue('继续分析订单改善'))
 })

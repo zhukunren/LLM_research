@@ -14,24 +14,25 @@ beforeEach(() => {
   }))
 })
 
-it.each(['research', 'screening'] as const)('opens an old indicator bookmark in the %s My Indicators drawer without submitting work', async workspace => {
+it.each(['research', 'screening'] as const)('opens an old indicator bookmark in the %s matching composer picker without submitting work', async workspace => {
   window.history.replaceState(null, '', '#/library/technical?workspace=' + workspace)
   let finishCatalog!: (response: Response) => void
   const catalog = new Promise<Response>(resolve => { finishCatalog = resolve })
   const defaultFetch = vi.mocked(fetch).getMockImplementation()!
   vi.mocked(fetch).mockImplementation((input, init) => String(input).includes('/security-catalog') ? catalog : defaultFetch(input, init))
   render(<StrictMode><SecuritiesProvider><App /></SecuritiesProvider></StrictMode>)
-  expect(await screen.findByRole('dialog', { name: '我的指标' }, { timeout: 5000 })).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: '常用指标预览' })).toBeInTheDocument()
+  const dialogName = workspace === 'research' ? '我的指标' : '引用方案'
+  expect(await screen.findByRole('dialog', { name: dialogName }, { timeout: 5000 })).toBeInTheDocument()
+  if (workspace === 'research') expect(screen.getByRole('region', { name: '常用指标预览' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: '内置指标参考' })).not.toBeInTheDocument()
   const label = workspace === 'research' ? '研究要求' : '选股要求'
   await waitFor(() => expect(screen.getByLabelText(label)).toBeEnabled())
   const composer = screen.getByLabelText(label)
   await act(async () => finishCatalog(new Response(JSON.stringify({ items: [{ stock_code: '600519.SH', name: '贵州茅台', market: 'SH' }, { stock_code: '000001.SH', name: '上证指数', market: '指数' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
   expect(screen.getByLabelText(label)).toBe(composer)
-  expect(screen.getByRole('dialog', { name: '我的指标' })).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: '关闭我的指标' }))
-  expect(screen.queryByRole('dialog', { name: '我的指标' })).not.toBeInTheDocument()
+  expect(screen.getByRole('dialog', { name: dialogName })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: workspace === 'research' ? '关闭我的指标' : '关闭引用方案' }))
+  expect(screen.queryByRole('dialog', { name: dialogName })).not.toBeInTheDocument()
   expect(screen.getByLabelText(label)).toHaveValue('')
   expect(vi.mocked(fetch).mock.calls.every(call => !call[1]?.method)).toBe(true)
 })
@@ -218,8 +219,8 @@ it('reopens recently closed independent drafts after reload without clearing the
 it('restores an edited seeded QMT draft without replaying the original prompt', async () => {
   const user = userEvent.setup()
   render(<App />)
-  await user.click(screen.getByRole('button', { name: '切换到选股' }))
-  await user.click(screen.getByRole('button', { name: '更多工具' }))
+  await user.click(screen.getByRole('button', { name: '选股对话' }))
+  await user.click(screen.getByRole('button', { name: '研究工具' }))
   await user.click(screen.getByRole('button', { name: 'QMT 脚本生成' }))
   await user.click(await screen.findByRole('button', { name: '均线交叉' }))
   await user.click(screen.getByRole('button', { name: '带入生成对话' }))

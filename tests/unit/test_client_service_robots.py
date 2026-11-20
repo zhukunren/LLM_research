@@ -132,17 +132,31 @@ def test_text_byte_limit_is_checked_without_truncating_customer_copy(setup, monk
     assert response.status_code == 422 and not calls
 
 
-def test_robot_text_always_includes_full_fixed_disclosure_for_legacy_cards():
+def test_robot_text_keeps_source_names_and_full_disclosure_without_links(setup, monkeypatch):
     from apps.api.app.client_service_contracts import default_settings
     from apps.api.app.client_service_disclosure import disclosure_lines
+
+    client, calls = setup
+    robot = create(client)
     template = default_settings().templates[2].model_dump()
-    card = {'service_date': '2026-11-16', 'template': template,
-            'content': {**template['content'], 'risk': '旧风险提示', 'adviser': '旧姓名', 'license': '', 'institution': ''},
-            'market': {'summary': '文案排版测试', 'metrics': [], 'sources': []}}
-    text = robots.card_text(card)
+    card = {'service_date': '2026-11-16', 'template': template, 'state': 'ready', 'revision': 0,
+            'content': {**template['content'], 'risk': '旧风险提示', 'adviser': '旧姓名', 'license': '', 'institution': '',
+                        'conclusion': '等待[公告](https://example.com/filing_(today))核对。'},
+            'market': {'summary': '文案排版测试（www.example.cn/market）。', 'metrics': [],
+                       'sources': [{'title': '交易所公告', 'url': 'https://example.com/report'},
+                                   {'title': 'https://example.net/only-a-url', 'url': 'https://example.net/only-a-url'}]}}
+    monkeypatch.setattr(service, 'detail', lambda _: card)
+    body = {'request_id': 'text-no-links', 'kind': 'text', 'card_id': '00000000-0000-4000-8000-000000000001', 'revision': 0}
+    response = client.post('/api/v1/client-service/robots/' + robot['id'] + '/send', json=body)
+    assert response.status_code == 200 and response.json()['state'] == 'sent'
+    text = calls[0][1]['json']['text']['content']
     assert text.endswith('\n'.join(disclosure_lines()))
     assert text.count('风险提示：') == 1
     assert '旧风险提示' not in text and '旧姓名' not in text
+    assert '等待公告核对。' in text and '文案排版测试。' in text
+    assert text.count('来源：') == 1 and '来源：交易所公告' in text
+    assert 'example.' not in text and 'http' not in text
+    assert card['market']['sources'][0]['url'] == 'https://example.com/report'
 
 
 def test_robot_data_is_isolated_between_workspaces(setup, tmp_path):

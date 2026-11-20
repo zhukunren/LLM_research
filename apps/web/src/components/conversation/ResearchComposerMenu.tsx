@@ -2,8 +2,9 @@ import LoadingState from '../LoadingState'
 import { useWorkspaceSession } from '../../WorkspaceSession'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { BookOpen, Bot, Check, ChevronDown, Paperclip, Plus, RefreshCw, X } from 'lucide-react'
+import { BookOpen, Bot, Check, ChevronDown, ChevronRight, Paperclip, Plus, RefreshCw, X } from 'lucide-react'
 import { api, type AssistantSelection, type ResearchAssistant } from '../../api'
+import ResearchMethodLibrary from './ResearchMethodLibrary'
 import { ATTACHMENT_ACCEPT } from './useConversationAttachments'
 import './composer-attachments.css'
 
@@ -19,6 +20,7 @@ export default function ResearchComposerMenu({ value, snapshot, disabled, showAs
   const [attempt, setAttempt] = useState(0)
   const [open, setOpen] = useState(false)
   const [submenu, setSubmenu] = useState(false)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const [position, setPosition] = useState<CSSProperties>({ left: 12, bottom: 84 })
   const trigger = useRef<HTMLButtonElement>(null)
   const methodTrigger = useRef<HTMLButtonElement>(null)
@@ -27,7 +29,13 @@ export default function ResearchComposerMenu({ value, snapshot, disabled, showAs
   const menuId = useId()
   const close = useCallback((focus = true) => { setOpen(false); setSubmenu(false); if (focus) (submenu ? methodTrigger : trigger).current?.focus() }, [submenu])
 
-  useEffect(() => { if (!workspaceSession.active) { setOpen(false); setSubmenu(false) } }, [workspaceSession.active])
+  useEffect(() => {
+    if (!workspaceSession.active) {
+      setOpen(false)
+      setSubmenu(false)
+      setLibraryOpen(false)
+    }
+  }, [workspaceSession.active])
   useEffect(() => {
     if (!showAssistants) return
     const controller = new AbortController()
@@ -112,8 +120,20 @@ export default function ResearchComposerMenu({ value, snapshot, disabled, showAs
       </> : <>
         {loading && <LoadingState compact label="正在读取研究方法…" />}
         {error && <p className="composer-menu-status workspace-error" role="alert">研究方法暂不可用<button type="button" className="text-button workspace-button" onClick={() => setAttempt(value => value + 1)}><RefreshCw size={13} />重试</button></p>}
-        {!!methods.length && <><p className="composer-menu-label">研究方法</p>{methods.map(assistantItem)}</>}
+        {!!methods.length && <>
+          <button type="button" role="menuitem" aria-haspopup="dialog" className="composer-menu-option composer-menu-browse workspace-button"
+            onClick={() => { close(); setLibraryOpen(true) }}>
+            <BookOpen size={16} aria-hidden="true" /><span><strong>浏览方法</strong></span><ChevronRight size={15} aria-hidden="true" />
+          </button>
+          <p className="composer-menu-label">快速选择</p>
+          {methods.map(assistantItem)}
+        </>}
       </>}
     </div>, portalTarget)}
+    {showAssistants && libraryOpen && workspaceSession.active && <ResearchMethodLibrary methods={methods} currentId={value}
+      disabled={disabled} onClose={() => setLibraryOpen(false)} onUse={method => {
+        if (method.id !== value || (snapshot && snapshot.skill_hash !== method.skill_hash)) onChange(method.id)
+        setLibraryOpen(false)
+      }} />}
   </div>
 }

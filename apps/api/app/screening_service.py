@@ -127,10 +127,10 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
         raise ScreeningServiceError("revision_conflict", "筛选条件或对话已有更新，请读取最新版本后再执行。", 409)
     result = turn["result"] or {}
     if agent_active:
-        from .execution_policy import requests_execution
+        from .execution_policy import message_requests_execution
         original = conversation_store.get_user_message(conversation_id, turn["user_message_id"])
         grant = conversation_store.get_pending_execute_message(conversation_id)
-        if grant != original["id"] or not requests_execution(original["content"]):
+        if grant != original["id"] or not message_requests_execution(original):
             raise ScreeningServiceError("execution_not_authorized", "当前研究回合没有对应用户原话的执行授权。", 409)
         result = {"ready_to_execute": True, "execution_authorized": True, "task_revision": revision,
                   "execution_authorization_message_id": grant}
@@ -327,10 +327,11 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
 def get_task_run(conversation_id: str, run_id: str) -> dict[str, Any]:
     with connect() as connection:
         row = connection.execute(
-            """SELECT s.id,s.conversation_id,s.task_revision,s.execution_request_id,s.job_id,s.as_of,
+            """SELECT s.id,s.conversation_id,s.task_revision,s.execution_request_id,s.job_id,s.as_of,e.turn_id,
                       s.status,s.execution_version,s.snapshot_json,s.result_json,s.created_at,s.finished_at,
                       j.state AS job_state,j.progress,j.message AS job_message
                FROM screening_task_runs s JOIN jobs j ON j.id=s.job_id
+               JOIN execution_requests e ON e.id=s.execution_request_id
                WHERE s.id=? AND s.conversation_id=?""",
             (run_id, conversation_id),
         ).fetchone()
@@ -342,6 +343,7 @@ def get_task_run(conversation_id: str, run_id: str) -> dict[str, Any]:
         "conversation_id": row["conversation_id"],
         "task_revision": row["task_revision"],
         "execution_request_id": row["execution_request_id"],
+        "turn_id": row["turn_id"],
         "job_id": row["job_id"],
         "as_of": row["as_of"],
         "status": row["status"],
@@ -359,9 +361,10 @@ def list_task_runs(conversation_id: str, limit: int = 50) -> list[dict[str, Any]
     limit = max(1, min(int(limit), 100))
     with connect() as connection:
         rows = connection.execute(
-            """SELECT id,task_revision,as_of,status,job_id,created_at,finished_at
-               FROM screening_task_runs WHERE conversation_id=?
-               ORDER BY created_at DESC,id DESC LIMIT ?""",
+            """SELECT r.id,r.task_revision,r.as_of,r.status,r.job_id,r.created_at,r.finished_at,e.turn_id
+               FROM screening_task_runs r JOIN execution_requests e ON e.id=r.execution_request_id
+               WHERE r.conversation_id=?
+               ORDER BY r.created_at DESC,r.id DESC LIMIT ?""",
             (conversation_id, limit),
         ).fetchall()
     return [dict(row) for row in rows]

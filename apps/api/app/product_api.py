@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import Field, model_validator
 
-from . import market, security_catalog, screening_service, maintenance_service
+from . import market, security_catalog, screening_service, maintenance_service, news_retention
 from .db import connect, json_dump, json_load, utc_now
 from . import conversation_store
 from .screening_contracts import ContractModel, ScreeningTaskRevision, UniverseScope, validate_executable_task
@@ -22,6 +22,11 @@ class ScopeUpdate(ContractModel):
     client_message_id: str = Field(min_length=1, max_length=100)
     universe: UniverseScope
     as_of: date
+
+
+class NewsRetentionUpdate(ContractModel):
+    enabled: bool
+    preview_token: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class CompositionUpdate(ContractModel):
@@ -351,6 +356,19 @@ def maintenance_status():
 @router.post("/maintenance/refresh", status_code=202)
 def start_refresh():
     return maintenance_service.start_refresh()
+
+
+@router.get("/maintenance/news-retention")
+def news_retention_status():
+    return news_retention.status()
+
+
+@router.put("/maintenance/news-retention")
+def update_news_retention(request: NewsRetentionUpdate):
+    try:
+        return news_retention.set_enabled(request.enabled, request.preview_token)
+    except news_retention.PreviewChanged as exc:
+        raise HTTPException(409, {"code": "news_retention_preview_changed", "message": str(exc)}) from exc
 
 
 # Compatibility for existing maintenance callers. New workers import the service.

@@ -5,9 +5,11 @@ import { screeningMethodLabel } from './screeningMethods'
 import { sessionStorage } from './authStorage'
 import { isPageId, workspaceMenus } from './navigation'
 import { normalizeWorkspaceRoute, parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
+import type { ServiceResearchDraft } from './clientServiceResearchDraft'
+import type { TabLocation, WorkspaceHandoff } from './workspaceHandoff'
 
-export type WorkspaceSeed = { prompt?: string; assistantId?: string; source?: { reference: ConversationSourceReference; label: string }; fresh?: boolean }
-export type WorkspaceTab = { id: string; route: WorkspaceRoute; title: string; seed?: WorkspaceSeed; legacy?: boolean }
+export type WorkspaceSeed = { prompt?: string; assistantId?: string; source?: { reference: ConversationSourceReference; label: string }; fresh?: boolean; serviceDraft?: ServiceResearchDraft }
+export type WorkspaceTab = { id: string; route: WorkspaceRoute; title: string; seed?: WorkspaceSeed; legacy?: boolean; handoff?: WorkspaceHandoff }
 type ClosedTab = { tab: WorkspaceTab; index: number; order: string[] }
 type TabState = { tabs: WorkspaceTab[]; activeId: string; closedTabs: ClosedTab[] }
 const STORAGE_KEY = 'app.workspaceTabs.v1'
@@ -22,12 +24,13 @@ export function workspaceTabTitle(route: WorkspaceRoute) {
   if (route.screeningMethod && !route.conversationId) return screeningMethodLabel(route.screeningMethod)
   if (route.page === 'conditions') return ({ saved: '我的方案', history: '筛选记录', library: '条件库管理', compose: '条件组合', create: '新增条件', conversation: route.conversationId ? '选股对话' : '新选股' })[route.view || 'conversation']
   if (route.page === 'library') return route.libraryTab === 'reports' ? '研报与公告' : '资讯'
+  if (route.page === 'client-service' && route.serviceView === 'suggestions') return '生成建议'
   return workspaceMenus.find(item => item.id === route.page)?.label || '研究'
 }
 
-function makeTab(route: WorkspaceRoute, seed?: WorkspaceSeed): WorkspaceTab {
+function makeTab(route: WorkspaceRoute, seed?: WorkspaceSeed, handoff?: WorkspaceHandoff): WorkspaceTab {
   route = normalizeWorkspaceRoute(route)
-  return { id: newId(), route, title: workspaceTabTitle(route), ...(seed ? { seed } : {}) }
+  return { id: newId(), route, title: workspaceTabTitle(route), ...(seed ? { seed } : {}), ...(handoff ? { handoff } : {}) }
 }
 
 function migrateSavedTab(tab: WorkspaceTab): WorkspaceTab {
@@ -39,6 +42,7 @@ function migrateSavedTab(tab: WorkspaceTab): WorkspaceTab {
     return { ...tab, route, title: workspaceTabTitle(route) }
   }
   const route = normalizeWorkspaceRoute(tab.route)
+  if (route.page === 'client-service' && route.serviceView === 'suggestions' && ['对客服务', 'AI 诊股'].includes(tab.title)) return { ...tab, route, title: workspaceTabTitle(route) }
   if (route === tab.route) return tab
   return { ...tab, route, title: workspaceTabTitle(route) }
 }
@@ -102,23 +106,58 @@ export function useWorkspaceTabs() {
     if (current.current.tabs.some(tab => tab.id === id)) publish({ ...current.current, activeId: id })
   }
 
-  function open(route: WorkspaceRoute, options: { seed?: WorkspaceSeed; forceNew?: boolean; reusePage?: boolean } = {}) {
+  function open(route: WorkspaceRoute, options: { seed?: WorkspaceSeed; forceNew?: boolean; reusePage?: boolean; handoff?: WorkspaceHandoff } = {}) {
     route = normalizeWorkspaceRoute(route)
     const previous = current.current
+    const picker = options.handoff?.reportPicker
+    const samePicker = picker && previous.tabs.find(tab =>
+      tab.handoff?.reportPicker?.from.id === picker.from.id &&
+      tab.handoff.reportPicker.draft.key === picker.draft.key &&
+      workspaceRouteHash(tab.route) === workspaceRouteHash(route),
+    )
+    if (samePicker) {
+      restore(samePicker, () => options.handoff!)
+      return samePicker.id
+    }
     const existing = !options.forceNew && [...previous.tabs].reverse().find(tab => options.reusePage
-      ? tab.route.page === route.page && tab.route.screeningMethod === route.screeningMethod && (tab.route.workspace ?? 'research') === (route.workspace ?? 'research') && (route.page !== 'conditions' || (tab.route.view || 'conversation') === (route.view || 'conversation'))
-      : workspaceRouteHash(tab.route) === workspaceRouteHash(route))
+      ? !tab.handoff?.reportPicker && tab.route.page === route.page && tab.route.screeningMethod === route.screeningMethod && (tab.route.workspace ?? 'research') === (route.workspace ?? 'research') && (route.page !== 'conditions' || (tab.route.view || 'conversation') === (route.view || 'conversation'))
+      : !tab.handoff?.reportPicker && workspaceRouteHash(tab.route) === workspaceRouteHash(route))
     if (existing) { activate(existing.id); return existing.id }
-    const tab = makeTab(route, options.seed)
+    const tab = makeTab(route, options.seed, options.handoff)
     publish({ ...previous, tabs: [...previous.tabs, tab], activeId: tab.id })
     return tab.id
+  }
+
+  function updateHandoff(id: string, change: (current: WorkspaceHandoff) => WorkspaceHandoff) {
+    const previous = current.current
+    const tab = previous.tabs.find(item => item.id === id)
+    if (!tab) return
+    const handoff = change(tab.handoff ?? {})
+    if (handoff === tab.handoff) return
+    publish({ ...previous, tabs: previous.tabs.map(item => item.id === id ? { ...item, handoff } : item) }, true, false)
+  }
+
+  function restore(target: TabLocation, change?: (current: WorkspaceHandoff) => WorkspaceHandoff) {
+    const previous = current.current
+    const matches = (tab: WorkspaceTab) => tab.id === target.id && workspaceRouteHash(tab.route) === workspaceRouteHash(target.route)
+    const update = (tab: WorkspaceTab) => change ? { ...tab, handoff: change(tab.handoff ?? {}) } : tab
+    const openTab = previous.tabs.find(matches)
+    if (openTab) {
+      publish({ ...previous, tabs: previous.tabs.map(tab => tab.id === openTab.id ? update(tab) : tab), activeId: openTab.id })
+      return true
+    }
+    const closed = previous.closedTabs.find(record => matches(record.tab))
+    if (!closed) return false
+    restoreClosedTab(closed, update(closed.tab))
+    return true
   }
 
   function update(id: string, route: WorkspaceRoute, replace = true) {
     route = normalizeWorkspaceRoute(route)
     const previous = current.current, tab = previous.tabs.find(item => item.id === id)
     if (!tab || workspaceRouteHash(tab.route) === workspaceRouteHash(route)) return
-    const title = tab.route.page === route.page && (route.page !== 'library' || tab.route.libraryTab === route.libraryTab)
+    const suggestionViewChanged = route.page === 'client-service' && (tab.route.serviceView === 'suggestions') !== (route.serviceView === 'suggestions')
+    const title = tab.route.page === route.page && !suggestionViewChanged && (route.page !== 'library' || tab.route.libraryTab === route.libraryTab)
       ? tab.title : workspaceTabTitle(route)
     publish({ ...previous, tabs: previous.tabs.map(item => item.id === id ? { ...item, route, title } : item) }, replace, previous.activeId === id)
   }
@@ -166,18 +205,24 @@ export function useWorkspaceTabs() {
     publishClosed([tab], tab.id)
   }
 
-  function reopenClosed() {
-    const previous = current.current, record = previous.closedTabs.at(-1)
-    if (!record) return
-    const closedTabs = previous.closedTabs.slice(0, -1), tab = savedTab(record.tab)
-    const existing = previous.tabs.find(item => item.id === tab.id || (!tab.route.newDraft && workspaceRouteHash(item.route) === workspaceRouteHash(tab.route)))
-    if (existing) { publish({ ...previous, activeId: existing.id, closedTabs }); return }
+  function restoreClosedTab(record: ClosedTab, tab: WorkspaceTab) {
+    const previous = current.current
+    const closedTabs = previous.closedTabs.filter(item => item !== record)
     const tabs = [...previous.tabs], available = new Set(tabs.map(item => item.id))
     const right = record.order.slice(record.index + 1).find(id => available.has(id))
     const left = record.order.slice(0, record.index).reverse().find(id => available.has(id))
     const index = right ? tabs.findIndex(item => item.id === right) : left ? tabs.findIndex(item => item.id === left) + 1 : Math.min(record.index, tabs.length)
     tabs.splice(index, 0, tab)
     publish({ ...previous, tabs, activeId: tab.id, closedTabs })
+  }
+
+  function reopenClosed() {
+    const previous = current.current, record = previous.closedTabs.at(-1)
+    if (!record) return
+    const tab = record.tab
+    const existing = previous.tabs.find(item => item.id === tab.id || (!tab.handoff?.reportPicker && !item.handoff?.reportPicker && !tab.route.newDraft && workspaceRouteHash(item.route) === workspaceRouteHash(tab.route)))
+    if (existing) { publish({ ...previous, activeId: existing.id, closedTabs: previous.closedTabs.slice(0, -1) }); return }
+    restoreClosedTab(record, tab)
   }
 
   function forgetClosedConversation(id: string) {
@@ -218,5 +263,5 @@ export function useWorkspaceTabs() {
     return () => { window.removeEventListener('popstate', restore); window.removeEventListener('hashchange', restore) }
   }, [])
 
-  return { tabs: state.tabs, activeId: state.activeId, activeTab: state.tabs.find(tab => tab.id === state.activeId)!, canReopen: state.closedTabs.length > 0, open, activate, update, rename, close, closeOthers, closeSide, closeAll, move, reopenClosed, forgetClosedConversation }
+  return { tabs: state.tabs, activeId: state.activeId, activeTab: state.tabs.find(tab => tab.id === state.activeId)!, canReopen: state.closedTabs.length > 0, open, activate, update, rename, close, closeOthers, closeSide, closeAll, move, reopenClosed, forgetClosedConversation, restore, updateHandoff }
 }

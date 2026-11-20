@@ -37,14 +37,14 @@ def start_refresh():
         job_id, now = str(uuid4()), utc_now()
         connection.execute("INSERT INTO jobs(id,kind,payload_json,state,message,created_at,updated_at) VALUES(?,'data_sync','{}','queued','正在等待更新股票名称、行情和资讯',?,?)", (job_id, now, now))
         connection.execute("INSERT INTO maintenance_results VALUES(?,?)", (job_id, json_dump({
-            name: {"status": "pending"} for name in ("names", "market", "news")
+            name: {"status": "pending"} for name in ("names", "news", "market")
         })))
     return {"job_id": job_id}
 
 
 def refresh_data(lease):
     from . import tushare_sync
-    stages = ("names", "market", "news")
+    stages = ("names", "news", "market")
     successful = {"completed", "updated", "up_to_date", "no_new_rows"}
     terminal = successful | {"failed", "partial"}
     result = {name: {"status": "pending"} for name in stages}
@@ -67,7 +67,7 @@ def refresh_data(lease):
         message = stage.get("message", "正在更新数据…")
         result["events"].append({"at": now, "stage": name, "message": message})
         result["events"] = result["events"][-80:]
-        base, weight = {"names": (0, 0.1), "market": (0.1, 0.7), "news": (0.8, 0.2)}[name]
+        base, weight = {"names": (0, 0.1), "news": (0.1, 0.2), "market": (0.3, 0.7)}[name]
         fraction = 1 if stage["status"] in terminal else min(1, stage.get("completed", 0) / max(1, stage.get("total", 0)))
         with connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -93,7 +93,7 @@ def refresh_data(lease):
     now = datetime.now(timezone(timedelta(hours=8)))
     cutoff = now.date() if now.hour >= 16 else (now - timedelta(days=1)).date()
     try:
-        synced = tushare_sync.sync_tushare(as_of=cutoff, days=30, on_progress=report)
+        synced = tushare_sync.sync_tushare(as_of=cutoff, news_as_of=now, days=30, on_progress=report)
         # Retain compatibility with sync runners that only return final results.
         for name, stage in synced["stages"].items():
             if result[name]["status"] not in terminal:
@@ -101,7 +101,7 @@ def refresh_data(lease):
     except Exception as exc:
         if not lease.active():
             return
-        for name in ("market", "news"):
+        for name in ("news", "market"):
             if result[name]["status"] not in terminal:
                 report(name, {"status": "failed", "reason": str(exc) if isinstance(exc, tushare_sync.TushareError) else "更新处理失败，请保存诊断信息交给维护者。"})
     failed = [name for name in stages if result[name]["status"] not in successful]

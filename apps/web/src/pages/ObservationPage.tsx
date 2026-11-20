@@ -12,7 +12,7 @@ import { CandidateDetail, type ResearchCandidate } from './ResearchCandidatePane
 import { trapDialogTab } from '../keyboard'
 import { useSessionState } from '../useSessionState'
 import EmptyState from '../components/EmptyState'
-import InvestmentTracking, { InvestmentTrackingTabs, type InvestmentTab } from './InvestmentTracking'
+import type { ObservationTab } from '../workspaceRoute'
 import '../observation.css'
 import './observation-unified.css'
 import ObservationQuickNote, { updateObservationEntry } from './ObservationListActions'
@@ -47,8 +47,8 @@ type Performance = { items: ObservationItem[]; latest_date: string | null; warni
 type Detail = { kind: 'candidate'; item: ResearchCandidate } | { kind: 'screening'; run: Run; item: ObservationItem; performance: Performance }
 type Props = {
   data: DataStatus | null; onNavigateScreening?: () => void; onOpenResearch?: (conversationId: string) => void
-  onStartResearch?: () => void; initialRunId?: string; initialCode?: string; initialCandidateId?: string; initialTab?: InvestmentTab
-  onLocationChange?: (tab: InvestmentTab | null, id: string, userNavigation?: boolean, code?: string) => void
+  onStartResearch?: () => void; initialRunId?: string; initialCode?: string; initialCandidateId?: string; initialTab?: ObservationTab
+  onLocationChange?: (tab: ObservationTab | null, id: string, userNavigation?: boolean, code?: string) => void
 }
 const watchLabels: Record<string, string> = { watching: '观察中', priority: '重点关注', ended: '结束观察' }
 const runLabels: Record<string, string> = { queued: '排队中', running: '执行中', succeeded: '已完成', partial: '部分数据不足', failed: '执行失败', cancelled: '已取消' }
@@ -60,11 +60,10 @@ const returnClass = (value: number | null | undefined) => value == null || value
 const metricText = (value: number | null | undefined, loading: boolean) => value === undefined && loading ? '计算中…' : percent(value)
 const metricTitle = (item: Entry) => item.metric_reason || ('起算 ' + (item.base_date || item.basis_date) + ' · 行情截至 ' + (item.price_date || '—'))
 const defaultSortDirection = (value: ObservationSort): 'asc' | 'desc' => ['updated', 'priority', 'return'].includes(value) ? 'desc' : 'asc'
-const visibleTrackingTab = (tab?: InvestmentTab): InvestmentTab => tab === 'candidates' || tab === 'batches' ? 'all' : tab ?? 'all'
+const ownerForTab = (tab?: ObservationTab) => tab === 'batches' ? 'screening' : tab === 'candidates' ? 'research' : ''
 
 export default function ObservationPage({ data, onNavigateScreening, onOpenResearch, onStartResearch, initialRunId, initialCode, initialCandidateId, initialTab, onLocationChange }: Props) {
   type SavedView = { id: string; name: string; query: string; status: string; owner: string; sort: string; direction?: 'asc' | 'desc' }
-  const [activeTab, setActiveTab] = useState<InvestmentTab>(visibleTrackingTab(initialTab))
   const [checkedKeys, setCheckedKeys] = useState<string[]>([])
   const [savingKeys, setSavingKeys] = useState<string[]>([])
   const [batchBusy, setBatchBusy] = useState(false)
@@ -84,7 +83,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   useEffect(() => { if (viewEditing) viewNameRef.current?.focus() }, [viewEditing])
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('')
-  const [owner, setOwner] = useState(initialRunId ? 'run:' + initialRunId : initialCandidateId ? '' : initialTab === 'batches' ? 'screening' : initialTab === 'candidates' ? 'research' : '')
+  const [owner, setOwner] = useState(initialRunId ? 'run:' + initialRunId : initialCandidateId ? '' : ownerForTab(initialTab))
   const [sort, setSort] = useState<ObservationSort>('updated')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [offset, setOffset] = useState(0)
@@ -107,7 +106,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   const [undoRemoval, setUndoRemoval] = useState<{ key: string; label: string; expires: number } | null>(null)
   const [removalBusy, setRemovalBusy] = useState(false)
   const removalLock = useRef(false)
-  const removalScope = JSON.stringify([activeTab, query, status, owner, sort, sortDirection, offset, initialRunId, initialCode, initialCandidateId, initialTab])
+  const removalScope = JSON.stringify([query, status, owner, sort, sortDirection, offset, initialRunId, initialCode, initialCandidateId, initialTab])
   const removalView = useRef({ key: removalScope, generation: 0 })
   if (removalView.current.key !== removalScope) removalView.current = { key: removalScope, generation: removalView.current.generation + 1 }
   const selectedEntry = useRef(selectedKey)
@@ -137,9 +136,9 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   useEffect(() => {
     if (routeRef.current.candidate === initialCandidateId && routeRef.current.run === initialRunId && routeRef.current.code === initialCode && routeRef.current.tab === initialTab) return
     routeRef.current = { candidate: initialCandidateId, run: initialRunId, code: initialCode, tab: initialTab }
-    if (initialCandidateId) { setActiveTab('all'); setOwner(''); setSelectedKey('candidate:' + initialCandidateId); setDetailOpen(true) }
-    else if (initialRunId) { setActiveTab('all'); setOwner('run:' + initialRunId); setSelectedKey(initialCode ? 'screening:' + initialRunId + ':' + initialCode : ''); setDetailOpen(true) }
-    else if (initialTab) { setActiveTab(visibleTrackingTab(initialTab)); setOwner(initialTab === 'batches' ? 'screening' : initialTab === 'candidates' ? 'research' : ''); setSelectedKey(''); setDetailOpen(false) }
+    if (initialCandidateId) { setOwner(''); setSelectedKey('candidate:' + initialCandidateId); setDetailOpen(true) }
+    else if (initialRunId) { setOwner('run:' + initialRunId); setSelectedKey(initialCode ? 'screening:' + initialRunId + ':' + initialCode : ''); setDetailOpen(true) }
+    else { setOwner(ownerForTab(initialTab)); setSelectedKey(''); setDetailOpen(false) }
   }, [initialCandidateId, initialRunId, initialCode, initialTab])
   useEffect(() => {
     const controller = new AbortController()
@@ -237,17 +236,11 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
 
   function clearRoute() {
     if (routeRef.current.candidate || routeRef.current.run || routeRef.current.tab) {
-      routeRef.current = { candidate: undefined, run: undefined, code: undefined, tab: activeTab }
-      locationCallback.current?.(activeTab, '', true)
+      routeRef.current = { candidate: undefined, run: undefined, code: undefined, tab: undefined }
+      locationCallback.current?.(null, '', true)
     }
   }
   function closeDetail() { clearRoute(); setDetailOpen(false); setSelectedKey('') }
-  function changeTrackingTab(tab: InvestmentTab) {
-    setActiveTab(tab); setOwner(tab === 'candidates' ? 'research' : tab === 'batches' ? 'screening' : '')
-    setOffset(0); setSelectedKey(''); setDetail(null); setDetailOpen(false)
-    routeRef.current = { candidate: undefined, run: undefined, code: undefined, tab }
-    locationCallback.current?.(tab, '', true)
-  }
   function changeFilter(update: () => void) {
     if (batchLock.current) return
     closeDetail(); update(); setOffset(0); setNotice(''); setCheckedKeys([]); setSelectedView('')
@@ -353,20 +346,12 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
   const selectedOwner = owners.find(item => item.value === owner)
   const renderSortHeader = (key: Exclude<ObservationSort, 'manual' | 'priority'>, label: string) =>
     <SortableHeader sortKey={key} label={label} currentSort={sort} direction={sortDirection} onClick={() => changeSort(key)} />
-  if (activeTab === 'updates' || activeTab === 'expectations' || activeTab === 'portfolio') {
-    return <div className="page-content workspace-tool-page observation-page investment-tracking-page">
-      <WorkspacePageHeading className="page-heading observation-page-heading" actions={null}><h1>投资跟踪</h1><p className="page-description">关注变化、记录业绩预期与组合流水</p></WorkspacePageHeading>
-      <InvestmentTrackingTabs active={activeTab} onChange={changeTrackingTab} />
-      <InvestmentTracking tab={activeTab} />
-    </div>
-  }
   return <div className="page-content workspace-tool-page observation-page observation-redesigned observation-unified observation-density-compact">
     <WorkspacePageHeading className="page-heading observation-page-heading" actionsClassName="observation-heading-actions" actions={<>
         {onStartResearch && <button className="secondary-button workspace-button" onClick={onStartResearch}>开始研究<ArrowRight size={15} /></button>}
         {onNavigateScreening && <button className="primary-button workspace-button" onClick={onNavigateScreening}>去条件选股<ArrowRight size={15} /></button>}
         <button className="secondary-button workspace-button" onClick={() => { setNotice(''); setRefresh(value => value + 1) }}><RefreshCw size={15} />刷新</button>
     </>}><h1>观察池</h1><p className="page-description">研究、手动关注和选股入选记录集中跟踪</p></WorkspacePageHeading>
-    <InvestmentTrackingTabs active={activeTab} onChange={changeTrackingTab} />
     <div className="observation-unified-toolbar observation-control-bar workspace-filters">
       <label className="observation-search workspace-field-shell"><Search size={17} /><input aria-label="搜索观察记录" disabled={batchBusy} placeholder="搜索股票、备注或所属" value={query} onChange={event => changeFilter(() => setQuery(event.target.value))} className="workspace-field" /></label>
       <select aria-label="按所属筛选" disabled={batchBusy} value={owner} onChange={event => changeFilter(() => setOwner(event.target.value))} className="workspace-field workspace-select">

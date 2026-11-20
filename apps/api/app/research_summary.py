@@ -43,7 +43,7 @@ def contract(turn_id: str) -> dict:
         "turn_id": turn_id,
         "schema": ResearchSummary.model_json_schema(),
         "instructions": (
-            "For a completed research answer (including a brief explanation), write one UTF-8 JSON object matching this schema "
+            "For a substantive research answer with several findings, write one UTF-8 JSON object matching this schema "
             "to the exact workspace-relative path before the final answer. This is internal reading metadata; "
             "do not link it as a deliverable. Use the user's language, with one short conclusion and up to "
             "three key points, risks and next steps. Summarize only findings supported in the full answer; "
@@ -51,7 +51,8 @@ def contract(turn_id: str) -> dict:
             "locators in the full answer. data_as_of is an actual common evidence cutoff, never the generation "
             "date or an assumed market watermark; use null for mixed or unconfirmed dates and explain actual "
             "report periods/dates in data_note. Use empty lists or null where there is no supported content. "
-            "For clarification-only replies or requests for code or files without research findings, omit this file. "
+            "Omit this file for short answers where the brief would only repeat the answer, clarification-only replies, "
+            "and requests for code or files without research findings. "
             "The full answer must also remain complete when read without this brief."
         ),
     }

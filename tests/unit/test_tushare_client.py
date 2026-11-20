@@ -4,7 +4,7 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from apps.api.app import settings, tushare_client, tushare_sync
+from apps.api.app import financial_probe, settings, tushare_client, tushare_sync
 from apps.api.app.tushare_client import TushareClient, TushareError
 
 
@@ -33,7 +33,8 @@ def test_official_token_from_config_takes_precedence(config_file, monkeypatch):
     monkeypatch.setenv("TEST_TUSHARE_TOKEN", "environment-token")
     result = settings.tushare_settings()
     assert result == {"configured": True, "credential_source": "config", "token": "config-token",
-                      "token_env": "TEST_TUSHARE_TOKEN", "timeout": 45, "retries": 4}
+                      "token_env": "TEST_TUSHARE_TOKEN", "api_url": "https://api.tushare.pro",
+                      "timeout": 45, "retries": 4}
 
 
 @pytest.mark.parametrize("env_name", ["TUSHARE_TOKEN", "TEST_TUSHARE_TOKEN"])
@@ -50,7 +51,7 @@ def test_missing_token_does_not_make_a_request(config_file, monkeypatch):
     post = Mock()
     monkeypatch.setattr(tushare_client.requests, "post", post)
     assert settings.tushare_settings()["configured"] is False
-    with pytest.raises(TushareError, match="未配置 Tushare 官方 token"):
+    with pytest.raises(TushareError, match="未配置 Tushare token"):
         tushare_sync.create_client()
     post.assert_not_called()
 
@@ -75,16 +76,24 @@ def test_removed_credentials_and_endpoint_overrides_are_ignored(config_file, mon
     assert post.call_args.kwargs["json"]["token"] == "official-token"
 
 
-def test_official_json_protocol_and_normalized_rows(config_file, monkeypatch):
-    config_file.write_text("[tushare]\ntoken=official-token\ntimeout=45\n", encoding="utf-8")
+@pytest.mark.parametrize(("url", "expected_url"), [
+    ("", "https://api.tushare.pro"),
+    ("http://relay.example.test/tushare/", "http://relay.example.test/tushare/daily"),
+])
+@pytest.mark.parametrize(("create", "timeout"), [
+    (tushare_sync.create_client, 45),
+    (financial_probe.create_probe_client, 15),
+])
+def test_tushare_json_protocol_and_normalized_rows(config_file, monkeypatch, url, expected_url, create, timeout):
+    config_file.write_text(f"[tushare]\ntoken=config-token\ntimeout=45\napi_url= {url} \n", encoding="utf-8")
     post = Mock(return_value=success())
     monkeypatch.setattr(tushare_client.requests, "post", post)
-    rows = tushare_sync._query(tushare_sync.create_client(), "daily", ts_code="000001.SZ", fields="ts_code,close", offset=10, limit=20)
+    rows = tushare_sync._query(create(), "daily", ts_code="000001.SZ", fields="ts_code,close", offset=10, limit=20)
     assert rows == [{"ts_code": "000001.SZ", "close": 10.5}]
-    post.assert_called_once_with("https://api.tushare.pro", json={
-        "api_name": "daily", "token": "official-token", "fields": "ts_code,close",
+    post.assert_called_once_with(expected_url, json={
+        "api_name": "daily", "token": "config-token", "fields": "ts_code,close",
         "params": {"ts_code": "000001.SZ", "offset": 10, "limit": 20},
-    }, timeout=45, allow_redirects=False)
+    }, timeout=timeout, allow_redirects=False)
 
 
 @pytest.mark.parametrize("failure", [requests.Timeout("secret-token"), requests.ConnectionError("secret-token"), response({}, 429), response({}, 503)])
@@ -133,6 +142,18 @@ def test_malformed_responses_fail_instead_of_becoming_empty_data(monkeypatch, pa
     monkeypatch.setattr(tushare_client.requests, "post", Mock(return_value=response(payload)))
     with pytest.raises(TushareError, match="无效"):
         TushareClient("secret-token").raw_query("daily")
+
+
+def test_daily_basic_provider_nan_is_missing_and_other_nonfinite_values_still_fail(monkeypatch):
+    missing = response({"code": 0, "data": {"fields": ["pe_ttm"], "items": [[float("nan")]]}})
+    invalid = response({"code": 0, "data": {"fields": ["pe_ttm"], "items": [[float("inf")]]}})
+    monkeypatch.setattr(tushare_client.requests, "post", Mock(side_effect=[missing, missing, invalid]))
+    client = TushareClient("secret-token")
+    assert client.raw_query("daily_basic")["data"]["items"] == [[None]]
+    with pytest.raises(TushareError, match="无效的 JSON"):
+        client.raw_query("daily")
+    with pytest.raises(TushareError, match="无效的 JSON"):
+        client.raw_query("daily_basic")
 
 
 def test_non_json_response_is_rejected(monkeypatch):

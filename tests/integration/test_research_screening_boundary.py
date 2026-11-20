@@ -7,7 +7,7 @@ import sqlite3
 from fastapi.testclient import TestClient
 import pytest
 
-from apps.api.app import conversation_store, db, main
+from apps.api.app import codex_runtime, conversation_store, db, main
 
 
 @pytest.fixture
@@ -42,6 +42,63 @@ def complete_research(client, text="营收变化是待验证的研究线索，�
     restored = client.get(f"/api/v1/conversations/{cid}").json()
     source = next(item for item in restored["messages"] if item["role"] == "assistant")
     return restored, source, user
+
+
+@pytest.mark.parametrize("prompt", [
+    "在全 A 股里筛一下，收盘价高于20日均线。",
+    "能否帮我筛一下收盘价高于20日均线的股票？",
+    "能否帮我在贵州茅台、浦发银行和平安银行这三只股票中筛一下，截至2026-09-14，近5个交易日涨幅超过3%的股票？涨幅用收盘价计算。",
+    "先生成选股方案，截止2026-09-14，收盘价高于20日均线，先别跑。",
+])
+def test_general_home_message_opens_and_enqueues_one_screening_turn(client, monkeypatch, prompt):
+    monkeypatch.setattr(codex_runtime, "availability", lambda: {"available": True})
+    conversation = client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "research"}).json()
+    cid = conversation["id"]
+    url = f"/api/v1/conversations/{cid}/messages"
+    body = {"client_message_id": "home-first", "base_revision": 0, "content": prompt, "route_screening": True,
+            "source_refs": [{"kind": "security", "source_id": "600000.SH"}]}
+    first = client.post(url, json=body)
+    assert first.status_code == 202, first.text
+    accepted = first.json()
+    assert accepted["workflow_type"] == "screening"
+    assert accepted["turn"]["workflow_type"] == "screening"
+    assert accepted["turn"]["job"]["state"] == "queued"
+    assert accepted["source_refs"] == [{"kind": "security", "source_id": "600000.SH"}]
+    replay = client.post(url, json=body)
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["turn"]["job"]["id"] == accepted["turn"]["job"]["id"]
+    saved = client.get(f"/api/v1/conversations/{cid}").json()
+    assert saved["workflow_type"] == "screening"
+    assert [item["content"] for item in saved["messages"]] == [prompt]
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM research_turn_jobs").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize("prompt", [
+    "这个项目能否筛选分钟线？", "帮我解释怎么筛选涨幅大于3%的股票？",
+    "如何按均线筛选股票？", "从附件筛选出英文段落", "帮我找出股票代码和公司名称", "比较两只股票的最近走势",
+])
+def test_home_question_keeps_research_context(client, prompt):
+    cid = client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "research"}).json()["id"]
+    response = client.post(f"/api/v1/conversations/{cid}/messages", json={
+        "client_message_id": "ordinary-question", "base_revision": 0, "content": prompt, "route_screening": True,
+    })
+    assert response.status_code == 202, response.text
+    assert response.json()["workflow_type"] == "research"
+    assert "turn" not in response.json()
+
+
+def test_home_routing_rolls_back_on_rejected_message_and_keeps_existing_research(client):
+    cid = client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "research"}).json()["id"]
+    url = f"/api/v1/conversations/{cid}/messages"
+    body = {"client_message_id": "first", "base_revision": 0, "content": "请筛选收盘价高于20日均线的股票", "route_screening": True}
+    rejected = client.post(url, json={**body, "source_refs": [{"kind": "report_page", "source_id": "missing", "page_number": 1}]})
+    assert rejected.status_code == 422
+    assert client.get(f"/api/v1/conversations/{cid}").json()["workflow_type"] == "research"
+    original = message(client, cid)
+    conversation_store.start_turn(cid, original.json()["turn_id"])
+    conversation_store.finish_turn(cid, original.json()["turn_id"], 0, "succeeded", "研究完成。", {})
+    assert client.post(url, json={**body, "client_message_id": "existing"}).json()["workflow_type"] == "research"
 
 
 def test_workflow_and_depth_are_independent_and_legacy_modes_still_work(client):

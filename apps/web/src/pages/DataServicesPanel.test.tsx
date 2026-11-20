@@ -35,6 +35,29 @@ beforeEach(() => {
 })
 afterEach(() => { vi.useRealTimers() })
 
+it('shows the cleanup preview and only enables daily deletion after confirmation', async () => {
+  const fallback = vi.mocked(api).getMockImplementation()!
+  const status = { enabled: false, days: 30, cutoff_day: '2026-09-21', eligible_count: 5, protected_count: 2,
+    preview_token: 'a'.repeat(64), last_run: null }
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path === '/maintenance/news-retention') return { ...status, enabled: init?.method === 'PUT' } as never
+    return fallback(path, init)
+  })
+  await open()
+  await act(async () => {
+    fireEvent.click(screen.getByText('资讯保留与自动清理'))
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  expect(screen.getByText('可清理 5 条 · 因引用保留 2 条')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: '开启自动清理' }))
+  expect(vi.mocked(api).mock.calls.some(([path, init]) => path === '/maintenance/news-retention' && init?.method === 'PUT')).toBe(false)
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: '确认开启' })) })
+  expect(vi.mocked(api)).toHaveBeenCalledWith('/maintenance/news-retention', {
+    method: 'PUT', body: JSON.stringify({ enabled: true, preview_token: status.preview_token }),
+  })
+  expect(screen.getByRole('button', { name: '暂停自动清理' })).toBeVisible()
+})
+
 it('restores the active run and refreshes real counts and elapsed time every second', async () => {
   await open()
   const detail = within(screen.getByLabelText('数据更新详情'))
@@ -85,18 +108,14 @@ it('replaces old results immediately when starting another update and prevents r
   expect(vi.mocked(api).mock.calls.filter(([path]) => path === '/maintenance/refresh')).toHaveLength(1)
 })
 
-it('shows compact service rows, keeps calculation requests out of maintenance, and opens company research after closing', async () => {
+it('shows service rows without calculation requests or project links', async () => {
   current = null
-  const close = vi.fn(), research = vi.fn()
-  await act(async () => { render(<DataServicesPanel data={null} onClose={close} onRefresh={onRefresh} onOpenCompanyResearch={research} />) })
+  await act(async () => { render(<DataServicesPanel data={null} onClose={vi.fn()} onRefresh={onRefresh} />) })
   for (const name of ['行情与资讯', '财务与披露接口', '财务数据采集', '智能助手连接', '原生网页搜索']) expect(screen.getByRole('region', { name })).toBeInTheDocument()
   expect(screen.queryByLabelText('财务指标')).not.toBeInTheDocument()
   expect(screen.queryByText('标准财务与指标计算')).not.toBeInTheDocument()
   expect(vi.mocked(api).mock.calls.some(([path]) => path.includes('/financials') || path === '/financial-data/metrics')).toBe(false)
-  fireEvent.click(screen.getByRole('button', { name: '前往公司研究' }))
-  expect(close).toHaveBeenCalledOnce()
-  expect(research).toHaveBeenCalledOnce()
-  expect(close.mock.invocationCallOrder[0]).toBeLessThan(research.mock.invocationCallOrder[0])
+  expect(screen.queryByRole('button', { name: '前往公司研究' })).not.toBeInTheDocument()
 })
 
 it('distinguishes configured search from a verified test, and refreshes all service statuses without starting work', async () => {

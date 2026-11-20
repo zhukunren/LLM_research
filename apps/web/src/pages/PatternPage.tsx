@@ -7,6 +7,7 @@ import { PointerEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, ChartNoAxesCombined, ImageUp, RefreshCw, Library, Maximize2, MessageCircle, Minimize2, PencilLine, Plus, Save, Search, SlidersHorizontal, Sparkles, Undo2, X } from 'lucide-react'
 import { api, type Pattern, type PatternMarketSource } from '../api'
 import { appendCombination } from '../libraryContext'
+import { screeningPatternReference, type ScreeningDestination, type ScreeningPatternSelection } from '../screeningMethods'
 import { ResponsiveMarketIndicatorChart as MarketIndicatorChart } from '../components/MarketIndicatorChart'
 import { navigateTabs, trapDialogTab } from '../keyboard'
 import SearchField from '../components/SearchField'
@@ -32,7 +33,13 @@ function plotPoints(points: Point[]): string {
   return points.map(point => `${point.x * 900},${(1 - (normalize ? (point.y - low) / (high - low || 1) : point.y)) * 280}`).join(' ')
 }
 
-export default function PatternPage({ onCompose, onDiscuss, screeningMode = false, onScreeningHistory }: { onCompose?: () => void; onDiscuss?: (id: string, version: number, name: string) => void; screeningMode?: boolean; onScreeningHistory?: () => void }) {
+export default function PatternPage({ onCompose, onDiscuss, screeningMode = false, onScreeningHistory, onUseSample }: {
+  onCompose?: () => void
+  onDiscuss?: (id: string, version: number, name: string) => void
+  screeningMode?: boolean
+  onScreeningHistory?: () => void
+  onUseSample?: (destination: ScreeningDestination, sample: ScreeningPatternSelection) => void
+}) {
   const [restored] = useState(readEditor)
   const [target, setTarget] = useState<Target>(() => restored?.target ?? emptyTarget())
   const { activeId, version, name, note, mode, source, marketSource, draft, sourceDraftId, minSimilarity, matchMode, recentBars, dirty, targetBars, rawPoints, candles, selectedCandle, quality } = target
@@ -343,17 +350,23 @@ export default function PatternPage({ onCompose, onDiscuss, screeningMode = fals
     try { const update = selectionQueue.current.catch(() => undefined).then(() => api(`/patterns/search-runs/${encodeURIComponent(runId)}`, { method: 'PATCH', body: JSON.stringify({ selected_key: key }) })); selectionQueue.current = update; await update }
     catch (error) { if (mounted.current && request === selectionRequest.current) setSelectionError(`案例选择未保存：${(error as Error).message}`) }
   }
-  function usePattern(item?: Pattern) {
+  function usePattern(item?: Pattern, destination: ScreeningDestination = 'compose') {
     const id = item?.id ?? activeId, savedVersion = item?.version ?? version
     if (!id || savingRef.current) return
-    appendCombination({ op: 'pattern_ref', pattern_id: id, version: savedVersion, min_similarity: Number(item?.params.min_similarity ?? minSimilarity), match_mode: item ? (item.params.match_mode === 'recent' ? 'recent' : 'current') : matchMode, recent_bars: Number(item?.params.recent_bars ?? recentBars), score_weight: 1 })
-    onCompose?.()
+    const sample: ScreeningPatternSelection = {
+      id, version: savedVersion, name: item?.name ?? name,
+      minimumSimilarity: Number(item?.params.min_similarity ?? minSimilarity),
+      matchMode: item ? item.params.match_mode === 'recent' ? 'recent' : 'current' : matchMode,
+      recentBars: Number(item?.params.recent_bars ?? recentBars),
+    }
+    if (onUseSample) onUseSample(destination, sample)
+    else { appendCombination(screeningPatternReference(sample)); onCompose?.() }
   }
-  async function preparePatternScreening() {
+  async function preparePatternScreening(destination: ScreeningDestination = 'compose') {
     if (savingRef.current || !canMatch) return
     const item = !activeId || dirty ? await save() : undefined
     if ((!activeId || dirty) && !item || !mounted.current) return
-    usePattern(item)
+    usePattern(item, destination)
   }
   function addCandle() {
     if (!editable || savingRef.current || candles.length >= 250) return
@@ -462,18 +475,21 @@ export default function PatternPage({ onCompose, onDiscuss, screeningMode = fals
         {screeningSettings}
         <button className="text-button workspace-button" disabled={saving || !canMatch || (!dirty && !!activeId)} onClick={() => void save()}><Save size={14} />{saving ? '保存中…' : '保存模板'}</button>
         {onDiscuss && activeId && <button className="text-button workspace-button" disabled={dirty || saving} onClick={() => onDiscuss(activeId, version, name)}><MessageCircle size={14} />研究此形态</button>}
-        {screeningMode ? <button className="secondary-button workspace-button" disabled={saving || !canMatch} onClick={() => void preparePatternScreening()}>{!activeId || dirty ? '保存并用于选股' : '按此形态选股'}<ArrowRight size={14} /></button> : <button className="secondary-button workspace-button" disabled={saving || !activeId || dirty} onClick={() => usePattern()}>用于组合<ArrowRight size={14} /></button>}
+        {onUseSample ? <>
+          <button type="button" className="secondary-button workspace-button" disabled={saving || !canMatch} onClick={() => void preparePatternScreening('conversation')}>{!activeId || dirty ? '保存并带回选股对话' : '带回选股对话'}<ArrowRight size={14} /></button>
+          <button type="button" className="secondary-button workspace-button" disabled={saving || !canMatch} onClick={() => void preparePatternScreening('compose')}>{!activeId || dirty ? '保存并加入组合' : '加入组合选股'}<ArrowRight size={14} /></button>
+        </> : screeningMode ? <button className="secondary-button workspace-button" disabled={saving || !canMatch} onClick={() => void preparePatternScreening()}>{!activeId || dirty ? '保存并用于选股' : '按此形态选股'}<ArrowRight size={14} /></button> : <button className="secondary-button workspace-button" disabled={saving || !activeId || dirty} onClick={() => usePattern()}>用于组合<ArrowRight size={14} /></button>}
         <span className="pattern-workbench-status" role={notice && noticeArea === 'footer' ? 'status' : undefined}>{notice && noticeArea === 'footer' ? notice : dirty && activeId ? `未保存修改 · 将保存为 v${version + 1}` : activeId ? `已保存 v${version}` : dirty ? '未保存' : ''}</span>
       </footer>
       <details className="pattern-template-research"><summary>备注与版本</summary><div className="pattern-template-research-fields"><label className="field workspace-field-label"><span>模板备注</span><textarea disabled={saving} className="workspace-field" aria-label="模板备注" maxLength={4000} rows={2} value={note} onChange={event => editTarget({ note: event.target.value })} /></label>{activeId && <><button type="button" className="secondary-button workspace-button" disabled={saving || historyBusy || dirty} onClick={readVersions}>查看历史版本</button>{versions.length > 0 && <label className="field workspace-field-label"><span>模板版本</span><select aria-label="模板版本" className="workspace-field workspace-select" value={version} disabled={dirty || saving} onChange={event => { const item = versions.find(item => item.version === Number(event.target.value)); if (item) load(item) }}>{versions.map(item => <option key={item.version} value={item.version}>v{item.version} · {item.created_at}</option>)}</select></label>}<button type="button" className="secondary-button workspace-button" disabled={saving || !canMatch} onClick={() => void save(true)}>另存为副本</button></>}</div></details>
     </div> : null
   return <StockText><div className="page-content workspace-tool-page library-shell library-redesign pattern-library pattern-studio pattern-comparison-studio pattern-unified-workspace" data-panel={panel}>
-    <WorkspacePageHeading actionsClassName="library-heading-actions" actions={<>{screeningMode && onScreeningHistory && <button className="secondary-button workspace-button" onClick={onScreeningHistory}>筛选记录</button>}<PatternResearchRecords refreshKey={inputMatch?.search_run_id} /><button className="secondary-button workspace-button" onClick={reset} disabled={saving}><Plus size={15} />新建形态</button></>}><h1>{screeningMode ? '形态选股' : '形态库'}</h1></WorkspacePageHeading>
+    <WorkspacePageHeading actionsClassName="library-heading-actions" actions={<>{screeningMode && onScreeningHistory && <button className="secondary-button workspace-button" onClick={onScreeningHistory}>筛选记录</button>}<PatternResearchRecords refreshKey={inputMatch?.search_run_id} /><button className="secondary-button workspace-button" onClick={reset} disabled={saving}><Plus size={15} />新建形态</button></>}><h1>{onUseSample ? '形态样本编辑' : screeningMode ? '形态选股' : '形态库'}</h1></WorkspacePageHeading>
     <div className="pattern-studio-navigation"><nav className="library-tabs" role="tablist" aria-label="形态库功能" onKeyDown={event => navigateTabs(event, ['create', 'saved'] as const, panel, setPanel)}><button role="tab" id="pattern-create-tab" aria-controls="pattern-content" aria-selected={panel === 'create'} tabIndex={panel === 'create' ? 0 : -1} className={'workspace-button' + (panel === 'create' ? ' active' : '')} onClick={() => setPanel('create')}><ChartNoAxesCombined size={16} />形态匹配</button><button role="tab" id="pattern-saved-tab" aria-controls="pattern-content" aria-selected={panel === 'saved'} tabIndex={panel === 'saved' ? 0 : -1} className={'workspace-button' + (panel === 'saved' ? ' active' : '')} onClick={() => setPanel('saved')}><Library size={16} />我的形态</button></nav><span className="pattern-studio-nav-note">{activeId ? `v${version} · ${dirty ? '有未保存修改' : '已保存'}` : '当前目标'}</span></div>
     <section id="pattern-content" role="tabpanel" aria-labelledby={`pattern-${panel}-tab`}>
     {panel === 'saved' ? <>
         <div className="workspace-filter-bar pattern-filter-bar workspace-filters"><SearchField label="搜索形态" placeholder="搜索形态名称" value={query} onChange={setQuery} /><select aria-label="形态类型筛选" value={representation} onChange={event => setRepresentation(event.target.value)} className="workspace-field workspace-select"><option value="">全部形态类型</option><option value="price_path">走势曲线</option><option value="ohlc_sequence">蜡烛图</option></select><span className="workspace-result-count">{filteredItems.length} / {items.length} 个形态</span>{(query || representation) && <button className="text-button workspace-button" onClick={clearPatternFilters}>重置形态筛选</button>}</div>
-        {catalogLoading ? <LoadingState compact label="正在加载形态…" /> : catalogError ? <div className="workspace-error" role="alert">{catalogError}<button className="text-button workspace-button" onClick={() => void refresh()}>重新加载形态</button></div> : !filteredItems.length ? <EmptyState icon={Search} titleAs="h3" title={items.length ? '没有找到匹配的形态' : '暂无形态'} description="保存的目标形态会显示在这里，可随时载入对照。" actions={<button className="secondary-button workspace-button" onClick={items.length ? clearPatternFilters : reset}>{items.length ? '查看全部形态' : '创建形态'}</button>} /> : <div className="shape-gallery">{filteredItems.slice(0, visibleCount).map(item => <article className="saved-condition-card" key={item.id}><div className="pattern-gallery-meta"><span>{item.representation === 'ohlc_sequence' ? '蜡烛图' : '走势曲线'}</span><span>v{item.version}</span></div><div className="condition-card-title"><h3>{item.name}</h3><span className="condition-category">{item.target_bars} 个交易日</span></div><PatternExample key={item.id + '@' + item.version} item={item} allowCurve compact />{item.market_source && <p className="pattern-source-caption">来源 {item.market_source.stock_code} · {item.market_source.start_date} 至 {item.market_source.end_date}</p>}<div className="card-actions"><button className="secondary-button workspace-button" disabled={saving} onClick={() => load(item)}><PencilLine size={14} />载入对照</button><button className="text-button workspace-button" disabled={saving} onClick={() => usePattern(item)}>加入组合<ArrowRight size={14} /></button></div></article>)}{visibleCount < filteredItems.length && <div className="gallery-more"><button className="secondary-button workspace-button" onClick={() => setVisibleCount(value => value + 6)}>显示更多形态（还有 {filteredItems.length - visibleCount} 个）</button></div>}</div>}
+        {catalogLoading ? <LoadingState compact label="正在加载形态…" /> : catalogError ? <div className="workspace-error" role="alert">{catalogError}<button className="text-button workspace-button" onClick={() => void refresh()}>重新加载形态</button></div> : !filteredItems.length ? <EmptyState icon={Search} titleAs="h3" title={items.length ? '没有找到匹配的形态' : '暂无形态'} description="保存的目标形态会显示在这里，可随时载入对照。" actions={<button className="secondary-button workspace-button" onClick={items.length ? clearPatternFilters : reset}>{items.length ? '查看全部形态' : '创建形态'}</button>} /> : <div className="shape-gallery">{filteredItems.slice(0, visibleCount).map(item => <article className="saved-condition-card" key={item.id}><div className="pattern-gallery-meta"><span>{item.representation === 'ohlc_sequence' ? '蜡烛图' : '走势曲线'}</span><span>v{item.version}</span></div><div className="condition-card-title"><h3>{item.name}</h3><span className="condition-category">{item.target_bars} 个交易日</span></div><PatternExample key={item.id + '@' + item.version} item={item} allowCurve compact />{item.market_source && <p className="pattern-source-caption">来源 {item.market_source.stock_code} · {item.market_source.start_date} 至 {item.market_source.end_date}</p>}<div className="card-actions"><button className="secondary-button workspace-button" disabled={saving} onClick={() => load(item)}><PencilLine size={14} />载入对照</button>{onUseSample && <button type="button" className="text-button workspace-button" disabled={saving} onClick={() => usePattern(item, 'conversation')}>带回选股对话<ArrowRight size={14} /></button>}<button className="text-button workspace-button" disabled={saving} onClick={() => usePattern(item)}>加入组合<ArrowRight size={14} /></button></div></article>)}{visibleCount < filteredItems.length && <div className="gallery-more"><button className="secondary-button workspace-button" onClick={() => setVisibleCount(value => value + 6)}>显示更多形态（还有 {filteredItems.length - visibleCount} 个）</button></div>}</div>}
     </> : <div className="pattern-workbench">
       <PatternComparison target={targetChart} matchAction={targetActions} result={inputMatch} loading={matchLoading} error={matchError} selectedKey={selectedMatchKey} onSelect={selectMatch} onRetry={() => void matchInput()} minSimilarity={minSimilarity} />
       {selectionError && <p className="workspace-error" role="alert">{selectionError}</p>}

@@ -7,10 +7,6 @@
 .research-studio .conversation-session-caption { max-width: 400px; padding: 0; border: 0; font-size: 13px; }
 .research-studio .session-disclosure { display: inline-flex; min-height: 38px; }
 .studio-eyebrow { color: var(--ui-text-faint); font-size: 11px; font-weight: 600; letter-spacing: .08em; }
-.studio-project { font-size: 12px; color: var(--ui-text-muted); margin: 0; }
-.studio-project > summary { width: fit-content; cursor: pointer; padding: 3px 0; }
-.studio-project > summary > span { margin-left: 10px; color: var(--ui-primary); }
-.studio-project .project-membership { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); }
 .research-studio .conversation-workspace { grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
 .research-studio .conversation-workspace-start { grid-template-columns: minmax(0, 1fr); }
 .research-studio .conversation-main { height: max(520px, calc(100dvh - 260px)); min-height: 0; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface); position: sticky; top: calc(var(--ui-header-height) + 18px); box-shadow: 0 3px 14px #10223b05; }

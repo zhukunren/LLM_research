@@ -3,7 +3,7 @@ import { StockText } from '../components/StockMentions'
 import EmptyState from '../components/EmptyState'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, RefreshCw, Search, Upload, X } from 'lucide-react'
-import { api, type ConversationSourceReference } from '../api'
+import { api, type ConversationSourceReference, type WorkflowType } from '../api'
 import PdfReader from '../components/PdfReader'
 import LibraryManagementMenu from '../components/LibraryManagementMenu'
 import LibraryReadingActions from '../components/LibraryReadingActions'
@@ -28,7 +28,7 @@ type SearchResult = {
 const validSearchMode = (value: unknown): value is SearchMode => value === 'smart' || value === 'exact'
 const validPositions = (value: unknown): value is Record<string, number> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(n => Number.isInteger(n) && Number(n) >= 1)
 
-export default function ReportPage({ onDescribe, onDefineCondition, onSourceChange }: { contentOnly?: boolean; onSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void; onDescribe?: (seed?: Omit<LibrarySeed, 'id'>) => void; onDefineCondition?: (seed?: Omit<LibrarySeed, 'id'>) => void }) {
+export default function ReportPage({ onDescribe, onDefineCondition, onSourceChange, selectingFor }: { selectingFor?: WorkflowType; contentOnly?: boolean; onSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void; onDescribe?: (seed?: Omit<LibrarySeed, 'id'>) => void; onDefineCondition?: (seed?: Omit<LibrarySeed, 'id'>) => void }) {
   const [docs, setDocs] = useState<Document[]>([])
   const [selectedId, setSelectedId] = useSessionState('report.selected', '', isText)
   const [positions, setPositions] = useSessionState<Record<string, number>>('report.pages', {}, validPositions)
@@ -49,7 +49,7 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState('')
-  const [mobileView, setMobileView] = useState<'catalog' | 'reader'>('catalog')
+  const [mobileView, setMobileView] = useSessionState<'catalog' | 'reader'>('report.mobileView', 'catalog', (value): value is 'catalog' | 'reader' => value === 'catalog' || value === 'reader')
   const reader = useRef<HTMLElement>(null)
   const catalog = useRef<HTMLElement>(null)
   const uploadInput = useRef<HTMLInputElement>(null)
@@ -214,7 +214,7 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
         {filteredDocs.map(item => {
           const documentHits = hits.filter(hit => hit.document_id === item.id)
           const firstHit = documentHits[0]
-          return <button key={item.id} aria-current={selectedId === item.id ? 'true' : undefined} className={["workspace-button", selectedId === item.id ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => select(item.id, firstHit?.page_number)}>
+          return <button key={item.id} data-stock-ignore aria-current={selectedId === item.id ? 'true' : undefined} className={["workspace-button", selectedId === item.id ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => select(item.id, firstHit?.page_number)}>
             <strong>{item.title}</strong><span className="report-security">{item.metadata?.fields?.stock_name?.value || item.stock_code || '行业研究'}{item.metadata?.fields?.stock_name && item.stock_code && <small>{item.stock_code}</small>}</span><small>{item.metadata?.fields?.broker?.value || '券商待识别'} · {item.publication_date ?? '日期待识别'} · {item.pages} 页</small>{firstHit && <><span className="report-hit-badge workspace-status">正文命中 {documentHits.length} 页 · 第 {firstHit.page_number} 页</span><span className="report-result-snippet">{firstHit.snippet}</span>{!!firstHit.matched_terms?.length && <small>命中词：{firstHit.matched_terms.join('、')}</small>}</>}
           </button>
         })}
@@ -243,10 +243,13 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
           {selected.parse_status === 'indexed' && ['queued', 'running'].includes(selected.metadata_status) && <p className="workbench-help">正在整理研报字典。</p>}
           {selected.metadata_status === 'failed' && <div className="library-error workspace-error" role="alert">{selected.metadata_error}<button className="text-button workspace-button" disabled={!!busy} onClick={() => action('retry', async () => { await api('/documents/catalog?retry_failed=true', { method: 'POST' }) })}>重新整理</button></div>}
           {selected.parse_status === 'no_text' && <p className="workbench-help">此 PDF 没有可提取文字，字典信息暂缺。</p>}
+          {selectingFor && selected.parse_status !== 'indexed' && <p className="workbench-help">可以阅读原 PDF。页级正文索引完成后即可引用此页。</p>}
           {!!selectedHits.length && <details className="report-search-hits" open={!!normalizedQuery}><summary>正文命中 {selectedHits.length} 页</summary>{selectedHits.map(hit => <button key={hit.page_number} onClick={() => setPage(hit.page_number)} className="workspace-button"><strong>第 {hit.page_number} 页</strong><span>{hit.snippet}</span>{!!hit.matched_terms?.length && <small>命中词：{hit.matched_terms.join('、')}</small>}</button>)}</details>}
           <PdfReader key={selected.id} url={'/api/v1/documents/' + selected.id + '/pdf'} page={page} onPageChange={setPage}
             pageControls={<label className="pdf-page-jump workspace-field-label"><input aria-label="研报页码" type="number" min={1} max={selected.pages} value={pageInput} onBlur={commitPage} onKeyDown={event => { if (event.key === 'Enter') commitPage() }} onChange={event => { setPageInput(event.target.value); const next = Number(event.target.value); if (Number.isInteger(next) && next >= 1 && next <= selected.pages) setPage(next) }} className="workspace-field" /><span>/ {selected.pages}</span></label>}
-            actions={onDescribe || onDefineCondition ? <LibraryReadingActions context={`当前第 ${page} 页`} onResearch={onDescribe ? () => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title }) : undefined} onScreening={onDefineCondition ? () => onDefineCondition({ source_document_id: selected.id, source_page: page, title: selected.title }) : undefined} /> : undefined} />
+            actions={onDescribe || onDefineCondition ? <LibraryReadingActions disabled={!!selectingFor && selected.parse_status !== 'indexed'}
+              researchLabel={selectingFor === 'screening' ? '将此页带回选股' : selectingFor === 'research' ? '用此页继续研究' : undefined}
+              screeningLabel={selectingFor ? '带此页去选股' : undefined} context={`当前第 ${page} 页`} onResearch={onDescribe ? () => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title }) : undefined} onScreening={onDefineCondition ? () => onDefineCondition({ source_document_id: selected.id, source_page: page, title: selected.title }) : undefined} /> : undefined} />
         </> : loading ? <LoadingState compact label="正在加载…" /> : <EmptyState title="未选择研报" description="从左侧列表选择一份研报，阅读 PDF 原文并核对研究依据。" />}
       </section>
     </div>

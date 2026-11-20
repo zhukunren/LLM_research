@@ -63,8 +63,9 @@ export default function ResearchAnswer({ content, conversationId, references, su
           if (pages.length) href = `/api/v1/documents/${encodeURIComponent(source[1])}/pdf#page=${pages.includes(requested) ? requested : Math.min(...pages)}`
         }
         const download = href?.startsWith(filePrefix)
-        const external = /^https?:\/\//i.test(href || '')
-        return <StockText><a href={href || undefined} download={download ? true : undefined} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined}>{children}</a></StockText>
+        const originalPage = /^\/api\/v1\/documents\/[\w-]+\/pdf#page=[1-9]\d*$/.test(href || '')
+        const newTab = originalPage || /^https?:\/\//i.test(href || '')
+        return <StockText><a href={href || undefined} data-stock-ignore={originalPage || undefined} download={download ? true : undefined} target={newTab ? '_blank' : undefined} rel={newTab ? 'noopener noreferrer' : undefined}>{children}</a></StockText>
       },
       img: ({ src, alt }) => /\.(png|jpe?g|gif|webp)(?:[?#]|$)/i.test(src || '')
         ? <img src={src?.startsWith(filePrefix) ? src.replace('/generated-files/', '/research-assets/') : src} alt={alt || '研究图表'} loading="lazy" />

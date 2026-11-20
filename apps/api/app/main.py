@@ -85,6 +85,7 @@ from .settings import (
     REPORT_DIR,
     REPORT_UPLOAD_DIR,
     STOCK_FILE,
+    TUSHARE_API_URL,
     llm_settings,
     tushare_settings,
 )
@@ -253,10 +254,10 @@ def settings_status():
         "tushare": {
             "configured": tushare["configured"],
             "credential_source": tushare["credential_source"] or None,
-            "provider": "official",
+            "provider": "official" if str(tushare["api_url"]).rstrip("/") == TUSHARE_API_URL else "relay",
         },
         "runtime": {"data_root_configured": STOCK_FILE.exists(), "report_directory_configured": REPORT_DIR.exists()},
-        "notice": "配置文件和密钥不会返回到浏览器。Tushare 通过官方接口同步，实际接口权限以官方账户为准；行情和资讯结果保存在本地库。",
+        "notice": "Tushare 凭据由服务端读取，数据权限以配置的接口服务为准。行情和资讯结果保存在本地库。",
     }
 
 

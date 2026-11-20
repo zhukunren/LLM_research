@@ -263,7 +263,7 @@ def test_stale_revision_and_active_turn_reject_new_messages(client):
     assert len(client.get(f"/api/v1/conversations/{conversation['id']}").json()["messages"]) == 1
 
 
-def test_task_revision_is_frozen_and_identical_retries_do_not_duplicate(client):
+def test_current_task_can_be_edited_but_history_is_frozen_and_identical_retries_do_not_duplicate(client):
     conversation = create_conversation(client)
     message = post_user_message(client, conversation["id"]).json()
     payload = {
@@ -282,7 +282,15 @@ def test_task_revision_is_frozen_and_identical_retries_do_not_duplicate(client):
     assert replay.json()["idempotent_replay"] is True
     assert restored["original_user_messages"] == ["收盘价高于20日均线，筛一下"]
     assert client.get(f"/api/v1/conversations/{conversation['id']}").json()["task_revision"] == 1
-    with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+    # Migration 051 permits editing the current task JSON; older revisions remain protected.
+    with db.connect() as connection:
+        connection.execute("UPDATE screening_task_revisions SET task_json=json_set(task_json, '$.conditions[0].description', '当前条件说明已修改') WHERE conversation_id=? AND revision=1", (conversation['id'],))
+    assert client.get(f"/api/v1/conversations/{conversation['id']}/revisions/1").json()['conditions'][0]['description'] == '当前条件说明已修改'
+    conversation_store.finish_turn(conversation['id'], message['turn_id'], 1, 'succeeded', '方案已保存', {'ready_to_execute': False, 'execution_authorized': False})
+    next_message = post_user_message(client, conversation['id'], message_id='message-2', base_revision=1).json()
+    next_revision = client.post(f"/api/v1/conversations/{conversation['id']}/revisions", json={'base_revision': 1, 'source_message_id': next_message['message_id'], 'task': task_revision(conversation['id'], 2)})
+    assert next_revision.status_code == 201, next_revision.text
+    with pytest.raises(sqlite3.IntegrityError, match="current screening task"):
         with db.connect() as connection:
             connection.execute(
                 """UPDATE screening_task_revisions SET task_json='{}'

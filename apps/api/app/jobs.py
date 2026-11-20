@@ -172,7 +172,11 @@ class JobLease:
         self._thread.join(timeout=1)
 
 
-def claim(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, exclude_kinds: tuple[str, ...] = ()) -> JobLease | None:
+def claim(
+    job_id: str | None = None, *, kinds: tuple[str, ...] | None = None,
+    exclude_kinds: tuple[str, ...] = (), client_service: bool | None = None,
+) -> JobLease | None:
+    """Claim one job. An explicit client_service filter selects a group of research turns."""
     with connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
         now = utc_now()
@@ -204,6 +208,23 @@ def claim(job_id: str | None = None, *, kinds: tuple[str, ...] | None = None, ex
         if exclude_kinds:
             predicates.append(f"kind NOT IN ({','.join('?' for _ in exclude_kinds)})")
             params.extend(exclude_kinds)
+        if client_service is not None:
+            predicates.append("kind='research_turn'")
+            service_turn = """EXISTS (
+                SELECT 1 FROM research_turn_jobs AS candidate
+                JOIN client_service_turns AS service
+                  ON service.conversation_id=candidate.conversation_id AND service.turn_id=candidate.turn_id
+                WHERE candidate.job_id=jobs.id
+            )"""
+            predicates.append(service_turn if client_service else f"NOT {service_turn}")
+        # A turn may publish its reply while the previous job is still committing its handoff.
+        predicates.append("""(kind<>'research_turn' OR NOT EXISTS (
+            SELECT 1 FROM jobs AS running
+            JOIN research_turn_jobs AS turn ON turn.job_id=running.id
+            WHERE running.state='running' AND turn.conversation_id=(
+                SELECT conversation_id FROM research_turn_jobs WHERE job_id=jobs.id
+            )
+        ))""")
         row = connection.execute(
             f"SELECT id,kind,payload_json FROM jobs WHERE {' AND '.join(predicates)} ORDER BY created_at,id LIMIT 1", params
         ).fetchone()

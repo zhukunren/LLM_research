@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from pydantic import Field
 
-from . import conversation_store, documents, market, news_sources, program_conditions, screening_service, tushare_sync, research_scan_service, research_workspace
+from . import conversation_store, documents, market, news_retention, news_sources, program_conditions, screening_service, tushare_sync, research_scan_service, research_workspace
 from .db import connect, utc_now
 from .models import StrictModel as ToolArgs
 from .screening_contracts import CustomProgram
@@ -317,7 +317,9 @@ def search_sources(args: SearchSourcesArgs, context: ToolContext) -> dict:
     if context is not None and args.as_of and context.report_lookback_calendar_days:
         report_earliest = (args.as_of - timedelta(days=context.report_lookback_calendar_days)).isoformat()
     if args.kind == "news":
-        predicates, params = [], []
+        article_time = news_retention.article_time("n")
+        predicates = [f"{article_time}>=?", f"{article_time}<?"]
+        params = list(news_retention.window(news_retention.today()))
         if args.as_of:
             from datetime import timezone
             cutoff = datetime.combine(args.as_of + timedelta(days=1), time.min, news_sources.LOCAL_ZONE).astimezone(timezone.utc).isoformat()
@@ -465,7 +467,10 @@ def execute_task(args: ExecuteTaskArgs, context: ToolContext) -> dict:
 def read_run(args: ReadRunArgs, context: ToolContext) -> dict:
     from .screening_tools import ToolDispatchError
     runs = screening_service.list_task_runs(context.conversation_id)
-    run_id = args.run_id or (runs[0]["id"] if runs else None)
+    turn = conversation_store.get_turn(context.conversation_id, context.turn_id)
+    message = conversation_store.get_user_message(context.conversation_id, turn["user_message_id"])
+    sources = [item for item in message["source_refs"] if item["kind"] == "screening_run" and item.get("conversation_id") == context.conversation_id]
+    run_id = args.run_id or (sources[0]["source_id"] if sources else None) or (runs[0]["id"] if runs else None)
     if run_id is None:
         return {"runs": [], "note": "当前研究尚无正式筛选运行"}
     deadline = clock.monotonic() + args.wait_seconds
@@ -558,12 +563,12 @@ def register_tools(registry) -> None:
     registry.register("read_project_company", "Read this conversation's project company dossier as of an explicit date. Includes actual price dates, unknown units, source counts and bounded previews. No screening task or run is created. Use normal source/data tools for full analysis.", ReadProjectCompanyArgs, read_project_company)
     registry.register("read_saved_research_evidence", "Read the immutable original-text snapshot attached to a research claim in this conversation's project. Claim IDs are in project context. Quote location is verified; semantic support and claim kind are user annotations, not established facts.", ReadSavedEvidenceArgs, read_saved_research_evidence)
     registry.register("discover_research_data", "Inspect this turn's actual Parquet columns and types, units, date range, SQLite snapshot schemas and source paths. No screening task is required. Use native Python/DuckDB for arbitrary exploratory queries; unknown units must be verified.", DiscoverResearchDataArgs, discover_research_data)
-    registry.register("query_tushare", "Read market, calendar, financial or news data through the official Tushare Pro API. params is a structured object with endpoint parameters (ts_code, trade_date, start_date, end_date, ann_date, period, exchange, fields, source, offset, limit, is_open, list_status, report_type, type, market, year, month). Query a stock/date scope and inspect pagination; credentials are never returned.", TushareQueryArgs, query_tushare, open_world=True)
+    registry.register("query_tushare", "Read market, calendar, financial or news data from the configured Tushare service. params is a structured object with endpoint parameters (ts_code, trade_date, start_date, end_date, ann_date, period, exchange, fields, source, offset, limit, is_open, list_status, report_type, type, market, year, month). Query a stock/date scope and inspect pagination; credentials are never returned.", TushareQueryArgs, query_tushare, open_world=True)
     registry.register("search_research_sources", "Search reports and news present in this local library only. Results describe local coverage and are not a web search or proof of complete topic coverage. Optional date filters; return source metadata and pagination.", SearchSourcesArgs, search_sources)
     registry.register("read_research_source", "Read original research text and provenance without requiring a screening task. Follow next_offset for long pages; optional historical cutoff is enforced.", ReadSourceArgs, read_source)
     registry.register("preview_screening_program", "Run a current Python condition on up to 20 sample securities and return actual metrics or the program error for repair. Does not create a formal run.", PreviewProgramArgs, preview_program, read_only=False)
     registry.register("execute_screening_task", "Check the user's explicit execution request and enqueue the current task during research. Use read_screening_run to inspect progress and results. Saving/discussion alone never authorizes execution.", ExecuteTaskArgs, execute_task, read_only=False)
-    registry.register("read_screening_run", "Read this research's saved run, errors, coverage and paginated decisions; optionally wait up to 20 seconds. Null run_id selects the latest run. No rerun or current-data substitution.", ReadRunArgs, read_run)
+    registry.register("read_screening_run", "Read a saved run, errors, coverage and paginated decisions. Null run_id selects the batch referenced by the user message or the latest run. Decisions use the same order as the Web results list. Optionally wait up to 20 seconds. No rerun or current-data substitution.", ReadRunArgs, read_run)
     registry.register("start_research_scan", "Autonomously run a read-only Python research scan over the full local A-share universe or explicit securities. Default cross_sectional mode passes the entire frozen universe together for ranking; choose per_stock only for independent calculations to checkpoint and resume batches. No screening task revision, formal execution grant or observation record is created. Results persist for later turns. General research scripts can use native Python without this contract.", StartResearchScanArgs, start_research_scan, read_only=False)
     registry.register("read_research_scan", "Read this conversation's persisted research scan, progress, errors and paginated per-stock metrics. Optionally wait up to 20 seconds. Null scan_id selects the latest research scan; reading never reruns with current data.", ReadResearchScanArgs, read_research_scan)
     registry.register("cancel_research_scan", "Cancel this conversation's queued or running read-only research scan. Completed results remain available.", CancelResearchScanArgs, cancel_research_scan, read_only=False)

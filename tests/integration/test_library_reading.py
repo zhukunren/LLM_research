@@ -5,13 +5,14 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import db, main, news_library, news_sources, report_catalog, worker, pattern_examples, index_market
+from apps.api.app import db, main, news_library, news_retention, news_sources, report_catalog, worker, pattern_examples, index_market
 from apps.api.app.model_client import ModelRequestError
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, 'DB_PATH', tmp_path / 'reading.db')
+    monkeypatch.setattr(news_retention, 'today', lambda: date(2026, 9, 20))
     monkeypatch.setattr(report_catalog, 'llm_settings', lambda: {'configured': True, 'model': 'fixture'})
     with TestClient(main.app) as session:
         yield session

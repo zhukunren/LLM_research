@@ -10,6 +10,17 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 const profiles: ResearchAssistant[] = [
   { id: 'general', name: '通用投研', description: '综合研究', instructions: '核验来源', enabled: true, builtin: true, revision: 1, skill_hash: 'general' },
   { id: 'financial', name: '财报分析', description: '核验财务质量', instructions: '核验财报', enabled: true, builtin: true, revision: 1, skill_hash: 'financial' },
+  {
+    id: 'a-share-valuation', name: 'A股估值分析', description: '比较同行估值', instructions: '统一估值口径',
+    enabled: true, builtin: true, revision: 1, skill_hash: 'valuation',
+    method_guide: {
+      use_when: '想了解公司的相对估值。',
+      inputs: '公司名称和估值日。',
+      outputs: '同口径估值区间。',
+      example_prompt: '用同一交易日的市盈率比较同行。',
+      source: { name: '示例上游仓库', url: 'https://github.com/example/methods/tree/123456789', revision: '123456789' },
+    },
+  },
   { id: 'daily-hotspots', name: '今日热点', description: '自动检索今日资讯', instructions: '核验资讯', enabled: true, builtin: true, revision: 1, skill_hash: 'daily', launch_mode: 'immediate' },
 ]
 
@@ -125,7 +136,7 @@ it('restores text and attachment IDs after a failed send and retries its frozen 
   expect(screen.getByRole('log').querySelectorAll('.conversation-message.user')).toHaveLength(1)
 })
 
-it('changes research methods without sending or losing draft text and uploaded files', async () => {
+it('previews and applies a library method without sending or losing draft text and uploaded files', async () => {
   const state = backend(), user = userEvent.setup()
   render(<ConversationWorkspace initialNewDraft />)
   await waitFor(() => expect(screen.getByLabelText('研究要求')).toBeEnabled())
@@ -134,8 +145,24 @@ it('changes research methods without sending or losing draft text and uploaded f
   await openResearchSettings(user)
   await user.click(screen.getByRole('button', { name: '研究方法' }))
   expect(screen.queryByRole('menuitem', { name: '启动今日热点' })).not.toBeInTheDocument()
-  await user.click(await screen.findByRole('menuitem', { name: '使用财报分析' }))
-  await waitFor(() => expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('财报分析'))
+  await user.click(await screen.findByRole('menuitem', { name: '浏览方法' }))
+  const library = within(screen.getByRole('dialog', { name: '研究方法库' }))
+  expect(library.queryByRole('button', { name: '今日热点' })).not.toBeInTheDocument()
+  await user.click(library.getByRole('button', { name: 'A股估值分析' }))
+  expect(library.getByRole('heading', { name: 'A股估值分析' })).toBeInTheDocument()
+  expect(library.getByText('想了解公司的相对估值。')).toBeInTheDocument()
+  expect(library.getByText('公司名称和估值日。')).toBeInTheDocument()
+  expect(library.getByText('同口径估值区间。')).toBeInTheDocument()
+  expect(library.getByRole('link', { name: '示例上游仓库' })).toHaveAttribute('href', 'https://github.com/example/methods/tree/123456789')
+  expect(library.getByText('1234567')).toHaveAttribute('title', '123456789')
+  await user.click(library.getByRole('button', { name: '复制示例' }))
+  expect(await library.findByRole('status')).toHaveTextContent('已复制示例')
+  expect(await navigator.clipboard.readText()).toBe('用同一交易日的市盈率比较同行。')
+  expect(state.paths.filter(path => path.endsWith('/assistant'))).toHaveLength(0)
+  await user.click(library.getByRole('button', { name: '使用此方法' }))
+  await waitFor(() => expect(screen.getByLabelText('当前研究方法')).toHaveTextContent('A股估值分析'))
+  expect(screen.queryByRole('dialog', { name: '研究方法库' })).not.toBeInTheDocument()
+  expect(state.paths.filter(path => path.endsWith('/assistant'))).toHaveLength(1)
   expect(state.messages).toHaveLength(0)
   expect(screen.getByLabelText('研究要求')).toHaveValue('尚未发送的问题')
   expect(screen.getByRole('list', { name: '待发送附件' })).toHaveTextContent('quarterly.txt')

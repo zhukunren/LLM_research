@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from datetime import date, datetime, timedelta, timezone
+import hashlib
 import math
 from threading import Lock
 import time
@@ -15,7 +16,6 @@ from pydantic import BaseModel, Field
 from .settings import tushare_settings
 from .tushare_client import TushareClient, TushareError
 from .tushare_limits import configured_limiter
-from .daily_signal_aliases import strategy_identity
 
 router = APIRouter(prefix="/api/v1/daily-signals", tags=["每日信号"])
 _market_cache: OrderedDict[str, tuple[float, dict[str, dict]]] = OrderedDict()
@@ -42,9 +42,14 @@ def named_signals(payload: dict) -> dict:
               'known_pnl_count', 'win_count', 'sample_start', 'sample_end', 'data_end',
               'ann_return_start', 'ann_return_end', 'ann_return_day_count', 'buy_count', 'sell_count')
     for item in payload['strategies']:
-        identity, title = strategy_identity(item['strategy_name'])
+        source_name = item['strategy_name']
+        if not isinstance(source_name, str) or not source_name.strip():
+            raise ValueError('Missing strategy identity')
+        digest = hashlib.sha256(('daily-signals-v1:' + source_name).encode()).hexdigest()
+        source_title = item.get('strategy_title')
+        title = source_title.strip() if isinstance(source_title, str) else ''
         strategy = {key: item[key] for key in fields if key in item}
-        strategy.update(strategy_name=identity, strategy_title=title, generation_id='')
+        strategy.update(strategy_name='signal-' + digest[:24], strategy_title=title or '未命名策略', generation_id='')
         for side in ('buy_signals', 'sell_signals'):
             strategy[side] = [{'code': stock['code'], 'name': stock['name']} for stock in item[side]]
         strategies.append(strategy)
@@ -87,7 +92,8 @@ def market_day(day: date) -> dict[str, dict]:
             return cached[1]
         config = tushare_settings()
         try:
-            client = TushareClient(str(config['token']), timeout=12, retries=0, limiter=configured_limiter())
+            client = TushareClient(str(config['token']), api_url=str(config['api_url']),
+                                   timeout=12, retries=0, limiter=configured_limiter())
             snapshot = client.raw_query('daily', trade_date=day.strftime('%Y%m%d'),
                 fields='ts_code,trade_date,close,pct_chg,vol,amount')
         except TushareError:
@@ -118,7 +124,7 @@ def market_quotes(payload: MarketRequest):
         _error(422, "股票代码格式无效。")
     rows = market_day(payload.date)
     return {'date': payload.date.isoformat(), 'items': [rows[code] for code in dict.fromkeys(payload.codes) if code in rows],
-            'source': 'Tushare 官方日线', 'volume_unit': '手'}
+            'source': 'Tushare 日线', 'volume_unit': '手'}
 
 
 _history_cache: OrderedDict[tuple[str, str], tuple[float, dict]] = OrderedDict()
@@ -139,7 +145,8 @@ def chart_history(code: str, day: date) -> dict:
         config = tushare_settings()
         warning = ''
         try:
-            client = TushareClient(str(config['token']), timeout=15, retries=0, limiter=configured_limiter())
+            client = TushareClient(str(config['token']), api_url=str(config['api_url']),
+                                   timeout=15, retries=0, limiter=configured_limiter())
             payload = client.raw_query('daily', ts_code=code, start_date=(day - timedelta(days=500)).strftime('%Y%m%d'),
                 end_date=day.strftime('%Y%m%d'), fields='ts_code,trade_date,open,high,low,close,vol,amount')
             table = payload['data']; bars = []
@@ -162,7 +169,7 @@ def chart_history(code: str, day: date) -> dict:
                     'volume': numeric['vol'] if numeric['vol'] is not None and numeric['vol'] >= 0 else None,
                     'quality_valid': True})
             bars = sorted({bar['trade_date']: bar for bar in bars}.values(), key=lambda bar: bar['trade_date'])[-180:]
-            source, volume_unit = 'Tushare 官方日线', '手'
+            source, volume_unit = 'Tushare 日线', '手'
         except TushareError:
             from .market import get_bars
             bars = [bar for bar in get_bars(code, day.isoformat(), 180) if bar.get('quality_valid') is not False]

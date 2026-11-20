@@ -5,7 +5,13 @@ import './screening-templates.css'
 
 export type ScreeningTemplate = {
   id: string; version: number; name: string; formula: string; rules?: string[]
+  requires_industry?: boolean
   parameters: Record<string, { label: string; default: number; min: number; max: number; step: number }>
+}
+export type IndustryValuationSelection = {
+  industry_code: string
+  pe_comparison: 'at_most' | 'below_value' | 'below_industry_median'
+  max_pe_ttm?: number
 }
 export function templateLabel(item: ScreeningTemplate, params: Record<string, number>) {
   if (item.id === 'above_sma') return `收盘价高于${params.window}日均线`
