@@ -6,7 +6,7 @@ from typing import Annotated
 
 from pydantic import Field, field_validator
 
-from .client_service_contracts import CardTheme, StrictModel
+from .client_service_contracts import DEFAULT_CARD_THEME, CardTheme, StrictModel
 from .client_service_images import BODY_TOP, CardLayout, _font, _lines, themed_masthead
 from .client_service_text import without_web_links
 
@@ -19,7 +19,7 @@ PlanDate = Annotated[date, Field(gt=date.min)]
 
 
 class OpeningPlanContent(StrictModel):
-    theme: CardTheme = 'river'
+    theme: CardTheme = DEFAULT_CARD_THEME
     sections: dict[str, Annotated[str, Field(max_length=SECTION_LIMIT)]] = Field(default_factory=dict, max_length=len(SECTION_LABELS))
 
     @field_validator('sections')

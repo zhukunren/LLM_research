@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Download, Maximize2, Save, Sparkles } from 'lucide-react'
 import planTemplate from '../../../api/app/assets/client-service/opening-plan.json'
 import { api } from '../api'
-import { beijingDate, cardArtworkPosition, cardThemes, fixedDisclosure, marketTime, withoutWebLinks, type CardTheme } from '../clientService'
+import { beijingDate, cardArtworkPosition, cardThemes, defaultCardTheme, fixedDisclosure, marketTime, withoutWebLinks, type CardTheme } from '../clientService'
 import { ClientCardFullscreen, ClientCardImageStage, ClientCardPreviewSwitch, type CardPreviewMode } from '../components/ClientCardPreview'
 import ClientThemePicker from '../components/ClientThemePicker'
 import EditableClientCard from '../components/EditableClientCard'
@@ -36,7 +36,7 @@ type Status = {
 )
 
 const initialDraft: Draft = { sections: {}, appliedRequest: '' }
-const initialContent: Content = { sections: {}, theme: 'river' }
+const initialContent: Content = { sections: {}, theme: defaultCardTheme }
 const requestPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/
 const adviser = `投资顾问：${fixedDisclosure.adviser}　执业编码：${fixedDisclosure.license}`
 const weekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long', timeZone: 'UTC' })

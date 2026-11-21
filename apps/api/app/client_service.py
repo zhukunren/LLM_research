@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 
 from . import codex_runtime, conversation_store, research_models, research_turn_service
-from .client_service_contracts import CardContent, GenerateCard, SLOTS, ServiceSettings, default_settings
+from .client_service_contracts import DEFAULT_CARD_THEME, CardContent, GenerateCard, SLOTS, ServiceSettings, default_settings
 from .client_service_disclosure import with_fixed_disclosure
 from .codex_store import web_evidence
 from .db import connect, json_dump, json_load, utc_now
@@ -135,7 +135,7 @@ def start(payload: GenerateCard, *, clock: datetime | None = None, instant=False
     template = json_load(previous['template_json']) if previous else next(item for item in settings()['templates'] if item['id'] == payload.slot_id)
     if instant and not previous:
         template = {**template, 'id': slot_id, 'title': '即时简报', 'time': current.strftime('%H:%M'),
-                    'content': {**template['content'], 'theme': theme or template['content'].get('theme', 'river'), **{key: '' for key in ('headline', 'conclusion', 'action', 'focus')}}}
+                    'content': {**template['content'], 'theme': theme or template['content'].get('theme', DEFAULT_CARD_THEME), **{key: '' for key in ('headline', 'conclusion', 'action', 'focus')}}}
     cutoff = current if instant else _timestamp(previous['cutoff']) if previous else datetime.fromisoformat(payload.date.isoformat() + 'T' + template['time']).replace(tzinfo=TZ)
     if cutoff > current:
         error(422, '尚未到这个服务时点，请到对应时间后采集；内容和模板可以提前编辑。')

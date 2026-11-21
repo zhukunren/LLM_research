@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .client_service_contracts import LEGACY_CARD_THEME
 from .client_service_disclosure import FIXED_DISCLOSURE, disclosure_lines
 from .client_service_text import card_copy_content, without_web_links
 from .settings import PROJECT_ROOT
@@ -70,6 +71,7 @@ def _metric_lines(text, font, width):
 
 # The legacy jade identifier now renders the technology collection, preserving saved choices.
 THEMES = {
+    'soochow': {'ink': '#00225D', 'muted': '#43566C', 'paper': '#F5F7FA', 'action': '#E8F2FB', 'accent': '#0079C2'},
     'river': {'ink': '#153c60', 'muted': '#61778a', 'paper': '#f1f5fa', 'action': '#e8f0f8', 'accent': '#b69868'},
     'jade': {'ink': '#12345b', 'muted': '#61788f', 'paper': '#f2f6fc', 'action': '#e5effa', 'accent': '#53b7e7'},
     'gold': {'ink': '#493d2f', 'muted': '#857969', 'paper': '#f7f4ee', 'action': '#efe7d9', 'accent': '#b79150'},
@@ -88,7 +90,7 @@ def artwork_index(slot_id: str) -> int:
 
 
 def artwork_path(theme: str) -> Path:
-    return web_asset(f"client-service/themes/{theme if theme in THEMES else 'river'}-logo-safe.png")
+    return web_asset(f"client-service/themes/{theme if theme in THEMES else LEGACY_CARD_THEME}-logo-safe.png")
 
 
 def web_asset(path: str) -> Path:
@@ -236,9 +238,10 @@ def render_card(card: dict, *, regions: list | None = None, draft: bool = False)
     content, template = card_copy_content(card['content']), card['template']
     template_title = without_web_links(template['title'])
     market = display_market(card)
-    theme = content.get('theme', 'river')
+    # Cards persisted before theme selection used the original river artwork.
+    theme = content.get('theme', LEGACY_CARD_THEME)
     if theme not in THEMES:
-        theme = 'river'
+        theme = LEGACY_CARD_THEME
     palette = THEMES[theme]
     ink, muted, accent = (palette[key] for key in ('ink', 'muted', 'accent'))
     body, small = _font(29), _font(21)

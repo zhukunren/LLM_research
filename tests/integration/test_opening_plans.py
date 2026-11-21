@@ -147,7 +147,9 @@ def test_incomplete_collection_can_still_use_frozen_market_data(client, monkeypa
 
 def test_saved_day_and_default_template_have_independent_versions(client):
     editor = PATH + "/editor/" + PLAN_DATE
-    assert client.get(editor).json()["saved"] is None
+    initial = client.get(editor).json()
+    assert initial["saved"] is None
+    assert initial["template"]["content"]["theme"] == "soochow"
     template = {"revision": 0, "content": {"theme": "jade", "sections": {"risk_control": "盘中重新检查仓位。"}}}
     assert client.put(PATH + "/template", json=template).status_code == 200
     launch(client)
@@ -165,7 +167,7 @@ def test_saved_day_and_default_template_have_independent_versions(client):
 
 
 def test_opening_plan_image_uses_dedicated_art_and_keeps_long_sections_editable(client):
-    content = {"plan_date": PLAN_DATE, "theme": "river", "sections": {
+    content = {"plan_date": PLAN_DATE, "sections": {
         "judgment": "参考[公开公告](https://example.com/market)核对盘面。" * 26,
         "direction_one": "等待观察，满足条件后再判断。",
         "risk_control": "仅为版式测试。",
@@ -180,8 +182,8 @@ def test_opening_plan_image_uses_dedicated_art_and_keeps_long_sections_editable(
     assert {region["key"] for region in value["regions"]} == set(content["sections"])
     assert all(region["y"] + region["height"] < image.height for region in value["regions"])
     area = (740, 178, 1080, 330)
-    assert image.crop(area).tobytes() == client_service_images.themed_masthead("river", "opening-plan").crop(area).tobytes()
-    assert image.crop(area).tobytes() != client_service_images.themed_masthead("river", "opening").crop(area).tobytes()
+    assert image.crop(area).tobytes() == client_service_images.themed_masthead("soochow", "opening-plan").crop(area).tobytes()
+    assert image.crop(area).tobytes() != client_service_images.themed_masthead("soochow", "opening").crop(area).tobytes()
     clean = {**content, "sections": {**content["sections"], "judgment": "参考公开公告核对盘面。" * 26}}
     assert client.post(PATH + "/preview?draft=true", json=clean).json()["image_hash"] == value["image_hash"]
     assert client.post(PATH + "/preview", json=clean).json()["image_hash"] != value["image_hash"]

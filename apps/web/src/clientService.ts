@@ -10,12 +10,15 @@ export function withFixedDisclosure(content: CardContent): CardContent {
 }
 
 // Keep the persisted jade key for cards and drafts; its collection is now Ice Blue Technology.
-export type CardTheme = 'river' | 'jade' | 'gold' | 'cosmos' | 'cinnabar' | 'ocean' | 'platinum'
+export type CardTheme = 'soochow' | 'river' | 'jade' | 'gold' | 'cosmos' | 'cinnabar' | 'ocean' | 'platinum'
+export const defaultCardTheme: CardTheme = 'soochow'
+export const legacyCardTheme: CardTheme = 'river'
 export type RebalanceCardContent = {
   theme: CardTheme; product: string; code: string; name: string; direction: string
   before: string; after: string; price: string; reason: string; basis: string
 }
 export const cardThemes: { id: CardTheme; name: string; description: string }[] = [
+  { id: 'soochow', name: '东吴证券蓝', description: '证券蓝 · 江南水岸' },
   { id: 'river', name: '锦绣江岸', description: '蓝金城市 · 江岸光影' },
   { id: 'jade', name: '冰蓝科技', description: '芯片光路 · 数据网络' },
   { id: 'gold', name: '曜金几何', description: '曜石金属 · 几何光影' },

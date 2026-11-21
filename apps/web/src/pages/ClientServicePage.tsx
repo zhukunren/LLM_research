@@ -11,7 +11,7 @@ import LoadingState from '../components/LoadingState'
 import WorkspacePageHeading from '../components/WorkspacePageHeading'
 import { useWorkspaceSession } from '../WorkspaceSession'
 import { useSessionState } from '../useSessionState'
-import { beijingDate, cardThemes, cardArtworkPosition, cardText, conclusionLimit, contentFields, disclosureLines, fixedDisclosure, withFixedDisclosure, marketTime, markDraftPreview, type CardContent, type CardPreview, type ServiceCard, type ServiceSettings } from '../clientService'
+import { beijingDate, cardThemes, cardArtworkPosition, cardText, conclusionLimit, contentFields, defaultCardTheme, disclosureLines, fixedDisclosure, legacyCardTheme, withFixedDisclosure, marketTime, markDraftPreview, type CardContent, type CardPreview, type ServiceCard, type ServiceSettings } from '../clientService'
 import './client-service.css'
 import type { ServiceView } from '../workspaceRoute'
 import { isServiceResearchDraft, serviceResearchPassages, type ServiceResearchDraft } from '../clientServiceResearchDraft'
@@ -85,18 +85,20 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
     content: { ...baseTemplate.content, headline: '', conclusion: '', action: '', focus: '' } } : undefined
   const template = config?.templates.find(item => item.id === slot) || card?.template || (slot === 'realtime' ? instantTemplate : undefined)
   const key = date + ':' + slot
-  const rawContent = drafts[key] || card?.content || template?.content
-  const content = rawContent ? { ...withFixedDisclosure(rawContent), theme: rawContent.theme || 'river' as const, market_overrides: rawContent.market_overrides || {} } : undefined
-  const theme = content?.theme || 'river'
+  const baselineContent = card?.content ?? template?.content
+  const baselineTheme = baselineContent?.theme ?? (card ? legacyCardTheme : defaultCardTheme)
+  const rawContent = drafts[key] ?? baselineContent
+  const theme = rawContent?.theme ?? baselineTheme
+  const content = rawContent ? { ...withFixedDisclosure(rawContent), theme, market_overrides: rawContent.market_overrides || {} } : undefined
   const themeLabel = cardThemes.find(item => item.id === theme)!.name
-  const canonicalContent = (value: CardContent | undefined) => value && { theme: value.theme || 'river', ...Object.fromEntries(contentFields.map(field => [field.key, value[field.key]])), market_overrides: Object.fromEntries(Object.entries(value.market_overrides || {}).sort()) }
+  const canonicalContent = (value: CardContent | undefined) => value && { theme: value.theme ?? baselineTheme, ...Object.fromEntries(contentFields.map(field => [field.key, value[field.key]])), market_overrides: Object.fromEntries(Object.entries(value.market_overrides || {}).sort()) }
   const contentEqual = (a: CardContent | undefined, b: CardContent | undefined) => same(canonicalContent(a), canonicalContent(b))
   const effectiveTemplate = card?.template || template
   const loaded = loadedDate === date
   const valid = !!content?.brand.trim()
   const pending = card?.state === 'awaiting_agent' || card?.state === 'running'
   const futureSlot = !instant && !!effectiveTemplate && new Date(card?.cutoff || `${date}T${effectiveTemplate.time}:00+08:00`).getTime() > now
-  const dirty = !!content && !contentEqual(content, card?.content || template?.content)
+  const dirty = !!content && !contentEqual(content, baselineContent)
   const scheduleDirty = !!schedule && !!config && !same(schedule, config)
   const filled = content ? (['conclusion', 'action', 'focus'] as const).filter(field => content[field].trim()).length : 0
   const draftReason = !card?.market || card.state !== 'ready' ? '市场状态尚未采集'

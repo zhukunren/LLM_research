@@ -21,11 +21,13 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
-CardTheme = Literal['river', 'jade', 'gold', 'cosmos', 'cinnabar', 'ocean', 'platinum']
+CardTheme = Literal['soochow', 'river', 'jade', 'gold', 'cosmos', 'cinnabar', 'ocean', 'platinum']
+DEFAULT_CARD_THEME: CardTheme = 'soochow'
+LEGACY_CARD_THEME: CardTheme = 'river'
 
 
 class CardContent(StrictModel):
-    theme: CardTheme = 'river'
+    theme: CardTheme = DEFAULT_CARD_THEME
     market_overrides: dict[str, str] = Field(default_factory=dict, max_length=13)
     brand: str = Field(default='锦绣成长', min_length=1, max_length=20)
     headline: str = Field(default='', max_length=20)

@@ -196,7 +196,7 @@ def test_rebalance_preview_changes_background_and_exposes_editable_regions(clien
         assert path != client_service_images.artwork_path(theme)
         with Image.open(path) as illustration:
             assert illustration.width >= 1080 and illustration.width / illustration.height > 2.4
-    draft = {"theme": "river", "product": "丰收成长尊享", "code": CODE, "name": "样例股份", "direction": "开仓买入",
+    draft = {"product": "丰收成长尊享", "code": CODE, "name": "样例股份", "direction": "开仓买入",
              "before": "0%", "after": "5", "price": "46.70", "reason": "阅读[公告](https://example.com/report)。"}
     first = client.post(PATH + "/preview", json=draft)
     assert first.status_code == 200, first.text[:300]
@@ -204,7 +204,7 @@ def test_rebalance_preview_changes_background_and_exposes_editable_regions(clien
     first_row = next(region for region in value["regions"] if region["key"] == "name")
     with Image.open(BytesIO(base64.b64decode(value["image"].split(",", 1)[1]))) as image:
         assert image.size == (value["width"], value["height"])
-        assert image.getpixel((0, first_row["y"] - 35)) == ImageColor.getrgb(client_service_images.THEMES["river"]["paper"])
+        assert image.getpixel((0, first_row["y"] - 35)) == ImageColor.getrgb(client_service_images.THEMES["soochow"]["paper"])
     assert {region["key"] for region in value["regions"]} == {"product", "name", "code", "direction", "before", "after", "price", "reason"}
     assert client.post(PATH + "/preview", json={**draft, "reason": "阅读公告。"}).json()["image_hash"] == value["image_hash"]
     assert client.post(PATH + "/preview", json={**draft, "theme": "jade"}).json()["image_hash"] != value["image_hash"]

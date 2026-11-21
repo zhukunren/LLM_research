@@ -12,7 +12,7 @@ import type { ServiceView } from '../workspaceRoute'
 vi.mock('../api', () => ({ api: vi.fn() }))
 const content: CardContent = { brand: '锦绣成长', headline: '', conclusion: '', action: '', focus: '', service: '联系投顾', risk: '市场有风险', adviser: '测试投顾', license: 'TEST123' }
 const slots = [['preopen', '盘前简报', '08:45'], ['opening', '开盘观察', '09:45'], ['checkpoint', '关键时点', '10:30'], ['midday', '午间观察', '11:35'], ['late', '尾盘观察', '14:30'], ['close', '收盘总结', '15:30']]
-const config: ServiceSettings = { revision: 0, enabled: false, timezone: 'Asia/Shanghai', weekdays: [0, 1, 2, 3, 4], templates: slots.map(([id, title, time]) => ({ id, title, time, enabled: true, content })) }
+const config: ServiceSettings = { revision: 0, enabled: false, timezone: 'Asia/Shanghai', weekdays: [0, 1, 2, 3, 4], templates: slots.map(([id, title, time]) => ({ id, title, time, enabled: true, content: { ...content, theme: 'soochow' } })) }
 const initialCard: ServiceCard = {
   id: '00000000-0000-4000-8000-000000000001', service_date: beijingDate(), slot_id: 'checkpoint', cutoff: beijingDate() + 'T10:30:00+08:00', revision: 0,
   state: 'ready', message: '已采集', template: config.templates[2], content, updated_at: '',
@@ -423,7 +423,7 @@ it('starts an independent instant briefing and selects it without overwriting a 
   await user.click(within(screen.getByRole('navigation', { name: '服务时点' })).getByRole('button', { name: /关键时点/ }))
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('固定时点草稿')
   const call = vi.mocked(api).mock.calls.find(([path]) => path === '/client-service/briefs')
-  expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({theme:'river'})
+  expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ theme: 'soochow' })
 })
 
 it('merges generated fields into an in-progress draft without replacing user edits', async () => {
@@ -454,16 +454,18 @@ it('switches theme previews, saves the card theme and retains unsaved choices pe
   expect(within(screen.getByRole('region', { name: '卡片编辑' })).queryByRole('complementary', { name: '卡片套图' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: '锦绣江岸' })).toHaveAttribute('aria-pressed', 'true')
   await user.click(screen.getByRole('button', { name: '上一套底图' }))
+  expect(screen.getByRole('button', { name: '东吴证券蓝' })).toHaveAttribute('aria-pressed', 'true')
+  await user.click(screen.getByRole('button', { name: '上一套底图' }))
   expect(screen.getByRole('button', { name: '铂银建筑' })).toHaveAttribute('aria-pressed', 'true')
   await user.click(screen.getByRole('button', { name: '下一套底图' }))
-  expect(screen.getByRole('button', { name: '锦绣江岸' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: '东吴证券蓝' })).toHaveAttribute('aria-pressed', 'true')
   await user.click(screen.getByRole('button', { name: '冰蓝科技' }))
   await waitFor(() => expect(screen.getByRole('button', { name: '下载草稿' })).toBeEnabled())
   const previews = vi.mocked(api).mock.calls.filter(([path]) => path.startsWith('/client-service/preview'))
   expect(JSON.parse(String(previews.at(-1)?.[1]?.body)).content.theme).toBe('jade')
   const slots = screen.getByRole('navigation', { name: '服务时点' })
   await user.click(within(slots).getByRole('button', { name: /盘前简报/ }))
-  expect(screen.getByRole('button', { name: '锦绣江岸' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: '东吴证券蓝' })).toHaveAttribute('aria-pressed', 'true')
   await user.click(within(slots).getByRole('button', { name: /关键时点/ }))
   expect(screen.getByRole('button', { name: '冰蓝科技' })).toHaveAttribute('aria-pressed', 'true')
   await user.click(screen.getByRole('button', { name: '保存本次卡片' }))

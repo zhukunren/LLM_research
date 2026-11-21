@@ -1,6 +1,6 @@
 import base64
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from io import BytesIO
 import json
 from types import SimpleNamespace
@@ -68,6 +68,7 @@ def test_settings_have_six_slots_and_optimistic_revision(configured):
     client, _ = configured
     settings = service.settings()
     assert [item['time'] for item in settings['templates']] == ['08:45', '09:45', '10:30', '11:35', '14:30', '15:30']
+    assert {item['content']['theme'] for item in settings['templates']} == {'soochow'}
     settings['enabled'] = True
     saved = service.save_settings(ServiceSettings(**settings))
     assert saved['revision'] == 1 and saved['enabled']
@@ -76,6 +77,45 @@ def test_settings_have_six_slots_and_optimistic_revision(configured):
     assert error.value.status_code == 409
     saved['templates'][0]['time'] = '25:00'
     assert client.put('/api/v1/client-service/settings', json=saved).status_code == 422
+
+
+def test_migration_updates_original_default_themes_and_preserves_saved_choices(configured):
+    from apps.api.app import opening_plans
+    from apps.api.app.opening_plan_card import OpeningPlanContent
+
+    config = service.settings()
+    config.update(revision=4, enabled=True, weekdays=[1, 3])
+    for template in config['templates']:
+        template['content']['theme'] = 'river'
+        template['content']['conclusion'] = '保留原有判断'
+    config['templates'][0]['content'].pop('theme')
+    config['templates'][1]['content']['theme'] = 'jade'
+    with db.connect() as connection:
+        connection.execute('INSERT INTO client_service_settings VALUES(1,?,?,?)', (4, db.json_dump(config), db.utc_now()))
+        connection.execute('DELETE FROM schema_migrations WHERE version=?', ('066_client_card_default_theme.sql',))
+
+    existing_card = service.start(request('saved-before-theme-update'))
+    plan_date = date.fromisoformat(DAY)
+    plan = OpeningPlanContent(theme='river', sections={'judgment': '保留开盘计划内容'})
+    opening_plans.save_content(opening_plans.SaveOpeningTemplate(revision=0, content=plan))
+    saved_plan = opening_plans.save_content(opening_plans.SaveOpeningPlan(revision=0, content=plan), plan_date=plan_date)
+
+    db.ensure_initialized()
+    updated = service.settings()
+    config['revision'] += 1
+    for index, template in enumerate(config['templates']):
+        template['content']['theme'] = 'jade' if index == 1 else 'soochow'
+    assert updated == config
+    assert service.detail(existing_card['id'])['content']['theme'] == 'river'
+    workspace = opening_plans.editor(plan_date)
+    assert workspace['saved'] == saved_plan
+    assert workspace['template'] == {'revision': 2, 'content': {'theme': 'soochow', 'sections': plan.sections},
+                                     'collection_request_id': None}
+
+    updated['templates'][0]['content']['theme'] = 'river'
+    saved_after_upgrade = service.save_settings(ServiceSettings(**updated))
+    db.ensure_initialized()
+    assert service.settings() == saved_after_upgrade
 
 
 def test_fixed_disclosure_upgrades_legacy_settings_cards_and_all_write_paths(configured):

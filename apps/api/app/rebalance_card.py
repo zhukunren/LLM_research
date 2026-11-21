@@ -7,7 +7,7 @@ import re
 from PIL import Image, ImageOps
 from pydantic import Field
 
-from .client_service_contracts import CardTheme, StrictModel
+from .client_service_contracts import DEFAULT_CARD_THEME, CardTheme, StrictModel
 from .client_service_disclosure import disclosure_lines
 from .client_service_images import BODY_TOP, MASTHEAD_HEIGHT, THEMES, WIDTH, CardLayout, _font, _lines, web_asset
 from .client_service_text import without_web_links
@@ -25,7 +25,7 @@ def percentage(value: str) -> str:
 
 
 class RebalanceCard(StrictModel):
-    theme: CardTheme = "river"
+    theme: CardTheme = DEFAULT_CARD_THEME
     product: str = Field(default="", max_length=80)
     code: str = Field(default="", max_length=15)
     name: str = Field(default="", max_length=50)

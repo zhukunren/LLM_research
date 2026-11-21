@@ -18,7 +18,7 @@ const fixture = {
   market: { index: '上证指数', trade_date: '2026-11-19', close: '3550.00', pct_change: null, source: '本地日线' },
 }
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
-const defaultEditor = { template: { revision: 0, content: { theme: 'river', sections: {} }, collection_request_id: null }, saved: null }
+const defaultEditor = { template: { revision: 0, content: { theme: 'soochow', sections: {} }, collection_request_id: null }, saved: null }
 const png = 'data:image/png;base64,cGxhbg=='
 function mockApi(collect: (path: string, init?: RequestInit) => Promise<unknown> = async () => { throw new Error('Unexpected collection request') }) {
   vi.mocked(api).mockImplementation(async (path, init) => {
@@ -175,6 +175,7 @@ it('previews and exports the selected artwork, and saves a dated card apart from
   render(<OpeningPlanPage />)
   fill('计划日期', planDate)
   await screen.findByRole('img', { name: '开盘计划图片预览' })
+  expect(screen.getByRole('button', { name: '东吴证券蓝' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getByRole('button', { name: '下载草稿图片' })).toBeDisabled()
   fill('今日核心判断', '关注成交量。')
   await user.click(screen.getByRole('button', { name: '冰蓝科技' }))

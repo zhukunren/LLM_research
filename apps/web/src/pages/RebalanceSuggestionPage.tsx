@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Check, Copy, Download, Image, Maximize2, Send, Sparkles } from 'lucide-react'
 import { api } from '../api'
-import { cardThemes, disclosureLines, marketTime, withoutWebLinks, type CardTheme, type RebalanceCardContent } from '../clientService'
+import { cardThemes, defaultCardTheme, disclosureLines, marketTime, withoutWebLinks, type CardTheme, type RebalanceCardContent } from '../clientService'
 import { ClientCardFullscreen, ClientCardImageStage, ClientCardPreviewSwitch, type CardPreviewMode } from '../components/ClientCardPreview'
 import { ClientBroadcastPanel } from '../components/ClientRobotOperations'
 import ClientThemePicker from '../components/ClientThemePicker'
@@ -142,7 +142,7 @@ export default function RebalanceSuggestionPage() {
   const priceReady = priceValid(price)
   const ready = !!(clean(draft.product) && codeReady && name && direction && before && after && priceReady)
   const mode = draft.mode || 'instant'
-  const theme = draft.theme || 'river'
+  const theme = draft.theme ?? defaultCardTheme
   const themeLabel = cardThemes.find(item => item.id === theme)!.name
   const selectedMode = modes.find(item => item.id === mode)
   const quote = draft.quote && sameStock(draft.quote.code, code) && draft.quote.price === price ? draft.quote : null
