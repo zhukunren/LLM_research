@@ -48,19 +48,22 @@ def eligible(item,cutoff,*,live=False,preopen=False):
     return observed.date()==cutoff.date()
 
 
-def tencent_quotes():
+def tencent_quote_rows(symbols):
     url='https://qt.gtimg.cn/'
-    response=requests.get(url,params={'q':','.join(value[1] for value in INDEXES.values())},timeout=8)
+    response=requests.get(url,params={'q':','.join(symbols)},timeout=8)
     response.raise_for_status()
+    return {symbol: value.split('~') for symbol, value in re.findall(r'v_([a-z0-9]+)="([^"]+)"', response.text)}
+
+
+def tencent_quotes():
+    rows = tencent_quote_rows([symbol for _, symbol in INDEXES.values()])
     values=[]
     for code,(_,symbol) in INDEXES.items():
-        match=re.search(r'v_'+symbol+r'="([^"]+)"',response.text)
-        if not match:continue
-        row=match[1].split('~')
+        row=rows.get(symbol, [])
         if len(row)<39 or row[2]!=code[:6]:continue
         try:observed=datetime.strptime(row[30],'%Y%m%d%H%M%S').replace(tzinfo=TZ)
         except ValueError:continue
-        value=quote(code,row[3],row[4],observed,'腾讯财经',f'https://gu.qq.com/{symbol}/zs',match[1],row[32])
+        value=quote(code,row[3],row[4],observed,'腾讯财经',f'https://gu.qq.com/{symbol}/zs','~'.join(row),row[32])
         if value:
             value['amount_yuan']=str(number(row[37])*10000) if number(row[37]) is not None else None
             values.append(value)

@@ -1,12 +1,11 @@
 import LoadingState from './LoadingState'
 import { StockText } from './StockMentions'
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Bot, ChevronDown, FilePenLine, FileText, History, MessageCircle, Plus, Radio, Search, Send, Settings2, Star, Wrench, X } from 'lucide-react'
+import { BookOpen, ChevronDown, MessageCircle, Plus, Radio, Search, Send, Settings2, Star, Wrench, X } from 'lucide-react'
 import { api, conversationWorkflow, type ConversationScope, type WorkflowType } from '../api'
-import { workspaceMenus, type PageId } from '../navigation'
+import { clientServiceMenus, workspaceMenus, type PageId, type ServiceView } from '../navigation'
 import { trapDialogTab } from '../keyboard'
 import ConversationHistoryItem, { type RecentConversation, type ConversationHistoryChange } from './ConversationHistoryItem'
-import type { ServiceView } from '../workspaceRoute'
 
 const toolMenus = workspaceMenus.filter(item => ['qmt', 'patterns'].includes(item.id))
 
@@ -78,13 +77,7 @@ export default function ResearchSidebar({ page, conversationId, revision, mobile
           <div id="screening-advanced-links" className="chat-tool-links" hidden={!advancedOpen}>
           {toolMenus.map(({ id, label, icon: Icon }) => <button className="chat-nav-button workspace-button" key={id} aria-label={label} aria-current={page === id ? 'page' : undefined} onClick={() => onNavigate(id)}><Icon size={16} /><span>{label}</span></button>)}
           </div></>}
-        {isService && ([
-          { id: 'cards', label: '时点卡片', icon: Send },
-          { id: 'suggestions', label: '生成建议', icon: FilePenLine },
-          { id: 'templates', label: '生成计划与模板', icon: FileText },
-          { id: 'robots', label: '群机器人', icon: Bot },
-          { id: 'deliveries', label: '发送记录', icon: History },
-        ] as const).map(({ id, label, icon: Icon }) => <button key={id} className="chat-nav-button workspace-button" aria-label={label} aria-current={serviceView === id ? 'page' : undefined} onClick={() => onServiceView ? onServiceView(id) : onNavigate('client-service')}><Icon size={18} /><span>{label}</span></button>)}
+        {isService && clientServiceMenus.map(({ id, label, icon: Icon }) => <button key={id} className="chat-nav-button workspace-button" aria-label={label} aria-current={serviceView === id ? 'page' : undefined} onClick={() => onServiceView ? onServiceView(id) : onNavigate('client-service')}><Icon size={18} /><span>{label}</span></button>)}
       </nav>
       {!isService && <section className="chat-history" aria-label="最近任务"><div className="chat-history-heading"><h2>{archived ? '已归档任务' : '最近任务'}</h2><button type="button" className="chat-history-archive-toggle workspace-button" aria-pressed={archived} onClick={() => { setItems([]); setArchived(value => !value) }}>{archived ? '返回最近' : '已归档'}</button></div>
         {error && <div className="chat-history-error workspace-error" role="alert"><span>对话记录暂不可用</span><button className="text-button workspace-button" data-tooltip={error} onClick={() => setRetry(value => value + 1)}>重试</button></div>}

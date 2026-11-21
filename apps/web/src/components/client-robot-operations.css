@@ -1,0 +1,26 @@
+.client-robot-function-tabs, .robot-operation-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.client-robot-function-tabs { margin-block: 4px 16px; }
+.client-robot-function-tabs button[aria-pressed=true],
+.robot-operation-actions button[aria-pressed=true] { background: var(--ui-primary-soft); border-color: var(--ui-primary-border); color: var(--ui-primary); }
+.robot-operation { display: grid; gap: 12px; min-width: 0; font-size: 13px; }
+.robot-operation h3 { margin: 0; font-size: 16px; }
+.robot-operation > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.robot-operation label { display: grid; gap: 6px; min-width: 0; }
+.robot-operation textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+.robot-operation-list { margin: 0; padding: 0; list-style: none; }
+.robot-operation-list li { padding: 10px 0; border-bottom: 1px solid var(--ui-border); overflow-wrap: anywhere; }
+.robot-operation-list li > span { display: inline-block; margin-left: 6px; color: var(--ui-text-muted); }
+.robot-operation-list li small { display: block; margin-top: 4px; color: var(--ui-text-muted); }
+.robot-risk-counts { display: flex; flex-wrap: wrap; gap: 6px; }
+.robot-risk-counts span, .robot-review-result { padding: 9px; border-radius: var(--ui-radius-sm); background: var(--ui-surface-subtle); }
+.robot-review-result ul { margin: 7px 0 0; padding-left: 20px; }
+.robot-broadcast-targets { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; padding: 8px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius-sm); }
+.robot-broadcast-targets label { display: inline-flex; align-items: center; gap: 4px; }
+.robot-broadcast-targets legend { padding-inline: 4px; }
+.robot-broadcast-image { width: min(100%, 325px); max-height: 340px; object-fit: contain; object-position: left top; }
+.robot-broadcast-text { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 245px; overflow-y: auto; padding: 10px; background: var(--ui-surface-subtle); }

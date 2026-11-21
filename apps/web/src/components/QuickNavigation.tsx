@@ -3,15 +3,16 @@ import EmptyState from './EmptyState'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUpRight, ChartNoAxesCombined, FlaskConical, ListFilter, MessageCircle, Plus, Search, Settings2, X } from 'lucide-react'
 import { api, conversationWorkflow, type ConversationScope, type WorkflowType } from '../api'
-import { workspaceMenus, workspaceLibraryMenus, type PageId } from '../navigation'
+import { clientServiceMenus, workspaceMenus, workspaceLibraryMenus, type PageId, type ServiceView } from '../navigation'
 import { trapDialogTab } from '../keyboard'
 
 type RecentConversation = { state?: 'active' | 'archived'; id: string; title: string | null; entry_scope: ConversationScope; workflow_type?: WorkflowType; research_mode?: string; task_revision?: number; updated_at: string }
 type Command = { id: string; label: string; description: string; keywords?: string; group: string; icon: typeof Search; select: () => void }
 
-export default function QuickNavigation({ onClose, onNavigate, onConversation, onNewResearch, onSettings, onFixedRules, onPatternSamples, onScreeningCompose, onNewScreening }: {
+export default function QuickNavigation({ onClose, onNavigate, onServiceView, onConversation, onNewResearch, onSettings, onFixedRules, onPatternSamples, onScreeningCompose, onNewScreening }: {
   onFixedRules?: () => void; onPatternSamples?: () => void; onScreeningCompose?: () => void; onNewScreening?: () => void
   onClose: () => void; onNavigate: (page: PageId) => void
+  onServiceView: (view: ServiceView) => void
   onConversation: (id: string, scope: ConversationScope) => void; onNewResearch: () => void; onSettings: () => void
 }) {
   const [query, setQuery] = useState('')
@@ -60,8 +61,11 @@ export default function QuickNavigation({ onClose, onNavigate, onConversation, o
     ...(onScreeningCompose ? [{ id: 'screening-compose', label: '条件组合', description: '组合已保存条件，编辑判断逻辑', group: '选股', icon: ListFilter, select: onScreeningCompose }] : []),
     ...(searchQuery ? conversations : conversations.slice(0, 5)).map(item => ({ id: 'conversation-' + item.id, label: item.title?.trim() || '未命名对话', description: (item.state === 'archived' ? '已归档 · ' : '') + (conversationWorkflow(item) === 'screening' ? '继续选股对话' : '继续研究对话'), group: searchQuery ? '历史对话' : '最近对话', icon: conversationWorkflow(item) === 'screening' ? ListFilter : MessageCircle, select: () => onConversation(item.id, item.entry_scope) })),
     ...workspaceMenus.filter(item => !['home', 'news', 'reports', ...(onPatternSamples ? ['patterns'] : []), ...(onNewScreening ? ['conditions'] : [])].includes(item.id)).map(item => ({ ...item, id: 'page-' + item.id, keywords: item.id === 'library' ? '资讯库 研报库' : item.id === 'intelligence' ? '快捷任务 今日热点 产业动态 收评 诊股 个股分析 个股推荐理由' : '', group: '页面', select: () => onNavigate(item.id) })),
+    ...clientServiceMenus.map(({ id, label, description, icon }) => ({
+      id: 'service-' + id, label, description, icon, group: '服务', select: () => onServiceView(id),
+    })),
     { id: 'settings', label: '数据与连接', description: '查看数据覆盖和服务状态', group: '快捷操作', icon: Settings2, select: onSettings },
-  ], [conversations, searchQuery, onNavigate, onConversation, onNewResearch, onSettings, onFixedRules, onPatternSamples, onScreeningCompose, onNewScreening])
+  ], [conversations, searchQuery, onNavigate, onServiceView, onConversation, onNewResearch, onSettings, onFixedRules, onPatternSamples, onScreeningCompose, onNewScreening])
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const results = words.length
     ? commands.filter(command => words.every(word => (command.label + ' ' + command.description + ' ' + command.group + ' ' + (command.keywords || '')).toLowerCase().includes(word)))

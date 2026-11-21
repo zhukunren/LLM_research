@@ -7,11 +7,20 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 
 from . import client_service as service
-from . import rebalance_suggestions, stock_diagnosis
+from . import opening_plans, rebalance_suggestions, stock_diagnosis
 from .client_service_contracts import GenerateCard, InstantBrief, PreviewCard, SaveCard, ServiceSettings
 from .client_service_images import render_card, display_market
+from .opening_plan_card import OpeningPlanPreview, PlanDate, render_opening_plan
+from .rebalance_card import RebalanceCard, render_rebalance_card
+from .rebalance_quotes import reference_price
 
 router = APIRouter(prefix='/api/v1/client-service', tags=['对客服务'])
+
+
+def _image_preview(data: bytes, regions: list) -> dict:
+    width, height = struct.unpack('>II', data[16:24])
+    return {'image': 'data:image/png;base64,' + base64.b64encode(data).decode('ascii'),
+            'width': width, 'height': height, 'regions': regions, 'image_hash': hashlib.sha256(data).hexdigest()}
 
 
 @router.get('/settings')
@@ -62,11 +71,9 @@ def preview(payload: PreviewCard, draft: bool = False):
              'content': payload.content.model_dump(mode='json'), 'market': card['market'] if card else None}
     regions = []
     data = render_card(value, regions=regions, draft=draft)
-    width, height = struct.unpack('>II', data[16:24])
     from .client_service_quality import layout_checks
     checks = layout_checks(display_market(value))
-    result = {'checks': checks, 'draft': draft, 'image': 'data:image/png;base64,' + base64.b64encode(data).decode('ascii'),
-              'width': width, 'height': height, 'regions': regions, 'image_hash': hashlib.sha256(data).hexdigest()}
+    result = {**_image_preview(data, regions), 'checks': checks, 'draft': draft}
     if draft and card and card['state'] == 'ready' and value['content'] == card['content']:
         # Visual reviews identify the saved card without the draft export mark.
         result['saved_image_hash'] = hashlib.sha256(render_card(card)).hexdigest()
@@ -98,6 +105,17 @@ def collect_rebalance_suggestion(payload: rebalance_suggestions.SuggestionReques
     return rebalance_suggestions.start(payload)
 
 
+@router.get('/rebalance-suggestions/quote')
+def rebalance_reference_price(code: str):
+    return reference_price(code)
+
+
+@router.post('/rebalance-suggestions/preview')
+def rebalance_card_preview(payload: RebalanceCard):
+    regions = []
+    return _image_preview(render_rebalance_card(payload, regions=regions), regions)
+
+
 @router.get('/rebalance-suggestions/{request_id}')
 def rebalance_suggestion_status(request_id: str):
     return rebalance_suggestions.get(request_id)
@@ -106,6 +124,43 @@ def rebalance_suggestion_status(request_id: str):
 @router.post('/rebalance-suggestions/{request_id}/cancel')
 def cancel_rebalance_suggestion(request_id: str):
     return rebalance_suggestions.get(request_id, cancel=True)
+
+
+@router.post('/opening-plans', status_code=202)
+def collect_opening_plan(payload: opening_plans.OpeningPlanRequest):
+    return opening_plans.start(payload)
+
+
+@router.get('/opening-plans/editor/{plan_date}')
+def opening_plan_editor(plan_date: PlanDate):
+    return opening_plans.editor(plan_date)
+
+
+@router.put('/opening-plans/editor/{plan_date}')
+def save_opening_plan(plan_date: PlanDate, payload: opening_plans.SaveOpeningPlan):
+    return opening_plans.save_content(payload, plan_date=plan_date)
+
+
+@router.put('/opening-plans/template')
+def save_opening_template(payload: opening_plans.SaveOpeningTemplate):
+    return opening_plans.save_content(payload)
+
+
+@router.post('/opening-plans/preview')
+def opening_plan_preview(payload: OpeningPlanPreview, draft: bool = False):
+    regions = []
+    data = render_opening_plan(payload, regions=regions, draft=draft)
+    return {**_image_preview(data, regions), 'draft': draft}
+
+
+@router.get('/opening-plans/{request_id}')
+def opening_plan_status(request_id: str):
+    return opening_plans.get(request_id)
+
+
+@router.post('/opening-plans/{request_id}/cancel')
+def cancel_opening_plan(request_id: str):
+    return opening_plans.get(request_id, cancel=True)
 
 
 from .client_service_robots import router as robots_router

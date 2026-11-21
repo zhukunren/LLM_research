@@ -7,7 +7,7 @@ beforeEach(() => window.history.replaceState(null, '', '/'))
 afterEach(() => window.history.replaceState(null, '', '/'))
 
 describe('stable workspace URLs', () => {
-  it.each(['suggestions', 'templates', 'robots', 'deliveries'] as const)('round-trips the service %s destination and rejects unknown views', serviceView => {
+  it.each(['opening-plan', 'suggestions', 'templates', 'robots', 'deliveries'] as const)('round-trips the service %s destination and rejects unknown views', serviceView => {
     const route: WorkspaceRoute = { page: 'client-service', serviceView }
     expect(parseWorkspaceRoute(workspaceRouteHash(route))).toEqual(route)
     expect(parseWorkspaceRoute('#/tools/client-service?view=invalid')).toBeNull()

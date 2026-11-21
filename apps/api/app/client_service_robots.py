@@ -17,8 +17,11 @@ from PIL import Image
 
 from . import client_service as service
 from .client_service_contracts import StrictModel
+from .client_service_disclosure import FIXED_DISCLOSURE
 from .client_service_images import render_card, display_market
+from .client_service_text import without_web_links
 from .db import connect, utc_now, json_dump
+from .rebalance_card import RebalanceCard, render_rebalance_card
 
 router = APIRouter(prefix='/robots')
 
@@ -39,6 +42,13 @@ class DeliveryInput(StrictModel):
     kind: Literal['test', 'text', 'image']
     card_id: str | None = Field(default=None, pattern=r'^[a-f0-9-]{36}$')
     revision: int | None = Field(default=None, ge=0)
+    content_text: str | None = Field(default=None, max_length=6000)
+    suggestion: RebalanceCard | None = None
+
+
+class ReviewInput(StrictModel):
+    text: str = Field(max_length=6000)
+    kind: Literal['text', 'image'] = 'text'
 
 
 def webhook_key(value: str) -> str:
@@ -74,6 +84,43 @@ def deliveries():
     with connect() as db:
         rows = db.execute('SELECT id,robot_id,robot_name,kind,card_id,state,message,created_at,updated_at FROM client_service_deliveries ORDER BY created_at DESC,id DESC LIMIT 50').fetchall()
     return {'items': [delivery_status(dict(row)) for row in rows]}
+
+
+@router.get('/risks')
+def monitor_delivery_risks():
+    with connect() as db:
+        rows = db.execute(
+            """SELECT id,robot_id,robot_name,kind,card_id,state,message,created_at,updated_at FROM client_service_deliveries
+               WHERE state IN ('failed','unknown','sending') ORDER BY created_at DESC,id DESC LIMIT 50"""
+        ).fetchall()
+        paused = db.execute("SELECT id,name FROM client_service_robots WHERE archived=0 AND enabled=0 ORDER BY name").fetchall()
+    return {"items": [delivery_status(dict(row)) for row in rows], "paused": [dict(row) for row in paused]}
+
+
+def review_content(text: str, *, kind: str = 'text') -> dict:
+    issues = []
+    if not text.split("风险提示", 1)[0].strip():
+        issues.append({"code": "empty", "message": "补充要发送的正文。"})
+    if not all(fragment in text for fragment in ("风险提示", "R4", "市场有风险", "投资需谨慎")):
+        issues.append({"code": "disclosure", "message": "补齐 R4 风险提示及市场风险说明。"})
+    if not all(FIXED_DISCLOSURE[key] in text for key in ("adviser", "license", "institution")):
+        issues.append({"code": "signature", "message": "补齐当前投顾姓名、执业编码和机构落款。"})
+    if without_web_links(text) != text:
+        issues.append({"code": "link", "message": "从群发文案中去掉网址。"})
+    body = re.sub(r'(?:不|不得|不能|禁止)(?:直接)?(?:承诺收益|保证收益|保证获利|承诺保本|保本保收益)', '', text)
+    if re.search(r'稳赚(?:不赔)?|包赚|承诺收益|保证(?:收益|获利|盈利)|承诺保本|保本保收益|必涨|必赚', body):
+        issues.append({"code": "promise", "message": "核对并改写保证收益、保本或必涨等确定性表述。"})
+    if re.search(r'草稿[ ·・]*[待未]核对', text):
+        issues.append({"code": "draft", "message": "核对完成后再使用成品文案。"})
+    size = len(text.encode("utf-8"))
+    if kind == "text" and size > 2048:
+        issues.append({"code": "text_limit", "message": "单条企业微信文案上限为 2048 字节，请精简或使用图片。"})
+    return {"passed": not issues, "issues": issues, "bytes": size}
+
+
+@router.post('/review')
+def review_outgoing_content(payload: ReviewInput):
+    return review_content(payload.text, kind=payload.kind)
 
 
 def save_robot(payload, robot_id=None):
@@ -147,9 +194,26 @@ def card_text(card):
 
 def message_payload(payload):
     if payload.kind == 'test':
-        if payload.card_id is not None:
+        if payload.card_id is not None or payload.content_text is not None or payload.suggestion is not None:
             service.error(422, '测试消息不接受卡片内容。')
         return {'msgtype': 'text', 'text': {'content': '投研工作台：企业微信机器人连接测试。收到此消息表示推送通道已连通。'}}
+    if payload.content_text is not None or payload.suggestion is not None:
+        if payload.card_id is not None or payload.revision is not None or (payload.content_text is not None and payload.suggestion is not None):
+            service.error(422, '每次群发只能选择一种内容。')
+        if payload.suggestion is not None:
+            if payload.kind != 'image' or not payload.suggestion.ready():
+                service.error(422, '请先填齐调仓卡片再群发图片。')
+            text = payload.suggestion.text()
+        else:
+            if payload.kind != 'text':
+                service.error(422, '请选择文案格式。')
+            text = payload.content_text.strip()
+        review = review_content(text, kind=payload.kind)
+        if not review["passed"]:
+            service.error(422, " ".join(issue["message"] for issue in review["issues"]))
+        if payload.kind == "image":
+            return _image_payload(render_rebalance_card(payload.suggestion))
+        return {'msgtype': 'text', 'text': {'content': text}}
     if not payload.card_id or payload.revision is None:
         service.error(422, '请先选择已保存的卡片。')
     card = service.detail(payload.card_id)
@@ -162,7 +226,10 @@ def message_payload(payload):
         if len(value.encode('utf-8')) > 2048:
             service.error(422, '文案超过企业微信 2048 字节限制，请精简内容或改发图片。')
         return {'msgtype': 'text', 'text': {'content': value}}
-    data = render_card(card)
+    return _image_payload(render_card(card))
+
+
+def _image_payload(data: bytes):
     if len(data) > 2 * 1024 * 1024:
         # Artwork is textured; JPEG keeps the full-resolution text while meeting WeCom's cap.
         with Image.open(BytesIO(data)) as image:
@@ -189,7 +256,9 @@ def public_delivery(row):
 
 @router.post('/{robot_id}/send')
 def send(robot_id: str, payload: DeliveryInput):
-    fingerprint = hashlib.sha256(json_dump({'robot_id': robot_id, **payload.model_dump(exclude={'request_id'})}).encode()).hexdigest()
+    excluded = {'request_id'}
+    excluded.update(field for field in ('content_text', 'suggestion') if getattr(payload, field) is None)
+    fingerprint = hashlib.sha256(json_dump({'robot_id': robot_id, **payload.model_dump(exclude=excluded)}).encode()).hexdigest()
     with connect() as db:
         previous = db.execute('SELECT * FROM client_service_deliveries WHERE request_id=?', (payload.request_id,)).fetchone()
     if previous:

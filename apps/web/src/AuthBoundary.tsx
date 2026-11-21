@@ -73,10 +73,10 @@ export default function AuthBoundary({ children }: { children: ReactNode }) {
     } catch { if (expectedGeneration === generation.current) setMessage('退出登录失败，请重试。') }
     finally { loggingOut.current = false }
   }
-  return <div key={`${user.tenant_id}:${user.user_id}`}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 16px', borderBottom: '1px solid var(--border)' }}>
+  return <div className="workspace-authenticated" key={`${user.tenant_id}:${user.user_id}`}>
+    <div className="workspace-account-bar">
       <span>{user.role === 'viewer' ? '当前账户仅可查看资料' : '已登录'}</span>
-      <button type="button" onClick={() => { void logout() }} className="workspace-button">退出登录</button>
+      <button type="button" onClick={() => { void logout() }} className="secondary-button compact workspace-button">退出登录</button>
       {message && <span role="status">{message}</span>}
     </div>{children}
   </div>

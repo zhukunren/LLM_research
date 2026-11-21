@@ -3,6 +3,14 @@
 .chat-layout [hidden] { display: none !important; }
 .chat-layout > .main-shell { display: flex; flex-direction: column; flex: 1; width: auto; min-width: 0; height: 100dvh; margin: 0; overflow: hidden; background: white; }
 .chat-sidebar { display: flex; flex-direction: column; flex: 0 0 var(--ui-sidebar-width); width: var(--ui-sidebar-width); height: 100dvh; min-height: 0; padding: 20px 14px 12px; border-right: 1px solid var(--ui-sidebar-border); background: var(--ui-sidebar); color: var(--ui-sidebar-text); overflow: hidden; scrollbar-width: thin; scrollbar-color: #cbd5e0 transparent; }
+.workspace-authenticated { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+.workspace-account-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; flex-shrink: 0;
+  padding: 5px 16px; border-bottom: 1px solid var(--ui-border); background: var(--ui-surface);
+  color: var(--ui-text-muted); font-size: 12px;
+}
+.workspace-authenticated > .redesigned-workspace.chat-layout { flex: 1; height: auto; }
+.workspace-authenticated > .chat-layout > :is(.main-shell, .chat-sidebar) { height: auto; }
 .chat-brand { display: flex; align-items: center; justify-content: space-between; padding: 0 12px; flex-shrink: 0; }
 .chat-brand img { width: 134px; height: auto; object-fit: contain; }
 .chat-brand .chat-brand-symbol { display: none; }

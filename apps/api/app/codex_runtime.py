@@ -792,6 +792,7 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                 effort=str(settings.get("reasoning_effort") or "high"),
                 model=str(settings["model"]),
                 source="web_user",
+                **({"service_tier": brief["service_tier"]} if brief and brief.get("service_tier") else {}),
             )
             delta_parts: list[str] = []
             completed_parts: list[str] = []

@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it } from 'vitest'
 import { useWorkspaceTabs } from './workspaceTabs'
 
@@ -84,14 +84,29 @@ it('canonicalizes old reading URLs and merges legacy page IDs into material-spec
   expect(result.current.activeTab.title).toBe('资讯')
 })
 
-it('names the suggestion editor when switching within the same service tab', () => {
+it('names the opening plan and suggestion editor within the same service tab', () => {
   window.history.replaceState(null, '', '#/tools/client-service')
   const { result } = renderHook(useWorkspaceTabs)
   const id = result.current.activeId
   act(() => result.current.update(id, { page: 'client-service', serviceView: 'suggestions' }))
-  expect(result.current.activeTab).toMatchObject({ id, title: '生成建议' })
+  expect(result.current.activeTab).toMatchObject({ id, title: '调仓建议' })
+  act(() => result.current.update(id, { page: 'client-service', serviceView: 'opening-plan' }))
+  expect(result.current.activeTab).toMatchObject({ id, title: '开盘计划' })
   act(() => result.current.update(id, { page: 'client-service', serviceView: 'cards' }))
   expect(result.current.activeTab).toMatchObject({ id, title: '对客服务' })
+})
+
+it('sets the robot workspace title when opened and restored from browser history', async () => {
+  window.history.replaceState(null, '', '#/tools/client-service')
+  const { result } = renderHook(useWorkspaceTabs)
+  const id = result.current.activeId
+  act(() => result.current.update(id, { page: 'client-service', serviceView: 'robots' }, false))
+  expect(result.current.activeTab).toMatchObject({ id, title: '群机器人' })
+  expect(window.location.hash).toBe('#/tools/client-service?view=robots')
+  act(() => window.history.back())
+  await waitFor(() => expect(result.current.activeTab).toMatchObject({ id, title: '对客服务' }))
+  act(() => window.history.forward())
+  await waitFor(() => expect(result.current.activeTab).toMatchObject({ id, title: '群机器人' }))
 })
 
 it('lets a background research publish its identity without replacing the active URL', () => {

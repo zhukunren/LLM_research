@@ -1,4 +1,4 @@
-import { BookOpen, Code2, FileText, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Radio, Send, Shapes, Star } from 'lucide-react'
+import { BookOpen, Bot, CalendarDays, Code2, FilePenLine, FileText, History, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Radio, Send, Shapes, Star } from 'lucide-react'
 
 export const workspaceMenus = [
   { id: 'intelligence', label: '情报台', mobileLabel: '情报', description: '市场简报、政策追踪与产业跟踪，核对证据和历史版本', icon: Newspaper },
@@ -14,6 +14,16 @@ export const workspaceMenus = [
   { id: 'daily-signals', label: '每日信号汇总', mobileLabel: '信号', description: '查看每日策略买卖信号、近期胜率与回测收益', icon: Radio },
   { id: 'client-service', label: '对客服务', mobileLabel: '对客', description: '定时采集市场状态，编辑时点卡模板并下载对客图片', icon: Send },
 ] as const
+
+export const clientServiceMenus = [
+  { id: 'cards', label: '时点卡片', description: '编辑并导出各个时点的市场卡片', icon: Send },
+  { id: 'opening-plan', label: '开盘计划', description: '按日期采集资料并编辑盘前计划', icon: CalendarDays },
+  { id: 'suggestions', label: '调仓建议', description: '整理股票、仓位和调仓依据', icon: FilePenLine },
+  { id: 'templates', label: '生成计划与模板', description: '设置生成时间和默认文案', icon: FileText },
+  { id: 'robots', label: '群机器人', description: '配置企业微信群和群发功能', icon: Bot },
+  { id: 'deliveries', label: '发送记录', description: '查看已发送内容和状态', icon: History },
+] as const
+export type ServiceView = typeof clientServiceMenus[number]['id']
 
 export const workspaceLibraryMenus = workspaceMenus.filter(item => ['library'].includes(item.id))
 // Keep the existing page IDs so saved reading positions remain valid.

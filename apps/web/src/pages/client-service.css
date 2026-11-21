@@ -93,9 +93,9 @@
 .client-preview-placeholder small { font-size: 12px; }
 .client-text-preview { height: min(64vh,720px); min-height: 360px; overflow-y: auto; background: var(--ui-surface-subtle); padding: 24px; }
 .client-text-preview pre { margin: 0; padding: 24px; background: var(--ui-surface); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; line-height: 2; color: var(--ui-text); border: 1px solid var(--ui-border); }
-.client-export-bar { padding: 14px 20px 18px; }
+.client-export-bar { padding: 14px 20px 18px; border-top: 1px solid var(--ui-border-subtle); }
 .client-export-bar > p { display: flex; align-items: center; gap: 5px; color: var(--ui-text-muted); font-size: 12px; margin: 0 0 12px; }
-.client-export-bar > div { justify-content: flex-end; gap: 8px; }
+.client-export-bar > div { justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .client-export-bar button { flex: 1; justify-content: center; }
 .client-evidence-details { padding: 15px 20px; border-top: 1px solid var(--ui-border-subtle); }
 .client-market-evidence { padding-top: 10px; color: var(--client-muted); font-size: 11px; }
@@ -180,17 +180,22 @@
 .client-service-drawer .text-button { border: 0; background: transparent; color: var(--ui-primary); cursor: pointer; font-size: 12px; }
 .client-service-drawer .client-schedule-times { grid-template-columns: minmax(0,1fr); }
 .client-service-drawer .client-schedule footer { position: sticky; bottom: -24px; background: var(--ui-surface); padding-bottom: 20px; z-index: 1; }
-.client-robots h3, .client-robots h4 { margin: 0; color: var(--ui-text); }
-.client-robots h3 { font-size: 15px; }
-.client-robots h4 { font-size: 13px; }
+.client-robots :is(h2,h3) { margin: 0; color: var(--ui-text); }
+.client-robots h2 { font-size: 16px; }
+.client-robots :is(.client-robot-form,.client-robot-row,.client-robot-empty,.client-send-confirm) h3 { font-size: 14px; }
 .client-robots button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; min-height: 34px; }
-.client-robot-intro { display: flex; gap: 13px; color: var(--ui-success); padding: 17px; border: 1px solid var(--ui-success-border); background: var(--ui-success-soft); border-radius: 10px; }
-.client-robot-intro > svg { flex-shrink: 0; }
-.client-robot-intro p { color: var(--ui-text-muted); font-size: 12px; line-height: 1.8; margin: 7px 0 0; }
-.client-robot-toolbar, .client-deliveries header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 24px 0 14px; }
-.client-robot-toolbar h3 small { color: var(--ui-text-muted); margin-left: 6px; }
+.client-robot-page .client-robot-function-tabs { padding-bottom: 12px; border-bottom: 1px solid var(--ui-border-subtle); }
+.client-robot-page .client-robot-function-tabs button[aria-pressed=true] { --ui-button-fill: var(--ui-primary-soft); --ui-button-border: var(--ui-primary-border); --ui-button-ink: var(--ui-primary); }
+.client-robot-configuration { display: grid; grid-template-columns: minmax(0,1fr); align-items: start; gap: var(--ui-tool-gap); }
+@media (min-width:1100px) {
+  .client-robot-configuration { grid-template-columns: minmax(0,3fr) minmax(0,2fr); }
+}
+.client-robot-toolbar, .client-deliveries header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 24px 0 14px; }
+.client-robot-configuration :is(.client-robot-toolbar,.client-deliveries header) { margin-top: 0; }
+.client-robot-configuration > .client-deliveries { margin: 0; padding: 16px; border: 1px solid var(--ui-border); border-radius: 10px; overflow-wrap: anywhere; }
+.client-robot-toolbar h2 small { color: var(--ui-text-muted); margin-left: 6px; }
 .client-robot-empty { text-align: center; padding: 35px 15px; color: var(--ui-text-muted); border: 1px dashed var(--ui-border); border-radius: 9px; }
-.client-robot-empty h4 { margin-top: 12px; }
+.client-robot-empty h3 { margin-top: 12px; }
 .client-robot-empty p { font-size: 12px; line-height: 1.8; }
 .client-robot-form, .client-send-confirm { display: grid; gap: 14px; padding: 18px; background: var(--ui-surface-subtle); border: 1px solid var(--ui-border); border-radius: 10px; margin-bottom: 18px; }
 .client-robot-form label { display: grid; gap: 7px; color: var(--ui-text); font-size: 12px; }
@@ -202,8 +207,8 @@
 .client-robot-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .client-robot-avatar { display: grid; place-items: center; width: 38px; height: 38px; color: var(--ui-success); background: var(--ui-success-soft); border-radius: 9px; flex-shrink: 0; }
 .client-robot-row > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.client-robot-row h4 small { display: inline-block; margin-left: 8px; font-size: 10px; font-weight: normal; color: var(--ui-text-muted); }
-.client-robot-row h4 small.is-ready { color: var(--ui-success); }
+.client-robot-row h3 small { display: inline-block; margin-left: 8px; font-size: 10px; font-weight: normal; color: var(--ui-text-muted); }
+.client-robot-row h3 small.is-ready { color: var(--ui-success); }
 .client-robot-row p { margin: 6px 0 0; color: var(--ui-text-muted); font-size: 10px; }
 .client-send-confirm { border-color: var(--ui-primary-border); margin-block: 18px; }
 .client-send-confirm p { font-size: 12px; line-height: 1.8; color: var(--ui-text-muted); margin: 0; }
@@ -296,11 +301,11 @@
   .client-slot-tabs { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .client-slot-tabs > button { min-height: 76px; }
 }
-/* Let the editor determine the row height; preview contents cannot inflate the row. */
+/* Keep long previews inside the available studio height. */
 .client-service-studio { align-items: stretch; }
 .client-preview-workspace { contain: size; align-items: stretch; align-self: stretch; position: static; min-height: 0; grid-template-rows: minmax(0,1fr); }
 .client-preview-workspace > .client-preview-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.client-preview-panel > header, .client-preview-panel > .client-preview-meta, .client-preview-panel > .client-service-feedback, .client-preview-panel > .client-export-bar, .client-preview-panel > .client-evidence-details { flex-shrink: 0; }
+.client-preview-panel > header, .client-preview-panel > .client-preview-meta, .client-preview-panel > .client-service-feedback, .client-preview-panel > .client-export-bar, .client-preview-details { flex-shrink: 0; }
 .client-preview-toolbar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .client-preview-toolbar > button { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; min-height: 30px; }
 .client-preview-stage { display: flex; flex: 1; min-height: 0; }
@@ -395,6 +400,27 @@
 .client-replacement-undo { grid-column: 1 / -1; justify-self: start; }
 .client-export-bar[data-draft=true] p { color: var(--ui-text-muted); }
 
+@media (width > 850px) {
+  .viewport-workspace .page-frame > .page-content.client-service-page:has(> .client-service-studio) {
+    display: flex;
+    padding-block-end: var(--ui-tool-gap);
+  }
+  .client-service-page > :not(.client-service-studio) { flex-shrink: 0; }
+  .client-service-page > .client-service-studio {
+    flex: 1 0 0;
+    min-height: 340px;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .client-service-studio > .client-card-editor {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  .client-preview-details { max-height: 35%; overflow-y: auto; }
+  .client-preview-details > :is(.client-evidence-details, .client-review-panel) { max-height: none; overflow: visible; }
+}
+
 @media (max-width: 850px) {
   .client-day-summary { margin-bottom: 8px; }
   .client-slot-tabs { display: none; }
@@ -407,7 +433,7 @@
   .client-service-studio[data-mobile-pane=preview] > .client-card-editor { display: none; }
   .client-preview-workspace { height: auto; }
   .client-preview-workspace > .client-preview-panel { overflow: visible; }
-  .client-export-bar { position: sticky; bottom: 0; z-index: 5; padding: 10px 12px; border-top: 1px solid var(--ui-border-subtle); background: var(--ui-surface); }
+  .client-export-bar { position: sticky; bottom: 0; z-index: 5; padding: 10px 12px; background: var(--ui-surface); }
   .client-export-bar > p { margin-bottom: 6px; }
   .client-export-bar button { min-height: 44px; }
 }

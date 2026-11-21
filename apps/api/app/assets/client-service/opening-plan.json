@@ -1,0 +1,37 @@
+{
+  "risk": "本计划风险等级R4，需满足适当性管理要求。仅供已签约客户参考，不构成投资建议。历史表现不代表未来，市场有风险，投资需谨慎。",
+  "groups": [
+    {
+      "label": "开盘判断", "caption": "THE VIEW",
+      "fields": [
+        { "key": "lead", "label": "开盘要点", "rows": 2 },
+        { "key": "judgment", "label": "今日核心判断", "rows": 3 }
+      ]
+    },
+    {
+      "label": "盘前速览", "caption": "MARKET PULSE",
+      "fields": [
+        { "key": "overnight", "label": "隔夜与昨日", "rows": 4 },
+        { "key": "news", "label": "消息面补充", "rows": 3 },
+        { "key": "ipo", "label": "今日新股", "rows": 2 }
+      ]
+    },
+    {
+      "label": "今日方向", "caption": "NEXT STEPS", "band": true,
+      "fields": [
+        { "key": "direction_one", "label": "今日方向一", "rows": 4, "placeholder": "方向、观察标的、参与条件、放弃条件和主要风险" },
+        { "key": "direction_two", "label": "今日方向二", "rows": 4, "placeholder": "方向、观察标的、参与条件、放弃条件和主要风险" },
+        { "key": "direction_three", "label": "今日方向三", "rows": 4, "placeholder": "方向、观察标的、参与条件、放弃条件和主要风险" }
+      ]
+    },
+    {
+      "label": "观察与风控", "caption": "ON THE RADAR",
+      "fields": [
+        { "key": "avoid", "label": "今日不做", "rows": 3 },
+        { "key": "watch", "label": "盘中观察", "rows": 3 },
+        { "key": "risk_control", "label": "今日风控", "rows": 3, "placeholder": "填写总仓、单票仓位和触发减仓或停手的条件" }
+      ]
+    }
+  ],
+  "data_note": { "key": "data_note", "label": "数据说明", "rows": 2, "placeholder": "可填写行情时点、价位口径或适用范围" }
+}

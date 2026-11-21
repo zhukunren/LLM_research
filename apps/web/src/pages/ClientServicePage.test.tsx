@@ -81,6 +81,55 @@ it('edits service templates through the direct entry and preserves existing card
   expect(vi.mocked(api).mock.calls.some(([path, init]) => path.startsWith('/client-service/cards/') && init?.method === 'PUT')).toBe(false)
 })
 
+it('opens the full robot workspace from the sidebar and keeps the selected card draft when returning', async () => {
+  const user = userEvent.setup()
+  setup()
+  const sidebar = within(screen.getByRole('navigation', { name: '主菜单' }))
+  await user.selectOptions(await screen.findByLabelText('选择服务时点'), 'midday')
+  fireEvent.change(screen.getByRole('textbox', { name: '今日判断' }), { target: { value: '午间判断草稿' } })
+
+  await user.click(sidebar.getByRole('button', { name: '群机器人' }))
+  const page = within(screen.getByRole('region', { name: '群机器人工作区' }))
+  expect(page.getByRole('heading', { name: '群机器人', level: 1 })).toBeVisible()
+  expect(await page.findByText('客户沟通群')).toBeVisible()
+  expect(page.getByRole('region', { name: '最近发送记录' })).toBeVisible()
+  const functions = within(page.getByRole('navigation', { name: '群机器人功能' }))
+  for (const name of ['机器人配置', '风险监控', '合规审查', '内容群发']) {
+    expect(functions.getByRole('button', { name })).toBeVisible()
+  }
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: '对客服务内容' })).not.toBeInTheDocument()
+
+  await user.click(sidebar.getByRole('button', { name: '时点卡片' }))
+  expect(screen.getByLabelText('选择服务时点')).toHaveValue('midday')
+  expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('午间判断草稿')
+})
+
+it('loads the direct robot view without requesting cards or previews', async () => {
+  setup({ view: 'robots' })
+  expect(await screen.findByText('客户沟通群')).toBeVisible()
+  expect(vi.mocked(api).mock.calls.map(([path]) => path).filter(path => path.startsWith('/client-service/')).sort()).toEqual([
+    '/client-service/robots', '/client-service/robots/deliveries',
+  ])
+})
+
+it('opens the full robot workspace when a card has no enabled groups available', async () => {
+  const user = userEvent.setup()
+  setup({ finished: true })
+  const original = vi.mocked(api).getMockImplementation()!
+  vi.mocked(api).mockImplementation((path, options) =>
+    path === '/client-service/robots' ? Promise.resolve({ items: [] }) : original(path, options))
+  const trigger = within(await screen.findByRole('region', { name: '成品预览' })).getByRole('button', { name: '发送到群' })
+  await waitFor(() => expect(trigger).toBeEnabled())
+  await user.click(trigger)
+  const send = within(screen.getByRole('dialog', { name: '发送到群' }))
+  await user.click(await send.findByRole('button', { name: '前往群机器人' }))
+  expect(screen.getByRole('heading', { name: '群机器人', level: 1 })).toBeVisible()
+  expect(await screen.findByText('尚未配置群机器人')).toBeVisible()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(vi.mocked(api).mock.calls.some(([path]) => path.endsWith('/send'))).toBe(false)
+})
+
 it.each(['图片', '文案'] as const)('sends the saved %s only after group selection and confirmation', async mode => {
   const user = userEvent.setup()
   setup({ finished: true })

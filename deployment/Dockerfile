@@ -4,6 +4,7 @@ COPY apps/web/package*.json ./
 COPY apps/web/scripts ./scripts
 RUN npm ci --no-audit --no-fund
 COPY apps/web ./
+COPY apps/api/app/assets/client-service /build/api/app/assets/client-service
 RUN npm run build
 
 FROM python:3.12-slim-bookworm AS runtime

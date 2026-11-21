@@ -19,9 +19,21 @@
 .disclosures-panel input, .disclosures-panel select { max-width: 100%; min-height: 34px; }
 .disclosures-panel input[type="checkbox"] { min-height: auto; width: auto; }
 .disclosure-list { display: flex; flex-direction: column; }
-.disclosure-row { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; text-align: left; padding: 12px; white-space: normal; overflow-wrap: anywhere; width: 100%; margin: 3px 0; }
+.disclosure-row {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px; width: 100%;
+  margin: 3px 0; padding: 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface); color: var(--ui-text); text-align: left; white-space: normal;
+  overflow-wrap: anywhere; cursor: pointer;
+}
+.disclosure-row:hover { background: var(--ui-surface-hover); }
+.disclosure-row[aria-pressed=true] { border-color: var(--ui-primary-border); background: var(--ui-primary-soft); }
+.disclosure-row small { color: var(--ui-text-muted); }
 .disclosure-import { padding: 8px 0; }
-.disclosure-reader { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--ui-border); min-width: 0; }
+.disclosure-reader { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--ui-border); min-width: 0; scroll-margin-block-start: 12px; }
+.disclosure-reader:focus { outline: none; }
+.disclosure-reader:focus-visible .disclosure-heading h3 { outline: 2px solid var(--ui-focus-outline); outline-offset: 3px; border-radius: 3px; }
+.disclosure-reader .disclosure-heading h3 { margin: 0; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.disclosure-reader .disclosure-actions { align-items: flex-end; }
 .disclosures-panel .disclosure-reader .pdf-document-viewer:not(.expanded),
 .viewport-workspace .page-frame .disclosures-panel .disclosure-reader .pdf-document-viewer:not(.expanded) {
   display: flex; flex-direction: column; flex: none; height: clamp(320px, 72dvh, 820px); min-height: 0; overflow: hidden;

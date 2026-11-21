@@ -62,6 +62,17 @@ async function manage(name: string) {
   await userEvent.click(screen.getByRole('menuitem', { name }))
 }
 
+it('focuses the opened reader and returns focus to the selected disclosure on close', async () => {
+  const reader = await read()
+  const row = screen.getByRole('button', { name: /合成原始年报/ })
+  expect(reader).toHaveFocus()
+  expect(row).toHaveAttribute('aria-pressed', 'true')
+  await userEvent.click(within(reader).getByRole('button', { name: '关闭原文' }))
+  expect(row).toHaveFocus()
+  expect(row).toHaveAttribute('aria-pressed', 'false')
+  expect(screen.queryByRole('region', { name: '披露版本阅读' })).not.toBeInTheDocument()
+})
+
 it('opens the immutable PDF, searches physical pages and saves a guarded metadata revision', async () => {
   const reader = await read()
   expect(within(reader).getByTestId('pdf')).toHaveAttribute('data-url', '/api/v1/disclosures/versions/v1/pdf')

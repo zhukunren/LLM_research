@@ -1,0 +1,35 @@
+.opening-plan-date, .opening-plan-collection {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.opening-plan-date { color: var(--ui-text-muted); font-size: 12px; }
+.opening-plan-date .workspace-field { width: auto; min-width: 132px; }
+.opening-plan-collection { margin: 16px 0 10px; }
+.opening-plan-save { margin-block: 14px 18px; }
+.opening-plan-status { margin: 8px 0; color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
+
+.opening-plan-section {
+  padding-block: 14px;
+  border-top: 1px solid var(--ui-border-subtle);
+}
+.opening-plan-section > summary { font-weight: 600; }
+.opening-plan-section > .client-content-fields { margin-top: 12px; }
+.opening-plan-section .client-content-fields textarea { min-height: 0; }
+.opening-plan-evidence {
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.opening-plan-evidence ul { margin-block: 8px; padding-left: 20px; }
+.opening-plan-collected-text { padding-block: 10px; border-top: 1px solid var(--ui-border); }
+.opening-plan-collected-text p { white-space: pre-wrap; }
+.opening-plan-page .client-preview-panel > header { flex-wrap: wrap; gap: 9px; }
+@media (min-width: 601px) and (max-width: 850px) {
+  .opening-plan-studio > .client-preview-workspace { height: 700px; }
+}

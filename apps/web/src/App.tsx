@@ -13,7 +13,7 @@ import { WorkspaceSessionPane } from './WorkspaceSession'
 import { useWorkspaceTabs, type WorkspaceSeed } from './workspaceTabs'
 import type { TabLocation, WorkspaceHandoff } from './workspaceHandoff'
 import { isText, useSessionState } from './useSessionState'
-import type { PageId } from './navigation'
+import type { PageId, ServiceView } from './navigation'
 import { parseWorkspaceRoute, workspaceRouteHash, screeningMethodRoute, storedConversationScope, storedScreeningView, type WorkspaceRoute } from './workspaceRoute'
 import { useAssistantLaunch } from './useAssistantLaunch'
 import './workspace-switch.css'
@@ -130,6 +130,18 @@ export default function App() {
   function navigateFromMenu(nextPage: PageId) {
     openRoute({ page: nextPage, ...(['library', 'news', 'patterns', 'reports', 'watchlist', 'qmt', 'daily-signals', 'client-service'].includes(nextPage) ? { workspace: workspaceArea } : {}), ...((nextPage === 'screening' || nextPage === 'conditions') ? { scope: storedConversationScope() } : {}), ...(nextPage === 'conditions' ? { view: storedScreeningView() } : {}) }, undefined, ['screening', 'conditions', 'watchlist', 'intelligence', 'library', 'daily-signals', 'client-service'].includes(nextPage))
   }
+  function openServiceView(serviceView: ServiceView) {
+    const target = isService ? workspaces.activeTab : [...workspaces.tabs].reverse().find(tab =>
+      tab.route.page === 'client-service' && (tab.route.workspace ?? 'research') === workspaceArea)
+    if (!target) {
+      openRoute({ page: 'client-service', workspace: workspaceArea, serviceView })
+      return
+    }
+    beginConversationNavigation()
+    setMobileNavigationOpen(false)
+    workspaces.update(target.id, { ...target.route, serviceView })
+    if (target.id !== workspaces.activeId) workspaces.activate(target.id)
+  }
   function switchTaskType(next: WorkflowType) {
     const nextPage = next === 'research' ? 'screening' : 'conditions'
     const accepts = (saved: WorkspaceRoute) => isNewTask(saved) && saved.page === nextPage
@@ -222,7 +234,7 @@ export default function App() {
 
   return <div className={`app-shell redesigned-workspace chat-layout viewport-workspace ${page === 'screening' || page === 'conditions' && (route.view ?? 'conversation') === 'conversation' ? 'chat-page' : 'tool-page'} ${mobileNavigationOpen ? 'mobile-navigation-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     <a className="skip-to-content" href="#workspace-main" onClick={event => { event.preventDefault(); document.getElementById('workspace-main')?.focus() }}>跳到页面内容</a>
-    <ResearchSidebar serviceView={route.serviceView} historyNavigation={historyNavigation} onServiceView={serviceView => { beginConversationNavigation(); setMobileNavigationOpen(false); workspaces.update(workspaces.activeId, { ...route, serviceView }) }} onConversationChange={(id, changes) => {
+    <ResearchSidebar serviceView={route.serviceView} historyNavigation={historyNavigation} onServiceView={openServiceView} onConversationChange={(id, changes) => {
       setSidebarRevision(value => value + 1)
       setConversationUpdate({ id, ...changes })
       if (changes.title) workspaces.tabs.filter(tab => tab.route.conversationId === id).forEach(tab => workspaces.rename(tab.id, changes.title!))
@@ -245,6 +257,6 @@ export default function App() {
       </WorkspaceSessionPane>)}
     </main>
     {systemOpen && <SystemDrawer data={data} onClose={() => setSystemOpen(false)} onRefresh={refreshStatus} />}
-    {quickNavigationOpen && <QuickNavigation onFixedRules={openFixedRules} onPatternSamples={openPatternSamples} onScreeningCompose={() => openScreeningView('compose')} onNewScreening={() => newResearch('screening')} onClose={() => setQuickNavigationOpen(false)} onNavigate={navigateFromMenu} onConversation={resumeResearch} onNewResearch={() => newResearch()} onSettings={() => setSystemOpen(true)} />}
+    {quickNavigationOpen && <QuickNavigation onFixedRules={openFixedRules} onPatternSamples={openPatternSamples} onScreeningCompose={() => openScreeningView('compose')} onNewScreening={() => newResearch('screening')} onClose={() => setQuickNavigationOpen(false)} onNavigate={navigateFromMenu} onServiceView={openServiceView} onConversation={resumeResearch} onNewResearch={() => newResearch()} onSettings={() => setSystemOpen(true)} />}
   </div>
 }

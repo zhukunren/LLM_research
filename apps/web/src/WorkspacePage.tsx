@@ -20,6 +20,7 @@ const QmtScriptsPage = lazy(() => import('./pages/QmtScriptsPage'))
 const IntelligencePage = lazy(() => import('./pages/IntelligencePage'))
 const DailySignalsPage = lazy(() => import('./pages/DailySignalsPage'))
 const ClientServicePage = lazy(() => import('./pages/ClientServicePage'))
+const OpeningPlanPage = lazy(() => import('./pages/OpeningPlanPage'))
 const RebalanceSuggestionPage = lazy(() => import('./pages/RebalanceSuggestionPage'))
 
 type Props = {
@@ -140,8 +141,10 @@ export default function WorkspacePage({ tab, data, fixedRulesOpen, onCloseFixedR
       onResearch={(id, value) => onConversation(id, 'news', 'research', value)} onSettings={onSettings} />}
     {page === 'qmt' && <QmtScriptsPage onOpenDraft={value => openConversation('screening', undefined, value, 'research', 'qmt-script')} />}
     {page === 'daily-signals' && <DailySignalsPage />}
-    {page === 'client-service' && (route.serviceView === 'suggestions' ? <RebalanceSuggestionPage /> :
-      <ClientServicePage researchDraft={tab.seed?.serviceDraft} view={route.serviceView} onViewChange={serviceView => onUpdate({ ...route, serviceView }, true)} />)}
+    {page === 'client-service' && route.serviceView === 'opening-plan' && <OpeningPlanPage />}
+    {page === 'client-service' && route.serviceView === 'suggestions' && <RebalanceSuggestionPage />}
+    {page === 'client-service' && route.serviceView !== 'opening-plan' && route.serviceView !== 'suggestions' &&
+      <ClientServicePage researchDraft={tab.seed?.serviceDraft} view={route.serviceView} onViewChange={serviceView => onUpdate({ ...route, serviceView }, true)} />}
     {page === 'screening' && <div className="research-space"><div className="research-space-panel research-space-panel-screening">
       {homeDraft.trim() && <div className="legacy-draft-notice"><span>还有一个之前保存的问题</span><button className="text-button workspace-button" onClick={onLegacyDraft}>继续未发送的问题</button></div>}
       {ready ? <ResearchWorkspace onServiceDraft={draft => onOpen({ page: 'client-service' }, { serviceDraft: draft })} handoff={conversationHandoff} onStartScreening={draft => openLinkedDraft('screening', draft, { kind: 'question', from: here, draft: { prompt: draft.prompt, sources: draft.sources } })} initialCommonIndicators={route.indicators === 'common'} onStartIndicatorScreening={value => openConversation('technical', undefined, value, 'screening')} conversationUpdate={conversationUpdate} initialAssistantId={assistant} shellNavigation={session.active} onHistoryChange={onHistoryChange} data={data} initialConversationId={route.conversationId} initialNewDraft={route.newDraft} newResearchKey={newResearchKey} onNewResearchConsumed={() => { setNewResearchKey(0); setAssistant(undefined) }} initialPrompt={prompt} onPromptConsumed={() => setPrompt(undefined)} initialScope={scope} onScopeChange={changeScope} initialSource={source} onSourceChange={setSource} onOpenConversation={onConversation} onLocationChange={location} /> : loading}

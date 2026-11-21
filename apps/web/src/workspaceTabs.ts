@@ -24,13 +24,22 @@ export function workspaceTabTitle(route: WorkspaceRoute) {
   if (route.screeningMethod && !route.conversationId) return screeningMethodLabel(route.screeningMethod)
   if (route.page === 'conditions') return ({ saved: '我的方案', history: '筛选记录', library: '条件库管理', compose: '条件组合', create: '新增条件', conversation: route.conversationId ? '选股对话' : '新选股' })[route.view || 'conversation']
   if (route.page === 'library') return route.libraryTab === 'reports' ? '研报与公告' : '资讯'
-  if (route.page === 'client-service' && route.serviceView === 'suggestions') return '生成建议'
+  if (route.page === 'client-service' && route.serviceView === 'opening-plan') return '开盘计划'
+  if (route.page === 'client-service' && route.serviceView === 'suggestions') return '调仓建议'
+  if (route.page === 'client-service' && route.serviceView === 'robots') return '群机器人'
   return workspaceMenus.find(item => item.id === route.page)?.label || '研究'
 }
 
 function makeTab(route: WorkspaceRoute, seed?: WorkspaceSeed, handoff?: WorkspaceHandoff): WorkspaceTab {
   route = normalizeWorkspaceRoute(route)
   return { id: newId(), route, title: workspaceTabTitle(route), ...(seed ? { seed } : {}), ...(handoff ? { handoff } : {}) }
+}
+
+function tabWithRoute(tab: WorkspaceTab, route: WorkspaceRoute): WorkspaceTab {
+  const nextTitle = workspaceTabTitle(route)
+  const serviceTitleChanged = route.page === 'client-service' && workspaceTabTitle(tab.route) !== nextTitle
+  const keepTitle = tab.route.page === route.page && !serviceTitleChanged && (route.page !== 'library' || tab.route.libraryTab === route.libraryTab)
+  return { ...tab, route, title: keepTitle ? tab.title : nextTitle }
 }
 
 function migrateSavedTab(tab: WorkspaceTab): WorkspaceTab {
@@ -42,7 +51,8 @@ function migrateSavedTab(tab: WorkspaceTab): WorkspaceTab {
     return { ...tab, route, title: workspaceTabTitle(route) }
   }
   const route = normalizeWorkspaceRoute(tab.route)
-  if (route.page === 'client-service' && route.serviceView === 'suggestions' && ['对客服务', 'AI 诊股'].includes(tab.title)) return { ...tab, route, title: workspaceTabTitle(route) }
+  if (route.page === 'client-service' && route.serviceView === 'suggestions' && ['对客服务', 'AI 诊股', '生成建议'].includes(tab.title)) return { ...tab, route, title: workspaceTabTitle(route) }
+  if (route.page === 'client-service' && route.serviceView === 'robots' && tab.title === '对客服务') return { ...tab, route, title: workspaceTabTitle(route) }
   if (route === tab.route) return tab
   return { ...tab, route, title: workspaceTabTitle(route) }
 }
@@ -156,10 +166,7 @@ export function useWorkspaceTabs() {
     route = normalizeWorkspaceRoute(route)
     const previous = current.current, tab = previous.tabs.find(item => item.id === id)
     if (!tab || workspaceRouteHash(tab.route) === workspaceRouteHash(route)) return
-    const suggestionViewChanged = route.page === 'client-service' && (tab.route.serviceView === 'suggestions') !== (route.serviceView === 'suggestions')
-    const title = tab.route.page === route.page && !suggestionViewChanged && (route.page !== 'library' || tab.route.libraryTab === route.libraryTab)
-      ? tab.title : workspaceTabTitle(route)
-    publish({ ...previous, tabs: previous.tabs.map(item => item.id === id ? { ...item, route, title } : item) }, replace, previous.activeId === id)
+    publish({ ...previous, tabs: previous.tabs.map(item => item.id === id ? tabWithRoute(item, route) : item) }, replace, previous.activeId === id)
   }
 
   function rename(id: string, title: string) {
@@ -252,7 +259,7 @@ export function useWorkspaceTabs() {
       if (selected) { if (selected.id !== previous.activeId) publish({ ...previous, activeId: selected.id }, true); return }
       const historicalTab = previous.tabs.find(tab => tab.id === window.history.state?.workspaceTabId && tab.route.page === target.page)
       if (historicalTab) {
-        publish({ ...previous, tabs: previous.tabs.map(tab => tab.id === historicalTab.id ? { ...tab, route: target } : tab), activeId: historicalTab.id }, true)
+        publish({ ...previous, tabs: previous.tabs.map(tab => tab.id === historicalTab.id ? tabWithRoute(tab, target) : tab), activeId: historicalTab.id }, true)
         return
       }
       const tab = makeTab(target)

@@ -1,12 +1,11 @@
 import { briefKinds, type BriefKind } from './intelligence'
 import type { ConversationScope, WorkflowType } from './api'
 import { localStorage, sessionStorage } from './authStorage'
-import { isPageId, type PageId } from './navigation'
+import { clientServiceMenus, isPageId, type PageId, type ServiceView } from './navigation'
 import { isScreeningMethod, type ScreeningMethod } from './screeningMethods'
 
 export type ScreeningView = 'conversation' | 'create' | 'library' | 'compose' | 'history' | 'saved'
-const serviceViews = ['cards', 'suggestions', 'templates', 'robots', 'deliveries'] as const
-export type ServiceView = typeof serviceViews[number]
+export type { ServiceView } from './navigation'
 export type ObservationTab = 'candidates' | 'batches'
 export type WorkspaceRoute = {
   page: PageId
@@ -78,7 +77,7 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   if (parts.length === 2 && parts[0] === 'tools' && parts[1] === 'client-service') {
     const requestedView = params.get('view')
     const view = requestedView === 'diagnosis' ? 'suggestions' : requestedView
-    if (view && !serviceViews.includes(view as ServiceView)) return null
+    if (view && !clientServiceMenus.some(item => item.id === view)) return null
     return { page: 'client-service', ...sharedWorkspace, ...(view && view !== 'cards' ? { serviceView: view as ServiceView } : {}) }
   }
   if (parts.length === 2 && parts[0] === 'library' && parts[1] === 'technical') return { page: workspace === 'screening' ? 'conditions' : 'screening', newDraft: true, scope: 'technical', indicators: 'common', ...(workspace === 'screening' ? { view: 'conversation' } : {}) }

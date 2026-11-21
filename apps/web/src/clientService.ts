@@ -11,6 +11,10 @@ export function withFixedDisclosure(content: CardContent): CardContent {
 
 // Keep the persisted jade key for cards and drafts; its collection is now Ice Blue Technology.
 export type CardTheme = 'river' | 'jade' | 'gold' | 'cosmos' | 'cinnabar' | 'ocean' | 'platinum'
+export type RebalanceCardContent = {
+  theme: CardTheme; product: string; code: string; name: string; direction: string
+  before: string; after: string; price: string; reason: string; basis: string
+}
 export const cardThemes: { id: CardTheme; name: string; description: string }[] = [
   { id: 'river', name: '锦绣江岸', description: '蓝金城市 · 江岸光影' },
   { id: 'jade', name: '冰蓝科技', description: '芯片光路 · 数据网络' },
@@ -22,7 +26,7 @@ export const cardThemes: { id: CardTheme; name: string; description: string }[] 
 ]
 export function cardArtworkPosition(slot: string) {
   const index = ['preopen', 'opening', 'checkpoint', 'midday', 'late', 'close'].indexOf(slot)
-  const cell = index < 0 ? 6 : index
+  const cell = slot === 'opening-plan' ? 7 : index < 0 ? 6 : index
   return `${cell % 2 * 100}% ${Math.floor(cell / 2) * 100 / 3}%`
 }
 export type CardContent = {

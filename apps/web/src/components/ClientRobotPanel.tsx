@@ -4,7 +4,8 @@ import { api } from '../api'
 import type { ServiceCard } from '../clientService'
 import { marketTime } from '../clientService'
 import { useRemoteResource } from '../useRemoteResource'
-import { useSessionState } from '../useSessionState'
+import { isText, useSessionState } from '../useSessionState'
+import { ClientBroadcastPanel, ClientComplianceReview, ClientRobotRiskMonitor } from './ClientRobotOperations'
 import ConditionWorkspaceDrawer from './ConditionWorkspaceDrawer'
 import LoadingState from './LoadingState'
 
@@ -13,6 +14,7 @@ type Delivery = { id: string; robot_name: string; kind: 'test' | 'text' | 'image
 const deliveryLabels = { sending: '发送中', sent: '已接收', failed: '发送失败', unknown: '结果未确认' }
 const isDeliveryRequests = (value: unknown): value is Record<string, string> =>
   !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(id => typeof id === 'string')
+const sections = [['settings', '机器人配置'], ['risk', '风险监控'], ['review', '合规审查'], ['broadcast', '内容群发']] as const
 
 export default function ClientRobotPanel({ historyOnly = false }: { historyOnly?: boolean }) {
   const [robots, setRobots] = useState<Robot[]>([])
@@ -23,6 +25,8 @@ export default function ClientRobotPanel({ historyOnly = false }: { historyOnly?
   const [name, setName] = useState(''), [webhook, setWebhook] = useState(''), [enabled, setEnabled] = useState(true)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [confirm, setConfirm] = useState<{ robot: Robot; kind: 'test' | 'archive'; requestId: string } | null>(null)
+  const [section, setSection] = useState<typeof sections[number][0]>('settings')
+  const [text, setText] = useSessionState('client-service.robot-broadcast.text', '', isText)
   useEffect(() => {
     const controller = new AbortController()
     setLoaded(false)
@@ -64,26 +68,68 @@ export default function ClientRobotPanel({ historyOnly = false }: { historyOnly?
   }
   function ask(robot: Robot, kind: 'test' | 'archive') { setConfirm({ robot, kind, requestId: crypto.randomUUID() }); setEditing(null); setWebhook(''); setError(''); setNotice('') }
   return <div className="client-robots">
-    {!historyOnly && <>
-    <div className="client-robot-intro"><Bot size={24} /><div><h3>企业微信群机器人</h3><p>添加和测试群机器人。在时点卡片的成品预览中选择目标群发送。</p></div></div>
-    {error && <div role="alert" className="workspace-error client-service-feedback"><span>{error}</span><button className="text-button workspace-button" disabled={busy} onClick={() => { setError(''); setReload(value => value + 1) }}>重新读取</button></div>}
-    {notice && <p role="status" className="workspace-feedback-success client-service-feedback"><Check size={15} />{notice}</p>}
-    <div className="client-robot-toolbar"><h3>群机器人 <small>{robots.length}</small></h3><button className="primary-button workspace-button" disabled={busy} onClick={() => edit('new')}><Plus size={15} />新增机器人</button></div>
-    {editing && <form className="client-robot-form" onSubmit={event => { event.preventDefault(); void save() }}><h4>{editing === 'new' ? '新增群机器人' : '编辑群机器人'}</h4><label>机器人名称<input className="workspace-field" aria-label="机器人名称" value={name} maxLength={40} onChange={event => setName(event.target.value)} placeholder="例如：锦绣成长客户服务群" disabled={busy} required /></label><label>Webhook 地址<input className="workspace-field" aria-label="Webhook 地址" type="password" autoComplete="new-password" value={webhook} onChange={event => setWebhook(event.target.value)} placeholder={editing === 'new' ? '粘贴企业微信群机器人的 Webhook 地址' : '留空保留原地址；填写可更换'} disabled={busy} required={editing === 'new'} /></label><small>在企业微信目标群中添加机器人，复制其 Webhook 地址。</small><label className="client-robot-enabled"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} disabled={busy} />启用机器人</label><div className="client-robot-actions"><button type="button" className="secondary-button workspace-button" disabled={busy} onClick={() => { setEditing(null); setWebhook('') }}>取消编辑</button><button className="primary-button workspace-button" type="submit" disabled={busy || !name.trim() || (editing === 'new' && !webhook.trim())}>{busy ? '正在保存…' : '保存机器人'}</button></div></form>}
-    {!loaded && !error && <p className="client-empty">正在读取机器人…</p>}
-    {loaded && !robots.length && !editing && <div className="client-robot-empty"><Bot size={34} /><h4>尚未配置群机器人</h4><p>先添加一个机器人，再发送测试消息确认目标群。</p></div>}
-    <div className="client-robot-list">{robots.map(robot => <article key={robot.id}><div className="client-robot-row"><span className="client-robot-avatar"><Bot size={20} /></span><div><h4>{robot.name}<small className={robot.enabled ? 'is-ready' : ''}>{robot.enabled ? '已启用' : '已停用'}</small></h4><p>{robot.webhook_hint}</p></div><button className="text-button workspace-button" aria-label={`编辑${robot.name}`} disabled={busy} onClick={() => edit(robot)}><Edit3 size={15} /></button><button className="text-button workspace-button" aria-label={`移除${robot.name}`} disabled={busy} onClick={() => ask(robot, 'archive')}><Trash2 size={15} /></button></div><div className="client-robot-actions"><button className="secondary-button workspace-button" disabled={busy || !robot.enabled} onClick={() => ask(robot, 'test')}>发送测试消息</button></div></article>)}</div>
-    {confirm && <section className="client-send-confirm" aria-label="确认机器人操作">
-      <h4>{confirm.kind === 'archive' ? '移除机器人' : `发送至「${confirm.robot.name}」`}</h4>
-      <p>{confirm.kind === 'archive' ? `移除「${confirm.robot.name}」的配置，保留发送记录。` : '将向此机器人所在群发送一条连接测试消息。'}</p>
-      <div className="client-robot-actions">
-        <button type="button" className="secondary-button workspace-button" disabled={busy} onClick={() => setConfirm(null)}>取消操作</button>
-        <button type="button" className="primary-button workspace-button" disabled={busy} onClick={() => void execute()}>{busy ? '正在处理…' : confirm.kind === 'archive' ? '确认移除' : `确认发送到 ${confirm.robot.name}`}</button>
-      </div>
-    </section>}
+    {!historyOnly && <nav className="client-robot-function-tabs" aria-label="群机器人功能">
+      {sections.map(([id, label]) => <button type="button" key={id} className="secondary-button workspace-button"
+        aria-pressed={section === id} disabled={busy} onClick={() => setSection(id)}>{label}</button>)}
+    </nav>}
+    {!historyOnly && section === 'risk' && <ClientRobotRiskMonitor />}
+    {!historyOnly && section === 'review' && <ClientComplianceReview text={text} onChange={setText} />}
+    {!historyOnly && section === 'broadcast' && <>
+      {error && <p role="alert" className="workspace-error">{error}</p>}
+      <ClientBroadcastPanel robots={robots} text={text} onTextChange={setText}
+        onBusy={setBusy} onSent={() => setReload(value => value + 1)} />
     </>}
     {historyOnly && error && <p role="alert" className="workspace-error">{error}</p>}
-    <section className="client-deliveries"><header><h3>最近发送记录</h3><button className="text-button workspace-button" disabled={busy} onClick={() => setReload(value => value + 1)}>刷新记录</button></header>{!loaded && !error ? <p className="client-plan-help">正在读取发送记录…</p> : !history.length && !error ? <p className="client-plan-help">暂无发送记录</p> : history.map(item => <article key={item.id}><div><strong>{item.robot_name}</strong><span className={`client-delivery-state is-${item.state}`}>{deliveryLabels[item.state]}</span></div><p>{item.kind === 'test' ? '连接测试' : item.kind === 'image' ? '图片简报' : '文字简报'} · {marketTime(item.created_at)}</p><small>{item.message}</small></article>)}</section>
+    {(historyOnly || section === 'settings') && <div className={historyOnly ? undefined : 'client-robot-configuration'}>
+      {!historyOnly && <section aria-label="机器人配置">
+        <header className="client-robot-toolbar">
+          <h2>企业微信群机器人 <small>{robots.length}</small></h2>
+          <button type="button" className="primary-button workspace-button" disabled={busy} onClick={() => edit('new')}><Plus size={15} />新增机器人</button>
+        </header>
+        {error && <div role="alert" className="workspace-error client-service-feedback">
+          <span>{error}</span><button className="text-button workspace-button" disabled={busy} onClick={() => { setError(''); setReload(value => value + 1) }}>重新读取</button>
+        </div>}
+        {notice && <p role="status" className="workspace-feedback-success client-service-feedback"><Check size={15} />{notice}</p>}
+        {editing && <form className="client-robot-form" onSubmit={event => { event.preventDefault(); void save() }}>
+          <h3>{editing === 'new' ? '新增群机器人' : '编辑群机器人'}</h3>
+          <label>机器人名称<input className="workspace-field" aria-label="机器人名称" value={name} maxLength={40} onChange={event => setName(event.target.value)} placeholder="例如：锦绣成长客户服务群" disabled={busy} required /></label>
+          <label>Webhook 地址<input className="workspace-field" aria-label="Webhook 地址" type="password" autoComplete="new-password"
+            value={webhook} onChange={event => setWebhook(event.target.value)} placeholder={editing === 'new' ? '粘贴企业微信群机器人的 Webhook 地址' : '留空保留原地址，填写可更换'} disabled={busy} required={editing === 'new'} /></label>
+          <small>在企业微信目标群中添加机器人，复制其 Webhook 地址。</small>
+          <label className="client-robot-enabled"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} disabled={busy} />启用机器人</label>
+          <div className="client-robot-actions">
+            <button type="button" className="secondary-button workspace-button" disabled={busy} onClick={() => { setEditing(null); setWebhook('') }}>取消编辑</button>
+            <button className="primary-button workspace-button" type="submit" disabled={busy || !name.trim() || (editing === 'new' && !webhook.trim())}>{busy ? '正在保存…' : '保存机器人'}</button>
+          </div>
+        </form>}
+        {!loaded && !error && <p className="client-empty">正在读取机器人…</p>}
+        {loaded && !robots.length && !editing && <div className="client-robot-empty"><Bot size={34} /><h3>尚未配置群机器人</h3><p>先添加一个机器人，再发送测试消息确认目标群。</p></div>}
+        <div className="client-robot-list">{robots.map(robot => <article key={robot.id}>
+          <div className="client-robot-row">
+            <span className="client-robot-avatar"><Bot size={20} /></span>
+            <div><h3>{robot.name}<small className={robot.enabled ? 'is-ready' : ''}>{robot.enabled ? '已启用' : '已停用'}</small></h3><p>{robot.webhook_hint}</p></div>
+            <button className="text-button workspace-button" aria-label={`编辑${robot.name}`} disabled={busy} onClick={() => edit(robot)}><Edit3 size={15} /></button>
+            <button className="text-button workspace-button" aria-label={`移除${robot.name}`} disabled={busy} onClick={() => ask(robot, 'archive')}><Trash2 size={15} /></button>
+          </div>
+          <div className="client-robot-actions"><button className="secondary-button workspace-button" disabled={busy || !robot.enabled} onClick={() => ask(robot, 'test')}>发送测试消息</button></div>
+        </article>)}</div>
+        {confirm && <section className="client-send-confirm" aria-label="确认机器人操作">
+          <h3>{confirm.kind === 'archive' ? '移除机器人' : `发送至「${confirm.robot.name}」`}</h3>
+          <p>{confirm.kind === 'archive' ? `移除「${confirm.robot.name}」的配置，保留发送记录。` : '将向此机器人所在群发送一条连接测试消息。'}</p>
+          <div className="client-robot-actions">
+            <button type="button" className="secondary-button workspace-button" disabled={busy} onClick={() => setConfirm(null)}>取消操作</button>
+            <button type="button" className="primary-button workspace-button" disabled={busy} onClick={() => void execute()}>{busy ? '正在处理…' : confirm.kind === 'archive' ? '确认移除' : `确认发送到 ${confirm.robot.name}`}</button>
+          </div>
+        </section>}
+      </section>}
+      <section className="client-deliveries" aria-label="最近发送记录">
+        <header><h2>最近发送记录</h2><button className="text-button workspace-button" disabled={busy} onClick={() => setReload(value => value + 1)}>刷新记录</button></header>
+        {!loaded && !error ? <p className="client-plan-help">正在读取发送记录…</p> : !history.length && !error ? <p className="client-plan-help">暂无发送记录</p> : history.map(item => <article key={item.id}>
+          <div><strong>{item.robot_name}</strong><span className={`client-delivery-state is-${item.state}`}>{deliveryLabels[item.state]}</span></div>
+          <p>{item.kind === 'test' ? '连接测试' : item.kind === 'image' ? '图片简报' : '文字简报'} · {marketTime(item.created_at)}</p><small>{item.message}</small>
+        </article>)}
+      </section>
+    </div>}
   </div>
 }
 

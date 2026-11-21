@@ -4,8 +4,10 @@ import StockSearch, { StockName } from './StockSearch'
 import PdfReader from './PdfReader'
 import LibraryManagementMenu from './LibraryManagementMenu'
 import LibraryReadingActions from './LibraryReadingActions'
+import LoadingState from './LoadingState'
 import { Check, Plus, RefreshCw, Upload } from 'lucide-react'
 import type { LibrarySeed } from '../libraryContext'
+import { useWorkspaceSession } from '../WorkspaceSession'
 import './disclosures.css'
 
 type Metadata = { title: string; stock_code: string | null; report_period: string | null; document_type: string; document_form: string; publication_date: string | null; confirmed: boolean }
@@ -26,7 +28,14 @@ function clean(meta: Metadata): Metadata {
     document_form: meta.document_form, publication_date: meta.publication_date, confirmed: meta.confirmed }
 }
 
+function revealReader(reader: HTMLElement | null) {
+  if (!reader?.isConnected) return
+  reader.scrollIntoView?.({ block: 'start', inline: 'nearest' })
+  reader.focus({ preventScroll: true })
+}
+
 export default function DisclosuresPanel({ stockCode, asOf, writable = true, compact = false, onDescribe, onDefineCondition }: { stockCode?: string; asOf?: string; writable?: boolean; compact?: boolean; onDescribe?: (seed: Omit<LibrarySeed, 'id'>) => void; onDefineCondition?: (seed: Omit<LibrarySeed, 'id'>) => void }) {
+  const { active } = useWorkspaceSession()
   const [code, setCode] = useState(stockCode || '')
   const [period, setPeriod] = useState('')
   const [kind, setKind] = useState('')
@@ -54,11 +63,19 @@ export default function DisclosuresPanel({ stockCode, asOf, writable = true, com
   const editingState = useRef(editing)
   editingState.current = editing
   const seen = useRef(new Set<string>())
+  const archive = useRef<HTMLElement>(null)
+  const reader = useRef<HTMLElement>(null)
+  const readTrigger = useRef<HTMLButtonElement | null>(null)
+  const revealedVersion = useRef('')
   const readingKey = useRef(''), searchSequence = useRef(0)
   readingKey.current = `${selected}|${asOf || ''}`
   const canWrite = writable && !!options?.can_write
   const scopeSuffix = asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''
-  useEffect(() => { setCode(stockCode || ''); setOffset(0); setSelected(''); setEditing(null) }, [stockCode, asOf])
+  const detailId = detail?.id
+  useEffect(() => {
+    readTrigger.current = null
+    setCode(stockCode || ''); setOffset(0); setSelected(''); setEditing(null)
+  }, [stockCode, asOf])
   useEffect(() => { setEditing(null) }, [selected])
   useEffect(() => {
     const controller = new AbortController()
@@ -111,6 +128,12 @@ export default function DisclosuresPanel({ stockCode, asOf, writable = true, com
     return () => controller.abort()
   }, [selected, asOf, detailRevision])
   useEffect(() => {
+    if (!selected) revealedVersion.current = ''
+    if (!selected || !active || detailId !== selected || revealedVersion.current === selected) return
+    revealedVersion.current = selected
+    revealReader(reader.current)
+  }, [active, detailId, selected])
+  useEffect(() => {
     setPageText(null)
     if (!detail || detail.id !== selected) return
     const controller = new AbortController()
@@ -119,6 +142,20 @@ export default function DisclosuresPanel({ stockCode, asOf, writable = true, com
       .catch(reason => { if (!controller.signal.aborted) setReadError(reason.message) })
     return () => controller.abort()
   }, [detail, page, selected, asOf])
+  function openVersion(id: string, trigger?: HTMLButtonElement) {
+    if (trigger) readTrigger.current = trigger
+    setEditing(null)
+    if (id === selected && detailId === id) revealReader(reader.current)
+    else setSelected(id)
+  }
+  function closeReader() {
+    setSelected('')
+    setEditing(null)
+    const trigger = readTrigger.current
+    if (trigger?.isConnected) trigger.focus()
+    else archive.current?.focus()
+    readTrigger.current = null
+  }
   function changeDraft(change: Partial<Metadata>) { requestKey.current = ''; setDraft(old => ({ ...old, ...change })) }
   function beginImport(next: 'new' | 'revision' | 'supplement') {
     setError(''); setRelation(next); setEditing('import'); setUrl(''); setFile(null); requestKey.current = ''
@@ -183,7 +220,7 @@ export default function DisclosuresPanel({ stockCode, asOf, writable = true, com
     } catch (reason) { setReadError((reason as Error).message) }
   }
   const relevantImports = imports.filter(item => !stockCode || item.request.metadata.stock_code === stockCode)
-  return <section className={`disclosures-panel${compact ? ' compact' : ''}`} aria-label="原始披露归档">
+  return <section ref={archive} tabIndex={-1} className={`disclosures-panel${compact ? ' compact' : ''}`} aria-label="原始披露归档">
     <div className="disclosure-heading"><h2>原始披露</h2><LibraryManagementMenu context={'disclosure:' + selected} busy={submitting ? '正在提交…' : ''}>{close => <>
       {canWrite && <button type="button" role="menuitem" className="workspace-button" onClick={() => { close(); beginImport('new') }}><Upload size={14} />归档原始披露</button>}
       {canWrite && detail && <button type="button" role="menuitem" className="workspace-button" disabled={detail.id !== selected} onClick={() => { close(); beginMetadata() }}><Check size={14} />核对分类</button>}
@@ -230,22 +267,23 @@ export default function DisclosuresPanel({ stockCode, asOf, writable = true, com
       {relevantImports.slice(0, 10).map(item => <div className="disclosure-import" key={item.id}><strong>{item.request.metadata.title || item.filename}</strong><p>{item.message}</p>
         {['queued', 'running'].includes(item.state) ? <><progress aria-label="归档进度" max={1} value={item.progress} />{canWrite && <button className="text-button workspace-button" onClick={() => void action(item, true)}>停止导入</button>}</> :
           ['failed', 'cancelled', 'partial'].includes(item.state) && canWrite && <button className="text-button workspace-button" onClick={() => void action(item, false)}>重试归档</button>}
-        {item.version_id && <button className="text-button workspace-button" onClick={() => { setSelected(item.version_id!); setEditing(null) }}>打开归档版本</button>}
+        {item.version_id && <button className="text-button workspace-button" onClick={event => openVersion(item.version_id!, event.currentTarget)}>打开归档版本</button>}
       </div>)}</details>}
     {!listing ? <p>正在读取披露目录…</p> : <>
       <p className="research-secondary">{listing.total} 组原始披露 · 默认展示当前筛选条件下的最新版本</p>
       {!listing.items.length && <p>{asOf ? '当前截止日前没有已确认的原始披露。待核对资料可在资料库查看。' : '当前筛选范围没有原始披露，可上传 PDF 或导入官方链接。'}</p>}
-      <div className="disclosure-list">{listing.items.map(item => <button className="disclosure-row workspace-button" key={item.id} aria-pressed={selected === item.id} onClick={() => { setSelected(item.id); setEditing(null) }}>
+      <div className="disclosure-list">{listing.items.map(item => <button type="button" className="disclosure-row workspace-button" key={item.id} aria-pressed={selected === item.id} onClick={event => openVersion(item.id, event.currentTarget)}>
         <strong>{item.metadata.title}</strong><span>{item.metadata.stock_code ? <StockName code={item.metadata.stock_code} interactive={false} /> : '公司待核对'} · {item.metadata.report_period || '报告期待核对'} · {types[item.metadata.document_type]} · {forms[item.metadata.document_form]}</span>
         <small>第 {item.version} 版 · {item.pages} 页 · {item.metadata.confirmed ? '分类已核对' : '分类待核对'} · {item.metadata.publication_date || '披露日期待核对'}</small>
       </button>)}</div>
       {listing.total > 20 && <div className="disclosure-actions"><button className="secondary-button workspace-button" disabled={!offset} onClick={() => setOffset(v => Math.max(0, v - 20))}>上一批披露</button><button className="secondary-button workspace-button" disabled={offset + 20 >= listing.total} onClick={() => setOffset(v => v + 20)}>下一批披露</button></div>}
     </>}
     {readError && <p role="alert" className="workspace-error">{readError}<button className="text-button workspace-button" onClick={() => setDetailRevision(v => v + 1)}>重新读取原文</button></p>}
-    {detail && <section className="disclosure-reader" aria-label="披露版本阅读">
-      <div className="disclosure-heading"><h3>{detail.metadata.title}</h3><button className="text-button workspace-button" onClick={() => { setSelected(''); setEditing(null) }}>关闭原文</button></div>
-      <div className="disclosure-actions"><label>原文版本<select value={detail.id} onChange={e => { setSelected(e.target.value); setEditing(null) }}>{detail.versions.map(v => <option value={v.id} key={v.id}>第 {v.version} 版 · {v.metadata.publication_date || '披露日期待核对'}</option>)}</select></label>
-        <a href={detail.pdf_url + (detail.pdf_url.includes('?') ? '&' : '?') + 'download=1'} target="_blank" rel="noreferrer">打开原 PDF</a>
+    {selected && detailId !== selected && !readError && <LoadingState compact label="正在打开原文…" />}
+    {detail && detail.id === selected && <section ref={reader} tabIndex={-1} className="disclosure-reader" aria-label="披露版本阅读">
+      <div className="disclosure-heading"><h3>{detail.metadata.title}</h3><button type="button" className="text-button workspace-button" onClick={closeReader}>关闭原文</button></div>
+      <div className="disclosure-actions"><label>原文版本<select value={detail.id} onChange={event => openVersion(event.target.value)}>{detail.versions.map(v => <option value={v.id} key={v.id}>第 {v.version} 版 · {v.metadata.publication_date || '披露日期待核对'}</option>)}</select></label>
+        <a className="secondary-button compact workspace-button" href={detail.pdf_url + (detail.pdf_url.includes('?') ? '&' : '?') + 'download=1'} target="_blank" rel="noreferrer">打开原 PDF</a>
       </div>
       <p className="research-secondary">{detail.source_kind === 'upload' ? '用户上传原文' : <a href={detail.source_url!} target="_blank" rel="noreferrer">官方原文来源</a>} · 页码为 PDF 物理页 · {detail.metadata.confirmed && detail.metadata.publication_date ? '披露日期经人工核对' : '披露时间待核对'}</p>
       {detail.parse_status === 'no_text' && <p>此 PDF 暂无可提取文字，仍可逐页阅读原文。</p>}
@@ -256,7 +294,7 @@ export default function DisclosuresPanel({ stockCode, asOf, writable = true, com
           onChange={event => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 1 && value <= detail.pages) setPage(value) }} /><span>/ {detail.pages}</span></label>}
         actions={onDescribe || onDefineCondition ? <LibraryReadingActions context={`当前第 ${page} 页`} disabled={!detail.document_id || detail.id !== selected} onResearch={onDescribe ? () => onDescribe({ source_document_id: detail.document_id, source_page: page, title: detail.metadata.title }) : undefined} onScreening={onDefineCondition ? () => onDefineCondition({ source_document_id: detail.document_id, source_page: page, title: detail.metadata.title }) : undefined} /> : undefined} />
       <details><summary>第 {page} 页文字与定位</summary><pre className="disclosure-page-text">{pageText?.text || '本页暂无可提取文字，请查看 PDF 原文。'}</pre>{pageText?.next_offset != null && <button className="text-button workspace-button" onClick={() => void moreText()}>继续读取本页文字</button>}<small>版本 {detail.id} · 内容校验 {detail.sha256}</small></details>
-      {detail.related.length > 0 && <details open><summary>相关原文与更正材料</summary>{detail.related.map(item => <button key={item.id} className="disclosure-row workspace-button" onClick={() => { setSelected(item.id); setEditing(null) }}>{item.metadata.title} · {types[item.metadata.document_type]} · 第 {item.version} 版{item.relationship_needs_review ? ' · 分类已变更，关联待复核' : ''}</button>)}</details>}
+      {detail.related.length > 0 && <details open><summary>相关原文与更正材料</summary>{detail.related.map(item => <button type="button" key={item.id} className="disclosure-row workspace-button" onClick={() => openVersion(item.id)}>{item.metadata.title} · {types[item.metadata.document_type]} · 第 {item.version} 版{item.relationship_needs_review ? ' · 分类已变更，关联待复核' : ''}</button>)}</details>}
       {!!detail.sources?.length && <details><summary>原文导入来源记录</summary>{detail.sources.map(source => <p key={source.import_id}>{source.source_url ? <a href={source.source_url} target="_blank" rel="noreferrer">官方原文链接</a> : `上传：${source.filename}`} · {source.created_at}</p>)}</details>}
       <details><summary>分类修改记录</summary>{detail.metadata_history.map(item => <p key={item.revision}>分类第 {item.revision} 版 · {item.created_at} · {item.metadata.stock_code || '公司待核对'} · {item.metadata.report_period || '报告期待核对'} · {types[item.metadata.document_type]} · {forms[item.metadata.document_form]}</p>)}</details>
     </section>}

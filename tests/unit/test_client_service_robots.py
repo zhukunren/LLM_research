@@ -11,6 +11,8 @@ import requests
 
 from apps.api.app import client_service_robots as robots, client_service as service, db
 from apps.api.app.client_service_api import router
+from apps.api.app.client_service_disclosure import disclosure_lines
+from apps.api.app.rebalance_card import RebalanceCard
 
 WEBHOOK = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=test-only-secret-key'
 
@@ -195,3 +197,56 @@ def test_provider_rejections_are_recorded_without_echoing_secret(setup, monkeypa
     result = client.post('/api/v1/client-service/robots/' + robot['id'] + '/send', json={'request_id': 'rejected', 'kind': 'test'})
     assert result.json()['state'] == 'failed' and '93000' in result.text
     assert WEBHOOK not in result.text
+
+
+def test_review_blocks_incomplete_or_promised_returns_before_any_send(setup):
+    client, calls = setup
+    robot = create(client)
+    prefix = "/api/v1/client-service/robots"
+    bad = {"text": "本次保证收益，详见 https://example.com/news"}
+    review = client.post(prefix + "/review", json=bad)
+    assert review.status_code == 200
+    assert {issue["code"] for issue in review.json()["issues"]} == {"disclosure", "signature", "link", "promise"}
+    rejected = client.post(prefix + "/" + robot["id"] + "/send", json={
+        "request_id": "bad-material", "kind": "text", "content_text": bad["text"],
+    })
+    assert rejected.status_code == 422 and calls == []
+
+
+def test_content_batch_delivers_to_selected_groups_once_and_risk_monitor_surfaces_rejections(setup):
+    client, calls = setup
+    first = create(client, name="一组")
+    second = create(client, name="二组", webhook=WEBHOOK.replace("test-only-secret-key", "test-other-secret-key"))
+    create(client, name="已停用组", enabled=False, webhook=WEBHOOK.replace("test-only-secret-key", "test-paused-secret-key"))
+    prefix = "/api/v1/client-service/robots"
+    text = "今日观察公开信息，具体执行由投顾核对。\n" + "\n".join(disclosure_lines())
+    for robot in [first, second]:
+        payload = {"request_id": "batch-id:" + robot["id"], "kind": "text", "content_text": text}
+        route = prefix + "/" + robot["id"] + "/send"
+        delivered = client.post(route, json=payload).json()
+        assert delivered["state"] == "sent"
+        assert client.post(route, json=payload).json()["id"] == delivered["id"]
+    assert len(calls) == 2
+    assert all(call[1]["json"]["text"]["content"] == text for call in calls)
+
+    with db.connect() as connection:
+        connection.execute("UPDATE client_service_deliveries SET state='failed',message='接收端拒绝' WHERE robot_id=?", (second["id"],))
+    risks = client.get(prefix + "/risks")
+    assert risks.status_code == 200
+    result = risks.json()
+    assert [(item["robot_name"], item["state"]) for item in result["items"]] == [("二组", "failed")]
+    assert [item["name"] for item in result["paused"]] == ["已停用组"]
+    assert "test-other-secret-key" not in risks.text
+
+
+def test_group_send_can_use_a_themed_rebalance_card(setup, monkeypatch):
+    client, calls = setup
+    robot = create(client)
+    card = RebalanceCard(theme="jade", product="投顾产品", code="603650", name="测试股票", direction="开仓",
+                         before="0", after="5", price="46.70", reason="核对公告。")
+    monkeypatch.setattr(robots, "render_rebalance_card", lambda draft: b"test-image-" + draft.theme.encode())
+    response = client.post("/api/v1/client-service/robots/" + robot["id"] + "/send", json={
+        "request_id": "group-image", "kind": "image", "suggestion": card.model_dump(),
+    })
+    assert response.status_code == 200 and response.json()["state"] == "sent"
+    assert base64.b64decode(calls[0][1]["json"]["image"]["base64"]) == b"test-image-jade"

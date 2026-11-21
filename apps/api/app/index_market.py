@@ -54,6 +54,15 @@ def _fetch(start: date, cutoff: date) -> tuple[list[dict], str]:
     return [{"ts_code": "000001.SH", "trade_date": row[0], "open": row[1], "close": row[2], "high": row[3], "low": row[4], "vol": row[5], "amount": None} for row in series], "腾讯行情 / 上证指数"
 
 
+def _bars_through(cached: dict, cutoff: date, limit: int) -> list[dict]:
+    return [bar for bar in cached.get("bars", []) if bar["trade_date"] <= cutoff.isoformat()][-max(1, min(limit, 500)):]
+
+
+def cached_bars(as_of: str, limit: int) -> list[dict]:
+    """Read previously acquired index bars without waiting on a provider."""
+    return _bars_through(_read_cache(), date.fromisoformat(as_of), limit)
+
+
 def get_bars(as_of: str | None = None, limit: int = 500) -> list[dict]:
     cutoff = date.fromisoformat(as_of) if as_of else datetime.now(SOURCE_ZONE).date()
     with _lock:
@@ -94,4 +103,4 @@ def get_bars(as_of: str | None = None, limit: int = 500) -> list[dict]:
             except Exception as exc:
                 if not cached.get("bars"):
                     raise ValueError("上证指数行情暂时无法读取，请稍后重试") from exc
-        return [bar for bar in cached.get("bars", []) if bar["trade_date"] <= cutoff.isoformat()][-max(1, min(limit, 500)):]
+        return _bars_through(cached, cutoff, limit)

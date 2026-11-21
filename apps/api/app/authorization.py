@@ -11,7 +11,11 @@ from .security_context import AccessDenied, LOCAL_ACTOR, actor_scope, auth_mode,
 PUBLIC_PATHS = {"/api/v1/health", "/api/v1/auth/status", "/auth/login", "/auth/callback"}
 ADMIN_PATHS = {"/api/v1/documents/import-local", "/api/v1/documents/catalog", "/api/v1/settings/model-test", "/api/v1/settings/model-tool-test"}
 # Search uses a JSON POST but does not persist data or execute user code.
-READ_ONLY_POSTS = {"/api/v1/documents/search", "/api/v1/daily-signals/market", "/api/v1/client-service/preview"}
+READ_ONLY_POSTS = {
+    "/api/v1/documents/search", "/api/v1/daily-signals/market", "/api/v1/client-service/preview",
+    "/api/v1/client-service/rebalance-suggestions/preview", "/api/v1/client-service/opening-plans/preview",
+    "/api/v1/client-service/robots/review",
+}
 RESOURCE_PARAMETERS = {
     "conversation_id": (("conversations", "id"),), "turn_id": (("conversation_turns", "id"),),
     "project_id": (("research_projects", "id"),), "note_id": (("research_notes", "id"),),

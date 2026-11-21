@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Maximize2, Clock3, Copy, Download, FileText, Image, Radio, RefreshCw, RotateCcw, Save, Send } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronRight, Maximize2, Clock3, Copy, Download, Image, Radio, RefreshCw, RotateCcw, Save, Send } from 'lucide-react'
 import { api } from '../api'
 import ConditionWorkspaceDrawer from '../components/ConditionWorkspaceDrawer'
 import ClientRobotPanel, { ClientCardSendDialog } from '../components/ClientRobotPanel'
 import ClientCardReview from '../components/ClientCardReview'
+import { ClientCardFullscreen, ClientCardImageStage, ClientCardPreviewSwitch, type CardPreviewMode } from '../components/ClientCardPreview'
+import ClientThemePicker from '../components/ClientThemePicker'
 import EditableClientCard from '../components/EditableClientCard'
 import LoadingState from '../components/LoadingState'
 import WorkspacePageHeading from '../components/WorkspacePageHeading'
@@ -46,17 +48,13 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
   const { active } = useWorkspaceSession()
   const [config, setConfig] = useState<ServiceSettings | null>(null)
   const [schedule, setSchedule] = useState<ServiceSettings | null>(null)
-  const [localDrawer, setLocalDrawer] = useState<'schedule' | 'robots' | 'deliveries' | null>(null)
-  const drawer = view ? view === 'templates' ? 'schedule' : view === 'cards' ? null : view : localDrawer
-  function setDrawer(next: typeof localDrawer) {
-    if (onViewChange) onViewChange(next === 'schedule' ? 'templates' : next || 'cards')
-    else setLocalDrawer(next)
-  }
+  const [localView, setLocalView] = useState<ServiceView>('cards')
+  const serviceView = view ?? localView
+  const showingRobots = serviceView === 'robots'
+  const cardsActive = active && !showingRobots
+  const changeView = onViewChange ?? setLocalView
   const [fullscreen, setFullscreen] = useState(false)
-  const [readingSize, setReadingSize] = useState(false)
-  const [themeScroll, setThemeScroll] = useState({ up: false, down: false })
-  const themeList = useRef<HTMLDivElement>(null)
-  const [previewMode, setPreviewMode] = useState<'image' | 'text'>('image')
+  const [previewMode, setPreviewMode] = useState<CardPreviewMode>('image')
   const [sendTarget, setSendTarget] = useState<CardDeliveryTarget | null>(null)
   const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit')
   const mobileScroll = useRef<Partial<Record<typeof mobilePane, number>>>({})
@@ -120,21 +118,22 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
   const text = effectiveTemplate && content ? (exportAsDraft ? '【草稿 · 待核对】\n' : '') + cardText(effectiveTemplate, content, card, date) : ''
 
   useEffect(() => {
+    if (showingRobots) return
     const controller = new AbortController()
     api<ServiceSettings>('/client-service/settings', { signal: controller.signal }).then(value => {
       if (!controller.signal.aborted) { setConfig(value); setSchedule(current => current || value) }
     }).catch(reason => { if (!controller.signal.aborted) setError(reason.message) })
     return () => controller.abort()
-  }, [retry])
+  }, [retry, showingRobots])
 
   useEffect(() => {
-    if (!active) return
+    if (!cardsActive) return
     const timer = setInterval(() => setNow(Date.now()), 15000)
     return () => clearInterval(timer)
-  }, [active])
+  }, [cardsActive])
 
   useEffect(() => {
-    if (!active) return
+    if (!cardsActive) return
     const controller = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
     setLoadedDate('')
@@ -163,11 +162,11 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
     }
     void load()
     return () => { controller.abort(); clearTimeout(timer) }
-  }, [date, retry, active, setDrafts])
+  }, [date, retry, cardsActive, setDrafts])
 
   useEffect(() => {
     setPreviewError('')
-    if (!previewBody || !active) return
+    if (!previewBody || !cardsActive) return
     const controller = new AbortController()
     const timer = setTimeout(() => {
       const path = exportAsDraft ? '/client-service/preview?draft=true' : '/client-service/preview'
@@ -177,41 +176,16 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
         .catch(reason => { if (!controller.signal.aborted) setPreviewError(reason.message) })
     }, 350)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [previewBody, previewKey, previewRetry, active, exportAsDraft])
+  }, [previewBody, previewKey, previewRetry, cardsActive, exportAsDraft])
 
   useEffect(() => {
-    if (!active || !config) return
-    const list = themeList.current
-    if (!list) return
-    const measure = () => {
-      const value = { up: list.scrollTop > 1, down: list.scrollTop + list.clientHeight < list.scrollHeight - 1 }
-      setThemeScroll(current => current.up === value.up && current.down === value.down ? current : value)
+    if (showingRobots) {
+      setFullscreen(false)
+      setSendTarget(null)
     }
-    measure()
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    observer?.observe(list)
-    if (list.firstElementChild) observer?.observe(list.firstElementChild)
-    list.addEventListener('scroll', measure, { passive: true })
-    window.addEventListener('resize', measure)
-    const frame = requestAnimationFrame(measure)
-    return () => { observer?.disconnect(); list.removeEventListener('scroll', measure); window.removeEventListener('resize', measure); cancelAnimationFrame(frame) }
-  }, [active, !!config])
+  }, [showingRobots])
 
-  useEffect(() => {
-    if (!active) return
-    const list = themeList.current
-    const selected = list?.querySelector<HTMLElement>('[aria-pressed=true]')
-    if (!list || !selected) return
-    const top = selected.offsetTop, bottom = top + selected.offsetHeight
-    if (top < list.scrollTop) list.scrollTop = top
-    else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight
-  }, [active, theme, slot, !!config])
-
-  function browseThemes(direction: -1 | 1) {
-    const list = themeList.current
-    if (list) list.scrollBy({ top: direction * Math.max(100, list.clientHeight * .75), behavior: 'smooth' })
-  }
-  function openFullscreen() { setReadingSize(false); setFullscreen(true) }
+  function openFullscreen() { setFullscreen(true) }
 
   function switchMobilePane(next: typeof mobilePane) {
     if (next === mobilePane) return
@@ -373,7 +347,12 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
     </label>
   }
 
-  return <div ref={pageRef} className="page-content workspace-tool-page client-service-page" role="region" aria-label="对客服务内容" tabIndex={0}>
+  if (showingRobots) return <div key="robots" className="page-content workspace-tool-page client-service-page client-robot-page" role="region" aria-label="群机器人工作区" tabIndex={0}>
+    <WorkspacePageHeading actions={null}><h1>群机器人</h1></WorkspacePageHeading>
+    <ClientRobotPanel />
+  </div>
+
+  return <div key="cards" ref={pageRef} className="page-content workspace-tool-page client-service-page" role="region" aria-label="对客服务内容" tabIndex={0}>
     {researchSource && <section className="client-research-draft" aria-label="研究转服务草稿">
       <header><h2>研究转服务草稿</h2><a href={`#/research/${encodeURIComponent(researchSource.conversationId)}`}>查看原研究</a></header>
       <p>研究答复 {marketTime(researchSource.createdAt)} · 数据截至 {researchSource.asOf || '未记录'}</p>
@@ -394,8 +373,8 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
       <span className={`client-status-dot ${config?.enabled ? 'is-ready' : ''}`} aria-hidden="true" />
       {config ? `${config.enabled ? '自动生成已开启' : '自动生成未开启'} · 北京时间` : error ? '暂时无法读取自动生成状态' : '正在读取自动生成状态…'}
     </div>
-    {error && drawer !== 'schedule' && <div role="alert" className="workspace-error client-service-feedback"><AlertCircle size={17} /><span>{error}</span><button className="workspace-button text-button" onClick={() => { setError(''); setRetry(value => value + 1) }}>重新读取</button></div>}
-    {notice && drawer !== 'schedule' && <div role="status" className="client-service-feedback workspace-feedback-success"><Check size={16} /><span>{notice}</span>{undo?.key === key && <button className="workspace-button text-button" onClick={() => { setDrafts(current => ({ ...current, [key]: undo.content })); setUndo(null); setNotice('已撤销恢复，继续编辑') }}>撤销</button>}</div>}
+    {error && serviceView !== 'templates' && <div role="alert" className="workspace-error client-service-feedback"><AlertCircle size={17} /><span>{error}</span><button className="workspace-button text-button" onClick={() => { setError(''); setRetry(value => value + 1) }}>重新读取</button></div>}
+    {notice && serviceView !== 'templates' && <div role="status" className="client-service-feedback workspace-feedback-success"><Check size={16} /><span>{notice}</span>{undo?.key === key && <button className="workspace-button text-button" onClick={() => { setDrafts(current => ({ ...current, [key]: undo.content })); setUndo(null); setNotice('已撤销恢复，继续编辑') }}>撤销</button>}</div>}
     {!config || !template || !content ? (error ? <p className="client-empty">暂时无法读取服务模板，请重新读取。</p> : <LoadingState label="正在读取服务模板…" />) : <>
       <div className="client-day-summary"><h2>{date === beijingDate() ? '今日服务时点' : `${date} 服务时点`}</h2><span>{loaded ? `固定时点已采集 ${readyCount} / ${config.templates.length} · 即时简报 ${instantCards.length} 份` : '正在读取当日卡片…'}</span></div>
       <label className="client-compact-slot workspace-field-label">服务时点<select className="workspace-field" aria-label="选择服务时点" value={instant ? 'realtime' : slot} onChange={event => selectSlot(event.target.value)}>
@@ -430,10 +409,18 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
         </section>
         <section className="client-preview-workspace" aria-label="卡片预览">
           <section className="client-preview-panel" aria-label={exportAsDraft ? '草稿预览' : '成品预览'}>
-          <header><div><h2>{exportAsDraft ? '草稿预览' : '成品预览'}</h2></div><div className="client-preview-toolbar"><button type="button" className="secondary-button workspace-button" disabled={!currentPreview || !!previewError} onClick={openFullscreen}><Maximize2 size={14} />全屏查看</button><div className="client-preview-switch" role="group" aria-label="预览方式"><button className="workspace-button" aria-pressed={previewMode === 'image'} onClick={() => setPreviewMode('image')}><Image size={15} />图片</button><button className="workspace-button" aria-pressed={previewMode === 'text'} onClick={() => setPreviewMode('text')}><FileText size={15} />文案</button></div></div></header>
+          <header><div><h2>{exportAsDraft ? '草稿预览' : '成品预览'}</h2></div><div className="client-preview-toolbar"><button type="button" className="secondary-button workspace-button" disabled={!currentPreview || !!previewError} onClick={openFullscreen}><Maximize2 size={14} />全屏查看</button><ClientCardPreviewSwitch mode={previewMode} onChange={setPreviewMode} /></div></header>
           <div className="client-preview-meta"><span>{themeLabel} · 点击图片文字可编辑</span><span>{!valid ? '等待填写服务名称' : currentPreview ? `${currentPreview.width} × ${currentPreview.height} px` : previewError ? '预览暂不可用' : '正在同步…'}</span></div>
           {previewError && <div role="alert" className="workspace-error client-service-feedback"><span>{previewError}</span><button className="workspace-button text-button" onClick={() => setPreviewRetry(value => value + 1)}>重试预览</button></div>}
-          {previewMode === 'image' ? <div className="client-preview-stage"><button type="button" className="workspace-button client-theme-arrow client-theme-previous" aria-label="上一套底图" title="切换上一套底图" onClick={() => switchTheme(-1)}><ChevronLeft size={22} /></button><div className="client-card-canvas" aria-busy={valid && !currentPreview && !previewError}>{visiblePreview ? <EditableClientCard key={key} preview={visiblePreview} content={content} alt={`${content.brand} ${content.headline || effectiveTemplate?.title}时点卡预览`} onApply={applyImageEdits} onFullscreen={openFullscreen} /> : <div className="client-preview-placeholder"><Image size={34} /><p>{!valid ? '填写服务名称后，即可预览卡片' : previewError ? '修改内容或重试以恢复图片预览' : '正在排版当前内容…'}</p><small>预览与下载使用同一版式</small></div>}</div><button type="button" className="workspace-button client-theme-arrow client-theme-next" aria-label="下一套底图" title="切换下一套底图" onClick={() => switchTheme(1)}><ChevronRight size={22} /></button></div> : <div className="client-text-preview" aria-label="文案预览"><pre>{text}</pre></div>}
+          {previewMode === 'image' ? <ClientCardImageStage pending={valid && !currentPreview && !previewError} onStep={switchTheme}>
+            {visiblePreview ? <EditableClientCard key={key} preview={visiblePreview} content={content} alt={`${content.brand} ${content.headline || effectiveTemplate?.title}时点卡预览`} onApply={applyImageEdits} onFullscreen={openFullscreen} />
+              : <div className="client-preview-placeholder"><Image size={34} /><p>{!valid ? '填写服务名称后，即可预览卡片' : previewError ? '修改内容或重试以恢复图片预览' : '正在排版当前内容…'}</p><small>预览与下载使用同一版式</small></div>}
+          </ClientCardImageStage> : <div className="client-text-preview" aria-label="文案预览"><pre>{text}</pre></div>}
+          <div className="client-preview-details">
+            {card?.market && <details className="client-evidence-details"><summary>市场来源与时点<span>{card.market.sources.length} 个来源 · {card.market.quality === 'partial' ? '部分待核实' : '已核对'}</span></summary><section className="client-market-evidence" aria-label="市场来源与时点"><p>信息截至 {marketTime(card.cutoff)}（北京时间）</p><dl>{(card.market.raw_metrics || card.market.metrics).map((metric, index) => <div key={index}><dt>{metric.label}</dt><dd>{metric.value}{metric.observed_at && <small>数据时点 {marketTime(metric.observed_at)}</small>}</dd></div>)}</dl><ul>{card.market.sources.map((source, index) => <li key={index}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></li>)}</ul>{!!card.market.limitations.length && <p>{card.market.limitations.join('；')}</p>}</section></details>}
+            {currentPreview?.checks?.state==='warning'&&<p className="client-layout-warning" role="status">排版提示：{[...new Set(currentPreview.checks.issues.map(issue=>issue.message))].join('；')}。</p>}
+            <ClientCardReview card={card} dirty={dirty} imageHash={exportAsDraft ? currentPreview?.saved_image_hash : currentPreview?.image_hash} />
+          </div>
           <div className="client-export-bar" data-draft={exportAsDraft}>
             <p>{exportAsDraft ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}{exportAsDraft ? `草稿 · ${draftReason}` : '成品 · 市场已核对，内容已保存'}</p>
             <div>
@@ -442,18 +429,21 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
               {!exportAsDraft && <button type="button" className="secondary-button workspace-button" aria-haspopup="dialog" disabled={!readyToSend} onClick={() => setSendTarget(readyToSend)}><Send size={15} aria-hidden="true" />发送到群</button>}
             </div>
           </div>
-          {card?.market && <details className="client-evidence-details"><summary>市场来源与时点<span>{card.market.sources.length} 个来源 · {card.market.quality === 'partial' ? '部分待核实' : '已核对'}</span></summary><section className="client-market-evidence" aria-label="市场来源与时点"><p>信息截至 {marketTime(card.cutoff)}（北京时间）</p><dl>{(card.market.raw_metrics || card.market.metrics).map((metric, index) => <div key={index}><dt>{metric.label}</dt><dd>{metric.value}{metric.observed_at && <small>数据时点 {marketTime(metric.observed_at)}</small>}</dd></div>)}</dl><ul>{card.market.sources.map((source, index) => <li key={index}><a href={source.url} target="_blank" rel="noreferrer">{source.title}</a></li>)}</ul>{!!card.market.limitations.length && <p>{card.market.limitations.join('；')}</p>}</section></details>}
-          {currentPreview?.checks?.state==='warning'&&<p className="client-layout-warning" role="status">排版提示：{[...new Set(currentPreview.checks.issues.map(issue=>issue.message))].join('；')}。</p>}
-          <ClientCardReview card={card} dirty={dirty} imageHash={exportAsDraft ? currentPreview?.saved_image_hash : currentPreview?.image_hash} />
           </section>
-          <aside className="client-theme-picker" aria-label="卡片套图"><div className="client-section-heading"><h3>选择套图</h3><span>每套含 7 款时点插画</span></div><button type="button" className="workspace-button client-theme-scroll" aria-label="向上浏览套图" disabled={!themeScroll.up} onClick={() => browseThemes(-1)}><ChevronUp size={18} /></button><div ref={themeList} className="client-theme-list" role="group" aria-label="套图风格">{cardThemes.map(item => <button type="button" key={item.id} className="workspace-button" aria-pressed={theme === item.id} aria-label={item.name} onClick={() => update('theme', item.id)}><span className="client-theme-thumbnail" style={{ backgroundImage: `url(/client-service/themes/${item.id}-logo-safe.png)`, backgroundPosition: cardArtworkPosition(slot) }} /><strong>{item.name}{theme === item.id && <Check size={12} />}</strong><small>{item.description}</small></button>)}</div><button type="button" className="workspace-button client-theme-scroll" aria-label="向下浏览套图" disabled={!themeScroll.down} onClick={() => browseThemes(1)}><ChevronDown size={18} /></button><footer><span>已匹配{effectiveTemplate?.title}底图</span><button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => void saveThemeCollection()}>{busy === 'theme' ? '正在保存…' : '设为全时点默认'}</button></footer></aside>
+          <ClientThemePicker theme={theme} onSelect={value => update('theme', value)} caption="每套含 7 款时点插画"
+            thumbnail={id => <span className="client-theme-thumbnail" style={{ backgroundImage: `url(/client-service/themes/${id}-logo-safe.png)`, backgroundPosition: cardArtworkPosition(slot) }} />}
+            footer={<><span>已匹配{effectiveTemplate?.title}底图</span><button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => void saveThemeCollection()}>{busy === 'theme' ? '正在保存…' : '设为全时点默认'}</button></>} />
         </section>
       </div>
     </>}
-    {fullscreen && <ConditionWorkspaceDrawer title={exportAsDraft ? '草稿全屏预览' : '成品全屏预览'} description={`${themeLabel} · ${content?.headline || effectiveTemplate?.title || '时点卡'}`} closeLabel="退出全屏预览" className="client-card-fullscreen" onClose={() => setFullscreen(false)} footer={<><div className="client-fullscreen-themes"><button type="button" className="workspace-button" onClick={() => switchTheme(-1)}><ChevronLeft size={17} />上一套</button><span>{themeLabel}</span><button type="button" className="workspace-button" onClick={() => switchTheme(1)}>下一套<ChevronRight size={17} /></button></div><div className="client-fullscreen-actions"><button type="button" className="workspace-button" aria-pressed={readingSize} onClick={() => setReadingSize(value => !value)}>{readingSize ? '适应窗口' : '放大阅读'}</button><button type="button" className="workspace-button" disabled={!currentPreview || !!previewError} onClick={download}><Download size={15} />{downloadLabel}</button></div></>}>
-      <div className={`client-fullscreen-canvas${readingSize ? ' is-reading' : ''}`}>{visiblePreview ? <EditableClientCard key={key} preview={visiblePreview} content={content!} alt={exportAsDraft ? '全屏草稿图片' : '全屏成品图片'} mode={readingSize ? 'read' : 'fit'} onApply={applyImageEdits} /> : previewError ? <div role="alert" className="client-fullscreen-error"><p>{previewError}</p><button className="workspace-button" onClick={() => setPreviewRetry(value => value + 1)}>重试预览</button></div> : <LoadingState label="正在同步卡片图片…" />}</div>
-    </ConditionWorkspaceDrawer>}
-    {drawer === 'schedule' && schedule && <ConditionWorkspaceDrawer title="每日生成计划" description="设置服务时点与生成日期，保存后生效。" closeLabel="关闭生成计划" className="client-service-drawer" onClose={() => setDrawer(null)}>
+    {fullscreen && <ClientCardFullscreen title={exportAsDraft ? '草稿全屏预览' : '成品全屏预览'}
+      description={`${themeLabel} · ${content?.headline || effectiveTemplate?.title || '时点卡'}`} theme={themeLabel}
+      downloadLabel={downloadLabel} canDownload={!!currentPreview && !previewError} onDownload={download} onStep={switchTheme}
+      onClose={() => setFullscreen(false)}>
+      {mode => visiblePreview ? <EditableClientCard key={key} preview={visiblePreview} content={content!} alt={exportAsDraft ? '全屏草稿图片' : '全屏成品图片'} mode={mode} onApply={applyImageEdits} />
+        : previewError ? <div role="alert" className="client-fullscreen-error"><p>{previewError}</p><button className="workspace-button" onClick={() => setPreviewRetry(value => value + 1)}>重试预览</button></div> : <LoadingState label="正在同步卡片图片…" />}
+    </ClientCardFullscreen>}
+    {serviceView === 'templates' && schedule && <ConditionWorkspaceDrawer title="每日生成计划" description="设置服务时点与生成日期，保存后生效。" closeLabel="关闭生成计划" className="client-service-drawer" onClose={() => changeView('cards')}>
       {error && <p role="alert" className="workspace-error client-service-feedback">{error}</p>}
       {notice && <p role="status" className="workspace-feedback-success client-service-feedback">{notice}</p>}
       <section className="client-schedule" aria-label="每日生成计划"><header><div><h2><Clock3 size={20} />让服务按时准备好</h2><p>按北京时间采集市场快照，生成后回到卡片工作台编辑与下载。</p></div><label className="client-schedule-toggle"><input type="checkbox" checked={schedule.enabled} disabled={!!busy} onChange={event => setSchedule({ ...schedule, enabled: event.target.checked })} />开启每日自动生成</label></header>
@@ -464,14 +454,16 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
       {!schedule.weekdays.length && <p role="alert" className="client-field-error">请至少选择一个生成日期。</p>}
       <footer><span>{scheduleDirty ? '计划有未保存的修改' : '计划已保存'} · {schedule.templates.filter(item => item.enabled).length} 个启用时点</span><button className="secondary-button workspace-button" disabled={!scheduleDirty || !!busy} onClick={() => setSchedule(config)}>放弃计划修改</button><button type="button" className="primary-button workspace-button" disabled={!!busy || !schedule.weekdays.length || !scheduleDirty} onClick={() => void saveSettings('schedule')}><Save size={15} />{busy === 'schedule' ? '正在保存…' : '保存生成计划'}</button></footer>
     </section></ConditionWorkspaceDrawer>}
-    {(drawer === 'robots' || drawer === 'deliveries') && <ConditionWorkspaceDrawer title={drawer === 'deliveries' ? '发送记录' : '群机器人'} description={drawer === 'deliveries' ? '查看最近发送的内容、时间与结果。' : '管理企业微信群机器人并测试连接。'} closeLabel={drawer === 'deliveries' ? '关闭发送记录' : '关闭机器人管理'} className="client-service-drawer" onClose={() => setDrawer(null)}><ClientRobotPanel key={drawer} historyOnly={drawer === 'deliveries'} /></ConditionWorkspaceDrawer>}
+    {serviceView === 'deliveries' && <ConditionWorkspaceDrawer title="发送记录" description="查看最近发送的内容、时间与结果。" closeLabel="关闭发送记录" className="client-service-drawer" onClose={() => changeView('cards')}>
+      <ClientRobotPanel historyOnly />
+    </ConditionWorkspaceDrawer>}
     {sendTarget && <ClientCardSendDialog
       card={sendTarget.card}
       kind={sendTarget.kind}
       preview={sendTarget.image}
       canSend={!!readyToSend && readyToSend.card.id === sendTarget.card.id && readyToSend.card.revision === sendTarget.card.revision && readyToSend.previewKey === sendTarget.previewKey}
       onClose={() => setSendTarget(null)}
-      onManage={() => { setSendTarget(null); setNotice(''); setDrawer('robots') }}
+      onManage={() => { setSendTarget(null); setNotice(''); changeView('robots') }}
     />}
   </div>
 }

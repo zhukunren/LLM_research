@@ -3,27 +3,35 @@ from __future__ import annotations
 
 from datetime import date, datetime
 import re
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from . import codex_runtime, conversation_store, research_turn_service
+from . import codex_runtime, conversation_store, research_models, research_turn_service
 from .client_service import error, now
 from .client_service_text import without_web_links
 from .codex_store import web_evidence
 from .db import connect, json_dump, json_load
 from .report_evidence import normalize_quote
+from .rebalance_quotes import daily_context
 from .screening_contracts import ResearchScope
 from .stock_diagnosis import DiagnosisRequest, resolve_stock
 
 
-INSTRUCTIONS = """你负责起草一段可由投顾编辑的 A 股调仓理由。输入的调仓方向只是沟通场景。围绕该场景选择有直接关系的事实，说明数据、期间和判断条件。分析师预测、评级和公司指引要明确是谁的观点。不要猜测投顾决策、持仓、仓位变化或参考价格，不要建议具体仓位、价格或承诺收益。对于止盈、减仓和止损，只写原文支持的风险或观察依据，不能把看好公司的研报当作已知卖出动机。
-输入的本地研报包含系统已定位的原文页摘录。摘录与股票、截止时间和调仓场景匹配时，可直接从这些原文页取证。若本地没有能支持文案的研报，使用可用的原生网页搜索，并实际打开一份相关研报原文或可核对正文、券商、作者与日期的转载。搜索摘要、只有标题的页面和与该股票无关的报告不能作依据。找到可用研报后停止扩展。标题、作者、券商、日期和数字务必据实，有缺口就留空或报告没有可核对的研报。
-中文用词直接。理由写成一个可转发的短段落，说明对判断最重要的两三个事实和限制。理由正文只写文字，网址只放在 report.url 中。误导性判断和原文未支持的数字应省略。来源、固定风险提示及投顾落款由系统组装。
-只返回 JSON。找到研报时的格式为 {"reason":"可编辑的调仓理由","report":{"document_id":null,"url":null,"title":"","broker":"","authors":"","publication_date":null,"quote":"支持理由的原文连续摘录"}}。本地研报填写输入中的 document_id，线上研报填写实际打开的 url 和完整报告元数据。本地已提供的元数据可留空。quote 从同一份研报逐字复制一处约 8 至 40 字的连续片段，保留原标点。表格和正文交错时选择一处完整的短句，避免把几个句子拼成引文。若没有可核对且能提供依据的研报，返回 {"reason":"","report":null}。"""
+PRESETS = {
+    "instant": ("gpt-6.2-astra", "low", "fast"),
+    "deep": ("gpt-6.2-sol", "max", "default"),
+}
+
+INSTRUCTIONS = """自主撰写一段可由投顾编辑的 A 股调仓理由。输入的调仓方向是沟通场景，围绕该场景选择有直接关系的事实、条件和风险。不猜测客户持仓、成本、盈利、成交、仓位或价位，不承诺收益。未证实的判断用条件句。止盈、减仓和止损可从波动、事件变化和风险管理出发，不能把看好公司的报告当作已知卖出动机。
+选用最能解释理由的证据。可以用系统提供的带日期日线、本地研报，也可以用原生网页检索后实际打开的公告、财报、监管披露、权威报道或研报。研报不是前提。不要把搜索摘要当原文。将预测、公司披露和自己的推断分开。没有可靠外部事实时，仍可写与该方向相关的条件性理由，只引用真实输入，不编造公司事实。
+即时档用一批有针对性的检索，打开少量最匹配原文后成稿。深度档再核对最影响判断的证据及其反面条件。用短句写可转发的理由，正文用纯文字，原文网址单独列为依据。固定风险提示及投顾落款由系统组装。
+只返回 JSON：{"reason":"可编辑的调仓理由","uses_local_market":false,"sources":[{"title":"已打开原文的标题","url":"实际打开的原文网址","published_at":"YYYY-MM-DD 或带时区的 ISO 日期时间，可以为 null","quote":"说明事实的原文短句"}],"report":null}。sources 可以为空。未注明发布日期的原文只用于背景事实。使用了输入中的日线才将 uses_local_market 设为 true。若使用输入中的本地研报，可在 report 填 {"document_id":"输入中的ID","quote":"逐字摘录一段约8至40字的连续原文"}，不强制使用。"""
 
 
 class SuggestionRequest(DiagnosisRequest):
     direction: str = Field(min_length=1, max_length=30, pattern=r"^\S(?:[^\r\n]*\S)?$")
+    mode: Literal["instant", "deep"] | None = None
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
@@ -39,11 +47,22 @@ class ReportCitation(BaseModel):
     quote: str = Field(min_length=8, max_length=600)
 
 
+class WebSource(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: str = Field(min_length=1, max_length=240)
+    url: str = Field(max_length=2048, pattern=r"^https?://\S+$")
+    published_at: str | None = Field(default=None, max_length=48)
+    quote: str = Field(default="", max_length=600)
+
+
 class CollectionReply(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     reason: str = Field(max_length=1600)
-    report: ReportCitation | None
+    report: ReportCitation | None = None
+    uses_local_market: bool = False
+    sources: list[WebSource] = Field(default_factory=list, max_length=10)
 
 
 def _local_reports(connection, code: str, cutoff: date) -> list[dict]:
@@ -92,20 +111,29 @@ def start(payload: SuggestionRequest) -> dict:
         reports = _local_reports(connection, stock["stock_code"], cutoff.date()) if stock is not None else []
     if row is None:
         if not codex_runtime.availability()["available"]:
-            error(503, "AI 采集暂时不可用，模板仍可手动填写。")
+            error(503, "AI 暂时不可用，可以手动填写理由。")
+        selection, tier = {}, None
+        if payload.mode:
+            model, effort, tier = PRESETS[payload.mode]
+            try:
+                selection = research_models.resolve_selection(model, effort)
+            except research_models.ResearchModelError as exc:
+                error(503, str(exc))
+        snapshot = daily_context(stock["stock_code"], cutoff)
         with connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = _find(connection, payload.request_id)
             if row is None:
-                conversation = conversation_store.create_conversation("news", workflow_type="research", _connection=connection)
+                conversation = conversation_store.create_conversation("news", workflow_type="research", _connection=connection, **selection)
                 conversation_id = conversation["id"]
                 connection.execute(
                     "UPDATE conversations SET title=?,research_scope_json=? WHERE id=?",
-                    (f"生成建议 · {stock['name']}", json_dump(ResearchScope(as_of=cutoff.date()).model_dump(mode="json")), conversation_id),
+                    (f"调仓建议 · {stock['name']}", json_dump(ResearchScope(as_of=cutoff.date()).model_dump(mode="json")), conversation_id),
                 )
                 prompt = json_dump({
                     "股票代码": stock["stock_code"], "股票名称": stock["name"],
                     "调仓场景": payload.direction, "研究截止": cutoff.isoformat(), "本地研报": reports,
+                    "日线快照": snapshot, "档位": "即时" if payload.mode == "instant" else "深度",
                 })
                 message = conversation_store.add_user_message(
                     conversation_id, f"rebalance-suggestion:{payload.request_id}", 0, prompt,
@@ -115,15 +143,16 @@ def start(payload: SuggestionRequest) -> dict:
                 connection.execute("INSERT INTO client_service_turns VALUES(?,?)", (conversation_id, turn_id))
                 connection.execute(
                     """INSERT INTO client_rebalance_suggestions
-                       (request_id,stock_code,stock_name,direction,cutoff,reports_json,conversation_id,turn_id)
-                       VALUES(?,?,?,?,?,?,?,?)""",
+                       (request_id,stock_code,stock_name,direction,cutoff,reports_json,conversation_id,turn_id,mode,service_tier,market_json)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                     (payload.request_id, stock["stock_code"], stock["name"], payload.direction,
-                     cutoff.isoformat(), json_dump(reports), conversation_id, turn_id),
+                     cutoff.isoformat(), json_dump(reports), conversation_id, turn_id, payload.mode, tier, json_dump(snapshot)),
                 )
                 row = _find(connection, payload.request_id)
 
-    if payload.code not in {row["stock_code"], row["stock_code"][:6]} or payload.direction != row["direction"]:
-        error(409, "同一采集请求不能更换股票或调仓方向。")
+    if (payload.code not in {row["stock_code"], row["stock_code"][:6]} or payload.direction != row["direction"]
+            or payload.mode != row["mode"]):
+        error(409, "同一生成请求不能更换股票、调仓方向或档位。")
     try:
         research_turn_service.enqueue_turn(row["conversation_id"], row["turn_id"])
     except codex_runtime.CodexRuntimeError:
@@ -150,13 +179,25 @@ def _verified_report(citation: ReportCitation, row) -> dict | None:
     return citation.model_dump(mode="json", exclude={"quote", "document_id"})
 
 
+def _source_in_time(value: str | None, cutoff: datetime) -> bool:
+    if not value:
+        return True
+    try:
+        if len(value) == 10:
+            return date.fromisoformat(value) <= cutoff.date()
+        published = datetime.fromisoformat(value)
+        return published.tzinfo is not None and published <= cutoff
+    except ValueError:
+        return False
+
+
 def _status(row) -> dict:
     turn = conversation_store.get_turn(row["conversation_id"], row["turn_id"])
     state = turn["state"]
     result = {
         "request_id": row["request_id"], "code": row["stock_code"], "stock_name": row["stock_name"],
         "direction": row["direction"], "cutoff": row["cutoff"], "state": state,
-        "message": (turn.get("job") or {}).get("message") or "等待开始采集",
+        "mode": row["mode"], "message": (turn.get("job") or {}).get("message") or "等待生成理由",
     }
     if state == "succeeded":
         text = (turn["response_text"] or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
@@ -165,21 +206,48 @@ def _status(row) -> dict:
         except ValidationError:
             return {**result, "state": "failed", "message": "采集结果格式不完整，可以重新采集或手动填写。"}
         reason = without_web_links(reply.reason).strip()
-        report = _verified_report(reply.report, row) if reason and reply.report else None
-        if report is None:
-            return {**result, "state": "no_evidence", "message": "这次未找到可核对的研报依据，可以手动填写文案。"}
-        report = {**report, **{key: without_web_links(report[key]).strip() for key in ("title", "broker", "authors")}}
-        if not report["title"]:
-            return {**result, "state": "no_evidence", "message": "研报标题未能核对，可以手动填写文案。"}
-        authors = " ".join(part for part in (report["broker"], report["authors"]) if part)
-        report_date = date.fromisoformat(report["publication_date"]).strftime("%Y年%m月%d日")
-        byline = f" 研报作者：{authors}，" if authors else " "
-        basis = f"参考研报：《{report['title'].strip('《》')}》{byline}发布日期 {report_date}。"
-        return {**result, "reason": reason, "basis": basis, "report": report, "message": "采集完成"}
+        if not reason:
+            return {**result, "state": "no_evidence", "message": "本次没有生成可用理由，可以重新生成或手动填写。"}
+        report = _verified_report(reply.report, row) if reply.report else None
+        market = json_load(row["market_json"]) if reply.uses_local_market else None
+        sources = {}
+        if reply.sources:
+            searched, opened = web_evidence(row["conversation_id"], row["turn_id"])
+            cutoff = datetime.fromisoformat(row["cutoff"])
+            for source in reply.sources:
+                title = without_web_links(source.title).strip()
+                if searched and source.url in opened and title and _source_in_time(source.published_at, cutoff):
+                    sources[source.url] = {**source.model_dump(), "title": title, "quote": without_web_links(source.quote).strip()}
+        if ((reply.report and report is None) or (reply.uses_local_market and market is None)
+                or any(source.url not in sources for source in reply.sources)):
+            return {**result, "state": "no_evidence", "message": "理由中的部分来源未能核对，可以重新生成或手动填写。"}
+        lines = []
+        if report:
+            report = {**report, **{key: without_web_links(report[key]).strip() for key in ("title", "broker", "authors")}}
+            if not report["title"]:
+                return {**result, "state": "no_evidence", "message": "研报标题未能核对，可以手动填写文案。"}
+            authors = " ".join(part for part in (report["broker"], report["authors"]) if part)
+            report_date = date.fromisoformat(report["publication_date"]).strftime("%Y年%m月%d日")
+            byline = f" 研报作者：{authors}，" if authors else " "
+            lines.append(f"参考研报：《{report['title'].strip('《》')}》{byline}发布日期 {report_date}。")
+        for source in sources.values():
+            label = f"参考资料：《{source['title'].strip('《》')}》"
+            lines.append(label + (f"（{source['published_at'][:10]}）" if source["published_at"] else ""))
+        if market:
+            lines.append(f"本地日线 {market['trade_date']} 收盘价 {market['close']} 元（未复权）。")
+        basis = []
+        for line in lines:
+            if len("\n".join([*basis, line])) <= 650:
+                basis.append(line)
+        return {**result, "reason": reason, "basis": "\n".join(basis), "report": report, "sources": list(sources.values()),
+                "market": market, "message": "理由已生成" if lines else "已生成条件性理由，可编辑后使用。"}
     if state == "cancelled":
         return {**result, "message": "已停止采集。"}
     if state in {"failed", "awaiting_user"}:
-        return {**result, "state": "failed", "message": "采集未完成，可以重新采集或手动填写。"}
+        failure = str(turn.get("response_text") or "").lower()
+        if row["mode"] and any(value in failure for value in ("service_tier", "servicetier", "reasoning effort", "reasoning_effort")):
+            return {**result, "state": "failed", "message": "模型服务未接受此档位的速度或推理参数。"}
+        return {**result, "state": "failed", "message": "理由生成未完成，可以重试或手动填写。"}
     return result
 
 

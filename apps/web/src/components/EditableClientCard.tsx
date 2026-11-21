@@ -4,8 +4,8 @@ import { contentFields, type CardContent, type CardPreview, type CardTextRegion 
 import './editable-client-card.css'
 
 type Edit = { region: CardTextRegion; value: string }
-export default function EditableClientCard({ preview, content, alt, mode = 'normal', onApply, onFullscreen }: {
-  preview: CardPreview; content: CardContent; alt: string; mode?: 'normal' | 'fit' | 'read'
+export default function EditableClientCard({ preview, content, editableValues, alt, mode = 'normal', onApply, onFullscreen }: {
+  preview: CardPreview; content?: CardContent; editableValues?: Record<string, string>; alt: string; mode?: 'normal' | 'fit' | 'read'
   onApply: (values: Record<string, string | null>) => void; onFullscreen?: () => void
 }) {
   const host = useRef<HTMLDivElement>(null)
@@ -29,7 +29,8 @@ export default function EditableClientCard({ preview, content, alt, mode = 'norm
   useEffect(() => { if (edit) { input.current?.focus(); input.current?.select() } }, [edit?.region.key])
   function start(region: CardTextRegion) {
     completed.current = false
-    const candidate = region.key.startsWith('market.') ? content.market_overrides?.[region.key.slice(7)] : content[region.key as keyof CardContent]
+    const candidate = editableValues ? editableValues[region.key]
+      : region.key.startsWith('market.') ? content?.market_overrides?.[region.key.slice(7)] : content?.[region.key as keyof CardContent]
     setEdit({ region, value: typeof candidate === 'string' ? candidate : region.value })
   }
   const invalid = !!edit && ((edit.region.key === 'brand' || edit.region.key.startsWith('market.')) && !edit.value.trim())
@@ -41,7 +42,9 @@ export default function EditableClientCard({ preview, content, alt, mode = 'norm
   }
   function cancel() { completed.current = true; setEdit(null) }
   const style: CSSProperties | undefined = mode === 'fit' ? { width: size.width, height: size.height } : undefined
-  const editableRegions = (preview.regions || []).filter(region => region.key.startsWith('market.') || contentFields.some(field => field.key === region.key))
+  const editableRegions = (preview.regions || []).filter(region => editableValues
+    ? Object.hasOwn(editableValues, region.key)
+    : region.key.startsWith('market.') || contentFields.some(field => field.key === region.key))
   return <div ref={host} className={`client-editable-host is-${mode}`}>
     <div className="client-editable-card" style={style}>
       <img className="client-editable-image" src={preview.image} width={preview.width} height={preview.height} alt={alt} onDoubleClick={onFullscreen} />

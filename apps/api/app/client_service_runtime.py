@@ -20,16 +20,21 @@ def prepare(conversation_id: str, turn_id: str) -> dict | None:
     # Visual reviews also use client_service_turns and need the image tools.
     with connect() as connection:
         row = connection.execute(
-            """SELECT 'client-brief' FROM client_service_cards WHERE conversation_id=? AND turn_id=?
-               UNION ALL SELECT 'rebalance-suggestion' FROM client_rebalance_suggestions WHERE conversation_id=? AND turn_id=?
-               UNION ALL SELECT 'stock-diagnosis' FROM client_stock_diagnoses WHERE conversation_id=? AND turn_id=? LIMIT 1""",
-            (conversation_id, turn_id) * 3,
+            """SELECT 'client-brief',NULL FROM client_service_cards WHERE conversation_id=? AND turn_id=?
+               UNION ALL SELECT 'opening-plan',NULL FROM client_opening_plans WHERE conversation_id=? AND turn_id=?
+               UNION ALL SELECT 'rebalance-suggestion',service_tier FROM client_rebalance_suggestions WHERE conversation_id=? AND turn_id=?
+               UNION ALL SELECT 'stock-diagnosis',NULL FROM client_stock_diagnoses WHERE conversation_id=? AND turn_id=? LIMIT 1""",
+            (conversation_id, turn_id) * 4,
         ).fetchone()
     if row is None:
         return None
     profile = row[0]
     instructions = INSTRUCTIONS
-    if profile == 'rebalance-suggestion':
+    if profile == 'opening-plan':
+        from . import opening_plans
+
+        instructions = opening_plans.INSTRUCTIONS
+    elif profile == 'rebalance-suggestion':
         from . import rebalance_suggestions
 
         instructions = rebalance_suggestions.INSTRUCTIONS
@@ -43,7 +48,10 @@ def prepare(conversation_id: str, turn_id: str) -> dict | None:
         raise research_workspace.WorkspaceError('对客服务工作目录越界')
     work.mkdir(parents=True, exist_ok=True)
     (work / 'tmp').mkdir(exist_ok=True)
-    return {'workspace': str(work), 'attachments': [], 'profile': profile, 'instructions': instructions}
+    manifest = {'workspace': str(work), 'attachments': [], 'profile': profile, 'instructions': instructions}
+    if row[1]:
+        manifest['service_tier'] = row[1]
+    return manifest
 
 
 def prompt(conversation_id: str, turn_id: str, profile: str = 'client-brief') -> str:

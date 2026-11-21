@@ -5,7 +5,7 @@ import { api } from '../api'
 import ClientRobotPanel, { ClientCardSendDialog } from './ClientRobotPanel'
 import type { ServiceCard } from '../clientService'
 
-vi.mock('../api', () => ({ api: vi.fn() }))
+vi.mock('../api', async original => ({ ...await original<typeof import('../api')>(), api: vi.fn() }))
 it('reads delivery history directly without exposing robot mutation controls', async () => {
   vi.mocked(api).mockResolvedValue({ items: [{ id: 'delivery', robot_name: '客户群', state: 'sent', kind: 'text', message: '已接收', created_at: '2026-11-17T01:00:00Z' }] } as never)
   render(<ClientRobotPanel historyOnly />)
@@ -81,4 +81,41 @@ it('keeps the stored webhook when editing a name or enabled state', async () => 
   await screen.findByRole('status')
   const call = vi.mocked(api).mock.calls.find(([path, init]) => path.endsWith('/robot-one') && init?.method === 'PUT')!
   expect(JSON.parse(String(call[1]?.body))).toMatchObject({ webhook: null, enabled: false, revision: 0 })
+})
+
+it('checks the current draft, confirms multiple targets and separately lists delivery risks', async () => {
+  const second = { ...robot, id: 'robot-two', name: '第二服务群' }
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path.endsWith('/deliveries')) return { items: [] }
+    if (path.endsWith('/risks')) return { paused: [], items: [
+      { id: 'late', robot_name: '风险待核对群', state: 'unknown', message: '未收到确认', created_at: '2026-11-20T08:00:00Z' },
+    ] }
+    if (path.endsWith('/review')) {
+      expect(JSON.parse(String(init?.body))).toEqual({ text: '待发的服务文案', kind: 'text' })
+      return { passed: true, bytes: 21, issues: [] }
+    }
+    if (path.endsWith('/send')) return { id: path, state: 'sent', message: '企业微信已接收' }
+    return { items: [robot, second] }
+  })
+  const user = userEvent.setup()
+  render(<ClientRobotPanel />)
+  await user.click(screen.getByRole('button', { name: '风险监控' }))
+  expect(await screen.findByText('风险待核对群')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: '合规审查' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '待审查文案' }), { target: { value: '待发的服务文案' } })
+  await user.click(screen.getByRole('button', { name: '检查文案' }))
+  expect(await screen.findByText('已通过基础规则检查')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: '内容群发' }))
+  expect(screen.getByRole('textbox', { name: '群发文案' })).toHaveValue('待发的服务文案')
+  await user.click(await screen.findByRole('checkbox', { name: '测试客户群' }))
+  await user.click(screen.getByRole('checkbox', { name: '第二服务群' }))
+  await user.click(screen.getByRole('button', { name: '检查并准备群发' }))
+  const confirm = await screen.findByRole('button', { name: '确认发送到 2 个群' })
+  expect(vi.mocked(api).mock.calls.filter(([path]) => path.endsWith('/send'))).toHaveLength(0)
+  await user.click(confirm)
+  await screen.findByRole('list', { name: '各群发送结果' })
+  await waitFor(() => expect(screen.getAllByText('企业微信已接收')).toHaveLength(2))
+  const calls = vi.mocked(api).mock.calls.filter(([path]) => path.endsWith('/send'))
+  expect(calls.map(([path]) => path)).toEqual(['/client-service/robots/robot-one/send', '/client-service/robots/robot-two/send'])
+  expect(calls.map(([, init]) => JSON.parse(String(init?.body)).content_text)).toEqual(['待发的服务文案', '待发的服务文案'])
 })

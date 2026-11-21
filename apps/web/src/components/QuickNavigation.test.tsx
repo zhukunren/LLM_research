@@ -5,7 +5,22 @@ import { api } from '../api'
 import QuickNavigation from './QuickNavigation'
 
 vi.mock('../api', async importOriginal => ({ ...await importOriginal<typeof import('../api')>(), api: vi.fn() }))
-const callbacks = () => ({ onClose: vi.fn(), onNavigate: vi.fn(), onConversation: vi.fn(), onNewResearch: vi.fn(), onSettings: vi.fn() })
+const callbacks = () => ({ onClose: vi.fn(), onNavigate: vi.fn(), onServiceView: vi.fn(), onConversation: vi.fn(), onNewResearch: vi.fn(), onSettings: vi.fn() })
+
+it.each([
+  ['开盘计划', 'opening-plan'], ['调仓建议', 'suggestions'], ['群机器人', 'robots'],
+])('opens %s directly from quick navigation', async (label, view) => {
+  vi.mocked(api).mockResolvedValue({ items: [] } as never)
+  const props = callbacks()
+  const user = userEvent.setup()
+  render(<QuickNavigation {...props} />)
+  const input = screen.getByRole('combobox', { name: '搜索页面或对话' })
+  await user.type(input, label)
+  expect(screen.getByRole('option', { name: new RegExp(label) })).toHaveAttribute('aria-selected', 'true')
+  await user.keyboard('{Enter}')
+  expect(props.onServiceView).toHaveBeenCalledWith(view)
+  expect(props.onClose).toHaveBeenCalled()
+})
 
 it('finds a conversation and opens it by keyboard while restoring focus on close', async () => {
   vi.mocked(api).mockResolvedValue({ items: [{ id: 'c1', title: '云厂商资本开支', entry_scope: 'news' }] } as never)
