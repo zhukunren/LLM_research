@@ -48,7 +48,7 @@ def test_codex_task_tools_save_revision_and_authorize_only_current_explicit_requ
     db.init_db()
     conversation = conversation_store.create_conversation("screening", workflow_type="screening")
     message = conversation_store.add_user_message(
-        conversation["id"], "codex-task-message", 0, "收盘价高于20日均线，筛一下"
+        conversation["id"], "codex-task-message", 0, "截至2026-09-14，收盘价高于20日均线，筛一下"
     )
     conversation_store.start_turn(conversation["id"], message["turn_id"])
     context = screening_tools.ToolContext(

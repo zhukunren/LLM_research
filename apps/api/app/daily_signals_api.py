@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from datetime import date, datetime, timedelta, timezone
-import hashlib
 import math
 from threading import Lock
 import time
@@ -16,6 +15,7 @@ from pydantic import BaseModel, Field
 from .settings import tushare_settings
 from .tushare_client import TushareClient, TushareError
 from .tushare_limits import configured_limiter
+from .daily_signal_aliases import strategy_identity
 
 router = APIRouter(prefix="/api/v1/daily-signals", tags=["每日信号"])
 _market_cache: OrderedDict[str, tuple[float, dict[str, dict]]] = OrderedDict()
@@ -42,14 +42,9 @@ def named_signals(payload: dict) -> dict:
               'known_pnl_count', 'win_count', 'sample_start', 'sample_end', 'data_end',
               'ann_return_start', 'ann_return_end', 'ann_return_day_count', 'buy_count', 'sell_count')
     for item in payload['strategies']:
-        source_name = item['strategy_name']
-        if not isinstance(source_name, str) or not source_name.strip():
-            raise ValueError('Missing strategy identity')
-        digest = hashlib.sha256(('daily-signals-v1:' + source_name).encode()).hexdigest()
-        source_title = item.get('strategy_title')
-        title = source_title.strip() if isinstance(source_title, str) else ''
+        identity, title = strategy_identity(item['strategy_name'])
         strategy = {key: item[key] for key in fields if key in item}
-        strategy.update(strategy_name='signal-' + digest[:24], strategy_title=title or '未命名策略', generation_id='')
+        strategy.update(strategy_name=identity, strategy_title=title, generation_id='')
         for side in ('buy_signals', 'sell_signals'):
             strategy[side] = [{'code': stock['code'], 'name': stock['name']} for stock in item[side]]
         strategies.append(strategy)

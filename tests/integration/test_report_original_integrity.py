@@ -90,7 +90,7 @@ def test_legacy_changed_or_missing_bytes_fail_closed(library, tmp_path, state, s
         assert response.status_code == status
         assert not response.content.startswith(b"%PDF-")
     exported = tmp_path / "research.sqlite"
-    research_workspace._snapshot(exported)
+    research_workspace._snapshot(exported, "")
     with sqlite3.connect(exported) as connection:
         assert connection.execute("SELECT source_path FROM reports").fetchone()[0] is None
 
@@ -101,7 +101,7 @@ def test_research_export_freezes_valid_legacy_source(library, tmp_path):
     path.write_bytes(original)
     legacy(path, original)
     exported = tmp_path / "research.sqlite"
-    research_workspace._snapshot(exported)
+    research_workspace._snapshot(exported, "")
     with sqlite3.connect(exported) as connection:
         snapshot = Path(connection.execute("SELECT source_path FROM reports").fetchone()[0])
     path.write_bytes(b"replacement")

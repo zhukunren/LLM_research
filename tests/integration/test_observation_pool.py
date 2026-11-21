@@ -222,7 +222,7 @@ def test_unknown_adjustment_and_unmatured_periods_stay_missing(setup, monkeypatc
     assert value['items'][0]['latest_close'] == 35
     assert value['items'][0]['return_latest'] is None
     assert value['summary']['latest']['count'] == 0
-    assert '复权' in value['warning']
+    assert '价格口径未知' in value['warning']
 
 
 def test_repeated_selection_retains_both_events_and_history_pagination(setup):

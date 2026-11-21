@@ -26,6 +26,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(research_models, "llm_settings", lambda: {
         "configured": True, "model": "gpt-6.1-sol", "reasoning_effort": "high",
     })
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {
+        "account_tier": "paid", "allowed_models": [], "reasoning_efforts": {},
+    })
     monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.1-sol"}, "verified"))
     monkeypatch.setattr(index_market, "_read_cache", lambda: {"bars": [
         {"trade_date": "2026-11-18", "close": 3500, "source": "测试行情"},

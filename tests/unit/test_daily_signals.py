@@ -72,7 +72,7 @@ def named_snapshot():
     return source
 
 
-def test_signals_return_the_upstream_title_without_exposing_internal_metadata(client, monkeypatch):
+def test_signals_replace_source_names_and_ids_without_exposing_internal_metadata(client, monkeypatch):
     source = named_snapshot()
     upstream = Mock(return_value=httpx.Response(200, json=source, request=httpx.Request('GET', 'https://example.test')))
     monkeypatch.setattr(service.httpx, 'get', upstream)
@@ -81,7 +81,7 @@ def test_signals_return_the_upstream_title_without_exposing_internal_metadata(cl
     result = response.json()
     strategy = result['strategies'][0]
     assert strategy['strategy_name'].startswith('signal-')
-    assert strategy['strategy_title'] == source['strategies'][0]['strategy_title']
+    assert strategy['strategy_title'] != source['strategies'][0]['strategy_title']
     assert strategy['generation_id'] == ''
     assert strategy['buy_signals'] == source['strategies'][0]['buy_signals']
     assert strategy['win_rate'] == 1.0 and strategy['ann_return'] == 10.0
@@ -102,16 +102,18 @@ def test_signal_ids_remain_stable_and_titles_follow_upstream_renames():
     source['date'] = '2026-11-11'
     source['n'] = 10
     source['strategies'].reverse()
-    source['strategies'][1].update(strategy_title='  上游更名  ', generation_id='new-generation')
+    source['strategies'][1].update(strategy_title='真实策略名称', generation_id='new-generation')
     second = service.named_signals(source)
     assert [s['strategy_name'] for s in first['strategies']] == [s['strategy_name'] for s in reversed(second['strategies'])]
-    assert [s['strategy_title'] for s in second['strategies']] == ['深度缺口反转', '上游更名']
+    assert {s['strategy_name']: s['strategy_title'] for s in first['strategies']} == {
+        s['strategy_name']: s['strategy_title'] for s in second['strategies']}
+    assert '真实策略名称' not in json.dumps(second, ensure_ascii=False)
 
 
-def test_signal_without_a_title_is_marked_unnamed():
+def test_signal_without_a_title_still_uses_a_stable_alias():
     source = named_snapshot()
     source['strategies'][0].pop('strategy_title')
-    assert service.named_signals(source)['strategies'][0]['strategy_title'] == '未命名策略'
+    assert service.named_signals(source)['strategies'][0]['strategy_title'] != '未命名策略'
 
 
 def test_signals_reject_invalid_queries_and_do_not_return_upstream_errors(client, monkeypatch):

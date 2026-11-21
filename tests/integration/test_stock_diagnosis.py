@@ -24,6 +24,9 @@ def diagnosis_client(tmp_path, monkeypatch):
     monkeypatch.setattr(research_models, "llm_settings", lambda: {
         "configured": True, "model": "gpt-6.1-sol", "reasoning_effort": "high",
     })
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {
+        "account_tier": "paid", "allowed_models": [], "reasoning_efforts": {},
+    })
     monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.1-sol"}, "verified"))
 
     def bars(code, as_of, limit):
