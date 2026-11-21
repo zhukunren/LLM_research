@@ -3,16 +3,16 @@
 .viewport-workspace .page-frame .qmt-scripts-page .page-heading { display: flex; flex-direction: column; align-items: flex-start; }
 .qmt-scripts-page .page-heading h1 { display: flex; align-items: center; gap: 10px; }
 .qmt-scripts-page .page-heading p { color: var(--ui-text-muted); font-size: 13px; line-height: 1.7; margin: 0 0 12px; }
-.qmt-script-form { background: #fff; border: 1px solid var(--border, #e2e6ed); border-radius: 12px; padding: 24px; }
+.qmt-script-form { background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-tool-radius); padding: 20px; }
 .qmt-script-options { display: flex; gap: 16px; margin: 20px 0; flex-wrap: wrap; }
 .qmt-script-options label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; min-width: min(200px, 100%); flex: 1; }
 .qmt-script-options select { padding: 10px 12px; border: 1px solid var(--border, #d5dbe4); border-radius: 6px; background: #fff; color: inherit; font: inherit; }
 .qmt-requirement { display: block; margin-bottom: 6px; font-size: 15px; font-weight: 600; }
 .qmt-field-help { margin: 0 0 14px; color: var(--ui-text-muted); font-size: 13px; line-height: 1.7; }
-.qmt-workspace-layout { display: grid; grid-template-columns: minmax(0,1fr) 270px; gap: 24px; align-items: start; }
+.qmt-workspace-layout { display: grid; grid-template-columns: minmax(0,1fr) 270px; gap: var(--ui-tool-gap); align-items: start; }
 .qmt-workspace-layout .qmt-script-form { min-width: 0; }
-.qmt-starting-points { min-width: 0; padding: 20px; border: 1px solid var(--ui-border-subtle); border-radius: 12px; background: var(--ui-surface-subtle); }
-.qmt-starting-points h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.qmt-starting-points { min-width: 0; padding: var(--ui-panel-padding); border: 1px solid var(--ui-border); border-radius: var(--ui-tool-radius); background: var(--ui-surface); }
+.qmt-starting-points h2 { margin: 0; font-size: var(--ui-panel-title); line-height: var(--ui-panel-title-leading); font-weight: 600; }
 .qmt-starting-points > p { margin: 6px 0 16px; color: var(--ui-text-muted); font-size: 12px; line-height: 1.8; }
 .qmt-starting-points .qmt-script-examples { display: grid; gap: 10px; margin: 0; }
 .qmt-starting-points .qmt-script-examples button { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 12px; border-radius: 8px; background: var(--ui-surface); text-align: left; }
@@ -24,7 +24,7 @@
 .qmt-delivery-note strong { font-size: 13px; font-weight: 500; }
 .qmt-delivery-note p { margin: 6px 0 0; color: var(--ui-text-muted); font-size: 12px; line-height: 1.8; }
 .qmt-script-form textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 200px; border: 1px solid var(--border, #d5dbe4); border-radius: 8px; padding: 14px; font: inherit; line-height: 1.8; }
-.qmt-script-form textarea:focus-visible, .qmt-script-options select:focus-visible { outline: 2px solid var(--primary, #1265b5); outline-offset: 2px; }
+.qmt-script-form textarea:focus-visible, .qmt-script-options select:focus-visible { outline: 2px solid var(--ui-focus-outline); outline-offset: 2px; }
 .qmt-script-examples { display: flex; gap: 8px; margin: 12px 0 24px; flex-wrap: wrap; }
 .qmt-script-examples button { border: 1px solid var(--border, #e2e6ed); border-radius: 20px; background: #f7f9fc; padding: 6px 12px; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
 .qmt-script-examples button:hover { color: var(--ui-primary); border-color: var(--ui-primary-border); background: var(--ui-primary-soft); }

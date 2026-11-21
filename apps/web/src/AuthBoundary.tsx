@@ -57,8 +57,13 @@ export default function AuthBoundary({ children }: { children: ReactNode }) {
     return () => { active = false; requests.forEach(controller => controller.abort()); window.removeEventListener('storage', changed); window.removeEventListener('focus', focused) }
   }, [user])
   if (!required) return <>{children}</>
-  if (!user) return <main style={{ maxWidth: 460, margin: '80px auto', padding: 24 }}>
-    <h1>投研工作台</h1><p>{message}</p><a href="/auth/login">登录</a>
+  if (!user) return <main className="workspace-sign-in">
+    <section className="workspace-sign-in-panel" aria-labelledby="workspace-sign-in-title">
+      <img src="/brand/soochow-blue.png" alt="东吴证券" width={134} />
+      <h1 id="workspace-sign-in-title">投研工作台</h1>
+      <p role="status">{message}</p>
+      <a className="primary-button workspace-button" href="/auth/login">登录</a>
+    </section>
   </main>
   async function logout() {
     if (loggingOut.current) return

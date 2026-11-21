@@ -1,11 +1,11 @@
 .client-service-page { box-sizing: border-box; min-width: 0; max-width: none; width: 100%; margin-inline: 0; --client-navy: var(--ui-text); --client-muted: var(--ui-text-muted); }
-.viewport-workspace .page-frame > .page-content.client-service-page { max-width: none; width: 100%; min-width: 0; margin-inline: 0; display: block; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding: var(--ui-tool-gap) var(--ui-tool-gutter) 40px; background: var(--ui-surface); }
+.viewport-workspace .page-frame > .page-content.client-service-page { max-width: none; width: 100%; min-width: 0; margin-inline: 0; display: block; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding: var(--ui-tool-gap) var(--ui-tool-gutter) 40px; background: var(--ui-canvas); }
 .client-service-page *, .client-service-page *::before, .client-service-page *::after { box-sizing: border-box; }
 .client-service-heading, .client-heading-title, .client-date-control, .client-day-summary, .client-slot-top, .client-editor-title, .client-section-heading, .client-preview-panel > header, .client-export-bar > div, .client-schedule > header, .client-schedule footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .client-service-heading { margin-bottom: 25px; }
 .client-heading-title { justify-content: flex-start; gap: 14px; }
 .client-heading-icon { width: 46px; height: 46px; display: grid; place-items: center; background: var(--client-navy); border-radius: 14px; color: var(--ui-on-primary); }
-.client-service-page h1 { margin: 0; font-size: 23px; letter-spacing: -.5px; color: var(--client-navy); }
+.client-service-page h1 { margin: 0; font-size: var(--ui-page-title); line-height: var(--ui-page-title-leading); color: var(--client-navy); }
 .client-service-heading p { margin: 6px 0 0; font-size: 12px; color: var(--client-muted); line-height: 1.7; }
 .client-date-control { gap: 3px; padding: 4px; border: 1px solid var(--ui-border); border-radius: 9px; background: var(--ui-surface); }
 .client-date-control button { border: 0; background: transparent; padding: 7px; min-height: 32px; color: var(--ui-text-muted); cursor: pointer; }
@@ -35,12 +35,12 @@
 .client-slot-state.is-ready { color: var(--ui-success); }
 .client-slot-state.is-failed { color: var(--ui-danger); }
 .client-draft-tag { margin-left: auto; color: var(--ui-warning); }
-.client-service-studio { display: grid; grid-template-columns: minmax(290px,.8fr) minmax(0,1.5fr); gap: 22px; align-items: start; }
+.client-service-studio { display: grid; grid-template-columns: minmax(290px,.8fr) minmax(0,1.5fr); gap: 16px; align-items: start; }
 .client-card-editor, .client-preview-panel, .client-schedule { min-width: 0; border: 1px solid var(--ui-border); border-radius: var(--ui-tool-radius); background: var(--ui-surface); }
-.client-card-editor { padding: 22px; }
+.client-card-editor { padding: var(--ui-panel-padding); }
 .client-eyebrow { display: block; margin-bottom: 6px; font-size: 12px; letter-spacing: 1.7px; color: var(--ui-text-muted); font-weight: 600; }
 .client-service-page h2 { color: var(--client-navy); }
-.client-editor-title h2, .client-preview-panel h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.client-editor-title h2, .client-preview-panel h2 { margin: 0; font-size: var(--ui-panel-title); line-height: var(--ui-panel-title-leading); font-weight: 600; }
 .client-editor-title h2 > span { font-size: 11px; color: var(--client-muted); font-weight: 400; margin-left: 10px; }
 .client-service-page .text-button { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ui-text-muted); border: 0; background: transparent; cursor: pointer; }
 .client-market-control { padding: 13px; margin: 20px 0; border: 1px solid var(--ui-border); border-radius: 9px; background: var(--ui-surface-subtle); }
@@ -259,7 +259,7 @@
 }
 
 /* Fill the actual workspace width at every density; rail and preview may shrink independently. */
-.client-preview-workspace { display: grid; grid-template-columns: minmax(0,1fr) 152px; gap: 12px; min-width: 0; align-items: start; position: sticky; top: 0; }
+.client-preview-workspace { display: grid; grid-template-columns: minmax(0,1fr) 152px; gap: 16px; min-width: 0; align-items: start; position: sticky; top: 0; }
 .client-preview-workspace > .client-preview-panel { min-width: 0; }
 .client-theme-picker .client-section-heading { display: grid; gap: 5px; }
 .client-theme-picker .client-section-heading h3 { font-size: 12px; }
@@ -392,11 +392,13 @@
 .client-template-library > details { padding-block: 10px; border-bottom: 1px solid var(--ui-border-subtle); }
 .client-template-library summary { cursor: pointer; font-size: 13px; }
 .client-template-fields { display: grid; gap: 12px; margin-top: 12px; }
-.client-research-draft { display: grid; gap: 12px; padding-block: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--ui-border); }
+.client-research-draft { display: grid; gap: 12px; padding-block: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--ui-border); }
 .client-research-draft header, .client-research-draft footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-.client-research-draft h2 { margin: 0; font-size: 16px; }
-.client-research-draft p, .client-research-draft footer span { margin: 0; font-size: 12px; color: var(--ui-text-muted); }
-.client-research-draft select { max-width: 100%; }
+.client-research-draft h3 { margin: 0; font-size: var(--ui-panel-title); line-height: var(--ui-panel-title-leading); color: var(--ui-text); }
+.client-research-draft header a { color: var(--ui-primary); text-underline-offset: 3px; }
+.client-research-draft header a:hover { color: var(--ui-primary-hover); }
+.client-research-draft p, .client-research-draft footer span { margin: 0; font-size: var(--ui-meta-size); line-height: var(--ui-meta-leading); color: var(--ui-text-muted); }
+.client-research-draft select, .client-research-draft textarea { min-width: 0; max-width: 100%; }
 .client-replacement-undo { grid-column: 1 / -1; justify-self: start; }
 .client-export-bar[data-draft=true] p { color: var(--ui-text-muted); }
 

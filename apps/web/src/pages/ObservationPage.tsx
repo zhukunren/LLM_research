@@ -393,11 +393,23 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
               <thead><tr><th className="observation-check-column"><input type="checkbox" aria-label="勾选本页全部观察记录" checked={items.length > 0 && items.every(item => checkedKeys.includes(keyOf(item)))} disabled={batchBusy || !!savingKeys.length} onChange={event => setCheckedKeys(event.target.checked ? items.map(keyOf) : [])} className="workspace-check" /></th>{renderSortHeader('name', '股票 / 状态')}{renderSortHeader('owner', '所属')}{renderSortHeader('joined', '加入时间')}{renderSortHeader('return', '至今涨跌幅')}{renderSortHeader('drawdown', '最大回撤')}{renderSortHeader('note', '关注备注')}<th>操作</th></tr></thead>
               <tbody>{items.map((item, index) => <tr key={keyOf(item)} className={detailOpen && selectedKey === keyOf(item) ? 'selected' : ''} onClick={event => { if (!(event.target as Element).closest('button,select,input,label,textarea,a')) choose(item) }}>
                 <td data-label="勾选" className="observation-check-column" onClick={event => event.stopPropagation()}><input type="checkbox" aria-label={`勾选观察记录 ${item.stock_code} ${item.owner_label}`} checked={checkedKeys.includes(keyOf(item))} disabled={batchBusy || savingKeys.includes(keyOf(item))} onChange={() => toggleChecked(item)} className="workspace-check" /></td>
-                <td data-label="股票"><button className="stock-link workspace-button" aria-label={'查看' + (item.name || item.stock_code) + '观察详情'} onClick={event => { event.stopPropagation(); choose(item) }}>{item.name || item.stock_code}{item.name && <small>{item.stock_code}</small>}</button><select className="observation-inline-status workspace-field workspace-select" aria-label={`修改${item.name || item.stock_code}观察状态`} value={item.status} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => event.stopPropagation()} onChange={event => void changeEntryStatus(item, event.target.value)}>{Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
+                <td data-label="股票"><div className="observation-stock-identity">
+                  <button className="stock-link workspace-button" aria-label={'查看' + (item.name || item.stock_code) + '观察详情'} onClick={event => { event.stopPropagation(); choose(item) }}>
+                    {item.name || item.stock_code}{item.name && <small>{item.stock_code}</small>}
+                  </button>
+                  <select className="observation-inline-status workspace-field workspace-select" aria-label={`修改${item.name || item.stock_code}观察状态`}
+                    value={item.status} disabled={batchBusy || savingKeys.includes(keyOf(item))}
+                    onClick={event => event.stopPropagation()} onChange={event => void changeEntryStatus(item, event.target.value)}>
+                    {Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div></td>
                 <td data-label="所属"><span className={'observation-kind observation-kind-' + item.owner_type}>{item.owner_type === 'screening' ? '选股' : item.owner_type === 'manual' ? '手动' : '研究'}</span><span className="observation-owner-label" data-tooltip={item.owner_label}>{item.owner_label}</span></td>
                 <td data-label="加入时间"><TimeLabel value={item.joined_at} hour12={false} /></td>
-                <td data-label="至今涨跌幅" className={returnClass(item.return_latest)} data-tooltip={metricTitle(item)}><strong>{metricText(item.return_latest, metricsLoading)}</strong><small>{item.metric_reason || (item.base_date ? '起算 ' + item.base_date : '')}</small></td>
-                <td data-label="最大回撤" className={returnClass(item.max_drawdown)} data-tooltip={metricTitle(item)}><strong>{metricText(item.max_drawdown, metricsLoading)}</strong></td>
+                <td data-label="至今涨跌幅" className={`observation-numeric ${returnClass(item.return_latest)}`} data-tooltip={metricTitle(item)}>
+                  <strong>{metricText(item.return_latest, metricsLoading)}</strong>
+                  {item.metric_reason ? <small>{item.metric_reason}</small> : item.base_date && <small>起算 <time className="observation-basis-date" dateTime={item.base_date}>{item.base_date}</time></small>}
+                </td>
+                <td data-label="最大回撤" className={`observation-numeric ${returnClass(item.max_drawdown)}`} data-tooltip={metricTitle(item)}><strong>{metricText(item.max_drawdown, metricsLoading)}</strong></td>
                 <td data-label="关注备注" className="observation-reason"><button type="button" className="observation-inline-note workspace-button" aria-label={`编辑${item.name || item.stock_code}关注备注`} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => { event.stopPropagation(); setEditNote(item) }}>{item.note || item.verification || '添加备注'}</button></td>
                 <td data-label="操作" className="observation-row-actions-cell"><div className="observation-row-actions">
                   <button type="button" className={'icon-button workspace-button observation-row-action' + (item.status === 'priority' ? ' is-active' : '')} aria-label={(item.status === 'priority' ? '取消重点关注' : '重点关注') + (item.name || item.stock_code)} title={item.status === 'priority' ? '取消重点关注' : '重点关注'} aria-pressed={item.status === 'priority'} disabled={batchBusy || savingKeys.includes(keyOf(item))} onClick={event => { event.stopPropagation(); void changeEntryStatus(item, item.status === 'priority' ? 'watching' : 'priority') }}><Star size={14} aria-hidden="true" /></button>
@@ -453,7 +465,8 @@ function SortableHeader({ sortKey, label, currentSort, direction, onClick }: {
   direction: 'asc' | 'desc'; onClick: () => void
 }) {
   const active = currentSort === sortKey
-  return <th aria-sort={active ? direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
+  const numeric = sortKey === 'return' || sortKey === 'drawdown'
+  return <th className={numeric ? 'observation-numeric' : undefined} aria-sort={active ? direction === 'asc' ? 'ascending' : 'descending' : 'none'}>
     <button type="button" className="observation-sort-button workspace-button" onClick={onClick}>
       {label}{active ? direction === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" /> : <ArrowUpDown size={13} aria-hidden="true" />}
     </button>

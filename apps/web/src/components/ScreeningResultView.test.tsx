@@ -5,7 +5,7 @@ import ScreeningResultView, { type CoverageCounts } from './ScreeningResultView'
 
 const mixed: CoverageCounts = { target_total: 10, true_count: 2, false_count: 3, unknown_count: 5, failed_count: 2, not_evaluated_count: 1 }
 
-it('keeps evidence inline, preserves focus, and adds a single stock without clearing other selections', async () => {
+it('moves focus to inline evidence and restores it on return while keeping other stock selections', async () => {
   const user = userEvent.setup(), research = vi.fn(), writes: string[] = []
   vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init?: RequestInit) => {
     if (init?.method === 'POST') writes.push(JSON.parse(String(init.body)).stock_code)
@@ -13,13 +13,16 @@ it('keeps evidence inline, preserves focus, and adds a single stock without clea
   }))
   const decisions = ['600000.SH', '000001.SZ'].map((stock_code, index) => ({ stock_code, state: 'true', conditions: [{ name: '订单依据', state: 'true', explanation: `原文证据 ${index + 1}`, citation: `研报第 ${index + 1} 页` }] }))
   render(<ScreeningResultView status="succeeded" resultKey="batch-1" asOf="2026-11-16" evidenceLayout="inline" decisions={decisions} onResearchStock={research} />)
-  const evidence = within(screen.getByRole('region', { name: '个股条件与依据' }))
+  const evidenceRegion = screen.getByRole('region', { name: '个股条件与依据' })
+  const evidence = within(evidenceRegion)
   expect(evidence.getByText('研报第 1 页')).toBeVisible()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   const choose = screen.getByRole('button', { name: '查看 000001.SZ 条件与依据' })
   await user.click(choose)
-  expect(choose).toHaveFocus()
+  await waitFor(() => expect(evidenceRegion).toHaveFocus())
   expect(evidence.getByText('研报第 2 页')).toBeVisible()
+  await user.click(evidence.getByRole('button', { name: '返回名单' }))
+  expect(choose).toHaveFocus()
   await user.click(screen.getByRole('checkbox', { name: '勾选筛选结果 600000.SH' }))
   await user.click(evidence.getByRole('button', { name: '加入观察池' }))
   await waitFor(() => expect(writes).toEqual(['000001.SZ']))
@@ -256,10 +259,11 @@ it('offers parameter adjustments on a complete zero-match result', () => {
   expect(apply).toHaveBeenCalledWith('把涨幅阈值从 3% 放宽到 2%，然后重新筛选。')
 })
 
-it('prompts saving a successful result that has matches', () => {
+it('keeps the match count and save action visible on a completed result', () => {
   const save = vi.fn()
   render(<ScreeningResultView status="succeeded" coverage={mixed} decisions={[]} onSavePlan={save} />)
-  expect(screen.getByText(/已筛出 2 只/)).toBeVisible()
+  const coverage = screen.getByRole('region', { name: '本次运行覆盖情况' })
+  expect(within(coverage).getByText('符合').parentElement).toHaveTextContent('符合2')
   fireEvent.click(screen.getByRole('button', { name: '保存为方案' }))
   expect(save).toHaveBeenCalledOnce()
 })

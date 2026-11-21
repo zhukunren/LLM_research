@@ -8,18 +8,18 @@
   flex-shrink: 0;
   padding: 10px;
   border: 1px solid var(--ui-border);
-  border-radius: 9px;
+  border-radius: var(--ui-tool-radius);
   background: var(--ui-surface);
 }
 .observation-unified-toolbar .observation-search { min-width: 0; width: 100%; }
-.observation-unified-toolbar > select { width: 100%; min-height: 38px; font-size: 12px; }
+.observation-unified-toolbar > select { width: 100%; min-height: var(--ui-tool-control); font-size: var(--ui-label-size); }
 .observation-unified-meta { display: flex; align-items: center; justify-content: space-between; min-height: 28px; gap: 12px; flex-shrink: 0; color: var(--ui-text-muted); font-size: 12px; }
 .observation-unified-meta .text-button { flex-shrink: 0; }
-.observation-overview { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); flex-shrink: 0; gap: 0; padding: 10px 0; border-block: 1px solid var(--ui-border-subtle); }
-.observation-overview-card { min-width: 0; padding: 0 14px; border-left: 1px solid var(--ui-border-subtle); }
-.observation-overview-card:first-child { border-left: 0; padding-left: 0; }
-.observation-overview-card > span, .observation-overview-card > small { display: block; color: var(--ui-text-muted); font-size: 11px; line-height: 1.4; }
-.observation-overview-card > strong { display: block; margin-top: 4px; font-size: 19px; font-weight: 650; line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.observation-overview { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); flex-shrink: 0; gap: 0; padding: 12px 0; border: 1px solid var(--ui-border); border-radius: var(--ui-tool-radius); background: var(--ui-surface); }
+.observation-overview-card { min-width: 0; padding: 0 var(--ui-panel-padding); border-inline-start: 1px solid var(--ui-border); }
+.observation-overview-card:first-child { border-inline-start: 0; }
+.observation-overview-card > span, .observation-overview-card > small { display: block; color: var(--ui-text-muted); font-size: var(--ui-meta-size); line-height: var(--ui-meta-leading); }
+.observation-overview-card > strong { display: block; margin-top: 4px; font-size: var(--ui-metric-size); font-weight: 600; line-height: var(--ui-metric-leading); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .observation-overview-card > strong.observation-up { color: var(--ui-market-up); }
 .observation-overview-card > strong.observation-down { color: var(--ui-market-down); }
 .observation-overview-card > small { margin-top: 3px; }
@@ -37,6 +37,12 @@
 .observation-unified-workspace .observation-results th:nth-child(6) { width: 19%; }
 .observation-unified-workspace .observation-results td { overflow-wrap: anywhere; vertical-align: middle; padding: 11px 10px; font-size: 12px; }
 .observation-unified-workspace .observation-results .stock-link { white-space: normal; overflow-wrap: anywhere; }
+.observation-stock-identity { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.observation-stock-identity .stock-link { flex: 1 1 80px; text-align: left; min-width: 0; }
+.observation-stock-identity .stock-link small, .observation-basis-date { white-space: nowrap; }
+@media (width > 620px) {
+  .observation-unified-workspace .observation-results .workspace-data-table .observation-numeric { text-align: right; }
+}
 .observation-unified-workspace .observation-results td[data-label="加入时间"] { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ui-text-muted); }
 .observation-unified-workspace .observation-results td[data-label="至今涨跌幅"],
 .observation-unified-workspace .observation-results td[data-label="最大回撤"] { font-variant-numeric: tabular-nums; }

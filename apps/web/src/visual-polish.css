@@ -370,7 +370,7 @@ label { font-size: 11px; }
 .editor-help, .condition-adjustments { font-size: 11px; line-height: 1.8; color: var(--ui-text-muted); }
 .strategy-negation { border-color: var(--ui-warning-border); }
 .condition-inspector { margin-top: 20px; }
-.decision-state { display: inline-flex; width: fit-content; padding: 3px 9px; border-radius: 20px; font-size: 11px; background: var(--ui-surface-hover); color: var(--ui-text-muted); }
+.decision-state { display: inline-flex; width: fit-content; min-height: 22px; align-items: center; padding: 2px 8px; border-radius: var(--ui-radius-pill); font-size: var(--ui-meta-size); line-height: var(--ui-meta-leading); background: var(--ui-surface-subtle); color: var(--ui-market-flat); }
 .decision-state.state-true { background: var(--ui-success-soft); color: var(--ui-success); }
 .decision-state.state-unknown { background: var(--ui-warning-soft); color: var(--ui-warning); }
 .decision-state.state-failed { background: var(--ui-danger-soft); color: var(--ui-danger); }

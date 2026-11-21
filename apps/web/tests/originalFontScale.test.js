@@ -13,18 +13,19 @@ const fontSize = (path, selector) => {
   return sizes.at(-1)
 }
 
-// Source-level regression guards for the pre-redesign rendered scale. These do
-// not replace browser layout QA. Inherited sizes and the last owning stylesheet
-// matter: the old token was 16px, but conversation prose rendered at 15px.
-describe('original typography scale', () => {
+// Source-level guards complement the desktop layout checks in Edge.
+describe('workbench typography scale', () => {
   it('keeps navigation and archived-history labels at their original sizes', () => {
     expect(fontSize('chat-layout.css', '.chat-nav-button')).toBe('13px')
     expect(fontSize('components/conversation-history.css', '.chat-history-archive-toggle')).toBe('11px')
   })
 
-  it('restores the exact responsive title clamp and inherited research prose', () => {
-    expect(fontSize('research-chat.css', '.chat-page .chat-empty-heading h1')).toBe('clamp(28px, 3vw, 34px)')
-    expect(fontSize('research-chat.css', '.chat-page .research-studio .research-answer')).toBe('15px')
+  it('uses the VI title and reading sizes with inherited research prose', () => {
+    expect(readStyle('tokens.css')).toContain('--ui-page-title: 24px;')
+    expect(readStyle('tokens.css')).toContain('--ui-reading-size: 15px;')
+    expect(readStyle('tokens.css')).toContain('--ui-reading-leading: 26px;')
+    expect(fontSize('research-chat.css', '.chat-page .chat-empty-heading h1')).toBe('var(--ui-page-title)')
+    expect(fontSize('research-chat.css', '.chat-page .research-studio .research-answer')).toBe('var(--ui-reading-size)')
     expect(fontSize('research-chat.css', '.chat-page .research-studio .research-answer :is(p, li, blockquote)')).toBe('inherit')
     expect(fontSize('research-chat.css', '.chat-page .research-studio .conversation-message-meta')).toBe('12px')
     // The final title/prose declarations continue to own the scale on small
@@ -59,11 +60,12 @@ describe('original typography scale', () => {
     expect(fontSize(path, '.composer-menu-back')).toBe('12px')
   })
 
-  it('restores compact result-table labels, coverage and run-history details', () => {
+  it('uses readable VI coverage and keeps compact run-history details', () => {
     const path = 'components/screening-result-list.css'
     expect(fontSize(path, '.screening-compact-table')).toBe('12px')
     expect(fontSize(path, '.screening-compact-table .stock-identity small, .screening-compact-table td > small')).toBe('10px')
-    for (const selector of ['.screening-list-toolbar > span', '.viewport-workspace .screening-list-compact .conversation-coverage-note', '.conversation-history-result .history-run-context', '.conversation-history-result .history-run-context .history-date-notice']) {
+    expect(fontSize(path, '.viewport-workspace .screening-list-compact .conversation-coverage-note')).toBe('var(--ui-meta-size)')
+    for (const selector of ['.screening-list-toolbar > span', '.conversation-history-result .history-run-context', '.conversation-history-result .history-run-context .history-date-notice']) {
       expect(fontSize(path, selector)).toBe('11px')
     }
   })

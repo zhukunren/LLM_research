@@ -1,7 +1,7 @@
 export const chartPalette = {
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif',
-  text: '#242424', muted: '#666666', faint: '#777777', border: '#e5e5e5', grid: '#eeeeee', surface: '#ffffff',
-  primary: '#00337a', soft: '#edf3fa', line: '#32839b', up: '#be414a', down: '#208575',
+  fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif',
+  text: '#18273A', muted: '#43566C', faint: '#586B81', border: '#DCE4EC', grid: '#E8EDF3', surface: '#FFFFFF',
+  primary: '#004A99', soft: '#E8F2FB', line: '#326E89', up: '#AA3442', down: '#176451',
 }
 
 export function chartAxisValue(value: number) {

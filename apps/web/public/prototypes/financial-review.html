@@ -42,7 +42,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -->
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>财报复核工作台 · 东吴证券投研工作台</title><style>html,body,#root{margin:0;min-height:100vh;background:#f2f5f7}body{min-width:280px}button,textarea,select{font:inherit}</style></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>财报复核工作台 · 东吴证券投研工作台</title><style>html,body,#root{margin:0;min-height:100vh;background:#F5F7FA}body{min-width:280px}button,textarea,select{font:inherit}</style></head>
 <body><div id="root"></div><noscript>请启用 JavaScript 体验财报复核交互原型。</noscript>
 <script>/**
  * @license React
@@ -348,7 +348,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 "use strict";
 
 const {useState, useRef, useEffect} = React;
-function useHostTheme() { return {"kind":"light","text":{"primary":"#192f47","secondary":"#536779","tertiary":"#65798b","link":"#15548a","onAccent":"#ffffff"},"bg":{"chrome":"#f2f5f7","editor":"#ffffff","elevated":"#ffffff"},"stroke":{"secondary":"#d2dce3","tertiary":"#e2e8ed","focused":"#0071bc"},"fill":{"tertiary":"#f2f6f8"},"accent":{"control":"#003d80"},"category":{"red":"#a44248","green":"#16745d","cyan":"#15aaca","yellow":"#d69c34"}}; }
+function useHostTheme() { return {"kind":"light","text":{"primary":"#18273A","secondary":"#43566C","tertiary":"#586B81","link":"#004A99","onAccent":"#FFFFFF"},"bg":{"chrome":"#F5F7FA","editor":"#FFFFFF","elevated":"#FFFFFF"},"stroke":{"secondary":"#DCE4EC","tertiary":"#E8EDF3","control":"#788DA5","focused":"#0079C2"},"fill":{"tertiary":"#F0F4F8"},"accent":{"control":"#004A99","hover":"#005BB5"},"category":{"red":"#AA3442","green":"#176451","cyan":"#15aaca","yellow":"#825415"}}; }
 function useCanvasState(key, initial) {
   const storeKey = 'soochow.prototype.' + key;
   const interfacePreference = key.includes('.scene.') || key.includes('.task.');
@@ -648,11 +648,13 @@ function FinancialReviewDesk() {
     "--rd-faint": theme.text.tertiary,
     "--rd-line": theme.stroke.secondary,
     "--rd-hair": theme.stroke.tertiary,
+    "--rd-control-line": theme.stroke.control,
     "--rd-fill": theme.fill.tertiary,
     "--rd-brand": theme.accent.control,
+    "--rd-hover": theme.accent.hover,
     "--rd-link": theme.text.link,
     "--rd-on": theme.text.onAccent,
-    "--rd-hero": dark ? theme.bg.elevated : theme.text.primary,
+    "--rd-hero": dark ? theme.bg.elevated : "#003D7A",
     "--rd-hero-ink": dark ? theme.text.primary : theme.bg.editor,
     "--rd-up": theme.category.red,
     "--rd-down": theme.category.green,
@@ -729,7 +731,7 @@ function FinancialReviewDesk() {
   } }));
 }
 const styles = `
-.rd-root { container: rd / inline-size; width:100%; min-width:0; min-height:100%; color:var(--rd-ink); background:var(--rd-bg); font:14px/1.55 "PingFang SC","Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; text-align:left }
+.rd-root { container: rd / inline-size; width:100%; min-width:0; min-height:100%; color:var(--rd-ink); background:var(--rd-bg); font:14px/22px system-ui,"PingFang SC","Microsoft YaHei UI","Noto Sans CJK SC",sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; text-align:left }
 .rd-root *, .rd-root *::before, .rd-root *::after {box-sizing:border-box}
 .rd-root :is(h1,h2,h3,h4,p,figure,blockquote) {margin:0}
 .rd-root h1,.rd-root h2,.rd-root h3,.rd-root h4,.rd-root b,.rd-root strong {color:inherit}
@@ -743,9 +745,9 @@ const styles = `
 .rd-sr {position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .rd-root .rd-mast {background:var(--rd-paper);border-bottom:1px solid var(--rd-line)}
 .rd-mast-inner,.rd-frame,.rd-foot {width:100%;max-width:1424px;margin:0 auto;padding-inline:clamp(20px,3.5%,52px)}
-.rd-mast-inner {min-height:66px;display:flex;align-items:stretch;gap:clamp(20px,4%,65px)}
+.rd-mast-inner {min-height:52px;display:flex;align-items:stretch;gap:clamp(20px,4%,65px)}
 .rd-brand {display:flex;align-items:center;gap:15px;white-space:nowrap;font-size:14px;font-weight:650;letter-spacing:.035em}
-.rd-brand img {width:114px;height:auto;display:block}
+.rd-brand img {width:134px;height:auto;display:block}
 .rd-brand i,.rd-meta>i {height:18px;width:1px;background:var(--rd-line)}
 .rd-mast nav {display:flex;align-items:stretch;gap:clamp(12px,2.5vw,35px)}
 .rd-mast nav button {position:relative;display:inline-flex;gap:8px;align-items:center;padding:2px 1px 0;font-weight:550;color:var(--rd-muted);white-space:nowrap}
@@ -771,9 +773,9 @@ const styles = `
 .rd-meta b {font-weight:550;letter-spacing:.025em}
 .rd-meta>i {height:11px}
 .rd-meta svg {width:14px;height:14px}
-.rd-button,.rd-root a.rd-button {display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--rd-line);border-radius:6px;padding:9px 15px;min-height:38px;line-height:1.3;font-weight:600;font-size:13px;white-space:nowrap;background:var(--rd-paper);color:var(--rd-ink)}
+.rd-button,.rd-root a.rd-button {display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--rd-control-line);border-radius:10px;padding:7px 12px;min-height:36px;line-height:20px;font-weight:600;font-size:13px;white-space:nowrap;background:var(--rd-paper);color:var(--rd-ink)}
 .rd-button.rd-primary,.rd-root a.rd-primary {border-color:var(--rd-brand);background:var(--rd-brand);color:var(--rd-on)}
-.rd-button.rd-primary:hover,.rd-root a.rd-primary:hover {background:var(--rd-link);border-color:var(--rd-link)}
+.rd-button.rd-primary:hover,.rd-root a.rd-primary:hover {background:var(--rd-hover);border-color:var(--rd-hover)}
 .rd-content-grid {display:grid;grid-template-columns:minmax(0,2.36fr) minmax(224px,1fr);align-items:start;gap:20px}
 .rd-main-column,.rd-side-column {display:grid;min-width:0;gap:17px}
 .rd-brief {display:grid;grid-template-columns:minmax(0,1.05fr) minmax(198px,.95fr);align-items:center;gap:clamp(15px,2.2vw,34px);padding:27px clamp(18px,2.25vw,34px);min-height:225px;border-radius:10px;color:var(--rd-hero-ink);background:var(--rd-hero)}

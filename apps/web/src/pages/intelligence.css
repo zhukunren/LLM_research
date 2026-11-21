@@ -1,8 +1,8 @@
 .intelligence-page { max-width: 1320px; margin: 0 auto; padding-bottom: 50px; }
 .viewport-workspace .page-frame .workspace-tool-page.intelligence-page { max-width: 1160px; }
 .viewport-workspace .page-frame .intelligence-page .intelligence-heading { padding: 0 0 10px; gap: 14px; }
-.viewport-workspace .page-frame .intelligence-page .intelligence-heading h1 { margin: 0 0 4px; font-size: 23px; }
-.viewport-workspace .page-frame .intelligence-page .intelligence-heading p { margin: 0; font-size: 12px; }
+.viewport-workspace .page-frame .intelligence-page .intelligence-heading h1 { margin: 0 0 4px; font-size: var(--ui-page-title); line-height: var(--ui-page-title-leading); font-weight: 700; }
+.viewport-workspace .page-frame .intelligence-page .intelligence-heading p { margin: 0; font-size: var(--ui-meta-size); line-height: var(--ui-meta-leading); }
 .viewport-workspace .page-frame .intelligence-page .intelligence-heading .intelligence-eyebrow { display: none; }
 .viewport-workspace .page-frame .intelligence-page .intelligence-kind-tabs { flex-shrink: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
 .viewport-workspace .page-frame .intelligence-page .intelligence-kind-tabs > button { flex-shrink: 0; white-space: nowrap; padding-block: 10px; }
@@ -25,7 +25,7 @@
 .intelligence-kind-tabs button[aria-current="page"] { color: var(--ui-primary); border-bottom-color: var(--ui-primary); font-weight: 600; }
 .intelligence-scope-summary { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; padding: 15px 0; color: var(--ui-text-muted); font-size: 12px; }
 .intelligence-scope-summary > span:first-child { display: flex; align-items: center; gap: 7px; }
-.intelligence-scope-form { padding: 22px; margin: 2px 0 24px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-surface); display: grid; gap: 18px; }
+.intelligence-scope-form { padding: var(--ui-panel-padding); margin: 2px 0 24px; border: 1px solid var(--ui-border); border-radius: var(--ui-tool-radius); background: var(--ui-surface); display: grid; gap: 16px; }
 .intelligence-scope-form fieldset { border: 0; padding: 0; margin: 0; }
 .intelligence-scope-form legend { font-size: 12px; color: var(--ui-text-muted); margin-bottom: 10px; }
 .intelligence-market-options { display: flex; gap: 22px; flex-wrap: wrap; }
@@ -38,7 +38,7 @@
 .intelligence-scope-form footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; font-size: 12px; color: var(--ui-text-muted); }
 .intelligence-notice { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 14px 16px; margin: 12px 0; border: 1px solid var(--ui-border); border-radius: 8px; font-size: 13px; }
 .intelligence-section-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
-.intelligence-section-heading h2 { font-size: 17px; margin: 0; }
+.intelligence-section-heading h2 { margin: 0; font-size: var(--ui-section-title); line-height: var(--ui-section-title-leading); font-weight: 600; }
 .intelligence-section-heading h2 small { color: var(--ui-text-muted); font-size: 12px; margin-left: 8px; font-weight: 400; }
 .intelligence-section-heading p { color: var(--ui-text-muted); font-size: 13px; line-height: 1.7; }
 .intelligence-history { padding: 20px; border: 1px solid var(--ui-border); border-radius: 10px; margin: 8px 0 24px; }

@@ -19,6 +19,8 @@ html {
 
 body {
   font-family: var(--ui-font-sans);
+  font-size: var(--ui-body-size);
+  line-height: var(--ui-body-leading);
   color: var(--ui-text);
   background: var(--ui-canvas);
   -webkit-font-smoothing: antialiased;

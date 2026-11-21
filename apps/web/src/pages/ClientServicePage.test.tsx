@@ -34,7 +34,7 @@ function ServiceWorkspace({ initialView = 'cards', researchDraft }: { initialVie
   </>
 }
 
-function setup({ failPreview = false, view, researchDraft, finished = false }: { failPreview?: boolean; view?: ServiceView; researchDraft?: ServiceResearchDraft; finished?: boolean } = {}) {
+function setup({ failPreview = false, view, researchDraft, finished = false, settingsReady }: { failPreview?: boolean; view?: ServiceView; researchDraft?: ServiceResearchDraft; finished?: boolean; settingsReady?: Promise<void> } = {}) {
   let card = structuredClone(initialCard), settings = structuredClone(config), previews = 0
   if (finished) card.content = { ...card.content, conclusion: '样例市场判断', action: '观察成交变化', focus: '核对披露时点' }
   vi.mocked(api).mockImplementation(async (path, init) => {
@@ -47,6 +47,7 @@ function setup({ failPreview = false, view, researchDraft, finished = false }: {
     if (path === '/client-service/robots/deliveries') return { items: [] }
     if (path === '/client-service/robots/clients/send' && init?.method === 'POST') return { state: 'sent', message: '企业微信已接收' }
     if (path === '/client-service/settings') {
+      if (settingsReady) await settingsReady
       if (init?.method === 'PUT') { settings = { ...JSON.parse(String(init.body)), revision: settings.revision + 1 } }
       return structuredClone(settings)
     }
@@ -183,13 +184,19 @@ it('keeps a research source and its date with an editable service draft across r
   expect(vi.mocked(api).mock.calls.some(([path]) => path.endsWith('/send') || path === '/client-service/briefs')).toBe(false)
 })
 
-it('fills a selected passage from a long research answer', async () => {
+it('keeps the selected research passage in place while the card template loads', async () => {
   const user = userEvent.setup()
   const passage = '下一次财报需要核对订单交付与经营现金流。'
-  setup({ researchDraft: { conversationId: 'research-one', messageId: 'answer-one', createdAt: '2026-11-16T08:00:00Z', asOf: null, excerpt: '', passages: [passage], references: [] } })
-  await user.selectOptions(await screen.findByRole('combobox', { name: '从研究答复选段' }), passage)
-  expect(screen.getByLabelText('服务草稿摘录')).toHaveValue(passage)
+  let loadSettings!: () => void
+  const settingsReady = new Promise<void>(resolve => { loadSettings = resolve })
+  setup({ settingsReady, researchDraft: { conversationId: 'research-one', messageId: 'answer-one', createdAt: '2026-11-16T08:00:00Z', asOf: null, excerpt: '', passages: [passage], references: [] } })
+  const editor = within(screen.getByRole('region', { name: '卡片编辑' }))
+  const passages = editor.getByRole('combobox', { name: '从研究答复选段' })
+  await user.selectOptions(passages, passage)
+  expect(editor.getByLabelText('服务草稿摘录')).toHaveValue(passage)
+  loadSettings()
   await waitFor(() => expect(screen.getByRole('button', { name: '填入今日判断' })).toBeEnabled())
+  expect(screen.getByRole('combobox', { name: '从研究答复选段' })).toBe(passages)
   await user.click(screen.getByRole('button', { name: '填入今日判断' }))
   expect(screen.getByLabelText('今日判断')).toHaveValue(passage)
 })

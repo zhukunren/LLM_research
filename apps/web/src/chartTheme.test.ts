@@ -8,6 +8,6 @@ it('keeps large and very small axis values legible without turning them into zer
   expect(chartAxisValue(NaN)).toBe('—')
 })
 it('uses the same A-share direction colors as the rest of the workspace', () => {
-  expect(chartPalette.up).toBe('#be414a')
-  expect(chartPalette.down).toBe('#208575')
+  expect(chartPalette.up).toBe('#AA3442')
+  expect(chartPalette.down).toBe('#176451')
 })

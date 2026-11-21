@@ -13,7 +13,9 @@ const screeningJourney = readStyle('components/conversation/screening-journey.cs
 const token = (name) => {
   const value = tokens.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1]
   if (!value) throw new Error(`Missing token ${name}`)
-  return value.trim().toLowerCase()
+  const normalized = value.trim().toLowerCase()
+  const alias = normalized.match(/^var\(--([\w-]+)\)$/)?.[1]
+  return alias ? token(alias) : normalized
 }
 const luminance = (hex) => {
   const channels = hex.slice(1).match(/../g).map(value => {
@@ -28,16 +30,17 @@ const contrast = (a, b) => {
 }
 
 describe('Soochow interaction palette', () => {
-  it('keeps the current product blues, neutral surfaces and market semantics', () => {
+  it('keeps the approved VI blues, neutral surfaces and market semantics', () => {
     expect(token('ui-brand')).toBe('#004a99')
     expect(token('ui-primary')).toBe('#004a99')
     expect(token('ui-accent')).toBe('#0079c2')
-    expect(token('ui-canvas')).toBe('#fcfcfc')
+    expect(token('ui-canvas')).toBe('#f5f7fa')
     expect(token('ui-surface')).toBe('#ffffff')
-    expect(token('ui-sidebar')).toBe('#fafbfc')
-    expect(token('ui-market-up')).toBe('#be414a')
-    expect(token('ui-market-down')).toBe('#208575')
-    expect(token('ui-chart-line')).toBe('#32839b')
+    expect(token('ui-sidebar')).toBe('#f7f9fc')
+    expect(token('ui-text')).toBe('#18273a')
+    expect(token('ui-market-up')).toBe('#aa3442')
+    expect(token('ui-market-down')).toBe('#176451')
+    expect(token('ui-chart-line')).toBe('#326e89')
   })
 
   it('maintains readable primary labels, selected text and visible focus boundaries', () => {
@@ -49,6 +52,13 @@ describe('Soochow interaction palette', () => {
     }
     for (const surface of ['ui-surface', 'ui-surface-subtle', 'ui-sidebar']) {
       expect(contrast(token('ui-focus-outline'), token(surface))).toBeGreaterThanOrEqual(3)
+    }
+    for (const surface of ['ui-surface', 'ui-canvas']) {
+      expect(contrast(token('ui-text-faint'), token(surface))).toBeGreaterThanOrEqual(4.5)
+      expect(contrast(token('ui-border-strong'), token(surface))).toBeGreaterThanOrEqual(3)
+    }
+    for (const role of ['ui-market-up', 'ui-market-down', 'ui-success', 'ui-warning', 'ui-danger']) {
+      expect(contrast(token(role), token(`${role}-soft`))).toBeGreaterThanOrEqual(4.5)
     }
   })
 

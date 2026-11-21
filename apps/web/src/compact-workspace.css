@@ -1,12 +1,12 @@
 /* Dense tool pages. Navigation and research spacing belong to their surfaces. */
 @media (min-width: 901px) {
-  .viewport-workspace .page-frame > .page-content, .viewport-workspace .research-space-panel > .page-content { padding: 10px 18px; }
+  .viewport-workspace .page-frame > .page-content, .viewport-workspace .research-space-panel > .page-content { padding: var(--ui-tool-gap) var(--ui-tool-gutter); }
   .viewport-workspace .page-frame .page-content.workbench-conversation { padding: 0; }
   .viewport-workspace .page-frame :is(.page-heading,.library-heading,.workbench-heading) { margin-bottom: 12px; gap: 8px; }
   .viewport-workspace .page-frame :is(.library-viewbar,.workbench-tabs,.condition-studio-nav) { margin-bottom: 7px; }
-  .viewport-workspace .primary-button, .viewport-workspace .secondary-button { min-height: 32px; padding: 5px 10px; border-radius: 6px; }
-  .viewport-workspace .page-frame :is(.research-project-layout,.history-workspace,.intent-layout) { gap: 10px; }
-  .viewport-workspace .page-frame :is(.research-project-detail,.run-results) { padding: 12px; }
+  .viewport-workspace :is(.primary-button,.secondary-button) { min-height: var(--ui-control-md); padding: 7px 12px; border-radius: var(--ui-radius-sm); }
+  .viewport-workspace .page-frame :is(.research-project-layout,.history-workspace,.intent-layout) { gap: var(--ui-tool-gap); }
+  .viewport-workspace .page-frame :is(.research-project-detail,.run-results) { padding: var(--ui-panel-padding); }
   .viewport-workspace .page-frame .research-project-heading { margin-bottom: 7px; }
 }
 @media (min-width: 1920px) {

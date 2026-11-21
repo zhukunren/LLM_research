@@ -9,7 +9,7 @@
 .viewport-workspace .page-frame .condition-studio > .condition-studio-nav > button > svg { display: block; }
 .viewport-workspace .page-frame .condition-studio .library-workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; overflow: hidden; }
 .condition-studio .library-workspace > .section-title-row { flex-shrink: 0; margin: 4px 0 0; }
-.condition-studio .library-workspace h1 { font-size: 20px; line-height: 1.5; margin: 0; }
+.condition-studio .library-workspace h1 { font-size: var(--ui-page-title); line-height: var(--ui-page-title-leading); font-weight: 700; margin: 0; }
 .condition-studio .library-workspace > .section-title-row > button { min-height: 34px; font-size: 13px; }
 .viewport-workspace .page-frame .condition-studio .library-filters { flex-shrink: 0; gap: 8px; margin: 12px 0 0; padding: 0; background: transparent; border: 0; }
 .condition-studio .library-filters .workspace-field { min-height: 34px; font-size: 13px; }

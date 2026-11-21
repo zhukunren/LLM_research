@@ -352,9 +352,11 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
     <ClientRobotPanel />
   </div>
 
-  return <div key="cards" ref={pageRef} className="page-content workspace-tool-page client-service-page" role="region" aria-label="对客服务内容" tabIndex={0}>
-    {researchSource && <section className="client-research-draft" aria-label="研究转服务草稿">
-      <header><h2>研究转服务草稿</h2><a href={`#/research/${encodeURIComponent(researchSource.conversationId)}`}>查看原研究</a></header>
+  const ready = !!(config && template && content)
+  const templateStatus = error ? <p className="client-empty">暂时无法读取服务模板，请重新读取。</p> : <LoadingState label="正在读取服务模板…" />
+  const researchDraftPanel = researchSource && (
+    <section className="client-research-draft" aria-label="研究转服务草稿">
+      <header><h3>研究转服务草稿</h3><a href={`#/research/${encodeURIComponent(researchSource.conversationId)}`}>查看原研究</a></header>
       <p>研究答复 {marketTime(researchSource.createdAt)} · 数据截至 {researchSource.asOf || '未记录'}</p>
       {researchPassages.length > 0 && <label className="workspace-field-label">从答复选段<select className="workspace-field" aria-label="从研究答复选段" value="" onChange={event => setResearchSource({ ...researchSource, excerpt: event.target.value })}>
         <option value="" disabled>选择一段原文填入摘录</option>
@@ -367,7 +369,10 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
         <button type="button" className="secondary-button workspace-button" disabled={!content || !loaded || !!busy || !researchSource.excerpt.trim() || researchSource.excerpt.length > conclusionLimit || content.conclusion === researchSource.excerpt.trim()} onClick={applyResearchExcerpt}>{content?.conclusion.trim() && content.conclusion !== researchSource.excerpt.trim() ? '替换今日判断' : '填入今日判断'}</button>
         <button type="button" className="text-button workspace-button" onClick={() => setResearchSource(null)}>关闭草稿</button>
       </footer>
-    </section>}
+    </section>
+  )
+
+  return <div key="cards" ref={pageRef} className="page-content workspace-tool-page client-service-page" role="region" aria-label="对客服务内容" tabIndex={0}>
     <WorkspacePageHeading actions={<div className="client-date-control"><button className="workspace-button" aria-label="前一天" onClick={() => changeDate(shiftDate(date, -1))}><ArrowLeft size={15} /></button><input className="workspace-field" type="date" aria-label="服务日期" value={date} onChange={event => changeDate(event.target.value)} /><button className="workspace-button" aria-label="后一天" onClick={() => changeDate(shiftDate(date, 1))}><ArrowRight size={15} /></button><button className="workspace-button" disabled={date === beijingDate()} onClick={() => changeDate(beijingDate())}>今天</button></div>}><h1>对客服务</h1><p className="page-description">编辑市场时点卡片，预览并下载客户沟通内容。</p></WorkspacePageHeading>
     <div className="client-generation-status" role="status">
       <span className={`client-status-dot ${config?.enabled ? 'is-ready' : ''}`} aria-hidden="true" />
@@ -375,7 +380,7 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
     </div>
     {error && serviceView !== 'templates' && <div role="alert" className="workspace-error client-service-feedback"><AlertCircle size={17} /><span>{error}</span><button className="workspace-button text-button" onClick={() => { setError(''); setRetry(value => value + 1) }}>重新读取</button></div>}
     {notice && serviceView !== 'templates' && <div role="status" className="client-service-feedback workspace-feedback-success"><Check size={16} /><span>{notice}</span>{undo?.key === key && <button className="workspace-button text-button" onClick={() => { setDrafts(current => ({ ...current, [key]: undo.content })); setUndo(null); setNotice('已撤销恢复，继续编辑') }}>撤销</button>}</div>}
-    {!config || !template || !content ? (error ? <p className="client-empty">暂时无法读取服务模板，请重新读取。</p> : <LoadingState label="正在读取服务模板…" />) : <>
+    {ready && <>
       <div className="client-day-summary"><h2>{date === beijingDate() ? '今日服务时点' : `${date} 服务时点`}</h2><span>{loaded ? `固定时点已采集 ${readyCount} / ${config.templates.length} · 即时简报 ${instantCards.length} 份` : '正在读取当日卡片…'}</span></div>
       <label className="client-compact-slot workspace-field-label">服务时点<select className="workspace-field" aria-label="选择服务时点" value={instant ? 'realtime' : slot} onChange={event => selectSlot(event.target.value)}>
         <option value="realtime">实时 · 即时简报</option>
@@ -394,8 +399,14 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
         <button type="button" className="workspace-button" aria-pressed={mobilePane === 'edit'} onClick={() => switchMobilePane('edit')}>编辑</button>
         <button type="button" className="workspace-button" aria-pressed={mobilePane === 'preview'} onClick={() => switchMobilePane('preview')}>预览</button>
       </div>
-      <div ref={studioRef} className="client-service-studio" data-mobile-pane={mobilePane}>
-        <section className="client-card-editor" aria-label="卡片编辑"><header className="client-editor-title"><div><h2>{effectiveTemplate?.title}<span>编辑卡片</span></h2></div><button className="workspace-button text-button" disabled={!dirty || !!busy} onClick={resetDraft}><RotateCcw size={14} />恢复</button></header>
+    </>}
+    {!ready && !researchSource && templateStatus}
+    {(ready || researchSource) && (
+      <div ref={studioRef} className="client-service-studio" data-mobile-pane={ready ? mobilePane : 'edit'}>
+        <section className="client-card-editor" aria-label="卡片编辑">
+          {ready && <header className="client-editor-title"><div><h2>{effectiveTemplate?.title}<span>编辑卡片</span></h2></div><button className="workspace-button text-button" disabled={!dirty || !!busy} onClick={resetDraft}><RotateCcw size={14} />恢复</button></header>}
+          {researchDraftPanel}
+          {ready ? <>
           <section className={`client-market-control ${card?.state === 'failed' ? 'has-error' : ''}`} aria-label="市场采集"><div><span className="client-market-icon"><RefreshCw size={17} className={pending ? 'spin' : ''} /></span><div><strong>市场快照 <small>{card ? stateLabels[card.state] : '尚未采集'}</small></strong><p>{futureSlot ? `将于 ${effectiveTemplate?.time} 到达服务时点，可先准备文案。` : card?.message || '采集指数、成交与市场广度，附带信息来源。'}</p></div></div><button type="button" className="secondary-button workspace-button" disabled={!!busy || pending || futureSlot || !loaded || !valid} onClick={() => void (instant ? generateInstant() : generate())}>{pending ? '正在采集…' : instant ? card ? '生成新一期股评' : '生成即时简报' : card ? '重新采集市场状态' : '采集市场状态'}</button></section>
           <div className="client-content-fields client-identity-fields">{field('brand')}{field('headline')}</div>
           <div className="client-section-heading"><h3>核心内容</h3><span>{filled} / 3 项已填写</span></div>
@@ -406,8 +417,9 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
           </div>
           <details className="client-brand-details"><summary>服务落款与风险提示<span>R4 · 固定展示</span></summary><div className="client-content-fields">{field('service')}</div><section className="client-fixed-disclosure" aria-label="固定风险提示与投顾信息"><header><strong>风险提示</strong><span>R4</span></header><p>{fixedDisclosure.risk}</p><div>{disclosureLines.slice(1).map(line => <p key={line}>{line}</p>)}</div><small>所有时点、套图和导出文案均固定附带以上信息。</small></section></details>
           <footer className="client-editor-footer"><p><span className={`client-status-dot ${dirty ? 'is-draft' : 'is-ready'}`} />{dirty ? draftStorage.persisted ? '草稿已暂存本机，尚未保存' : '草稿暂未写入本机，请及时保存' : card ? '与已保存卡片一致' : '正在使用默认模板'}</p><div className="client-editor-actions"><button className="primary-button workspace-button" disabled={!card || !!busy || !dirty || !valid} onClick={() => void saveCard()}><Save size={15} />{busy === 'save' ? '正在保存…' : '保存本次卡片'}</button><button className="secondary-button workspace-button" disabled={!!busy || !valid || instant} onClick={() => void saveSettings('template')}>{busy === 'template' ? '正在保存…' : '保存为默认模板'}</button></div>{!card && <small>采集后可保存本次卡片；提前准备的内容可保存为默认模板。</small>}</footer>
+          </> : templateStatus}
         </section>
-        <section className="client-preview-workspace" aria-label="卡片预览">
+        {ready && <section className="client-preview-workspace" aria-label="卡片预览">
           <section className="client-preview-panel" aria-label={exportAsDraft ? '草稿预览' : '成品预览'}>
           <header><div><h2>{exportAsDraft ? '草稿预览' : '成品预览'}</h2></div><div className="client-preview-toolbar"><button type="button" className="secondary-button workspace-button" disabled={!currentPreview || !!previewError} onClick={openFullscreen}><Maximize2 size={14} />全屏查看</button><ClientCardPreviewSwitch mode={previewMode} onChange={setPreviewMode} /></div></header>
           <div className="client-preview-meta"><span>{themeLabel} · 点击图片文字可编辑</span><span>{!valid ? '等待填写服务名称' : currentPreview ? `${currentPreview.width} × ${currentPreview.height} px` : previewError ? '预览暂不可用' : '正在同步…'}</span></div>
@@ -433,9 +445,9 @@ export default function ClientServicePage({ view, onViewChange, researchDraft }:
           <ClientThemePicker theme={theme} onSelect={value => update('theme', value)} caption="每套含 7 款时点插画"
             thumbnail={id => <span className="client-theme-thumbnail" style={{ backgroundImage: `url(/client-service/themes/${id}-logo-safe.png)`, backgroundPosition: cardArtworkPosition(slot) }} />}
             footer={<><span>已匹配{effectiveTemplate?.title}底图</span><button type="button" className="text-button workspace-button" disabled={!!busy} onClick={() => void saveThemeCollection()}>{busy === 'theme' ? '正在保存…' : '设为全时点默认'}</button></>} />
-        </section>
+        </section>}
       </div>
-    </>}
+    )}
     {fullscreen && <ClientCardFullscreen title={exportAsDraft ? '草稿全屏预览' : '成品全屏预览'}
       description={`${themeLabel} · ${content?.headline || effectiveTemplate?.title || '时点卡'}`} theme={themeLabel}
       downloadLabel={downloadLabel} canDownload={!!currentPreview && !previewError} onDownload={download} onStep={switchTheme}

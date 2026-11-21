@@ -45,7 +45,7 @@
 .news-price-change { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 550; }
 .news-company-quote.up .news-price-change { color: var(--ui-market-up); }
 .news-company-quote.down .news-price-change { color: var(--ui-market-down); }
-.news-company-quote.neutral .news-price-change { color: #7c8ba0; }
+.news-company-quote.neutral .news-price-change { color: var(--ui-market-flat); }
 .news-company-candles .responsive-market-chart { padding: 0 12px; }
 .news-company-candles .indicator-market-chart { padding-top: 4px; }
 .news-company-candles .indicator-market-chart text { font-size: 11px; fill: #90a0b2; }

@@ -398,10 +398,13 @@ export default function ScreeningResultView({
     <StockText><div className={`screening-result-view screening-list-compact${evidenceLayout === 'inline' ? ' screening-evidence-inline' : ''}`}>
       <div className="conversation-run-title">
         <span>{title || `${isCurrent ? '当前运行' : '历史运行'}`}</span>
+        <span className="conversation-result-date">数据截止日：{asOf || '未提供'}</span>
         <span className={["workspace-status", `conversation-turn-state ${stateClass(status)}`].filter(Boolean).join(' ')}>{stateLabels[status] ?? status}</span>
+        {!isRunning && onSavePlan && (
+          <button type="button" className="secondary-button compact workspace-button screening-result-save"
+            disabled={savePlanDisabled || savingPlan} onClick={onSavePlan}>{savingPlan ? '保存中…' : '保存为方案'}</button>
+        )}
       </div>
-
-      <p className="conversation-result-date">数据截止日：{asOf || '未提供'}</p>
 
       {isRunning && progress && (
         <div className="conversation-run-progress">
@@ -422,17 +425,14 @@ export default function ScreeningResultView({
             <div className="workspace-metric-card"><span>已判断覆盖</span><strong>{resolvedCount} / {coverage.target_total}</strong></div>
             <div className="workspace-metric-card"><span>数据不足</span><strong>{Math.max(0, coverage.unknown_count - (coverage.failed_count ?? 0) - (coverage.not_evaluated_count ?? 0))}</strong></div>
           </div>
-          <p className="conversation-coverage-note">已有明确判断 {resolvedCount} / {coverage.target_total} 只；尚无法判断 {coverage.unknown_count} 只。</p>
-          <details className="screening-coverage-details"><summary>覆盖明细</summary><p className="conversation-coverage-note">不符合 {coverage.false_count} 只。尚无法判断共 {coverage.unknown_count} 只，包含 {coverage.failed_count ?? 0} 只处理失败、{coverage.not_evaluated_count ?? 0} 只未处理。</p></details>
-          {coverage.unknown_count > 0 && <p className="conversation-coverage-note">结果覆盖不完整，未能判断的股票不等于不符合。</p>}
+          <div className="screening-coverage-meta">
+            <p className="conversation-coverage-note">已有明确判断 {resolvedCount} / {coverage.target_total} 只；尚无法判断 {coverage.unknown_count} 只。</p>
+            <details className="screening-coverage-details"><summary>覆盖明细</summary>
+              <p className="conversation-coverage-note">不符合 {coverage.false_count} 只。尚无法判断共 {coverage.unknown_count} 只，包含 {coverage.failed_count ?? 0} 只处理失败、{coverage.not_evaluated_count ?? 0} 只未处理。</p>
+              {coverage.unknown_count > 0 && <p className="conversation-coverage-note">结果覆盖不完整，未能判断的股票不等于不符合。</p>}
+            </details>
+          </div>
         </section>
-      )}
-
-      {!isRunning && onSavePlan && (
-        <div className="screening-result-next-step" role="group" aria-label="结果下一步">
-          <span>{coverage && coverage.true_count > 0 ? `已筛出 ${coverage.true_count} 只。保存为方案后，下次可以一键复用。` : '保存本批次的方案与参数，便于后续复用。'}</span>
-          <button type="button" className="secondary-button compact workspace-button" disabled={savePlanDisabled || savingPlan} onClick={onSavePlan}>{savingPlan ? '保存中…' : '保存为方案'}</button>
-        </div>
       )}
 
       {!isRunning && (

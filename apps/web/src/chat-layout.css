@@ -1,7 +1,7 @@
 /* Conversation workspace using the existing Soochow Securities brand assets. */
-.redesigned-workspace.chat-layout { display: flex; min-height: 0; height: 100dvh; padding: 0; overflow: hidden; background: white; }
+.redesigned-workspace.chat-layout { display: flex; min-height: 0; height: 100dvh; padding: 0; overflow: hidden; background: var(--ui-canvas); }
 .chat-layout [hidden] { display: none !important; }
-.chat-layout > .main-shell { display: flex; flex-direction: column; flex: 1; width: auto; min-width: 0; height: 100dvh; margin: 0; overflow: hidden; background: white; }
+.chat-layout > .main-shell { display: flex; flex-direction: column; flex: 1; width: auto; min-width: 0; height: 100dvh; margin: 0; overflow: hidden; background: var(--ui-canvas); }
 .chat-sidebar { display: flex; flex-direction: column; flex: 0 0 var(--ui-sidebar-width); width: var(--ui-sidebar-width); height: 100dvh; min-height: 0; padding: 20px 14px 12px; border-right: 1px solid var(--ui-sidebar-border); background: var(--ui-sidebar); color: var(--ui-sidebar-text); overflow: hidden; scrollbar-width: thin; scrollbar-color: #cbd5e0 transparent; }
 .workspace-authenticated { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
 .workspace-account-bar {
@@ -11,6 +11,13 @@
 }
 .workspace-authenticated > .redesigned-workspace.chat-layout { flex: 1; height: auto; }
 .workspace-authenticated > .chat-layout > :is(.main-shell, .chat-sidebar) { height: auto; }
+.workspace-sign-in { display: grid; place-items: start center; min-height: 100dvh; padding: clamp(32px, 11vh, 100px) var(--ui-tool-gutter) 32px; }
+.workspace-sign-in-panel { width: min(100%, 420px); padding: 24px; border: 1px solid var(--ui-border); border-radius: var(--ui-tool-radius); background: var(--ui-surface); }
+.workspace-sign-in-panel img { display: block; height: auto; margin-bottom: 20px; }
+.workspace-sign-in-panel h1 { margin: 0 0 8px; font-size: var(--ui-page-title); line-height: var(--ui-page-title-leading); font-weight: 700; }
+.workspace-sign-in-panel p { margin: 0 0 20px; color: var(--ui-text-muted); }
+.workspace-sign-in-panel .primary-button { display: inline-flex; align-items: center; min-height: var(--ui-tool-control); padding: 7px 16px; border-radius: var(--ui-radius-sm); text-decoration: none; }
+@media (pointer: coarse) { .workspace-sign-in-panel .primary-button { min-height: var(--ui-control-lg); } }
 .chat-brand { display: flex; align-items: center; justify-content: space-between; padding: 0 12px; flex-shrink: 0; }
 .chat-brand img { width: 134px; height: auto; object-fit: contain; }
 .chat-brand .chat-brand-symbol { display: none; }
@@ -22,7 +29,8 @@
 .chat-nav-button > svg { flex-shrink: 0; color: currentColor; stroke-width: 1.75; }
 .chat-nav-button > span { flex: 1; }
 .chat-nav-button:hover { background: var(--ui-sidebar-hover); }
-.chat-nav-button[aria-current=page] { background: var(--ui-sidebar-active); color: var(--ui-brand); font-weight: 600; }
+.chat-nav-button[aria-current=page] { position: relative; background: var(--ui-sidebar-active); color: var(--ui-brand); font-weight: 600; }
+.chat-nav-button[aria-current=page]::before { content: ''; position: absolute; inset-inline-start: 0; top: 50%; width: 3px; height: 18px; border-radius: 2px; background: var(--ui-brand); transform: translateY(-50%); }
 .chat-nav-button kbd { padding: 1px 4px; border: 1px solid var(--ui-sidebar-border); border-radius: 4px; font: 10px var(--ui-font-mono); color: var(--ui-sidebar-muted); }
 .chat-nav-button.chat-new { margin: 4px 0 8px; color: var(--ui-on-primary); background: var(--ui-primary); font-weight: 500; border: 1px solid var(--ui-primary); box-shadow: 0 1px 3px rgba(0, 74, 153, 0.12); }
 .chat-nav-button.chat-new svg { color: currentColor; }

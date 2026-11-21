@@ -1,1 +1,1 @@
-.chat-workspace-name { font-size: 13px; font-weight: 400; line-height: 1.6; }
+.chat-workspace-name { font-size: var(--ui-meta-size); font-weight: 400; line-height: var(--ui-meta-leading); }
