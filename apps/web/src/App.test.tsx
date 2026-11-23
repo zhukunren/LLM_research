@@ -48,8 +48,8 @@ it('restores drafts from legacy screening links without executing', async () => 
   expect(fetcher.mock.calls.every(call => !((call as unknown as [unknown, RequestInit])[1]?.method))).toBe(true)
 })
 
-it('keeps mobile navigation open when a late conversation load only publishes its current URL', async () => {
-  vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+it('keeps the compact drawer open when a late conversation load only publishes its current URL', async () => {
+  vi.stubGlobal('matchMedia', vi.fn(query => ({ matches: query === '(max-width: 900px)', addEventListener: vi.fn(), removeEventListener: vi.fn() })))
   let finish!: (value: Response) => void
   const pending = new Promise<Response>(resolve => { finish = resolve })
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
@@ -546,20 +546,26 @@ it('keeps the new screening draft when an older research resume resolves late', 
   expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
 })
 
-it('starts screening from the mobile navigation and closes the navigation dialog', async () => {
+it('switches phone destinations while preserving the active research and screening drafts', async () => {
   window.history.replaceState(null, '', '#/research/existing')
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
   const fetcher = stubRouteApi(), user = userEvent.setup()
   render(<App />)
   await waitFor(() => expect(screen.getByRole('log')).toHaveTextContent('已有研究 existing'))
   expect(screen.queryByRole('group', { name: '研究任务类型' })).not.toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: '打开工作导航' }))
-  await user.click(within(screen.getByRole('dialog', { name: '工作导航' })).getByRole('button', { name: '新建任务' }))
-  expect(screen.queryByRole('dialog', { name: '工作导航' })).not.toBeInTheDocument()
-  await user.click(await screen.findByRole('button', { name: '选股对话' }))
+  const navigation = within(screen.getByRole('navigation', { name: '手机主导航' }))
+  const research = navigation.getByRole('button', { name: '研究' })
+  const screening = navigation.getByRole('button', { name: '选股' })
+  expect(research).toHaveAttribute('aria-current', 'page')
+  await user.click(screening)
   await waitFor(() => expect(screen.getByLabelText('选股要求')).toBeEnabled())
-  expect(screen.queryByRole('dialog', { name: '工作导航' })).not.toBeInTheDocument()
   expect(window.location.hash).toBe('#/screening/new')
+  await user.type(screen.getByLabelText('选股要求'), '近30日实施回购')
+  await user.click(research)
+  expect(await screen.findByRole('log')).toHaveTextContent('已有研究 existing')
+  await user.click(screening)
+  expect(screen.getByLabelText('选股要求')).toHaveValue('近30日实施回购')
+  expect(screening).toHaveAttribute('aria-current', 'page')
   expect(fetcher.mock.calls.every(([, options]) => !options?.method || options.method === 'GET')).toBe(true)
 })
 

@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import Field, model_validator
 
-from . import market, security_catalog, screening_service, maintenance_service, news_retention
+from . import market, security_catalog, screening_history, screening_service, maintenance_service, news_retention
 from .db import connect, json_dump, json_load, utc_now
 from . import conversation_store
 from .screening_contracts import ContractModel, ScreeningTaskRevision, UniverseScope, validate_executable_task
@@ -289,23 +289,7 @@ def catalog():
 
 @router.get("/screening-history")
 def history(limit: int = Query(200, ge=1, le=500)):
-    with connect() as connection:
-        legacy = [dict(row) for row in connection.execute("""SELECT r.id,r.strategy_id,r.strategy_version,
-            r.as_of,r.status,r.created_at,s.name,'legacy' AS kind
-            FROM screening_runs r LEFT JOIN strategies s ON s.id=r.strategy_id AND s.version=r.strategy_version
-            ORDER BY r.created_at DESC LIMIT ?""", (limit,))]
-        conversations = connection.execute("""SELECT r.id,r.conversation_id,r.task_revision AS strategy_version,
-            r.as_of,r.status,r.created_at,r.snapshot_json,c.entry_scope
-            FROM screening_task_runs r JOIN conversations c ON c.id=r.conversation_id
-            ORDER BY r.created_at DESC LIMIT ?""", (limit,)).fetchall()
-    items = legacy
-    for row in conversations:
-        item = dict(row)
-        snapshot = json_load(item.pop("snapshot_json"))
-        task = snapshot.get("task", {})
-        item.update(kind="conversation", strategy_id="", name="；".join(c.get("description", "") for c in task.get("conditions", []))[:120] or "对话选股方案")
-        items.append(item)
-    return {"items": sorted(items, key=lambda item: (item["created_at"], item["id"]), reverse=True)[:limit]}
+    return {"items": screening_history.list_runs(limit)}
 
 
 def _export_rows(conversation_id, run_id, state, query):

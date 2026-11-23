@@ -18,7 +18,7 @@ export function useTechnicalRules(enabled: boolean, key: string, singlesOnly = f
     if (!enabled) return
     const controller = new AbortController()
     setLoading(true); setError('')
-    api<{ items: ScreeningTemplate[] }>('/screening-templates?include_singles=true' + (singlesOnly ? '&singles_only=true' : '') + (includeIndustry ? '&include_industry=true' : ''), { signal: controller.signal }).then(result => {
+    api<{ items: ScreeningTemplate[] }>('/screening-templates?include_singles=true&include_tushare=true' + (singlesOnly ? '&singles_only=true' : '') + (includeIndustry ? '&include_industry=true' : ''), { signal: controller.signal }).then(result => {
       if (!controller.signal.aborted) setItems(result.items)
     }).catch(reason => { if (!controller.signal.aborted) setError((reason as Error).message) }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
@@ -67,18 +67,22 @@ export function TechnicalRuleTrial({ rules, asOf, industry, disabled }: { rules:
     finally { if (!controller.signal.aborted) setBusy(false) }
   }
   const current = result?.key === key ? result.preview : null
+  const earnings = rules.selected?.id === 'earnings_revision'
+  const chips = rules.selected?.id === 'chip_concentration'
   return <section className="technical-rule-trial" aria-label="单股试算">
-    <header><FlaskConical size={19} /><div><h2>先用一只股票试算</h2><p>按当前规则与截止日期核对{rules.selected?.requires_industry ? '行业、估值和成交额' : '行情'}。</p></div></header>
+    <header><FlaskConical size={19} /><div><h2>先用一只股票试算</h2><p>按当前规则与截止日期核对{rules.selected?.requires_industry ? '行业、估值和成交额' : earnings ? '券商盈利预测' : chips ? '筹码成本' : '行情'}。</p></div></header>
     <div className="technical-trial-controls"><StockSearch label="技术规则试算股票" value={stock} disabled={disabled || busy} onSelectionPending={() => setStock('')} onChange={setStock} /><button type="button" className="secondary-button workspace-button" disabled={disabled || busy || rules.invalid || !asOf || !/^\d{6}\.(SH|SZ|BJ)$/.test(stock)} onClick={() => void preview()}>{busy ? <RefreshCw size={15} className="spin" /> : <FlaskConical size={15} />}{busy ? '试算中…' : '试算规则'}</button></div>
     {error && <p role="alert" className="workspace-error">{error}</p>}
     {result && !current && <p role="status" className="technical-trial-note">参数或证券已改变，请重新试算。</p>}
     {current ? <>
-      <div className="technical-trial-result"><strong className={`technical-trial-state is-${current.state}`}>{stateLabels[current.state]}</strong><span>行情日 {current.actual_date || '暂无'} · 截止 {current.requested_as_of}</span></div>
+      <div className="technical-trial-result"><strong className={`technical-trial-state is-${current.state}`}>{stateLabels[current.state]}</strong><span>{earnings ? '核对日' : '行情日'} {current.actual_date || '暂无'} · 截止 {current.requested_as_of}</span></div>
       {current.chart.bars.length > 0 && <ResponsiveMarketIndicatorChart chart={current.chart} height={230} minHeight={180} />}
       <ul className="technical-trial-details">{current.details.map((item, index) => <li key={index}><div><strong>{item.name}</strong><span>{stateLabels[item.state]}</span></div>{item.note ? <p>{item.note}</p> : item.reason ? <p>{item.reason}</p> : item.actual != null && <p>计算值：{typeof item.actual === 'number' ? Number(item.actual.toFixed(4)) + (item.unit || '') : Object.entries(item.actual).map(([name, value]) => `${name === 'fast' ? '短均线' : name === 'slow' ? '长均线' : name} ${Number(value.toFixed(4))}`).join(' · ')}{item.threshold != null ? ` · 比较值 ${Number(item.threshold.toFixed(4))}` : ''}</p>}</li>)}</ul>
     </> : !busy && <div className="technical-trial-empty"><FlaskConical size={26} /><p>选择股票并试算，查看{rules.selected?.requires_industry ? '命中情况与数据日期' : '符合情况、计算值与走势图'}。</p></div>}
     {rules.selected?.requires_industry
       ? <p className="technical-trial-note">行业和估值来自 Tushare。市盈率按过去四个季度的利润计算。</p>
+      : earnings ? <p className="technical-trial-note">按预测入库时间核对，每家券商与该财年上一次预测比较。</p>
+      : chips ? <p className="technical-trial-note">使用目标交易日的 Tushare 筹码成本估算。</p>
       : <p className="technical-trial-note">试算使用本地未复权日线；批量筛选仍逐只核对数据完整性。</p>}
   </section>
 }

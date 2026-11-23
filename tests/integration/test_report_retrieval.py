@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 import pytest
 
-from apps.api.app import db, documents, main, report_catalog, research_tools
+from apps.api.app import db, document_api, documents, main, report_catalog, research_tools
 from apps.api.app.report_parser import ParsedReport
 from apps.api.app.screening_tools import (
     SearchReportPagesArgs,
@@ -371,7 +371,6 @@ def test_failed_page_write_rolls_back_source_and_indexes_then_retry_is_idempoten
 
 def test_same_filename_upload_returns_the_document_for_the_uploaded_content(library, tmp_path, monkeypatch):
     upload_root = tmp_path / "uploads"
-    monkeypatch.setattr(main, "REPORT_UPLOAD_DIR", upload_root)
     monkeypatch.setattr(documents, "REPORT_UPLOAD_DIR", upload_root)
     monkeypatch.setattr(documents, "REPORT_DIR", tmp_path / "no-local-reports")
     monkeypatch.setattr(report_catalog, "enqueue", lambda: None)
@@ -390,7 +389,7 @@ def test_same_filename_upload_returns_the_document_for_the_uploaded_content(libr
     first_data, second_data = pdf_bytes("first"), pdf_bytes("second")
     with TestClient(main.app) as client:
         names = iter(range(100))
-        monkeypatch.setattr(main, "uuid4", lambda: f"upload-{next(names):04d}")
+        monkeypatch.setattr(document_api, "uuid4", lambda: f"upload-{next(names):04d}")
         first = client.post("/api/v1/documents/upload", files={
             "file": ("same.pdf", first_data, "application/pdf"),
         })
@@ -414,7 +413,6 @@ def test_same_filename_upload_returns_the_document_for_the_uploaded_content(libr
 
 def test_upload_reports_the_selected_file_parser_failure(library, tmp_path, monkeypatch):
     upload_root = tmp_path / "uploads"
-    monkeypatch.setattr(main, "REPORT_UPLOAD_DIR", upload_root)
     monkeypatch.setattr(documents, "REPORT_UPLOAD_DIR", upload_root)
     monkeypatch.setattr(documents, "REPORT_DIR", tmp_path / "no-local-reports")
     monkeypatch.setattr(report_catalog, "enqueue", lambda: None)

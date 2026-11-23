@@ -11,8 +11,8 @@ const managementTools = [
   { view: 'history', label: '筛选记录', description: '跨任务查找筛选批次和结果', icon: History },
 ] as const
 
-export default function ResearchWorkspaceNavigation({ showTaskTypes, workspace, page, view = 'conversation', screeningMethod, onTaskTypeChange, onScreeningView, onFixedRules, onPatternSamples }: {
-  showTaskTypes: boolean; workspace: WorkflowType; page: PageId; view?: ScreeningView
+export default function ResearchWorkspaceNavigation({ compact = false, showTaskTypes, workspace, page, view = 'conversation', screeningMethod, onTaskTypeChange, onScreeningView, onFixedRules, onPatternSamples }: {
+  compact?: boolean; showTaskTypes: boolean; workspace: WorkflowType; page: PageId; view?: ScreeningView
   screeningMethod?: ScreeningMethod
   onTaskTypeChange: (workflow: WorkflowType) => void
   onScreeningView: (view: 'saved' | 'history' | 'compose' | 'library') => void
@@ -53,8 +53,8 @@ export default function ResearchWorkspaceNavigation({ showTaskTypes, workspace, 
       event.stopPropagation()
       closeTools()
     }}>
-      <button ref={trigger} type="button" className="workspace-button screening-tools-trigger" aria-controls={panelId} aria-expanded={open} onClick={() => setOpen(value => !value)}>
-        <SlidersHorizontal size={15} aria-hidden="true" />选股工具<ChevronDown size={14} aria-hidden="true" />
+      <button ref={trigger} type="button" className="workspace-button screening-tools-trigger" aria-label="选股工具" aria-controls={panelId} aria-expanded={open} onClick={() => setOpen(value => !value)}>
+        <SlidersHorizontal size={compact ? 18 : 15} aria-hidden="true" />{compact ? <span className="screening-tools-compact-label">工具</span> : <>选股工具<ChevronDown size={14} aria-hidden="true" /></>}
       </button>
       <div id={panelId} className="screening-tools-popover" hidden={!open}>
         <div className="screening-tools-section" role="group" aria-label="条件工具">

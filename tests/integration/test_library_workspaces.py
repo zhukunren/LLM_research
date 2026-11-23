@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import condition_language, db, main, market, pattern_language, worker
+from apps.api.app import condition_language, db, main, market, pattern_language, screening_strategy_execution
 
 
 @pytest.fixture
@@ -127,7 +127,10 @@ def test_natural_language_shape_can_be_confirmed_and_referenced_as_condition(cli
     assert strategy.status_code == 200
     assert client.get("/api/v1/patterns").json()["items"][0]["provenance"]["draft_id"] == draft["id"]
     bars = [{"close": 100 + value * 10, "trade_date": f"2026-08-{i+1:02}", "quality_valid": True} for i, value in enumerate(draft["points"])]
-    state, details, _ = worker._eval_tree({"op": "pattern_ref", "pattern_id": pattern["id"], "version": 1, "min_similarity": 85}, "600000.SH", bars, {}, {(pattern["id"], 1): pattern}, {})
+    state, details, _ = screening_strategy_execution._eval_tree(
+        {"op": "pattern_ref", "pattern_id": pattern["id"], "version": 1, "min_similarity": 85},
+        "600000.SH", bars, {}, {(pattern["id"], 1): pattern}, {},
+    )
     assert state == "true"
     assert details[0]["provenance"]["original_prompt"] == draft["prompt"]
     assert details[0]["threshold"] == 85

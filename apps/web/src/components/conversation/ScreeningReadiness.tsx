@@ -80,22 +80,28 @@ export default function ScreeningReadiness({ data, scope = 'screening', task, on
   }, [attempt, data?.available, data?.last_date])
   const readiness = screeningSourceReadiness(data, manifest, scope, task, asOf)
   const canRefresh = !loading && (failed || readiness.state !== 'available')
-  useEffect(() => { setExpanded(canRefresh) }, [canRefresh])
-  const compactSummary = compact && (loading || !failed && readiness.state === 'available')
+  const compactSummary = compact && attempt === 0 && (loading || !failed && readiness.state === 'available')
   const label = loading ? '正在检查数据' : failed ? '数据状态待确认' : ({ available: '数据来源已接入', partial: '数据部分可用 / 待确认', unavailable: '所需数据暂不可用' })[readiness.state]
   const universe = selectedUniverseLabel ?? (task ? taskUniverseLabel(task) : '全部 A 股（默认范围）')
   const date = asOf !== undefined ? asOf || '待确定' : task ? task.scope.as_of || '待确定' : data?.last_date ? `${data.last_date}（默认最新行情日）` : '待行情接入后确定'
   const unsupported = manifest?.capabilities.filter(item => ['fundamentals.market_cap', 'securities.historical_classification', 'market.minute_bars'].includes(item.id) && item.availability === 'unavailable') ?? []
   const industrySupported = manifest?.capabilities.some(item => item.id === 'fundamentals.shenwan_valuation' && item.availability !== 'unavailable')
   return <section className={`screening-readiness${compactSummary ? ' screening-readiness-compact' : ''}`} aria-label="筛选数据准备情况">
-    <div className="screening-readiness-summary">{!compactSummary && <strong>{label}</strong>}{!compactSummary && showScope && <span>{universe} · 截止日：{date}</span>}<button type="button" className="text-button workspace-button" aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(value => !value)}>{compactSummary ? '数据说明' : '查看数据范围与限制'}</button></div>
+    <div className="screening-readiness-summary">
+      {!compactSummary && <strong role="status">{label}</strong>}
+      {!compactSummary && showScope && <span>{universe} · 截止日：{date}</span>}
+      {canRefresh && <span>{failed ? `暂时无法核对${readiness.sourceNames}，可以先写方案。` : readiness.issues[0]}</span>}
+      {canRefresh && <button type="button" className="text-button workspace-button" onClick={() => setAttempt(value => value + 1)}>重新检查</button>}
+      {canRefresh && onOpenData && <button type="button" className="text-button workspace-button" onClick={onOpenData}>检查数据与服务</button>}
+      <button type="button" className="text-button workspace-button" aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(value => !value)}>{compactSummary ? '数据说明' : '查看数据范围与限制'}</button>
+    </div>
     <div id={detailsId} hidden={!expanded}>
-      {!loading && <p>{failed ? '暂时无法核对数据状态，可重试检查；已写的条件会保留。' : readiness.issues.length ? readiness.issues.join(' ') : `${readiness.sourceNames}已接入；每项条件的历史长度、证券覆盖和计算口径仍需核对。`}</p>}
+      {!loading && !failed && (readiness.issues.length > 1 ? <p>{readiness.issues.slice(1).join(' ')}</p> : !readiness.issues.length && <p>{readiness.sourceNames}已接入。每项条件的历史长度、证券覆盖和计算口径仍需核对。</p>)}
       <p>{data?.last_date ? `本地行情截至 ${data.last_date}${data.first_date ? `，起始于 ${data.first_date}` : ''}。默认日期不代表今天的行情。` : '尚未确认本地行情日期。'}</p>
       {industrySupported && <p>固定规则支持申万行业、正市盈率（TTM）和日均成交额。实际覆盖以所选交易日的接口结果为准。</p>}
       {!!unsupported.length && <p>暂不支持：{unsupported.map(item => ({ 'fundamentals.market_cap': industrySupported ? '历史财务、总市值和市净率' : '历史财务与估值', 'securities.historical_classification': industrySupported ? '历史 ST 及证券状态' : '历史行业、ST及证券状态', 'market.minute_bars': '分钟行情' })[item.id]).join('、')}。涉及这些数据的条件需要补充数据或由你明确调整。</p>}
       <p>这里只检查数据来源是否可用，不保证每项条件都能完成。本地价格为未复权日线；量额单位和逐证券数据覆盖以方案与执行结果为准。数据不足会标为未知，不会自动删除条件。</p>
-    {(canRefresh || onOpenData) && <div className="screening-readiness-actions">{canRefresh && <button type="button" className="text-button workspace-button" onClick={() => setAttempt(value => value + 1)}>重新检查</button>}{onOpenData && <button type="button" className="text-button workspace-button" onClick={onOpenData}>检查数据与服务</button>}</div>}
+    {!canRefresh && onOpenData && <div className="screening-readiness-actions"><button type="button" className="text-button workspace-button" onClick={onOpenData}>检查数据与服务</button></div>}
     </div>
   </section>
 }

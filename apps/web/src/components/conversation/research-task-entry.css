@@ -1,4 +1,5 @@
 .research-task-entry { width: 100%; min-width: 0; }
+.research-draft-suggestion { display: grid; justify-items: start; gap: 6px; margin-top: 8px; padding: 10px; border-radius: var(--ui-radius-sm); background: var(--ui-surface-subtle); }
 .research-settings-note { margin: 0; max-width: 300px; color: var(--ui-text-muted); font-size: 12px; line-height: 1.7; }
 .research-task-intro { margin: 0 0 16px; color: var(--ui-text-muted); font-size: 14px; line-height: 1.7; text-align: center; }
 .research-task-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }

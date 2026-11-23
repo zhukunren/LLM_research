@@ -5,14 +5,14 @@ import math
 from fastapi import APIRouter, HTTPException
 from pydantic import Field, field_validator
 
-from . import conversation_store, industry_valuation, market, runtime_executor, tushare_screening_data
+from . import conversation_store, industry_valuation, market, runtime_executor, tushare_feature_rules, tushare_screening_data
 from .db import connect, json_load
 from .execution_policy import WORKBENCH_MARKER, match_threshold_change, match_trend_request, message_requests_execution
 from .rules import combine, evaluate_filter, validate_filter
 from .indicators import values
 from .screening_contracts import (
     ContractModel, INDUSTRY_VALUATION_IMPLEMENTATION, IndustryValuationRule, IndustryValuationSelection,
-    ScreeningTaskRevision, UniverseScope, validate_executable_task,
+    ScreeningTaskRevision, TUSHARE_RULES, TUSHARE_RULE_IMPLEMENTATIONS, UniverseScope, validate_executable_task,
 )
 from .tushare_client import TushareError
 
@@ -73,7 +73,7 @@ class ApplyTemplateRequest(ContractModel):
 
 
 def compile_template(template_id: str, version: int, parameters: dict, industry: IndustryValuationSelection | None = None):
-    template = next((item for item in [*TEMPLATES, INDUSTRY_TEMPLATE]
+    template = next((item for item in [*TEMPLATES, INDUSTRY_TEMPLATE, *tushare_feature_rules.TEMPLATES.values()]
                      if item["id"] == template_id and item["version"] == version), None)
     if not template:
         raise ValueError("模板或版本不存在，请刷新模板列表。")
@@ -95,6 +95,9 @@ def compile_template(template_id: str, version: int, parameters: dict, industry:
     if industry is not None:
         rule = IndustryValuationRule(**industry.model_dump(), **p)
         return template, rule.model_dump(exclude_none=True), industry_valuation.describe(rule)
+    if template_id in TUSHARE_RULES:
+        rule = TUSHARE_RULES[template_id](**p)
+        return template, rule.model_dump(), tushare_feature_rules.describe(rule)
     if template_id in COMBINATIONS:
         parts = [compile_template(component_id, 1, {key: p[value] for key, value in mapping.items()})
                  for component_id, mapping in COMBINATIONS[template_id]]
@@ -149,8 +152,11 @@ def template_program(template, expression, parameters):
 
 
 @router.get("/screening-templates")
-def list_templates(include_singles: bool = False, singles_only: bool = False, include_industry: bool = False):
+def list_templates(include_singles: bool = False, singles_only: bool = False,
+                   include_industry: bool = False, include_tushare: bool = False):
     items = [item for item in TEMPLATES if (item["id"] not in COMBINATIONS if singles_only else include_singles or item["id"] in COMBINATIONS)]
+    if include_tushare:
+        items = [*items, *tushare_feature_rules.TEMPLATES.values()]
     return {"items": [*items, INDUSTRY_TEMPLATE] if include_industry else items}
 
 
@@ -177,9 +183,11 @@ def _template_task(conversation_id, base_revision, template, expression, descrip
         condition_id = f"starter-{index + 1}" if components else "starter"
         reference_id = f"starter-ref-{index + 1}" if components else "starter-ref"
         condition = {"condition_id": condition_id, "source_quote": quotes[index] if quotes else messages[-1], "description": detail}
-        if component["id"] == INDUSTRY_TEMPLATE_ID:
-            condition.update(library="fundamentals", expression=leaf, implementation_id=INDUSTRY_VALUATION_IMPLEMENTATION,
-                             implementation_version=INDUSTRY_VALUATION_IMPLEMENTATION)
+        implementation = (INDUSTRY_VALUATION_IMPLEMENTATION if component["id"] == INDUSTRY_TEMPLATE_ID
+                          else TUSHARE_RULE_IMPLEMENTATIONS.get(component["id"]))
+        if implementation:
+            condition.update(library="fundamentals", expression=leaf, implementation_id=implementation,
+                             implementation_version=implementation)
         else:
             condition.update(library="technical", expression={}, program=template_program(component, leaf, component_parameters),
                              implementation_id="llm-python-screen", implementation_version="python-screen-v1")
@@ -292,6 +300,18 @@ def preview_template(template_id: str, payload: TemplatePreviewRequest):
     try:
         template, expression, description = compile_template(template_id, payload.version, payload.parameters, payload.industry)
         as_of = payload.as_of.isoformat()
+        if template_id in TUSHARE_RULES:
+            from .tushare_features_api import as_of_day
+            as_of_day(payload.as_of)
+            day = market.latest_market_date(as_of) if template_id == "chip_concentration" else None
+            rule = TUSHARE_RULES[template_id].model_validate(expression)
+            decision = tushare_feature_rules.trial(rule, payload.stock_code, as_of, day)
+            return {"stock_code": payload.stock_code, "requested_as_of": as_of, "actual_date": decision.data_as_of,
+                    "state": decision.state, "description": description, "price_basis": market.PRICE_BASIS,
+                    "details": [{"name": template["name"], "state": decision.state, "note": decision.explanation,
+                                 "actual_values": decision.actual_values, "thresholds": decision.thresholds,
+                                 "units": decision.units, "data_as_of": decision.data_as_of}],
+                    "chart": {"placement": "overlay", "histogram": None, "reference_lines": [], "bars": [], "lines": []}}
         profile = market.cached_profile()
         if profile.get("last_date") and as_of > profile["last_date"]:
             raise ValueError(f"行情只更新到 {profile['last_date']}。")

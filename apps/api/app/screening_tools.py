@@ -25,7 +25,7 @@ from .execution_policy import (
 )
 from .models import StrictModel
 from .screening_artifacts import ArtifactError, store_artifact
-from .screening_contracts import INDUSTRY_VALUATION_IMPLEMENTATION, ScreeningTaskRevision, validate_executable_task
+from .screening_contracts import INDUSTRY_VALUATION_IMPLEMENTATION, ScreeningTaskRevision, TUSHARE_RULE_IMPLEMENTATIONS, validate_executable_task
 from .settings import ALLOWED_MARKETS, research_settings
 
 MAX_TOOL_ARGUMENT_BYTES = 64 * 1024
@@ -135,7 +135,11 @@ class ScreeningTaskPayload(ToolArgs):
             " For Shenwan industry valuation use library='fundamentals' and expression with industry_code, "
             "pe_comparison ('at_most', 'below_value', or 'below_industry_median'), max_pe_ttm for a fixed comparison, "
             "and optional amount_window (1–60 trading days) paired with min_daily_amount_yi (hundred million CNY). "
-            "Resolve industry codes with search_screening_industries. Omit program for this condition."
+            "Resolve industry codes with search_screening_industries. "
+            "For Tushare EPS revisions use library='fundamentals' and expression "
+            "{op:'earnings_revision',year_offset:0,window_days:30,minimum_brokers:3}. "
+            "For chip costs use library='fundamentals' and expression {op:'chip_concentration',max_spread_pct:20}. "
+            "Omit program for these data conditions."
         )
     )
     references: list[Any] = Field(
@@ -705,8 +709,11 @@ def _normalize_task_shape(raw: dict[str, Any], *, fallback_quote: str = "当前�
         elif condition.get("library") == "technical" and not condition.get("program"):
             condition["expression"] = condition.get("expression") or {"draft_parameters": condition_parameters}
         elif condition.get("library") == "fundamentals":
-            condition.setdefault("implementation_id", INDUSTRY_VALUATION_IMPLEMENTATION)
-            condition.setdefault("implementation_version", INDUSTRY_VALUATION_IMPLEMENTATION)
+            expression = condition.get("expression")
+            op = expression.get("op") if isinstance(expression, dict) else None
+            implementation = TUSHARE_RULE_IMPLEMENTATIONS.get(op, INDUSTRY_VALUATION_IMPLEMENTATION) if isinstance(op, str) else INDUSTRY_VALUATION_IMPLEMENTATION
+            condition.setdefault("implementation_id", implementation)
+            condition.setdefault("implementation_version", implementation)
         normalized_conditions.append(condition)
     candidate["conditions"] = normalized_conditions
     scope = candidate.get("scope") if isinstance(candidate.get("scope"), dict) else {}

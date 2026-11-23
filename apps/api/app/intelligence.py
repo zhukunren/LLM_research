@@ -286,7 +286,8 @@ def detail(run_id):
         if result and result.get("outcome") == "evidence_gap":
             summary["state"] = "evidence_gap"
     timeline = sorted([*activities, *runtime], key=lambda item: (item["created_at"], str(item["id"])))
-    public_context = {key: value for key, value in advisor_context.items() if key not in {"market_evidence_text"}} if advisor_context else None
+    public_context = {key: value for key, value in advisor_context.items()
+                      if key not in {"market_evidence_text", "rotation_evidence_text"}} if advisor_context else None
     if public_context:
         public_context["observations"] = [{key: value for key, value in item.items() if key != "bars"} for item in public_context["observations"]]
     return {**summary, "result": result, "advisor_context": public_context, "activity": timeline[-60:], "source_count": len(sources),
@@ -503,10 +504,24 @@ def read_source(args: ReadBriefSource, context):
 def read_advisor_context(args, context):
     with connect() as connection:
         row = _bound(connection, context)
-        value = advisor_tasks.read_context(connection, row["id"])
+        run_id = row["id"]
+        value = advisor_tasks.read_context(connection, run_id)
         if value is None:
             raise IntelligenceError("此任务没有投顾输入快照。", 404)
-        return value
+    if row["kind"] == "closing" and "rotation_snapshot" not in value:
+        snapshot = advisor_tasks.collect_rotation(value)
+        with connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            _bound(connection, context)
+            value = advisor_tasks.read_context(connection, run_id)
+            if "rotation_snapshot" not in value:
+                value = advisor_tasks.persist_rotation(connection, run_id, snapshot)
+                if value.get("rotation_source_id"):
+                    _activity(connection, run_id, "collect", "已固定申万行业与 A 股盘面数据。")
+    result = {key: item for key, item in value.items() if key != "rotation_snapshot"}
+    if "rotation_snapshot" in value:
+        result["rotation_issues"] = value["rotation_snapshot"]["issues"]
+    return result
 
 
 def evidence(run_id, source_id):
@@ -730,5 +745,5 @@ def register_tools(registry):
         return call
     registry.register("capture_intelligence_source", "Read and freeze a public web page as evidence for THIS intelligence run. Use native web search to discover URLs first. Returns source_id, actual text and publisher-declared date; never infer successful reading from a search snippet.", CaptureBriefSource, handler(capture_source), open_world=True)
     registry.register("read_intelligence_source", "Read another bounded chunk of a source already frozen in this intelligence run.", ReadBriefSource, handler(read_source))
-    registry.register("read_advisor_context", "Read this adviser task's immutable selected stock, client question, recommendation background, effective market dates and real market snapshot. market_source_ids and market_evidence_text can be cited in publish_intelligence_brief. User inputs are unverified context, never proof for a recommendation.", StrictModel, handler(read_advisor_context))
+    registry.register("read_advisor_context", "Read this adviser task's frozen input and market data. Closing reviews also capture dated Tushare market breadth and Shenwan industry data. Cite rotation_evidence_text with rotation_source_id, or market_evidence_text with its original market source ID. User input is contextual.", StrictModel, handler(read_advisor_context), open_world=True)
     registry.register("publish_intelligence_brief", "Validate and save this intelligence run's immutable structured result. Every quote must match a source captured with capture_intelligence_source in this run. Split facts and analysis; dates without evidence remain unverified. Only a successful submission completes the business task. On validation error correct the named fields and retry.", PublishBrief, handler(publish), read_only=False)

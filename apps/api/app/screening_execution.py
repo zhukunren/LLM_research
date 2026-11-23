@@ -3,12 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from . import industry_valuation, market, program_conditions, runtime_executor, ranking, report_adapter, news_adapter, pattern_adapter
+from . import industry_valuation, market, program_conditions, runtime_executor, ranking, report_adapter, news_adapter, pattern_adapter, tushare_feature_rules
 from .evidence_analysis import EvidenceAnalysisCancelled
 from .screening_contracts import (
     ConditionDecision,
     CustomProgram,
     IndustryValuationRule,
+    TUSHARE_RULES,
     ScreeningRunResult,
     ScreeningTaskRevision,
     StockDecision,
@@ -41,6 +42,13 @@ def evaluate_reference(
             lookback_days=reference.get("_report_lookback_days"), active=reference.get("_active", lambda: True),
         )
     if condition.get("library") == "fundamentals":
+        op = condition["expression"].get("op")
+        if op in TUSHARE_RULES:
+            return tushare_feature_rules.evaluate(
+                TUSHARE_RULES[op].model_validate(condition["expression"]), reference["_feature_inputs"], stock_code,
+                condition_id=condition["condition_id"], reference_id=reference["reference_id"],
+                condition_version=reference.get("condition_version"),
+            )
         return industry_valuation.evaluate(
             IndustryValuationRule.model_validate(condition["expression"]),
             reference["_industry_inputs"], stock_code, reference["_bars"],
@@ -182,8 +190,9 @@ def execute_snapshot(
     bars_by_stock: dict[str, list[dict[str, Any]]] = {code: [] for code in codes}
     pattern_assets = snapshot.get("pattern_assets", {})
     history_requirements = [program.required_history_bars for program in programs]
-    valuation_rules = [IndustryValuationRule.model_validate(item.expression) for item in task.conditions
-                       if item.library == "fundamentals"]
+    fundamentals = [item.expression for item in task.conditions if item.library == "fundamentals"]
+    valuation_rules = [IndustryValuationRule.model_validate(item) for item in fundamentals if item.get("op") not in TUSHARE_RULES]
+    feature_rules = [TUSHARE_RULES[item["op"]].model_validate(item) for item in fundamentals if item.get("op") in TUSHARE_RULES]
     history_requirements.extend(rule.amount_window for rule in valuation_rules if rule.amount_window is not None)
     history_requirements.extend(
         pattern_adapter.required_history_bars(
@@ -206,6 +215,12 @@ def execute_snapshot(
         day = snapshot.get("effective_market_date")
         valuation_inputs = industry_valuation.prepare(valuation_rules, day, codes, active=active, progress=progress)
         source_manifests.extend(valuation_inputs.manifests)
+    feature_inputs = None
+    if feature_rules and active():
+        feature_inputs = tushare_feature_rules.prepare(
+            feature_rules, as_of, snapshot.get("effective_market_date"), codes, active=active, progress=progress,
+        )
+        source_manifests.extend(feature_inputs.manifests)
 
     program_results: dict[str, dict[str, dict[str, Any]]] = {}
     for reference in references:
@@ -287,7 +302,8 @@ def execute_snapshot(
                         runtime_reference = {**reference, "_pattern_template": pattern_assets.get(condition["condition_id"]),
                                              "_bars": bars_by_stock[stock_code], "_effective_market_date": snapshot.get("effective_market_date")}
                     if condition["library"] == "fundamentals":
-                        runtime_reference = {**reference, "_industry_inputs": valuation_inputs, "_bars": bars_by_stock[stock_code]}
+                        runtime_reference = {**reference, "_industry_inputs": valuation_inputs,
+                                             "_feature_inputs": feature_inputs, "_bars": bars_by_stock[stock_code]}
                     decision = evaluate_reference(condition, runtime_reference, stock_code, as_of)
                     if not isinstance(decision, ConditionDecision):
                         decision = ConditionDecision.model_validate(decision)

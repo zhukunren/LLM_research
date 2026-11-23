@@ -14,11 +14,16 @@ import requests
 
 
 API_URL = "https://api.tushare.pro"
+NULLABLE_JSON_APIS = frozenset({
+    "daily_basic", "report_rc", "cyq_perf", "sw_daily", "limit_list_d",
+    "stk_holdertrade", "disclosure_date", "etf_share_size", "fund_daily",
+    "fina_indicator", "stk_surv",
+})
 
 
 def _parse_constant(value: str, *, api_name: str) -> None:
-    # Some compatible providers emit bare NaN for missing daily valuations.
-    if api_name == "daily_basic" and value == "NaN":
+    # Some compatible providers emit bare NaN for missing table cells.
+    if api_name in NULLABLE_JSON_APIS and value == "NaN":
         return None
     raise ValueError("nonfinite")
 
@@ -62,6 +67,10 @@ class TushareClient:
     @property
     def credential_id(self) -> str:
         return hashlib.sha256(("tushare:" + self._token).encode()).hexdigest()
+
+    @property
+    def dataset_id(self) -> str:
+        return hashlib.sha256((self._api_url + "\0" + self.credential_id).encode()).hexdigest()
 
     def raw_query(self, api_name: str, *, fields: str = "", **params: Any) -> dict[str, Any]:
         return json.loads(self.query_snapshot(api_name, fields=fields, **params).body,

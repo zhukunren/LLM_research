@@ -65,8 +65,59 @@ def test_export_and_copy_cover_every_matching_stock_and_search_names(client):
     assert client.get(base+'/codes?state=wrong').status_code == 422
     assert client.get('/api/v1/conversations/another/screening-runs/run/export').status_code == 404
     records = client.get('/api/v1/screening-history').json()['items']
-    assert {item['kind'] for item in records} == {'legacy', 'conversation'}
-    assert next(item for item in records if item['id'] == 'run')['name'] == '收盘价高于20日均线'
+    assert [item['kind'] for item in records] == ['conversation', 'legacy']
+    assert records[0]['name'] == '收盘价高于20日均线'
+    assert client.get('/api/v1/screening-history?limit=1').json()['items'] == records[:1]
+
+
+@pytest.mark.parametrize('kind', ['legacy', 'conversation'])
+def test_screening_run_history_preserves_submission_on_replay_and_cancel(client, monkeypatch, kind):
+    cutoff = '2026-09-14'
+    monkeypatch.setattr(market, 'daily_bar_source_available', lambda: True)
+    monkeypatch.setattr(market, 'latest_market_date', lambda as_of: as_of)
+    monkeypatch.setattr(market, 'security_codes', lambda as_of: ['600000.SH'])
+    monkeypatch.setattr(market, 'source_fingerprint', lambda: ('fixture', 100, 1))
+
+    if kind == 'legacy':
+        condition = client.post('/api/v1/filters', json={
+            'library': 'technical', 'name': '均线条件',
+            'expression': {'op': 'indicator_compare', 'indicator': 'sma', 'window': 20,
+                           'field': 'close', 'operator': 'lt', 'compare_field': 'close'},
+        })
+        assert condition.status_code == 200, condition.text
+        strategy = client.post('/api/v1/strategies', json={
+            'name': '均线组合',
+            'tree': {'op': 'filter_ref', 'filter_id': condition.json()['id'], 'version': 1},
+        })
+        assert strategy.status_code == 200, strategy.text
+        detail_path = submit_path = '/api/v1/screening-runs'
+        body = {'strategy_id': strategy.json()['id'], 'strategy_version': 1,
+                'as_of': cutoff, 'mode': 'exploratory', 'request_id': 'once'}
+        run_id_field, status_code = 'id', 200
+    else:
+        cid, message, _ = make_task(client)
+        submit_path = f'/api/v1/conversations/{cid}/turns/{message["turn_id"]}/execute'
+        detail_path = f'/api/v1/conversations/{cid}/screening-runs'
+        body = {'action': 'button', 'revision': 1, 'request_id': 'once'}
+        run_id_field, status_code = 'run_id', 202
+
+    submitted = client.post(submit_path, json=body)
+    assert submitted.status_code == status_code, submitted.text
+    run_id, job_id = submitted.json()[run_id_field], submitted.json()['job_id']
+
+    def assert_history(state):
+        items = client.get('/api/v1/screening-history?limit=2').json()['items']
+        assert len(items) == 1
+        assert (items[0]['id'], items[0]['kind'], items[0]['status']) == (run_id, kind, state)
+        assert (items[0]['as_of'], items[0]['strategy_version']) == (cutoff, 1)
+        assert client.get(f'{detail_path}/{run_id}').json()['status'] == state
+
+    assert_history('queued')
+    assert client.post(f'/api/v1/jobs/{job_id}/cancel').json()['state'] == 'cancelled'
+    replayed = client.post(submit_path, json=body)
+    assert replayed.status_code == status_code, replayed.text
+    assert (replayed.json()[run_id_field], replayed.json()['job_id']) == (run_id, job_id)
+    assert_history('cancelled')
 
 
 def test_scope_edit_is_atomic_idempotent_and_preserves_history(client, monkeypatch):

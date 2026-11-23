@@ -30,6 +30,14 @@
 .opening-plan-collected-text { padding-block: 10px; border-top: 1px solid var(--ui-border); }
 .opening-plan-collected-text p { white-space: pre-wrap; }
 .opening-plan-page .client-preview-panel > header { flex-wrap: wrap; gap: 9px; }
+@media (max-width: 760px) {
+  .opening-plan-toolbar { flex-wrap: wrap; }
+  .mobile-app-shell .client-service-page.opening-plan-page .opening-plan-toolbar:has(.opening-plan-mobile-commit) { position: sticky; top: 0; z-index: 12; }
+  .opening-plan-mobile-commit { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 5px; }
+  .opening-plan-mobile-commit small { color: var(--ui-text-muted); font-size: var(--ui-meta-size); }
+  .opening-plan-mobile-commit button { min-height: 44px; white-space: nowrap; }
+  .opening-plan-toolbar .client-service-feedback { flex-basis: 100%; margin: 0; }
+}
 @media (min-width: 601px) and (max-width: 850px) {
   .opening-plan-studio > .client-preview-workspace { height: 700px; }
 }

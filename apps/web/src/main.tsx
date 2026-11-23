@@ -45,6 +45,7 @@ import './library-layout.css'
 import './workspace-chrome.css'
 import './deployment-layout.css'
 import './research-navigation.css'
+import './mobile-workspace.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

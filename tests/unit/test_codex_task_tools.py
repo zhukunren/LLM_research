@@ -48,7 +48,8 @@ def test_codex_task_tools_save_revision_and_authorize_only_current_explicit_requ
     db.init_db()
     conversation = conversation_store.create_conversation("screening", workflow_type="screening")
     message = conversation_store.add_user_message(
-        conversation["id"], "codex-task-message", 0, "截至2026-09-14，收盘价高于20日均线，筛一下"
+        conversation["id"], "codex-task-message", 0,
+        "在600000.SH中筛一下收盘价高于20日均线的股票，截至2026-09-14。",
     )
     conversation_store.start_turn(conversation["id"], message["turn_id"])
     context = screening_tools.ToolContext(
@@ -78,7 +79,7 @@ def test_codex_task_tools_save_revision_and_authorize_only_current_explicit_requ
         current,
     )
     assert authorized["ok"] is True
-    assert authorized["result"]["ready_to_execute"] is True
+    assert authorized["result"]["ready_to_execute"] is True, authorized["result"]["clarification"]
     assert conversation_store.get_pending_execute_message(conversation["id"]) == message["message_id"]
 
 

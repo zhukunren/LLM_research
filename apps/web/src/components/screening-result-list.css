@@ -85,3 +85,128 @@
 
 .screening-coverage-details > summary { cursor: pointer; color: var(--ui-text-muted); font-size: 11px; }
 .screening-evidence-navigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 18px; border-bottom: 1px solid var(--ui-border-subtle); color: var(--ui-text-muted); font-size: 12px; }
+
+@media (max-width: 760px) {
+  .screening-phone-list .conversation-run-title { min-height: 44px; margin-block: 0 3px; }
+  .screening-results-drawer .screening-phone-list .screening-run-name { display: none; }
+  .screening-phone-list .conversation-run-title .screening-result-menu { margin-inline-start: auto; }
+  .screening-phone-list .screening-result-menu > .icon-button { width: 44px; height: 44px; background: var(--ui-surface-subtle); }
+  .mobile-result-actions > .workspace-menu-option {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-height: var(--ui-main-action-height);
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 0;
+    color: var(--ui-text);
+    font-size: var(--ui-body-size);
+    text-align: start;
+  }
+  .mobile-result-actions > .workspace-menu-option + .workspace-menu-option { border-top: 1px solid var(--ui-border-subtle); }
+  .viewport-workspace .page-frame .screening-phone-list.screening-list-compact .conversation-run-counts { margin-block: 4px 0; padding-block: 8px; }
+  .viewport-workspace .page-frame .screening-phone-list.screening-list-compact .conversation-run-counts strong { font-size: var(--ui-metric-size); line-height: var(--ui-metric-leading); }
+  .screening-phone-list .screening-coverage-meta { justify-content: flex-end; }
+  .screening-phone-list .screening-coverage-meta > .conversation-coverage-note { display: none; }
+  .screening-phone-list .screening-coverage-details > summary { display: flex; align-items: center; min-height: 44px; font-size: var(--ui-meta-size); color: var(--ui-primary); }
+  .screening-phone-list .screening-coverage-details > summary::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-inline-start: 6px; border: solid currentColor; border-width: 0 1px 1px 0; transform: rotate(45deg); }
+  .screening-phone-list .screening-coverage-details[open] > summary::after { transform: rotate(225deg); }
+  .screening-phone-list .conversation-decision-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    margin-block: 0 4px;
+    padding: 0;
+  }
+  .screening-phone-list.screening-result-view .conversation-decision-controls .conversation-search { grid-column: 1; min-width: 0; min-height: var(--ui-main-action-height); }
+  .screening-phone-list .conversation-search input { font-size: 16px; }
+  .screening-phone-list .screening-list-toolbar > span { font-size: var(--ui-meta-size); }
+  .screening-phone-list .screening-list-toolbar .workspace-check-label { min-height: 44px; font-size: var(--ui-label-size); }
+  .screening-phone-list .screening-compact-scroll.workspace-table-scroll { overflow: visible; border: 0; border-radius: 0; }
+  .screening-phone-list .screening-compact-table, .screening-phone-list .screening-compact-table tbody { display: block; min-width: 0; width: 100%; }
+  .screening-phone-list .screening-compact-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .screening-phone-list .screening-compact-table tbody tr {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto 16px;
+    grid-template-areas: "check stock state chevron" ". conditions conditions conditions";
+    align-items: center;
+    gap: 0 5px;
+    padding: 8px 0;
+    border-top: 1px solid var(--ui-border-subtle);
+    border-bottom: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .viewport-workspace .page-frame .screening-phone-list.screening-list-compact .screening-compact-table td,
+  .screening-phone-list .screening-compact-table.workspace-data-table tbody td {
+    display: block;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+  .screening-phone-list .screening-compact-table td[data-label="勾选"] { grid-area: check; }
+  .screening-phone-list .screening-compact-table td[data-label="股票"] { grid-area: stock; }
+  .screening-phone-list .screening-compact-table td[data-label="判断"] { grid-area: state; text-align: end; }
+  .screening-phone-list .screening-compact-table td[data-label="关键值与条件"] { grid-area: conditions; max-width: none; }
+  .screening-phone-list .screening-compact-table .screening-stock-chevron { grid-area: chevron; color: var(--ui-text-muted); }
+  .screening-stock-action {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: var(--ui-primary);
+    font-size: var(--ui-panel-title);
+    text-align: start;
+    cursor: pointer;
+  }
+  .screening-stock-action .stock-identity { min-width: 0; gap: 0; }
+  .screening-stock-action .stock-identity > strong { font-size: var(--ui-panel-title); line-height: 1.4; overflow-wrap: anywhere; }
+  .screening-phone-list .screening-stock-action .stock-identity > small { margin-top: 2px; font-size: var(--ui-meta-size); line-height: var(--ui-meta-leading); }
+  .screening-phone-list .screening-compact-table .conversation-turn-state { font-size: var(--ui-meta-size); }
+  .screening-phone-list .screening-key-values > span { margin: 2px 0; font-size: 13px; line-height: 1.5; }
+  .screening-phone-list :is(.screening-selection-toolbar,.conversation-result-guidance,.conversation-run-progress) button { min-height: 44px; font-size: var(--ui-label-size); }
+  .screening-evidence-layer > .screening-evidence-drawer { inset: 0; width: 100%; padding-inline: env(safe-area-inset-left) env(safe-area-inset-right); border: 0; }
+  .screening-evidence-drawer > header { display: grid; gap: 4px; padding: max(4px, env(safe-area-inset-top)) 16px 10px; }
+  .screening-evidence-drawer > header > div { grid-row: 2; }
+  .screening-evidence-drawer .screening-evidence-back { grid-row: 1; justify-self: start; min-height: 44px; padding-inline: 0; font-size: var(--ui-label-size); }
+  .screening-evidence-drawer header .stock-identity > strong { font-size: var(--ui-section-title); }
+  .screening-evidence-drawer header .stock-link:has(.stock-identity) { min-height: 44px; }
+  .screening-evidence-navigation { padding: 0 16px; }
+  .screening-evidence-navigation > button { min-width: 64px; min-height: 44px; font-size: var(--ui-label-size); }
+  .screening-evidence-body { padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .screening-evidence-body .conversation-condition-result { font-size: var(--ui-body-size); line-height: var(--ui-body-leading); }
+  .screening-evidence-body .conversation-condition-result > strong { font-size: var(--ui-panel-title); }
+  .screening-evidence-body .conversation-decision-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .screening-evidence-body .decision-actions-group { display: contents; }
+  .screening-evidence-body .conversation-decision-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: var(--ui-main-action-height);
+    padding: 6px;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-sm);
+    background: var(--ui-surface);
+    font-size: var(--ui-label-size);
+  }
+  .screening-evidence-body .conversation-decision-actions .secondary-button { background: var(--ui-primary-soft); color: var(--ui-primary); }
+}
+
+@media (min-width: 540px) and (max-width: 760px) and (max-height: 480px) {
+  .screening-phone-list > section:has(.screening-coverage-details:not([open])) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+  }
+}

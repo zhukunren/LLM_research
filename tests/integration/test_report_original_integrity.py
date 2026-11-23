@@ -6,7 +6,7 @@ import sqlite3
 from fastapi.testclient import TestClient
 import pytest
 
-from apps.api.app import db, documents, main, report_catalog, research_workspace
+from apps.api.app import conversation_store, db, documents, main, report_catalog, research_workspace
 from apps.api.app.report_parser import ParsedReport
 
 
@@ -55,7 +55,6 @@ def test_import_freezes_bytes_before_parsing_and_source_replacement(library, tmp
 
 def test_upload_retains_snapshot_when_upload_file_disappears(library, tmp_path, monkeypatch):
     uploads = tmp_path / "uploads"
-    monkeypatch.setattr(main, "REPORT_UPLOAD_DIR", uploads)
     monkeypatch.setattr(documents, "REPORT_UPLOAD_DIR", uploads)
     original = b"%PDF-uploaded-original"
     with TestClient(main.app) as client:
@@ -90,7 +89,8 @@ def test_legacy_changed_or_missing_bytes_fail_closed(library, tmp_path, state, s
         assert response.status_code == status
         assert not response.content.startswith(b"%PDF-")
     exported = tmp_path / "research.sqlite"
-    research_workspace._snapshot(exported, "")
+    conversation_id = conversation_store.create_conversation("report")["id"]
+    research_workspace._snapshot(exported, conversation_id)
     with sqlite3.connect(exported) as connection:
         assert connection.execute("SELECT source_path FROM reports").fetchone()[0] is None
 
@@ -101,7 +101,8 @@ def test_research_export_freezes_valid_legacy_source(library, tmp_path):
     path.write_bytes(original)
     legacy(path, original)
     exported = tmp_path / "research.sqlite"
-    research_workspace._snapshot(exported, "")
+    conversation_id = conversation_store.create_conversation("report")["id"]
+    research_workspace._snapshot(exported, conversation_id)
     with sqlite3.connect(exported) as connection:
         snapshot = Path(connection.execute("SELECT source_path FROM reports").fetchone()[0])
     path.write_bytes(b"replacement")

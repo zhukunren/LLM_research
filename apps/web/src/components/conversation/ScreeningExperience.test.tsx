@@ -242,7 +242,7 @@ it('shows a failed run read with a reload action instead of an endless loading o
   await waitFor(() => expect(reads).toBeGreaterThan(1))
 })
 
-it('offers a preview-only path that sends no execution request', async () => {
+it.each(['button', 'Enter'])('previews without authorizing execution through %s', async trigger => {
   const calls = mockScreening()
   const user = userEvent.setup()
   render(<ConversationWorkspace initialWorkflowType="screening" data={{ available: true, last_date: '2026-09-30' }} />)
@@ -250,7 +250,11 @@ it('offers a preview-only path that sends no execution request', async () => {
   await user.type(screen.getByLabelText('选股要求'), '收盘价高于20日均线')
   expect(screen.getByRole('button', { name: '选股设置' })).toHaveAttribute('aria-expanded', 'false')
   expect(screen.getByRole('button', { name: '生成并筛选' })).toHaveTextContent('生成并筛选')
-  await user.click(screen.getByRole('button', { name: '只生成方案' }))
+  expect(screen.getByRole('button', { name: '只生成方案' })).toHaveAttribute('type', 'submit')
+  if (trigger === 'Enter') {
+    await user.click(screen.getByRole('textbox', { name: '选股要求' }))
+    await user.keyboard('{Enter}')
+  } else await user.click(screen.getByRole('button', { name: '只生成方案' }))
   await waitFor(() => expect(calls.some(call => call.path.endsWith('/messages'))).toBe(true))
   const content = String(calls.find(call => call.path.endsWith('/messages'))!.body.content)
   expect(content).toContain('仅整理筛选方案，暂不执行')
@@ -258,7 +262,7 @@ it('offers a preview-only path that sends no execution request', async () => {
   expect(calls.some(call => call.path.endsWith('/execute'))).toBe(false)
 })
 
-it('starts a previewed plan explicitly from the inline card with its current revision', async () => {
+it.each([false, true])('starts the current plan with one request ID (lost response: %s)', async (lostResponse) => {
   const timestamp = '2026-10-04T08:00:00Z'
   const stored: Conversation = {
     ...baseConversation,
@@ -276,7 +280,10 @@ it('starts a previewed plan explicitly from the inline card with its current rev
     if (path === '/conversations/screening') return json(stored)
     if (path.endsWith('/revisions/1')) return json(task)
     if (path.endsWith('/screening-runs')) return json({ items: [] })
-    if (path.endsWith('/execute')) return json({ run_id: 'run' })
+    if (path.endsWith('/execute')) {
+      if (lostResponse && calls.filter(call => call.path.endsWith('/execute')).length === 1) throw new TypeError('连接中断')
+      return json({ run_id: 'run' })
+    }
     return json({ items: [] })
   }))
   const user = userEvent.setup()
@@ -285,11 +292,15 @@ it('starts a previewed plan explicitly from the inline card with its current rev
   const start = await screen.findByRole('button', { name: '开始筛选' })
   await waitFor(() => expect(start).toBeEnabled())
   await user.click(start)
-  await waitFor(() => expect(calls.some(call => call.path.endsWith('/execute'))).toBe(true))
-  const execute = calls.find(call => call.path.endsWith('/execute'))!
-  expect(execute.body).toMatchObject({ action: 'button', revision: 1 })
-  expect(typeof execute.body.request_id).toBe('string')
-  expect(calls.filter(call => call.path.endsWith('/execute'))).toHaveLength(1)
+  if (lostResponse) {
+    expect(await screen.findByText(/筛选启动未确认/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: '开始筛选' }))
+  }
+  const submissions = () => calls.filter(call => call.path.endsWith('/execute'))
+  await waitFor(() => expect(submissions()).toHaveLength(lostResponse ? 2 : 1))
+  const [first] = submissions()
+  expect(first.body).toMatchObject({ action: 'button', revision: 1, request_id: 'confirmed-ready-v1' })
+  if (lostResponse) expect(submissions()[1].body).toEqual(first.body)
 })
 
 it('keeps the conversation focused as the docked result updates automatically', async () => {

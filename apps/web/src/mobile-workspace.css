@@ -1,0 +1,618 @@
+.mobile-research-date, .mobile-research-task-heading { display: none; }
+.mobile-list-checkbox { display: inline-grid; place-items: center; vertical-align: middle; }
+
+@media (max-width: 760px) {
+  .workspace-authenticated { height: var(--mobile-viewport-height, 100dvh); }
+  .workspace-account-bar { display: none; }
+  .workspace-sign-in {
+    padding: max(48px, 12dvh, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+    background: linear-gradient(var(--ui-primary-soft), var(--ui-canvas) 45%);
+  }
+  .workspace-sign-in-panel { border-radius: 20px; }
+  .workspace-sign-in-panel .primary-button { width: 100%; min-height: var(--ui-main-action-height); justify-content: center; }
+
+  .redesigned-workspace.chat-layout.mobile-app-shell {
+    --mobile-gutter: 16px;
+    --mobile-surface-radius: 16px;
+    --mobile-content-width: min(640px, calc(100% - 2 * var(--mobile-gutter)));
+    flex-direction: column;
+    height: var(--mobile-viewport-height, 100dvh);
+    font-size: var(--ui-body-size);
+    line-height: var(--ui-body-leading);
+  }
+  .workspace-authenticated > .redesigned-workspace.chat-layout.mobile-app-shell { height: auto; }
+  .chat-layout.mobile-app-shell > .main-shell {
+    height: auto;
+    min-height: 0;
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+
+  .redesigned-workspace.chat-layout.mobile-app-shell .workspace-tab-header {
+    position: relative;
+    display: grid;
+    grid-template: minmax(var(--ui-header-height), auto) auto auto / minmax(0, 1fr) auto;
+    grid-template-areas: "leading global" "section section" "actions actions";
+    height: auto;
+    padding: env(safe-area-inset-top) var(--mobile-gutter) 0;
+    gap: 0 6px;
+  }
+  .mobile-workspace-title {
+    grid-area: leading;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    justify-self: start;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ui-text);
+    font-size: 16px;
+    font-weight: 700;
+    text-align: start;
+    cursor: pointer;
+  }
+  .mobile-brand-mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--ui-border-subtle);
+    border-radius: 10px;
+    background: var(--ui-surface-subtle);
+  }
+  .mobile-brand-mark img { width: 23px; height: 23px; object-fit: contain; }
+  #mobile-workspace-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-workspace-title > svg { flex: none; color: var(--ui-text-muted); }
+  .mobile-app-shell .workspace-tab-header .research-header-actions { grid-area: global; gap: 3px; }
+  .mobile-app-shell .workspace-tab-header :is(.mobile-icon-button,.active-tasks-launch,.research-conversation-tools > .icon-button),
+  .mobile-sheet-header .mobile-icon-button, .mobile-open-pages .mobile-icon-button {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 11px;
+    background: transparent;
+    color: var(--ui-text-muted);
+  }
+  .mobile-app-shell .workspace-tab-header :is(.mobile-icon-button,.active-tasks-launch) { background: var(--ui-surface-subtle); }
+  .mobile-app-shell .active-tasks-launch > span { display: none; }
+  .mobile-app-shell .active-tasks-launch > strong {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    min-width: 17px;
+    padding: 0 3px;
+    border: 1px solid var(--ui-surface);
+    border-radius: 10px;
+    background: var(--ui-primary);
+    color: var(--ui-on-primary);
+    font-size: 10px;
+  }
+  .mobile-app-shell .workspace-tab-header .workspace-page-actions-slot {
+    grid-area: actions;
+    min-width: 0;
+    padding: 0 0 10px;
+  }
+  .mobile-app-shell .workspace-tab-header .workspace-page-actions { flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+  .mobile-app-shell .workspace-tab-header .workspace-page-actions button { min-height: 44px; }
+  .mobile-app-shell .workspace-tab-header .workspace-page-actions :is(.primary-button,.secondary-button) { padding-inline: 10px; font-size: var(--ui-label-size); }
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .workspace-page-actions { flex-wrap: nowrap; }
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .workspace-page-actions > button { flex: 1 1 auto; gap: 4px; padding-inline: 6px; }
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .workspace-page-actions > .primary-button {
+    border-color: var(--ui-primary-border);
+    background: var(--ui-primary-soft);
+    color: var(--ui-primary);
+  }
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .workspace-page-actions > .observation-icon-action { flex: 0 0 44px; padding: 0; }
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .observation-icon-action > span,
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .workspace-page-actions > .secondary-button:not(.observation-icon-action) > svg { display: none; }
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .observation-icon-action[aria-expanded=true] { border-color: var(--ui-primary); background: var(--ui-primary-soft); color: var(--ui-primary); }
+  .mobile-app-shell .workspace-tab-header .research-workspace-navigation {
+    display: flex;
+    padding: 0;
+  }
+  .mobile-app-shell .screening-tools-navigation { position: static; }
+  .mobile-app-shell .screening-tools-trigger { min-height: 44px; padding-inline: 8px; border-color: transparent; border-radius: 10px; }
+  .mobile-app-shell .screening-tools-popover { right: 12px; }
+  .mobile-app-shell .screening-tool-option { min-height: 48px; }
+
+  .mobile-service-nav {
+    grid-area: section;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(64px, .82fr);
+    gap: 4px;
+    min-width: 0;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--ui-border);
+  }
+  .mobile-service-nav > button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 44px;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 8px 8px 0 0;
+    background: transparent;
+    color: var(--ui-text-muted);
+    font-size: var(--ui-label-size);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .mobile-service-nav > button:is([aria-current], [aria-expanded=true]) {
+    color: var(--ui-primary);
+    font-weight: 700;
+  }
+  .mobile-service-nav > button[aria-current]::after {
+    content: '';
+    position: absolute;
+    inset: auto 12px -1px;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--ui-primary);
+  }
+  .mobile-service-nav > button[aria-expanded=true] { background: var(--ui-primary-soft); }
+
+  .mobile-workspace-nav {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 3px max(10px, env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    border-top: 1px solid var(--ui-border);
+    background: var(--ui-surface);
+    box-shadow: 0 -5px 22px rgb(19 48 81 / 6%);
+  }
+  .mobile-nav-item {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    min-width: 0;
+    min-height: 50px;
+    gap: 3px;
+    padding: 2px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ui-text-muted);
+    font-size: 13px;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+  .mobile-nav-icon { display: grid; place-items: center; width: 44px; max-width: 100%; height: 28px; border-radius: 10px; }
+  .mobile-nav-item[aria-current], .mobile-nav-item[aria-expanded=true] { color: var(--ui-primary); font-weight: 700; }
+  .mobile-nav-item:is([aria-current],[aria-expanded=true]) .mobile-nav-icon { background: var(--ui-primary-soft); }
+  .mobile-nav-item:active .mobile-nav-icon { background: var(--ui-surface-active); }
+  [data-mobile-keyboard] .mobile-workspace-nav { display: none; }
+
+  .mobile-workspace-sheet, .chat-layout.mobile-app-shell .mobile-history-sheet.chat-sidebar {
+    position: fixed;
+    inset: auto 0 0;
+    width: min(100%, 540px);
+    max-width: none;
+    height: auto;
+    max-height: min(calc(var(--mobile-viewport-height, 100dvh) - max(12px, env(safe-area-inset-top))), 620px);
+    margin: 0 auto;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 24px 24px 0 0;
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    box-shadow: var(--ui-shadow-overlay);
+  }
+  .mobile-workspace-sheet[open] { display: flex; flex-direction: column; }
+  .mobile-workspace-sheet::backdrop, .mobile-app-shell .chat-sidebar-backdrop { background: var(--ui-overlay-backdrop); }
+  .chat-layout.mobile-app-shell .mobile-history-sheet.chat-sidebar { transform: none; }
+  .mobile-sheet-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 12px 9px 20px;
+    border-bottom: 1px solid var(--ui-border-subtle);
+  }
+  .mobile-sheet-header h2 { margin: 0; font-size: 20px; line-height: 1.4; }
+  .mobile-sheet-header .mobile-icon-button { background: var(--ui-surface-subtle); }
+  .mobile-sheet-body, .mobile-app-shell .mobile-history-sheet .chat-history {
+    display: block;
+    min-height: 0;
+    margin: 0;
+    padding: 16px max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    border: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .mobile-sheet-footer {
+    display: flex;
+    flex: none;
+    gap: 8px;
+    padding: 12px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    border-top: 1px solid var(--ui-border-subtle);
+  }
+  .mobile-sheet-footer > button { flex: 1; min-height: var(--ui-main-action-height); font-size: var(--ui-label-size); }
+  .mobile-filter-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .mobile-filter-fields .workspace-field-label { display: grid; align-content: start; gap: 6px; }
+  .mobile-workspace-sheet:has(.mobile-filter-fields) { --ui-tool-control: var(--ui-main-action-height); }
+  .mobile-filter-fields .workspace-field { width: 100%; min-height: var(--ui-main-action-height); font-size: 16px; }
+  .mobile-filter-view-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
+  .mobile-filter-view-actions > button { min-height: 44px; font-size: var(--ui-label-size); }
+  .mobile-filter-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 76px;
+    min-height: var(--ui-main-action-height);
+    padding: 0 10px;
+    border: 1px solid var(--ui-border-strong);
+    border-radius: var(--ui-radius-sm);
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    font-size: var(--ui-label-size);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .mobile-filter-button:is([aria-expanded=true],[data-active]) { border-color: var(--ui-primary-border); background: var(--ui-primary-soft); color: var(--ui-primary); }
+  .mobile-list-checkbox { min-width: 44px; min-height: 44px; cursor: pointer; }
+  .mobile-list-checkbox > .workspace-check { width: 18px; height: 18px; margin: 0; }
+  .mobile-app-shell :is(button.workspace-button, a.workspace-button, summary, .mobile-list-checkbox) { touch-action: manipulation; }
+  .mobile-tools-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .mobile-tools-grid > button {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 7px;
+    min-height: 87px;
+    padding: 8px 4px;
+    border: 1px solid var(--ui-border-subtle);
+    border-radius: 14px;
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    font-size: var(--ui-label-size);
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+    cursor: pointer;
+  }
+  .mobile-tools-grid > button[aria-current] { border-color: var(--ui-primary-border); background: var(--ui-primary-soft); color: var(--ui-primary); }
+  .mobile-tool-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--ui-primary-soft); }
+  .mobile-tools-grid > button[aria-current] .mobile-tool-icon { background: var(--ui-surface); }
+  .mobile-tools-grid svg, .mobile-sheet-row > svg:first-child { flex: none; color: var(--ui-primary); }
+  .mobile-sheet-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--ui-border-subtle); border-radius: 14px; overflow: hidden; }
+  .mobile-sheet-list > * + * { border-top: 1px solid var(--ui-border-subtle); }
+  .mobile-sheet-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--ui-main-action-height);
+    padding: 8px 12px;
+    border: 0;
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    font-size: var(--ui-body-size);
+    text-align: start;
+    cursor: pointer;
+  }
+  .mobile-sheet-list > .mobile-sheet-row + .mobile-sheet-row { border-top: 1px solid var(--ui-border-subtle); }
+  .mobile-sheet-row > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .mobile-sheet-row-copy { display: grid; gap: 3px; padding-block: 3px; }
+  .mobile-sheet-row-copy > small { color: var(--ui-text-muted); font-size: 12px; }
+  .mobile-sheet-row > svg { flex: none; color: var(--ui-text-muted); }
+  .mobile-sheet-row:is([aria-current],[aria-pressed=true]) { background: var(--ui-primary-soft); color: var(--ui-primary); font-weight: 600; }
+  .mobile-sheet-row:is([aria-current],[aria-pressed=true]) > svg:last-child { color: var(--ui-primary); }
+  .mobile-sheet-row:focus-visible, .mobile-open-pages .mobile-icon-button:focus-visible { outline-offset: -2px; }
+  .mobile-open-pages > li { display: flex; align-items: center; min-width: 0; padding-right: 4px; }
+  .mobile-open-pages > li:has([aria-current]) { background: var(--ui-primary-soft); }
+  .mobile-new-tasks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .mobile-new-tasks > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--ui-main-action-height); color: var(--ui-primary); font-size: var(--ui-label-size); }
+  .mobile-reopen-page { margin-top: 8px; border-radius: 10px; }
+  .mobile-workspace-account {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--ui-border-subtle);
+    color: var(--ui-text-muted);
+    font-size: 13px;
+  }
+  .mobile-workspace-account > button { min-height: 44px; }
+  .mobile-workspace-account > [role=status] { flex-basis: 100%; }
+  .mobile-history-sheet :is(.chat-history-item,.chat-history-actions,.chat-history-archive-toggle,.chat-history-more) { min-height: 44px; }
+  .mobile-history-sheet .chat-history-actions { min-width: 44px; }
+  .mobile-history-sheet .chat-history-heading > h2 { margin: 0; padding: 0; font-size: 14px; }
+
+  .mobile-app-shell.tool-page .page-frame { background: var(--ui-canvas); }
+  .mobile-app-shell .page-frame > .workspace-tool-page.page-content {
+    --ui-tool-gutter: var(--mobile-gutter);
+    --ui-tool-control: 44px;
+  }
+  .mobile-app-shell .page-frame .workspace-tool-page :is(.workspace-field-shell,.workspace-field:not(textarea,[type=checkbox],[type=radio],[type=range])) { min-height: 44px; }
+  .mobile-app-shell .page-frame .workspace-tool-page.page-content :is(input:not([type=checkbox],[type=radio],[type=file],[type=range]),select,textarea) { font-size: 16px; }
+  .mobile-app-shell .page-frame .workspace-tool-page :is(.reader-back,.library-tabs > button,.intelligence-kind-tabs > button) { min-height: 44px; }
+  .mobile-app-shell .page-frame .workspace-tool-page :is(.library-tabs > button,.intelligence-kind-tabs > button,.library-mobile-switch > button) { font-size: var(--ui-label-size); }
+  .mobile-app-shell .page-frame .workspace-tool-page :is(.reader-back,.library-mobile-switch > button,.library-management-launch) { min-width: 44px; min-height: 44px; }
+  .mobile-app-shell .page-frame .library-shell :is(.local-news-list,.library-catalog-rows) > button {
+    min-height: 56px;
+    padding-block: 11px;
+    overflow-wrap: anywhere;
+  }
+  .mobile-app-shell .page-frame .library-shell :is(.local-news-list,.library-catalog-rows) > button > strong { font-size: var(--ui-body-size); line-height: var(--ui-body-leading); }
+  .mobile-app-shell .page-frame .library-shell .news-item-snippet { font-size: 13px; line-height: 1.6; }
+  .mobile-app-shell .page-frame .library-shell :is(.library-search,.library-search .icon-button,.news-range-controls > button,.news-date-filter > summary,.news-reader-tools button,.pdf-toolbar button,.pdf-toolbar input) { min-height: 44px; }
+  .mobile-app-shell .page-frame .library-shell :is(.news-reader-tools button,.pdf-toolbar button,.library-search .icon-button) { min-width: 44px; }
+  .mobile-app-shell .page-frame .library-shell .news-reader-tools .library-reader-eyebrow { display: none; }
+  .mobile-app-shell .page-frame .library-shell :is(.news-reader-tools .reader-back,.news-range-controls > button,.pdf-toolbar button,.library-management-launch,.library-reading-actions button.workspace-button) { font-size: var(--ui-label-size); }
+  .mobile-app-shell .page-frame .library-shell .library-reading-actions button.workspace-button { min-height: 44px; }
+  .mobile-app-shell .page-frame .library-shell :is(.local-news-reader h3,.report-reader-heading h2) { font-size: 20px; line-height: 1.4; }
+
+  .mobile-app-shell.chat-page .research-studio .conversation-workspace-empty .conversation-main {
+    justify-content: flex-start;
+    padding: 16px 0 24px;
+    background: var(--ui-canvas);
+  }
+  .mobile-app-shell.chat-page .chat-empty-heading {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 9px;
+    width: var(--mobile-content-width);
+    min-height: 120px;
+    margin: 0 auto;
+    padding: 16px 18px 33px;
+    border-radius: 20px;
+    background:
+      radial-gradient(ellipse at 100% 0, rgb(67 163 237 / 28%), transparent 62%),
+      repeating-radial-gradient(circle at 94% 15%, transparent 0 26px, rgb(191 227 255 / 11%) 27px 28px, transparent 29px 39px),
+      linear-gradient(112deg, #0b284e, #104a82 75%, #14578e);
+    text-align: start;
+  }
+  .mobile-app-shell .research-welcome-mark, .mobile-app-shell .research-task-intro { display: none; }
+  .mobile-app-shell.chat-page .chat-empty-heading h1 { margin: 0; color: var(--ui-on-primary); font-size: clamp(24px, 6.5vw, 28px); line-height: 1.3; }
+  .mobile-app-shell .mobile-research-date { display: flex; align-items: center; gap: 6px; color: #dcecff; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mobile-app-shell.chat-page .research-studio :is(.conversation-composer,.conversation-workspace-empty .conversation-composer,.conversation-workspace-empty .conversation-message-stage) { width: var(--mobile-content-width); }
+  .mobile-app-shell.chat-page .research-studio .conversation-workspace-empty .conversation-message-stage { margin: 16px auto 0; }
+  .mobile-app-shell.chat-page .research-studio .conversation-composer { margin-block: 8px; padding: 10px 12px; border-radius: var(--mobile-surface-radius); }
+  .mobile-app-shell.chat-page .research-studio .conversation-workspace-empty .conversation-composer {
+    min-height: 0;
+    margin: 0 auto;
+    padding: 13px 12px 11px;
+    border-color: var(--ui-border);
+    border-radius: var(--mobile-surface-radius);
+    box-shadow: var(--ui-shadow-raised);
+  }
+  .mobile-app-shell.chat-page .research-studio .conversation-workspace-empty .conversation-main:has(> .chat-empty-heading) > .conversation-composer {
+    width: min(624px, calc(100% - 2 * var(--mobile-gutter) - 16px));
+    margin-top: -23px;
+  }
+  .mobile-app-shell.chat-page .research-studio .conversation-composer textarea { font-size: 16px; }
+  .mobile-app-shell .conversation-composer .conversation-pending-source:has(> .text-button) { flex-wrap: wrap; gap: 4px 10px; }
+  .mobile-app-shell .conversation-composer .conversation-pending-source > .text-button { flex: none; min-height: 44px; margin: 0; white-space: nowrap; }
+  .mobile-app-shell.chat-page .research-studio .conversation-workspace-empty .conversation-composer textarea { height: 82px; min-height: 82px; padding-top: 4px; }
+  .mobile-app-shell.chat-page .research-studio .conversation-composer-footer button { min-height: 44px; font-size: var(--ui-label-size); }
+  .mobile-app-shell.chat-page .research-studio .conversation-composer-footer .icon-button { min-width: 44px; }
+  .mobile-app-shell.chat-page .research-studio .conversation-composer-footer .conversation-submit-actions > .primary-button { min-height: var(--ui-main-action-height); padding-inline: 14px; }
+  .mobile-app-shell.chat-page .conversation-handoff-actions > button { min-height: 44px; }
+  .mobile-app-shell.chat-page .screening-scope-editor { padding-top: 0; }
+  .mobile-app-shell.chat-page .screening-scope-editor > summary { min-height: 44px; padding-block: 10px; }
+  .mobile-app-shell.chat-page .research-studio .conversation-message-list { gap: 24px; padding-inline: var(--mobile-gutter); }
+  .mobile-app-shell.chat-page .research-studio .conversation-workspace-empty .conversation-message-list { padding: 0; }
+  .mobile-app-shell.chat-page .research-studio .conversation-message.user { background: var(--ui-primary-soft); border-radius: 16px 16px 4px 16px; }
+  .mobile-app-shell.chat-page .research-studio .conversation-message :is(.conversation-message-content,.research-answer) { font-size: var(--ui-reading-size); line-height: var(--ui-reading-leading); overflow-wrap: anywhere; }
+  .mobile-app-shell.chat-page .research-studio :is(.conversation-message-actions,.research-answer-actions,.screening-delivery-actions) button { min-height: 44px; font-size: var(--ui-label-size); }
+  .mobile-app-shell.chat-page .research-studio .screening-delivery-card header strong { font-size: var(--ui-panel-title); }
+  .mobile-app-shell .mobile-research-task-heading { display: block; margin: 0 0 10px; font-size: 16px; line-height: 1.5; font-weight: 700; }
+  .mobile-app-shell .research-task-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .mobile-app-shell .research-task-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "icon arrow" "copy copy";
+    align-content: start;
+    align-items: center;
+    min-height: 108px;
+    padding: 12px;
+    gap: 8px 10px;
+    border-color: var(--ui-border-subtle);
+    border-radius: var(--mobile-surface-radius);
+    background: var(--ui-surface);
+  }
+  .mobile-app-shell .research-task-option[aria-expanded=true] { border-color: var(--ui-primary-border); background: var(--ui-primary-soft); }
+  .mobile-app-shell .research-task-option:last-child {
+    grid-column: 1 / -1;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "icon copy arrow";
+    min-height: 69px;
+  }
+  .mobile-app-shell .research-task-option > span { grid-area: copy; min-width: 0; }
+  .mobile-app-shell .research-task-option strong { font-size: var(--ui-body-size); font-weight: 700; }
+  .mobile-app-shell .research-task-option small { margin-top: 2px; font-size: 13px; line-height: 1.5; }
+  .mobile-app-shell .research-task-option > svg:first-child {
+    grid-area: icon;
+    width: 34px;
+    height: 34px;
+    margin: 0;
+    padding: 8px;
+    border-radius: 10px;
+    background: var(--ui-primary-soft);
+  }
+  .mobile-app-shell .research-task-option > svg:last-child { grid-area: arrow; margin: 0; transform: rotate(45deg); }
+  .mobile-app-shell .research-task-option:focus-visible { outline-offset: -2px; }
+  .mobile-app-shell .research-task-company { margin-top: 9px; border-radius: 15px; background: var(--ui-surface); }
+  .mobile-app-shell.chat-page .screening-studio .conversation-workspace-empty :is(.conversation-message-stage,.conversation-message-list,.conversation-empty) { background: transparent; }
+  .mobile-app-shell .screening-start-tools { justify-content: flex-start; gap: 8px; padding: 0; }
+  .mobile-app-shell .screening-start-tools > .text-button,
+  .mobile-app-shell .screening-start-tools .screening-readiness-compact .screening-readiness-summary > button {
+    min-height: 44px;
+    padding-inline: 10px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    background: var(--ui-surface-subtle);
+    font-size: var(--ui-label-size);
+  }
+  .mobile-app-shell .screening-start-tools button[aria-expanded=true] { border-color: var(--ui-primary-border); background: var(--ui-primary-soft); color: var(--ui-primary); }
+
+  .mobile-app-shell .page-frame .workspace-tool-page.observation-page .observation-control-bar.workspace-filters {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    padding-block: 0 4px;
+    background: var(--ui-canvas);
+  }
+  .mobile-app-shell .page-frame .workspace-tool-page.observation-page .observation-control-bar > .observation-search { grid-column: 1; }
+  .mobile-app-shell .page-frame .workspace-tool-page.observation-page .observation-search { min-height: var(--ui-main-action-height); }
+  .mobile-app-shell .page-frame .observation-unified .observation-summary-bar {
+    --observation-metric-target: 44px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 8px;
+    margin-block: 9px 10px;
+    padding: 12px 12px 3px;
+    border: 1px solid var(--ui-border-subtle);
+    border-radius: var(--mobile-surface-radius);
+    background: var(--ui-surface);
+  }
+  .mobile-app-shell .observation-summary-value { display: grid; gap: 2px; min-width: 0; align-self: start; white-space: normal; }
+  .mobile-app-shell .observation-summary-value { font-size: var(--ui-meta-size); }
+  .mobile-app-shell .observation-summary-value:not([data-breakdown]) ~ .observation-summary-value:not([data-breakdown]) { padding-inline-start: 8px; border-inline-start: 1px solid var(--ui-border-subtle); }
+  .mobile-app-shell .observation-summary-value > strong { font-size: var(--ui-metric-size); line-height: var(--ui-metric-leading); font-weight: 700; overflow-wrap: anywhere; }
+  .mobile-app-shell .observation-summary-value[data-breakdown] { order: 1; display: flex; align-self: center; flex-wrap: wrap; gap: 2px 4px; }
+  .mobile-app-shell .observation-summary-value[data-breakdown] > strong { font-size: var(--ui-meta-size); }
+  .mobile-app-shell .page-frame .observation-summary-bar .observation-metric-disclosure { order: 1; justify-self: end; }
+  .mobile-app-shell .page-frame .workspace-tool-page .observation-summary-bar .observation-metric-disclosure > summary { align-content: center; font-size: var(--ui-meta-size); }
+  .mobile-app-shell .observation-row-action { min-width: 44px; min-height: 44px; }
+  .mobile-app-shell .page-frame > .workspace-tool-page.page-content.client-service-page { padding-inline: var(--mobile-gutter); }
+  .mobile-app-shell:has(.workspace-panel-mount:not([hidden]) .client-service-studio[data-mobile-pane=preview]) .workspace-tab-header[data-page=client-service] :is(.mobile-service-nav,.workspace-page-actions-slot) { display: none; }
+  .mobile-app-shell .client-service-page :is(.client-card-editor, .client-preview-panel) { border-radius: var(--mobile-surface-radius); }
+  .mobile-app-shell .client-service-page .client-mobile-pane-switch {
+    padding: 3px;
+    border-color: var(--ui-border-subtle);
+    border-radius: 13px;
+    background: var(--ui-surface-subtle);
+  }
+  .mobile-app-shell .client-service-page .client-mobile-pane-switch > button { min-height: var(--ui-main-action-height); border-radius: 9px; font-size: var(--ui-body-size); }
+  .mobile-app-shell .client-service-page .client-mobile-pane-switch > button[aria-pressed=true] { background: var(--ui-surface); box-shadow: var(--ui-shadow-sm); }
+  .mobile-app-shell .client-service-page .client-preview-switch > button { min-height: 44px; padding-inline: 8px; font-size: var(--ui-label-size); }
+  .mobile-app-shell .page-frame .workspace-tool-page.client-service-page .client-preview-toolbar > .secondary-button { padding-inline: 9px; font-size: var(--ui-label-size); }
+  .mobile-app-shell .client-service-page .client-preview-meta { gap: 6px 10px; flex-wrap: wrap; font-size: var(--ui-meta-size); }
+  .mobile-app-shell .client-service-page :is(.client-content-fields label,.client-content-fields label > span,.client-identity-fields label,.opening-plan-section summary) { font-size: var(--ui-label-size); }
+  .mobile-app-shell .client-service-page .opening-plan-section summary { min-height: 44px; align-content: center; }
+  .mobile-app-shell .client-service-page .client-export-bar { bottom: calc(-1 * var(--client-service-bottom-padding)); }
+  .mobile-app-shell .page-frame .workspace-tool-page.client-service-page .client-export-bar button { min-height: var(--ui-main-action-height); font-size: var(--ui-label-size); }
+  [data-mobile-keyboard] .mobile-app-shell .client-service-page :is(.client-mobile-pane-switch,.client-export-bar) { position: static; }
+  .client-card-fullscreen :is(header button, footer button) { min-width: 44px; min-height: 44px; font-size: var(--ui-label-size); }
+
+  .workspace-modal-backdrop:has(> :is(.quick-navigation,.active-tasks-dialog)) {
+    align-items: flex-end;
+    height: var(--mobile-viewport-height, 100dvh);
+    padding: 0;
+  }
+  .workspace-modal-backdrop > :is(.quick-navigation,.active-tasks-dialog).workspace-tool-dialog {
+    width: min(100%, 540px);
+    max-height: calc(var(--mobile-viewport-height, 100dvh) - max(12px, env(safe-area-inset-top)));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0;
+  }
+  .quick-navigation-search > .icon-button, .active-tasks-dialog > header > .icon-button { min-width: 44px; min-height: 44px; }
+  .mobile-app-shell :is(.data-services-dialog > .drawer-header,.observation-unified-detail > .observation-drawer-header) { padding-top: max(16px, env(safe-area-inset-top)); }
+  .mobile-app-shell .data-services-dialog > .drawer-footer { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .mobile-app-shell .research-studio .research-results-drawer,
+  .mobile-app-shell :is(.source-reader-backdrop .answer-source-reader,.stock-chart-dialog) {
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 360px) {
+  .mobile-app-shell .screening-tools-trigger { width: 44px; justify-content: center; padding-inline: 0; }
+  .mobile-app-shell .screening-tools-compact-label { display: none; }
+  .mobile-app-shell .research-task-options { grid-template-columns: minmax(0, 1fr); }
+  .mobile-app-shell .research-task-options > .research-task-option { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "icon copy arrow"; min-height: 64px; padding-block: 9px; }
+  .mobile-app-shell .page-frame .workspace-tool-page.client-service-page .client-preview-toolbar > .secondary-button { gap: 4px; padding-inline: 7px; }
+}
+
+@media (max-width: 760px) {
+  .mobile-app-shell .page-frame .workspace-tool-page.observation-page { overflow-y: auto; }
+  .mobile-app-shell .page-frame .workspace-tool-page.observation-page :is(.observation-unified-workspace,.observation-results,.observation-table-scroll) { flex: none; height: auto; max-height: none; overflow: visible; }
+  .mobile-app-shell .page-frame .workspace-tool-page.observation-page .observation-results { padding: 0; background: transparent; }
+  .mobile-app-shell .observation-unified-workspace .observation-results :is(table.workspace-data-table,tbody) { display: block; width: 100%; min-width: 0; }
+  .mobile-app-shell .observation-unified-workspace .observation-results thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table tbody tr {
+    grid-template-columns: 44px repeat(2, minmax(0, 1fr)) 44px;
+    grid-template-areas: "check stock stock stock" "owner owner owner owner" "return return drawdown drawdown" "note note actions actions";
+    align-items: start;
+    gap: 6px 8px;
+    padding: 12px;
+    border-radius: var(--mobile-surface-radius);
+    background: var(--ui-surface);
+  }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td { display: block; min-width: 0; height: auto; padding: 0; border: 0; white-space: normal; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td.observation-check-column { grid-area: check; align-self: center; width: auto; padding: 0; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td[data-label="股票"] { grid-area: stock; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td[data-label="所属"] { grid-area: owner; display: flex; align-items: center; gap: 6px; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td[data-label="加入时间"] { display: none; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td[data-label="至今涨跌幅"] { grid-area: return; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td[data-label="最大回撤"] { grid-area: drawdown; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td[data-label="关注备注"] { grid-area: note; display: block; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td[data-label="操作"] { grid-area: actions; display: flex; justify-content: flex-end; align-self: center; }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .workspace-data-table td.observation-numeric {
+    align-self: stretch;
+    padding: 7px 8px;
+    border-radius: 8px;
+    background: var(--ui-surface-subtle);
+  }
+  .mobile-app-shell .observation-unified .observation-results .observation-numeric > strong { display: block; font-size: var(--ui-metric-size); line-height: var(--ui-metric-leading); overflow-wrap: anywhere; white-space: normal; }
+  .mobile-app-shell .observation-unified .observation-results .observation-numeric > small { margin-top: 2px; }
+  .mobile-app-shell .observation-unified .observation-results .workspace-data-table td.observation-numeric::before { content: attr(data-label); display: block; margin: 0 0 2px; }
+  .mobile-app-shell .observation-unified .observation-results .workspace-data-table td:is([data-label="勾选"],[data-label="股票"],[data-label="所属"],[data-label="关注备注"],[data-label="操作"])::before { display: none; }
+  .mobile-app-shell .observation-stock-identity { flex-wrap: nowrap; }
+  .mobile-app-shell .observation-stock-identity .stock-link { flex: 1 1 0; min-height: 44px; font-size: var(--ui-panel-title); }
+  .mobile-app-shell .page-frame .observation-unified .observation-stock-identity .observation-inline-status {
+    flex: none;
+    width: 100px;
+    max-width: 50%;
+    min-height: 44px;
+    margin: 0;
+  }
+  .mobile-app-shell .page-frame .observation-unified .observation-results .observation-owner-label { min-width: 0; margin: 0; font-size: 13px; -webkit-line-clamp: 1; }
+  .mobile-app-shell .observation-unified-workspace .observation-inline-note { display: flex; align-items: center; width: 100%; min-height: 44px; padding-block: 0; font-size: var(--ui-label-size); }
+  .mobile-app-shell .observation-inline-note > span { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.5; }
+}
+
+@media (max-width: 760px) and (max-height: 480px) {
+  .mobile-app-shell .client-service-page :is(.client-mobile-pane-switch,.client-export-bar) { position: static; }
+}
+
+@media (min-width: 540px) and (max-width: 760px) and (max-height: 480px) {
+  .redesigned-workspace.chat-layout.mobile-app-shell .workspace-tab-header[data-page=watchlist] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: minmax(var(--ui-header-height), auto);
+    grid-template-areas: "leading actions global";
+    column-gap: 12px;
+  }
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .workspace-page-actions-slot { padding: 0; }
+  .mobile-app-shell .workspace-tab-header[data-page=watchlist] .workspace-page-actions > button { flex-grow: 0; }
+  .mobile-app-shell .page-frame .observation-unified .observation-summary-bar { grid-template-columns: repeat(3, minmax(0, 1fr)) repeat(2, auto) auto; padding-block: 8px; }
+}

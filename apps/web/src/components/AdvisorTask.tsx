@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, Copy, FileText, ChevronDown } from 'lucide-react'
 import StockSearch from './StockSearch'
+import RotationPanel from './tushare/RotationPanel'
 import { advisorVerdicts, analysisDimensions, briefTime, defaultAdvisorScope, isStockKind,
   type AdvisorScope, type BriefKind, type BriefScope, type BriefDetail, type BriefItem, type AdvisorPoint } from '../intelligence'
 
@@ -16,6 +17,7 @@ export function AdvisorSettings({ kind, scope, disabled, onChange }: {
         <label className="workspace-field-label">收评日期<input type="date" aria-label="收评日期" className="workspace-field" value={value.trade_date || ''} disabled={disabled} onChange={event => onChange({ trade_date: event.target.value || null })} /><small>留空使用研究截止日期；未收盘时生成盘中草稿。</small></label>
         <label className="workspace-field-label">稿件用途<select className="workspace-field" value={value.audience} disabled={disabled} onChange={event => onChange({ audience: event.target.value as AdvisorScope['audience'] })}><option value="client">客户每日股评</option><option value="internal">内部复盘记录</option></select></label>
       </div>
+      <RotationPanel asOf={value.trade_date} />
     </> : <>
       <div className="advisor-setting-title"><h2>{kind === 'stock-rationale' ? '先选股票，再核对推荐逻辑' : '选择诊股对象'}</h2><p>{kind === 'stock-rationale' ? '推荐背景帮助确定沟通场景，支持理由与反方证据由研究形成。' : '结合咨询问题与持有期限，形成分情形的研判与行动条件。'}</p></div>
       <div className="intelligence-form-grid">
@@ -57,6 +59,7 @@ export function AdvisorResult({ run, onItem }: { run: BriefDetail; onItem: (key:
       {report.session_status && <small>{({ closed: '已收盘复盘', not_closed: '盘中草稿 · 尚未收盘', data_missing: '所选日行情待补齐' })[report.session_status]}</small>}
     </div>
     {context?.observations && context.observations.length > 0 && <div className="advisor-market-reference" aria-label="本版日线参考">{context.observations.map(value => <span key={value.stock_code}><strong>{value.name}</strong><span>收盘 {value.close.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</span><small>{value.trade_date} · 原始口径</small></span>)}</div>}
+    {context?.rotation_snapshot && <RotationPanel snapshot={context.rotation_snapshot} />}
     <p className="advisor-conclusion">{report.conclusion}</p>
     <div className="advisor-context-line"><span>适用前提：{report.suitability}</span>{context?.actual_market_date && <span>行情实际截至 {context.actual_market_date}</span>}</div>
     <div className="advisor-point-grid"><Points title={run.kind === 'closing' ? '盘面主要依据' : '支持逻辑与依据'} points={report.supporting_points} items={run.result!.items} onItem={onItem} /><Points title="反方证据与分歧" points={report.contrary_points} items={run.result!.items} onItem={onItem} /></div>

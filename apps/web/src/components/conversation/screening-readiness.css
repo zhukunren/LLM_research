@@ -6,3 +6,6 @@
 .screening-readiness summary { cursor: pointer; color: var(--ui-text-muted, #566579); }
 .screening-readiness details { margin-top: 4px; }
 .screening-readiness-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+@media (max-width: 760px) {
+  .screening-readiness .text-button { min-height: 44px; }
+}

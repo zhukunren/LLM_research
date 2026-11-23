@@ -5,10 +5,10 @@ import json
 from typing import Any
 from uuid import uuid4
 
-from . import conversation_store, market, runtime_executor, pattern_adapter
+from . import conversation_store, market, pattern_adapter, runtime_executor, screening_execution
 from .db import connect, json_dump, json_load, utc_now
+from .jobs import JobLease
 from .screening_contracts import ExecutionRequest, ScreeningTaskRevision, validate_executable_task
-from .screening_execution import EXECUTION_VERSION
 
 MAX_UNIVERSE_SIZE = 20_000
 JOB_PROTOCOL = "screening-task-v1"
@@ -218,7 +218,7 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
             turn_tool_ids = [row[0] for row in with_id]
         turn_metadata = (json_load(turn_row["result_json"]) or {}).get("model_metadata", {}) if turn_row else {}
     snapshot = {
-        "protocol_version": EXECUTION_VERSION,
+        "protocol_version": screening_execution.EXECUTION_VERSION,
         "execution_request": request.model_dump(mode="json"),
         "task": task.model_dump(mode="json"),
         "as_of": as_of,
@@ -314,7 +314,7 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
                    id,conversation_id,task_revision,execution_request_id,job_id,as_of,status,
                    execution_version,snapshot_json,result_json,created_at
                ) VALUES(?,?,?,?,?,?, 'queued', ?, ?, '{}', ?)""",
-            (run_id, conversation_id, task_revision, execution_request_id, job_id, as_of, EXECUTION_VERSION, snapshot_json, now),
+            (run_id, conversation_id, task_revision, execution_request_id, job_id, as_of, screening_execution.EXECUTION_VERSION, snapshot_json, now),
         )
         connection.execute(
             """UPDATE conversations SET active_run_id=?,pending_execute_message_id=NULL,updated_at=?
@@ -322,6 +322,46 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
             (run_id, now, conversation_id),
         )
     return _run_response(execution_request_id, run_id, job_id, task_revision)
+
+
+def execute_task_run(lease: JobLease) -> None:
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT snapshot_json FROM screening_task_runs WHERE id=?",
+            (lease.payload["run_id"],),
+        ).fetchone()
+    if not row:
+        lease.finish("failed", "筛选运行快照不存在")
+        return
+    snapshot = json_load(row[0])
+    fingerprint = market.source_fingerprint()
+    if fingerprint is None or list(fingerprint) != snapshot.get("source_fingerprint"):
+        lease.finish("failed", "行情来源在排队后发生变化，请重新创建筛选运行")
+        return
+
+    result = screening_execution.execute_snapshot(
+        snapshot,
+        run_id=lease.payload["run_id"],
+        active=lease.active,
+        progress=lease.progress,
+    )
+    if result.status != "cancelled" and market.source_fingerprint() != fingerprint:
+        lease.finish("failed", "筛选期间行情来源发生变化，请重新创建筛选运行")
+        return
+    summary = result.model_dump(mode="json", exclude={"stock_decisions"})
+    coverage = result.coverage
+    message = (
+        f"筛选完成：共 {coverage.target_total} 只，符合 {coverage.true_count} 只，"
+        f"不符合 {coverage.false_count} 只，未知 {coverage.unknown_count} 只"
+    )
+    if result.status == "partial":
+        message += "；含有未能确认的条件结果"
+    lease.finish(
+        result.status,
+        message,
+        summary,
+        decisions=[item.model_dump(mode="json") for item in result.stock_decisions],
+    )
 
 
 def get_task_run(conversation_id: str, run_id: str) -> dict[str, Any]:

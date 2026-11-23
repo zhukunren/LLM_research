@@ -13,7 +13,7 @@ export function EmbeddedWorkspaceSession({ id, active, portalTarget, children }:
 
 /** Detach inactive DOM, preserving editors, scroll positions and running work.
  * Only the active document contributes IDs, labels and focusable controls. */
-export function WorkspaceSessionPane({ tab, active, onTitle, actionsTarget, children }: { tab: WorkspaceTab; active: boolean; onTitle: (title: string) => void; actionsTarget?: HTMLElement | null; children: ReactNode }) {
+export function WorkspaceSessionPane({ tab, active, onTitle, actionsTarget, mobileTitleId, children }: { tab: WorkspaceTab; active: boolean; onTitle: (title: string) => void; actionsTarget?: HTMLElement | null; mobileTitleId?: string; children: ReactNode }) {
   const mount = useRef<HTMLDivElement>(null)
   const [host] = useState(() => document.createElement('section'))
   const isActive = useRef(active)
@@ -30,12 +30,12 @@ export function WorkspaceSessionPane({ tab, active, onTitle, actionsTarget, chil
   useLayoutEffect(() => {
     host.className = 'page-frame'
     host.id = `workspace-panel-${tab.id}`
-    host.setAttribute('role', 'tabpanel')
-    host.setAttribute('aria-labelledby', `workspace-tab-${tab.id}`)
+    host.setAttribute('role', mobileTitleId ? 'region' : 'tabpanel')
+    host.setAttribute('aria-labelledby', mobileTitleId ?? `workspace-tab-${tab.id}`)
     host.dataset.page = tab.route.page
     if (tab.route.view) host.dataset.view = tab.route.view
     else delete host.dataset.view
-  }, [host, tab.id, tab.route.page, tab.route.view])
+  }, [host, tab.id, tab.route.page, tab.route.view, mobileTitleId])
   useLayoutEffect(() => {
     const restoreScroll = () => {
       for (const [element, position] of scrollPositions.current) {

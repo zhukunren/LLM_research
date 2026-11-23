@@ -8,6 +8,7 @@ import PdfReader from '../components/PdfReader'
 import LibraryManagementMenu from '../components/LibraryManagementMenu'
 import LibraryReadingActions from '../components/LibraryReadingActions'
 import { isText, useSessionState } from '../useSessionState'
+import { useMobileReadingPosition } from './useMobileReadingPosition'
 import type { LibrarySeed } from '../libraryContext'
 import '../report-search.css'
 
@@ -27,6 +28,10 @@ type SearchResult = {
 }
 const validSearchMode = (value: unknown): value is SearchMode => value === 'smart' || value === 'exact'
 const validPositions = (value: unknown): value is Record<string, number> => !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(n => Number.isInteger(n) && Number(n) >= 1)
+const fieldLabels: Record<string, string> = {
+  stock_code: '证券代码', stock_name: '股票名称', title: '研报标题', analysts: '分析师', broker: '券商名称',
+  theme: '主题', main_points: '主要观点', publication_date: '发布日期',
+}
 
 export default function ReportPage({ onDescribe, onDefineCondition, onSourceChange, selectingFor }: { selectingFor?: WorkflowType; contentOnly?: boolean; onSourceChange?: (source: { reference: ConversationSourceReference; label: string } | null) => void; onDescribe?: (seed?: Omit<LibrarySeed, 'id'>) => void; onDefineCondition?: (seed?: Omit<LibrarySeed, 'id'>) => void }) {
   const [docs, setDocs] = useState<Document[]>([])
@@ -50,17 +55,12 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState('')
   const [mobileView, setMobileView] = useSessionState<'catalog' | 'reader'>('report.mobileView', 'catalog', (value): value is 'catalog' | 'reader' => value === 'catalog' || value === 'reader')
-  const reader = useRef<HTMLElement>(null)
-  const catalog = useRef<HTMLElement>(null)
   const uploadInput = useRef<HTMLInputElement>(null)
   const searchVersion = useRef(0)
   const searchRequest = useRef<AbortController | null>(null)
   const selected = docs.find(item => item.id === selectedId)
+  const { mobile, reader, catalog, rememberCatalog } = useMobileReadingPosition(mobileView, !!selected)
   const page = Math.min(positions[selectedId] ?? 1, selected?.pages || 1)
-  useEffect(() => {
-    onSourceChange?.(selected ? { reference: { kind: 'report_page', source_id: selected.id, page_number: page }, label: `${selected.title} · 第${page}页` } : null)
-  }, [selected, page, onSourceChange])
-  useEffect(() => () => onSourceChange?.(null), [onSourceChange])
   const pdfUrl = selected ? '/api/v1/documents/' + selected.id + '/pdf#page=' + page : ''
   const normalizedQuery = query.trim().toLowerCase()
   const filteredDocs = useMemo(() => {
@@ -72,6 +72,12 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
       return [item.title, item.filename, item.stock_code, metadata].join(' ').toLowerCase().includes(normalizedQuery) || hitOrder.has(item.id)
     }).sort((left, right) => (hitOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (hitOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER))
   }, [docs, normalizedQuery, hits])
+  const outsideResults = !!normalizedQuery && !filteredDocs.some(item => item.id === selectedId)
+  const canCite = !!selected && !outsideResults && (!selectingFor || selected.parse_status === 'indexed')
+  useEffect(() => {
+    onSourceChange?.(selected && canCite ? { reference: { kind: 'report_page', source_id: selected.id, page_number: page }, label: `${selected.title} · 第${page}页` } : null)
+  }, [selected, canCite, page, onSourceChange])
+  useEffect(() => () => onSourceChange?.(null), [onSourceChange])
   const selectedHits = hits.filter(hit => hit.document_id === selectedId)
   const pending = docs.filter(item => ['queued', 'running'].includes(item.metadata_status)).length
 
@@ -184,7 +190,8 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
     if (!selected) return
     setPositions(current => ({ ...current, [selected.id]: Math.max(1, Math.min(selected.pages, number)) }))
   }
-  function select(id: string, number?: number) {
+  function select(id: string, number?: number, trigger?: HTMLButtonElement) {
+    rememberCatalog(trigger)
     setSelectedId(id)
     if (number) setPositions(current => ({ ...current, [id]: number }))
     setMobileView('reader')
@@ -214,7 +221,7 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
         {filteredDocs.map(item => {
           const documentHits = hits.filter(hit => hit.document_id === item.id)
           const firstHit = documentHits[0]
-          return <button key={item.id} data-stock-ignore aria-current={selectedId === item.id ? 'true' : undefined} className={["workspace-button", selectedId === item.id ? 'selected' : ''].filter(Boolean).join(' ')} onClick={() => select(item.id, firstHit?.page_number)}>
+          return <button key={item.id} data-stock-ignore aria-current={selectedId === item.id ? 'true' : undefined} className={["workspace-button", selectedId === item.id ? 'selected' : ''].filter(Boolean).join(' ')} onClick={event => select(item.id, firstHit?.page_number, event.currentTarget)}>
             <strong>{item.title}</strong><span className="report-security">{item.metadata?.fields?.stock_name?.value || item.stock_code || '行业研究'}{item.metadata?.fields?.stock_name && item.stock_code && <small>{item.stock_code}</small>}</span><small>{item.metadata?.fields?.broker?.value || '券商待识别'} · {item.publication_date ?? '日期待识别'} · {item.pages} 页</small>{firstHit && <><span className="report-hit-badge workspace-status">正文命中 {documentHits.length} 页 · 第 {firstHit.page_number} 页</span><span className="report-result-snippet">{firstHit.snippet}</span>{!!firstHit.matched_terms?.length && <small>命中词：{firstHit.matched_terms.join('、')}</small>}</>}
           </button>
         })}
@@ -227,11 +234,17 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
       </aside>
       <section className="report-pdf-reader library-reader-pane" ref={reader} aria-label="研报阅读">
         {selected ? <>
-          <div className="report-reader-heading"><div><button className="text-button reader-back workspace-button" onClick={() => setMobileView('catalog')}><ArrowLeft size={14} />研报列表</button><h2>{selected.title}</h2></div><a className="quiet-button workspace-button" href={pdfUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={14} />在浏览器中打开</a></div>
-          {normalizedQuery && !searching && !filteredDocs.some(item => item.id === selected.id) && <p className="reader-context-note workspace-feedback workspace-feedback-info">当前研报不在搜索结果中。</p>}
+          <div className="report-reader-heading"><div><button className="text-button reader-back workspace-button" onClick={() => setMobileView('catalog')}><ArrowLeft size={14} />研报列表</button><h2>{selected.title}</h2></div>{!mobile && <a className="quiet-button workspace-button" href={pdfUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={14} />在浏览器中打开</a>}</div>
+          {outsideResults && !searching && <div className="reader-context-note workspace-feedback workspace-feedback-info">
+            <span>当前研报不在搜索结果中。</span> <button type="button" data-stock-ignore className="text-button workspace-button" onClick={() => changeQuery('')}>
+              清除搜索并选用「{selected.metadata?.fields?.stock_name?.value || selected.stock_code || selected.title}」第 {page} 页
+            </button>
+          </div>}
           <div className="report-reader-summary">
           <div className="report-reading-meta"><span>{selected.metadata?.fields?.stock_name?.value} {selected.stock_code}</span><span>{selected.metadata?.fields?.broker?.value || '券商待识别'}</span><span>{selected.publication_date ?? '日期待识别'}</span></div>
-          <details className="report-info-details"><summary>研报信息</summary>
+          <details key={selected.id} className="report-info-details"><summary>{selected.metadata_status === 'failed' ? '研报信息 · 待核对' : '研报信息'}</summary>
+          {mobile && <a className="quiet-button workspace-button" href={pdfUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={14} />在浏览器中打开原文</a>}
+          {selected.metadata_status === 'failed' && <div className="library-error workspace-error">{selected.metadata_error?.replace(/研报字典字段 (\w+) 的第 (\d+) 页证据无法在原文核对/, (_, field: string, number: string) => `第 ${number} 页未能核实「${fieldLabels[field] || '研报信息'}」。`) || '研报信息待核对。'} <button className="text-button workspace-button" disabled={!!busy} onClick={() => action('retry', async () => { await api('/documents/catalog?retry_failed=true', { method: 'POST' }) })}>重新整理</button></div>}
           <dl className="report-dictionary">{[
             ['代码', selected.stock_code], ['股票名称', selected.metadata?.fields?.stock_name?.value],
             ['标题', selected.metadata?.fields?.title?.value ?? selected.title], ['分析师', selected.metadata?.fields?.analysts?.value],
@@ -241,13 +254,12 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
           </details>
           </div>
           {selected.parse_status === 'indexed' && ['queued', 'running'].includes(selected.metadata_status) && <p className="workbench-help">正在整理研报字典。</p>}
-          {selected.metadata_status === 'failed' && <div className="library-error workspace-error" role="alert">{selected.metadata_error}<button className="text-button workspace-button" disabled={!!busy} onClick={() => action('retry', async () => { await api('/documents/catalog?retry_failed=true', { method: 'POST' }) })}>重新整理</button></div>}
           {selected.parse_status === 'no_text' && <p className="workbench-help">此 PDF 没有可提取文字，字典信息暂缺。</p>}
           {selectingFor && selected.parse_status !== 'indexed' && <p className="workbench-help">可以阅读原 PDF。页级正文索引完成后即可引用此页。</p>}
-          {!!selectedHits.length && <details className="report-search-hits" open={!!normalizedQuery}><summary>正文命中 {selectedHits.length} 页</summary>{selectedHits.map(hit => <button key={hit.page_number} onClick={() => setPage(hit.page_number)} className="workspace-button"><strong>第 {hit.page_number} 页</strong><span>{hit.snippet}</span>{!!hit.matched_terms?.length && <small>命中词：{hit.matched_terms.join('、')}</small>}</button>)}</details>}
-          <PdfReader key={selected.id} url={'/api/v1/documents/' + selected.id + '/pdf'} page={page} onPageChange={setPage}
+          {!!selectedHits.length && <details className="report-search-hits" open={!!normalizedQuery && !mobile}><summary>正文命中 {selectedHits.length} 页</summary>{selectedHits.map(hit => <button key={hit.page_number} onClick={() => setPage(hit.page_number)} className="workspace-button"><strong>第 {hit.page_number} 页</strong><span>{hit.snippet}</span>{!!hit.matched_terms?.length && <small>命中词：{hit.matched_terms.join('、')}</small>}</button>)}</details>}
+          <PdfReader key={selected.id} compactTools={mobile} url={'/api/v1/documents/' + selected.id + '/pdf'} page={page} onPageChange={setPage}
             pageControls={<label className="pdf-page-jump workspace-field-label"><input aria-label="研报页码" type="number" min={1} max={selected.pages} value={pageInput} onBlur={commitPage} onKeyDown={event => { if (event.key === 'Enter') commitPage() }} onChange={event => { setPageInput(event.target.value); const next = Number(event.target.value); if (Number.isInteger(next) && next >= 1 && next <= selected.pages) setPage(next) }} className="workspace-field" /><span>/ {selected.pages}</span></label>}
-            actions={onDescribe || onDefineCondition ? <LibraryReadingActions disabled={!!selectingFor && selected.parse_status !== 'indexed'}
+            actions={onDescribe || onDefineCondition ? <LibraryReadingActions disabled={!canCite}
               researchLabel={selectingFor === 'screening' ? '将此页带回选股' : selectingFor === 'research' ? '用此页继续研究' : undefined}
               screeningLabel={selectingFor ? '带此页去选股' : undefined} context={`当前第 ${page} 页`} onResearch={onDescribe ? () => onDescribe({ source_document_id: selected.id, source_page: page, title: selected.title }) : undefined} onScreening={onDefineCondition ? () => onDefineCondition({ source_document_id: selected.id, source_page: page, title: selected.title }) : undefined} /> : undefined} />
         </> : loading ? <LoadingState compact label="正在加载…" /> : <EmptyState title="未选择研报" description="从左侧列表选择一份研报，阅读 PDF 原文并核对研究依据。" />}

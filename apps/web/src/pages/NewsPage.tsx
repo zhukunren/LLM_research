@@ -3,10 +3,11 @@ import LoadingState from '../components/LoadingState'
 import { StockText } from '../components/StockMentions'
 import EmptyState from '../components/EmptyState'
 import { localStorage } from '../authStorage'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, CalendarRange, Clock3, RefreshCw, Search, Upload, X } from 'lucide-react'
 import { api, type ConversationSourceReference } from '../api'
 import { isPageOffset, isText, useSessionState } from '../useSessionState'
+import { useMobileReadingPosition } from './useMobileReadingPosition'
 import NewsCompanyChart, { type NewsChartCompany } from '../components/NewsCompanyChart'
 import LibraryManagementMenu from '../components/LibraryManagementMenu'
 import LibraryReadingActions from '../components/LibraryReadingActions'
@@ -22,6 +23,7 @@ type NewsList = { items: NewsRecord[]; total: number; next_offset: number | null
 const views = { today: '今日', recent: '近30天', manual: '手动导入' } as const
 type NewsView = keyof typeof views
 const isNewsView = (value: unknown): value is NewsView => value === 'today' || value === 'recent' || value === 'manual'
+const isReadingSize = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 12 && value <= 24
 const emptyList: NewsList = { items: [], total: 0, next_offset: null }
 const sourceNames: Record<string, string> = { eastmoney: '东方财富', wallstreetcn: '华尔街见闻', sina: '新浪财经', '10jqka': '同花顺', yuncaijing: '云财经', fenghuang: '凤凰财经', jinrongjie: '金融界' }
 const sourceLabel = (source: string) => sourceNames[source.replace(/^Tushare news\//, '')] ?? source.split(' · ')[0]
@@ -43,7 +45,7 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
   }, [selected, selectedId, onSourceChange])
   useEffect(() => () => onSourceChange?.(null), [onSourceChange])
   const [fontSize, setFontSize] = useState(() => { try { const value = Number(localStorage.getItem('news.fontSize')); const previousDefault = value === 16 && localStorage.getItem('news.compactFontApplied') !== 'true'; return previousDefault ? 14 : value >= 12 && value <= 24 ? value : 14 } catch { return 14 } })
-  const readingFontSize = fontSize
+  const [mobileFontSize, setMobileFontSize] = useSessionState('news.mobileFontSize', 16, isReadingSize)
   const [url, setUrl] = useState('')
   const [localImportOpen, setLocalImportOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -54,25 +56,13 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
   const [importError, setImportError] = useState('')
   const [notice, setNotice] = useState('')
   const [mobileView, setMobileView] = useState<'catalog' | 'reader'>('catalog')
+  const { mobile, catalog, reader, catalogScroll, rememberCatalog } = useMobileReadingPosition(mobileView)
+  const readingFontSize = mobile ? mobileFontSize : fontSize
+  const setReadingFontSize = mobile ? setMobileFontSize : setFontSize
   const request = useRef({ url: '', id: '' })
   const selection = useRef(selectedId)
   const importedId = useRef('')
-  const reader = useRef<HTMLElement>(null)
-  const catalog = useRef<HTMLElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const catalogScroll = useRef(0)
-  function mobileScrollPage() {
-    return globalThis.matchMedia?.('(max-width: 620px)').matches ? catalog.current?.closest<HTMLElement>('.workspace-tool-page') : null
-  }
-  useLayoutEffect(() => {
-    if (!globalThis.matchMedia?.('(max-width: 760px)').matches) return
-    if (mobileView === 'reader') reader.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
-    else {
-      const page = mobileScrollPage()
-      if (page) page.scrollTo?.({ top: catalogScroll.current, behavior: 'instant' })
-      else window.scrollTo({ top: catalogScroll.current, behavior: 'instant' })
-    }
-  }, [mobileView])
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = 0 }, [list.items])
   const invalidRange = view !== 'today' && !!(startDate && endDate && startDate > endDate)
 
@@ -112,8 +102,8 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
     return () => controller.abort()
   }, [selectedId, readRetry])
 
-  function read(id: string) {
-    if (globalThis.matchMedia?.('(max-width: 760px)').matches && mobileView === 'catalog') catalogScroll.current = mobileScrollPage()?.scrollTop ?? window.scrollY
+  function read(id: string, trigger?: HTMLButtonElement) {
+    rememberCatalog(trigger)
     selection.current = id; setSelectedId(id)
     setMobileView('reader')
   }
@@ -171,13 +161,13 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
           title={query || startDate || endDate ? '没有找到符合筛选条件的资讯。' : view === 'today' ? '今天还没有资讯。' : '暂无资讯。'}
           actions={view === 'today' ? <button className="secondary-button workspace-button" onClick={() => changeView('recent')}>查看近30天</button>
             : (query || startDate || endDate) && <button className="secondary-button workspace-button" onClick={clearFilters}>重置筛选</button>} /> :
-          <div className="local-news-list" ref={listRef}>{list.items.map(item => <button key={item.id} onClick={() => read(item.id)} aria-current={selectedId === item.id ? 'true' : undefined} className={["workspace-button", selectedId === item.id ? 'selected' : ''].filter(Boolean).join(' ')}>
+          <div className="local-news-list" ref={listRef}>{list.items.map(item => <button key={item.id} onClick={event => read(item.id, event.currentTarget)} aria-current={selectedId === item.id ? 'true' : undefined} className={["workspace-button", selectedId === item.id ? 'selected' : ''].filter(Boolean).join(' ')}>
             <strong>{item.title}</strong>{item.snippet && <p className="news-item-snippet">{item.snippet}</p>}<div className="news-item-meta"><span>{sourceLabel(item.source)}</span><small>{chinaTime(item.published_at ?? item.available_at)}</small></div>
           </button>)}</div>}
         <Pagination offset={offset} total={list.total} pageSize={20} nextOffset={list.next_offset} disabled={loading || invalidRange || !!listError} onChange={setOffset} label="资讯列表分页" summary={invalidRange ? '请先修正日期范围' : listError ? '暂时无法读取资讯列表' : undefined} />
       </section>
       <section className="local-news-panel news-reading-panel library-reader-pane" ref={reader} aria-label="资讯阅读" aria-busy={reading}>
-        <div className="news-reader-tools"><div><span className="library-reader-eyebrow">资讯正文</span><button className="text-button reader-back workspace-button" aria-label="返回资讯列表" onClick={returnToCatalog}><ArrowLeft size={14} />返回列表</button></div><div><button className="secondary-button compact workspace-button" aria-label="缩小资讯字体" disabled={fontSize <= 12} onClick={() => setFontSize(value => value - 1)}>A-</button><span className="font-size-value" aria-label="当前资讯字号">{readingFontSize}</span><button className="secondary-button compact workspace-button" aria-label="放大资讯字体" disabled={fontSize >= 24} onClick={() => setFontSize(value => value + 1)}>A+</button></div></div>
+        <div className="news-reader-tools"><div><span className="library-reader-eyebrow">资讯正文</span><button className="text-button reader-back workspace-button" aria-label="返回资讯列表" onClick={returnToCatalog}><ArrowLeft size={16} aria-hidden="true" />返回列表</button></div><div><button className="secondary-button compact workspace-button" aria-label="缩小资讯字体" disabled={readingFontSize <= 12} onClick={() => setReadingFontSize(value => value - 1)}>A-</button><span className="font-size-value" aria-label="当前资讯字号">{readingFontSize}</span><button className="secondary-button compact workspace-button" aria-label="放大资讯字体" disabled={readingFontSize >= 24} onClick={() => setReadingFontSize(value => value + 1)}>A+</button></div></div>
         <LibraryReadingActions disabled={reading || !selected || selected.id !== selectedId} onResearch={onDiscuss ? () => { if (selected && selected.id === selectedId) onDiscuss(selected) } : undefined} onScreening={onDefineCondition ? () => { if (selected && selected.id === selectedId) onDefineCondition(selected) } : undefined} />
         {reading ? <LoadingState skeleton label="正在读取正文…" /> : readError ? <div className="library-error workspace-error" role="alert">{readError}<button className="text-button workspace-button" onClick={() => setReadRetry(value => value + 1)}>重试读取</button></div> : selected ? <><div className="news-reading-content" role="region" aria-label="资讯正文与行情" tabIndex={0} key={selected.id}><article className="local-news-reader" style={{ fontSize: readingFontSize }}>
           <h3>{selected.title}</h3><p className="news-metadata"><span className="news-source-badge workspace-status">{sourceLabel(selected.source)}</span><span className="news-publication-time"><Clock3 size={12} aria-hidden="true" /><time dateTime={selected.published_at ?? selected.available_at ?? undefined}>{chinaTime(selected.published_at ?? selected.available_at)}</time></span>{selected.stock_codes.map(code => <span className="news-security-tag workspace-status" key={code}>{code}</span>)}</p><div className="news-body">{selected.body}</div>

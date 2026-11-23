@@ -10,7 +10,7 @@ from uuid import uuid4
 from .db import connect, json_dump, utc_now
 from .settings import REPORT_DIR, REPORT_UPLOAD_DIR, report_parser_settings
 from .report_parser import parse_report
-from . import db, report_search
+from . import report_search
 from .storage import application_paths
 
 
@@ -123,6 +123,11 @@ def index_pdf_snapshot(snapshot: Path, digest: str, filename: str, *, material_k
             "extracted_chars": chars, "parser_metadata": parsed.metadata}
 
 
+def upload_directory() -> Path:
+    from .security_context import current_actor
+    return REPORT_UPLOAD_DIR if current_actor().legacy else application_paths().upload_root / "reports"
+
+
 def import_local_reports(*, paths: list[Path] | None = None) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     if paths is None:
@@ -131,13 +136,12 @@ def import_local_reports(*, paths: list[Path] | None = None) -> dict[str, Any]:
             paths.extend(REPORT_DIR.glob("*.pdf"))
         if REPORT_UPLOAD_DIR.is_dir():
             paths.extend(REPORT_UPLOAD_DIR.glob("*.pdf"))
-    from .security_context import current_actor
-    upload_directory = REPORT_UPLOAD_DIR if current_actor().legacy else application_paths().upload_root / "reports"
+    upload_root = upload_directory()
     for path in sorted(paths):
         display_filename = path.name
         digest = None
         try:
-            if path.parent == upload_directory and "--" in path.name:
+            if path.parent == upload_root and "--" in path.name:
                 display_filename = path.name.split("--", 1)[1]
             data = path.read_bytes()
             digest = hashlib.sha256(data).hexdigest()

@@ -1,5 +1,5 @@
 import LoadingState from './LoadingState'
-import { useEffect, useRef } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useRemoteResource } from '../useRemoteResource'
 import { trapDialogTab } from '../keyboard'
 import { ResponsiveMarketIndicatorChart, type ChartBar } from './MarketIndicatorChart'
@@ -8,10 +8,14 @@ import { ChartNoAxesCombined, Star } from 'lucide-react'
 import EmptyState from './EmptyState'
 import type { StockSignalContext } from '../stockSignalContext'
 import TradeExplanation from './TradeExplanation'
+import './tushare/tushare-features.css'
+
+const ChipsPanel = lazy(() => import('./tushare/CompanyResearchData').then(module => ({ default: module.ChipsPanel })))
 
 export default function StockChartDialog({ code, asOf, signalContext, onClose, onAddToWatchlist, watchBusy, watched, actionError }: { code: string; asOf?: string; signalContext?: StockSignalContext; onClose: () => void; onAddToWatchlist?: () => void; watchBusy?: boolean; watched?: boolean; actionError?: string }) {
-  const { data, error, loading, retry } = useRemoteResource<{ items: ChartBar[]; volume_unit?: string; warning?: string; source?: string }>(signalContext && asOf ? `/daily-signals/chart/${encodeURIComponent(code)}?as_of=${encodeURIComponent(asOf)}` : `/securities/${encodeURIComponent(code)}/bars?${asOf ? `as_of=${encodeURIComponent(asOf)}&` : ''}limit=180`)
+  const { data, error, loading, retry } = useRemoteResource<{ items: ChartBar[]; price_basis?: string; volume_unit?: string; warning?: string; source?: string }>(signalContext && asOf ? `/daily-signals/chart/${encodeURIComponent(code)}?as_of=${encodeURIComponent(asOf)}` : `/securities/${encodeURIComponent(code)}/bars?${asOf ? `as_of=${encodeURIComponent(asOf)}&` : ''}limit=180`)
   const bars = data?.items || []
+  const [view, setView] = useState<'market' | 'chips'>('market')
   const volumeUnit = data?.volume_unit && data.volume_unit !== 'unknown' ? data.volume_unit : '原始单位'
   const volume = { id: 'volume', label: `成交量（${volumeUnit}）`, color: '#208575', values: bars.map(bar => bar.quality_valid !== false && typeof bar.volume === 'number' && Number.isFinite(bar.volume) && bar.volume >= 0 ? bar.volume : null) }
   const close = useRef<HTMLButtonElement>(null)
@@ -28,8 +32,14 @@ export default function StockChartDialog({ code, asOf, signalContext, onClose, o
       <p>{asOf ? `截至 ${asOf} · 近 180 个交易日${bars.length && bars.length < 180 ? `（现有 ${bars.length} 日）` : ''}` : bars.length ? `本地日线 · 行情截至 ${bars.at(-1)!.trade_date}` : '最新可用日线行情'}</p>
       {onAddToWatchlist && <button className="text-button workspace-button" disabled={watchBusy || watched} onClick={onAddToWatchlist}><Star size={14} />{watched ? '已加入观察池' : watchBusy ? '加入中…' : '加入观察池'}</button>}
       {actionError && <p role="alert" className="workspace-error">{actionError}</p>}
+      {!signalContext && /^\d{6}\.(SH|SZ|BJ)$/.test(code) && <div className="tushare-switch" role="group" aria-label="走势视图">
+        <button type="button" className="workspace-button" aria-pressed={view === 'market'} onClick={() => setView('market')}>日线行情</button>
+        <button type="button" className="workspace-button" aria-pressed={view === 'chips'} onClick={() => setView('chips')}>筹码成本</button>
+      </div>}
+      {view === 'chips' && !signalContext ? <Suspense fallback={<LoadingState compact label="正在打开筹码成本…" />}><ChipsPanel code={code} asOf={asOf || ''} bars={bars} unadjusted={data?.price_basis === 'unadjusted'} /></Suspense> : <>
       {loading ? <LoadingState compact label="正在读取走势…" /> : error ? <div role="alert" className="workspace-error-empty"><EmptyState icon={ChartNoAxesCombined} title="暂时无法读取行情" description={error} actions={<button className="secondary-button workspace-button" onClick={retry}>重试行情</button>} /></div> : bars.length ? <><ResponsiveMarketIndicatorChart chart={{ bars, placement: 'pane', lines: [], histogram: volume, reference_lines: [] }} signals={signalContext?.markers} />{volumeUnit === '原始单位' && <p className="conversation-muted">该本地行情的成交量单位未确认，按原始数值展示。</p>}</> : <EmptyState icon={ChartNoAxesCombined} title="该日期之前没有可用行情。" description="可以更换证券或截止日期，查看其他可用的本地日线。" />}
       {signalContext && asOf && bars.length > 0 && <><p className="stock-signal-context">{signalContext.strategyTitle} · 标记为所选日期的策略信号</p><TradeExplanation key={`${code}:${asOf}`} code={code} date={asOf} initialSide={signalContext.side} /></>}
+      </>}
     </section>
   </div>
 }

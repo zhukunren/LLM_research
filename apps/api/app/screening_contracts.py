@@ -18,6 +18,10 @@ DecisionState = Literal["true", "false", "unknown"]
 EvaluationStatus = Literal["completed", "failed", "not_evaluated"]
 ConditionLibrary = Literal["technical", "news", "report", "pattern", "ranking", "fundamentals"]
 INDUSTRY_VALUATION_IMPLEMENTATION = "tushare-industry-valuation-v1"
+TUSHARE_RULE_IMPLEMENTATIONS = {
+    "earnings_revision": "tushare-earnings-revision-v1",
+    "chip_concentration": "tushare-chip-concentration-v1",
+}
 ConversationScope = Literal["technical", "news", "report", "pattern", "screening"]
 ResearchMode = Literal["research", "screening", "advanced"]
 WorkflowType = Literal["research", "screening"]
@@ -343,6 +347,21 @@ class IndustryValuationRule(IndustryValuationSelection):
         return self
 
 
+class EarningsRevisionRule(ContractModel):
+    op: Literal["earnings_revision"] = "earnings_revision"
+    year_offset: int = Field(ge=-1, le=2, strict=True)
+    window_days: int = Field(ge=7, le=90, strict=True)
+    minimum_brokers: int = Field(ge=1, le=50, strict=True)
+
+
+class ChipConcentrationRule(ContractModel):
+    op: Literal["chip_concentration"] = "chip_concentration"
+    max_spread_pct: float = Field(ge=0, le=500, strict=True, allow_inf_nan=False)
+
+
+TUSHARE_RULES = {"earnings_revision": EarningsRevisionRule, "chip_concentration": ChipConcentrationRule}
+
+
 class ConditionDefinition(ContractModel):
     condition_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,80}$")
     library: ConditionLibrary
@@ -356,6 +375,13 @@ class ConditionDefinition(ContractModel):
     @model_validator(mode="after")
     def implementation_matches_contract(self):
         if self.library == "fundamentals":
+            op = self.expression.get("op")
+            if isinstance(op, str) and op in TUSHARE_RULES:
+                implementation = TUSHARE_RULE_IMPLEMENTATIONS[op]
+                if self.program is not None or (self.implementation_id, self.implementation_version) != (implementation, implementation):
+                    raise ValueError("Tushare 条件必须指定与数据规则一致的固定实现")
+                TUSHARE_RULES[op].model_validate(self.expression)
+                return self
             if (self.program is not None
                     or self.implementation_id != INDUSTRY_VALUATION_IMPLEMENTATION
                     or self.implementation_version != INDUSTRY_VALUATION_IMPLEMENTATION):

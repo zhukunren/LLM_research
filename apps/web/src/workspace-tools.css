@@ -334,13 +334,6 @@
   .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reader-heading h2 { font-size: 18px; }
   .viewport-workspace .page-frame .workspace-tool-page.scope-report .compact-segment button { min-height: 44px; }
   .viewport-workspace .page-frame .workspace-tool-page.scope-report .pdf-toolbar { gap: 6px; padding: 8px; }
-  .viewport-workspace .page-frame .workspace-tool-page.scope-report:has(.report-reading-workspace[data-mobile-view=reader]) { overflow-y: auto; }
-  .viewport-workspace .page-frame .workspace-tool-page.scope-report:has(.report-reading-workspace[data-mobile-view=reader]) .library-workspace-panel,
-  .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reading-workspace[data-mobile-view=reader],
-  .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reading-workspace[data-mobile-view=reader] :is(.report-reading-layout,.report-pdf-reader) { flex: none; height: auto; max-height: none; overflow: visible; }
-  .viewport-workspace .page-frame .workspace-tool-page.scope-report .report-reading-workspace[data-mobile-view=reader] > .library-mobile-switch { display: none; }
-  .viewport-workspace .page-frame .workspace-tool-page.scope-report .pdf-document-viewer:not(.expanded) { flex: none; height: auto; min-height: 0; }
-  .viewport-workspace .page-frame .workspace-tool-page.scope-report .pdf-document-viewer:not(.expanded) .pdf-canvas-container { flex: none; height: max(360px,60dvh); max-height: none; }
   .viewport-workspace .page-frame .workspace-tool-page.observation-page { overflow-y: auto; }
   .viewport-workspace .page-frame .workspace-tool-page.observation-page .observation-unified-toolbar { gap: 8px; }
   .viewport-workspace .page-frame .workspace-tool-page.observation-page .observation-view-toolbar { gap: 8px; }
@@ -364,10 +357,6 @@
   .viewport-workspace .page-frame .workspace-tool-page.screening-tool-page .composer-keyboard-hint { display: none; }
   .viewport-workspace .page-frame .workspace-tool-page.scope-news .library-title { display: block; }
   .viewport-workspace .page-frame .workspace-tool-page.scope-news .library-heading-actions { width: auto; }
-  .viewport-workspace .page-frame .workspace-tool-page.scope-news { overflow-y: auto; }
-  .viewport-workspace .page-frame .workspace-tool-page.scope-news .library-workspace-panel,
-  .viewport-workspace .page-frame .workspace-tool-page.scope-news :is(.local-news,.local-news-grid,.news-catalog,.local-news-list,.news-reading-panel,.news-reading-content) { flex: none; height: auto; max-height: none; overflow: visible; }
-  .viewport-workspace .page-frame .workspace-tool-page.scope-news .local-news[data-mobile-view=reader] > .library-mobile-switch { display: none; }
   .viewport-workspace .page-frame .workspace-tool-page.scope-news .news-catalog { padding: 16px 12px; }
   .viewport-workspace .page-frame .workspace-tool-page.scope-news .news-reading-panel { padding: 16px 12px; }
   .viewport-workspace .page-frame .workspace-tool-page.scope-news .local-news-reader { padding-top: 20px; }

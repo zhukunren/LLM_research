@@ -3,13 +3,15 @@ import { useWorkspaceSession } from '../WorkspaceSession'
 import { StockText } from './StockMentions'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, Download, LoaderCircle, RotateCcw, Search, Star, TrendingUp, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, Copy, Download, LoaderCircle, RotateCcw, Search, SlidersHorizontal, Star, TrendingUp, X } from 'lucide-react'
 import { StockName } from './StockSearch'
 import ScreeningResultMenu from './ScreeningResultMenu'
 import { api } from '../api'
 import type { ScreeningAdjustment } from '../screeningAdjustments'
 import type { ScreeningResultLocation } from '../workspaceHandoff'
 import { trapDialogTab } from '../keyboard'
+import { useMobileWorkspace } from '../useMobileWorkspace'
+import MobileSheet from './MobileSheet'
 import './screening-result-list.css'
 
 export type UnifiedConditionDecision = {
@@ -102,6 +104,12 @@ const stateLabels: Record<string, string> = {
   cancelled: '已取消',
   blocked_dependency: '缺少所需数据',
 }
+const judgmentFilters = [
+  { value: '', label: '全部判断', short: '全部' },
+  { value: 'true', label: '符合', short: '符合' },
+  { value: 'false', label: '不符合', short: '不符合' },
+  { value: 'unknown', label: '尚无法判断（含失败 / 未处理）', short: '无法判断' },
+]
 
 function stateClass(state: string) {
   if (state === 'true' || state === 'succeeded') return 'positive'
@@ -170,6 +178,10 @@ export default function ScreeningResultView({
 }: ScreeningResultViewProps) {
   const workspaceSession = useWorkspaceSession()
   const portalTarget = workspaceSession.portalTarget ?? document.body
+  const mobile = useMobileWorkspace()
+  const inline = evidenceLayout === 'inline' && !mobile
+  const [filterOpen, setFilterOpen] = useState(false)
+  const judgmentLabel = judgmentFilters.find(item => item.value === stateFilter)?.short ?? '全部'
 
   const [copying, setCopying] = useState(false)
   const [expandedCode, setExpandedCode] = useState('')
@@ -179,6 +191,7 @@ export default function ScreeningResultView({
   const [selection, setSelection] = useState<{ scope: string; rows: UnifiedDecisionItem[] }>({ scope: selectionScope, rows: [] })
   const selectedRows = selection.scope === selectionScope ? selection.rows : []
   const selectedCodes = selectedRows.map(item => item.stock_code)
+  const pageSelected = decisions.length > 0 && decisions.every(item => selectedCodes.includes(item.stock_code))
   function setSelectedRows(update: UnifiedDecisionItem[] | ((rows: UnifiedDecisionItem[]) => UnifiedDecisionItem[])) {
     setSelection(current => ({ scope: selectionScope, rows: typeof update === 'function' ? update(current.scope === selectionScope ? current.rows : []) : update }))
   }
@@ -195,10 +208,10 @@ export default function ScreeningResultView({
   const appliedPosition = useRef<ScreeningResultLocation>()
   const evidenceReturn = useRef<{ trigger: HTMLButtonElement; panel: HTMLElement | null; top: number } | null>(null)
   const activeDecision = !loading && !error
-    ? decisions.find(item => item.stock_code === (expandedCode || restorePosition?.stockCode))
-      ?? (evidenceLayout === 'inline' && !restorePosition ? decisions[0] : undefined)
+    ? decisions.find(item => item.stock_code === (expandedCode || (inline ? restorePosition?.stockCode : '')))
+      ?? (inline && !restorePosition ? decisions[0] : undefined)
     : undefined
-  const detailOpen = !!activeDecision && evidenceLayout === 'drawer'
+  const detailOpen = workspaceSession.active && !!activeDecision && !inline
   const activeIndex = decisions.findIndex(item => item.stock_code === activeDecision?.stock_code)
   const [addingResultCode, setAddingResultCode] = useState('')
   useEffect(() => {
@@ -207,19 +220,25 @@ export default function ScreeningResultView({
     return () => { batchRequest.current?.abort() }
   }, [selectionScope])
   useEffect(() => { setExpandedCode('') }, [selectionScope, offset, loading, error])
+  useEffect(() => { if (!mobile || !workspaceSession.active) setFilterOpen(false) }, [mobile, workspaceSession.active])
   useEffect(() => {
     if (!detailOpen) return
-    const previous = document.activeElement as HTMLElement | null
+    const previous = evidenceReturn.current?.trigger ?? (document.activeElement as HTMLElement | null)
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'; detailClose.current?.focus()
     return () => { document.body.style.overflow = overflow; if (previous?.isConnected) previous.focus({ preventScroll: true }) }
   }, [detailOpen])
-  useEffect(() => { if (expandedCode && evidenceLayout === 'drawer') detailClose.current?.focus() }, [expandedCode, evidenceLayout])
+  useEffect(() => {
+    const focused = document.activeElement
+    if (detailOpen && expandedCode && (!mobile || focused === document.body || focused instanceof HTMLButtonElement && focused.disabled)) {
+      detailClose.current?.focus({ preventScroll: true })
+    }
+  }, [detailOpen, expandedCode, mobile])
   function showEvidence(code: string, trigger: HTMLButtonElement) {
     setExpandedCode(code)
-    if (evidenceLayout !== 'inline') return
     const panel = trigger.closest<HTMLElement>('.screening-results-drawer')
     evidenceReturn.current = { trigger, panel, top: panel?.scrollTop ?? 0 }
+    if (!inline) return
     requestAnimationFrame(() => {
       const section = inlineEvidence.current
       if (!section?.isConnected) return
@@ -306,6 +325,7 @@ export default function ScreeningResultView({
   const copyLock = useRef(false)
 
   const isRunning = status === 'queued' || status === 'running'
+  const canSavePlan = !isRunning && !!onSavePlan
   const resolvedCount = coverage ? coverage.true_count + coverage.false_count : 0
   const completeNoMatches = status === 'succeeded' && coverage && coverage.target_total > 0
     && coverage.true_count === 0 && coverage.unknown_count === 0
@@ -394,13 +414,41 @@ export default function ScreeningResultView({
     </>
   }
 
+  const resultMenuContext = JSON.stringify([status, revision, asOf, offset, stateFilter, query, loading, error, workspaceSession.active])
+  const actionRole = mobile ? undefined : 'menuitem'
+  const resultMenu = <ScreeningResultMenu context={resultMenuContext} mobile={mobile}>{closeMenu => <>
+    {mobile && canSavePlan && <button type="button" className="mobile-sheet-row workspace-button" disabled={savePlanDisabled || savingPlan} onClick={() => { closeMenu(); onSavePlan?.() }}>{savingPlan ? '保存中…' : '保存为方案'}</button>}
+    {mobile && status === 'partial' && onRetry && <button type="button" className="mobile-sheet-row workspace-button" onClick={() => { closeMenu(); onRetry() }}><RotateCcw size={16} aria-hidden="true" />重试运行</button>}
+    <button type="button" role={actionRole}
+      className="secondary-button compact conversation-copy-button workspace-button workspace-menu-option"
+      data-tooltip="仅复制当前页显示的股票代码，包含本页全部判断状态；不包含其他页"
+      disabled={loading || !!error || !decisions.length} onClick={() => { closeMenu(); void copyCodes() }}>
+      <Copy size={16} aria-hidden="true" /><span>{copying ? '已复制' : '复制本页代码'}</span>
+    </button>
+    {onCopyAll && <button type="button" role={actionRole} className="secondary-button compact workspace-button workspace-menu-option" onClick={() => { closeMenu(); onCopyAll() }}>{query ? '复制搜索范围全部符合项' : '复制全部符合项'}</button>}
+    {onExportUrl && <a role={actionRole} className="secondary-button compact workspace-button workspace-menu-option"
+      href={onExportUrl} data-tooltip={exportDescription} onClick={closeMenu}>
+      <Download size={16} aria-hidden="true" /><span>{exportLabel}</span>
+    </a>}
+  </>}</ScreeningResultMenu>
+
+  function evidenceButton(decision: UnifiedDecisionItem) {
+    return <button type="button" className={mobile ? 'screening-stock-action workspace-button' : 'text-button workspace-button'}
+      data-evidence-stock={decision.stock_code} aria-label={`查看 ${decision.stock_code} 条件与依据`}
+      aria-expanded={inline ? activeDecision?.stock_code === decision.stock_code : undefined} aria-haspopup={inline ? undefined : 'dialog'}
+      onClick={event => { onEvidenceSelect?.(decision.stock_code); showEvidence(decision.stock_code, event.currentTarget) }}>
+      {mobile ? <StockName code={decision.stock_code} interactive={false} /> : '查看依据'}
+    </button>
+  }
+
   return (
-    <StockText><div className={`screening-result-view screening-list-compact${evidenceLayout === 'inline' ? ' screening-evidence-inline' : ''}`}>
+    <StockText><div className={`screening-result-view screening-list-compact${inline ? ' screening-evidence-inline' : ''}${mobile ? ' screening-phone-list' : ''}`}>
       <div className="conversation-run-title">
-        <span>{title || `${isCurrent ? '当前运行' : '历史运行'}`}</span>
+        <span className="screening-run-name">{title || `${isCurrent ? '当前运行' : '历史运行'}`}</span>
         <span className="conversation-result-date">数据截止日：{asOf || '未提供'}</span>
         <span className={["workspace-status", `conversation-turn-state ${stateClass(status)}`].filter(Boolean).join(' ')}>{stateLabels[status] ?? status}</span>
-        {!isRunning && onSavePlan && (
+        {mobile && !isRunning && resultMenu}
+        {!mobile && canSavePlan && (
           <button type="button" className="secondary-button compact workspace-button screening-result-save"
             disabled={savePlanDisabled || savingPlan} onClick={onSavePlan}>{savingPlan ? '保存中…' : '保存为方案'}</button>
         )}
@@ -438,16 +486,13 @@ export default function ScreeningResultView({
       {!isRunning && (
         <>
           <div className="conversation-decision-controls workspace-filters">
-            {onStateFilterChange && <select
+            {!mobile && onStateFilterChange && <select
               aria-label="判断状态"
               disabled={addingSelected}
               value={stateFilter}
               onChange={(e) => onStateFilterChange?.(e.target.value)} className="workspace-field workspace-select"
             >
-              <option value="">全部判断</option>
-              <option value="true">符合</option>
-              <option value="false">不符合</option>
-              <option value="unknown">尚无法判断（含失败 / 未处理）</option>
+              {judgmentFilters.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>}
             {onQueryChange && <label className="conversation-search workspace-field-shell">
               <Search size={14} />
@@ -456,35 +501,21 @@ export default function ScreeningResultView({
                 disabled={addingSelected}
                 value={query}
                 onChange={(e) => onQueryChange?.(e.target.value)}
-                placeholder={searchPlaceholder} className="workspace-field"
+                placeholder={mobile && searchPlaceholder === '名称、拼音或代码' ? '名称或代码' : searchPlaceholder} className="workspace-field"
               />
             </label>}
-            <ScreeningResultMenu context={JSON.stringify([status, revision, asOf, offset, stateFilter, query, loading, error])}>{closeMenu => <><button
-              type="button"
-              role="menuitem"
-              className="secondary-button compact conversation-copy-button workspace-button workspace-menu-option"
-              data-tooltip="仅复制当前页显示的股票代码，包含本页全部判断状态；不包含其他页"
-              disabled={loading || !!error || !decisions.length}
-              onClick={() => { closeMenu(); void copyCodes() }}
-            >
-              <Copy size={13} />
-              <span>{copying ? '已复制' : '复制本页代码'}</span>
-            </button>
-            {onCopyAll && <button type="button" role="menuitem" className="secondary-button compact workspace-button workspace-menu-option" onClick={() => { closeMenu(); onCopyAll() }}>{query ? '复制搜索范围全部符合项' : '复制全部符合项'}</button>}
-            {onExportUrl && (
-              <a
-                role="menuitem"
-                className="secondary-button compact workspace-button workspace-menu-option"
-                href={onExportUrl}
-                data-tooltip={exportDescription}
-                onClick={closeMenu}
-              >
-                <Download size={13} />
-                <span>{exportLabel}</span>
-              </a>
-            )}
-            </>}</ScreeningResultMenu>
-            {onRetry && ['failed', 'cancelled', 'partial'].includes(status) && (
+            {mobile && onStateFilterChange && <button type="button" className="mobile-filter-button workspace-button" aria-haspopup="dialog" aria-expanded={filterOpen}
+              disabled={addingSelected} onClick={() => setFilterOpen(true)}><SlidersHorizontal size={17} aria-hidden="true" />筛选 · {judgmentLabel}</button>}
+            {mobile && filterOpen && onStateFilterChange && <MobileSheet title="结果筛选" onClose={() => setFilterOpen(false)}>
+              <div className="mobile-sheet-list" role="group" aria-label="判断状态">
+                {judgmentFilters.map(item => <button key={item.value} type="button" className="mobile-sheet-row workspace-button" aria-pressed={stateFilter === item.value}
+                  onClick={() => { setFilterOpen(false); if (stateFilter !== item.value) onStateFilterChange(item.value) }}>
+                  <span>{item.label}</span>{stateFilter === item.value && <Check size={18} aria-hidden="true" />}
+                </button>)}
+              </div>
+            </MobileSheet>}
+            {!mobile && resultMenu}
+            {onRetry && (status === 'failed' || status === 'cancelled' || !mobile && status === 'partial') && (
               <button
                 type="button"
                 className="secondary-button compact workspace-button"
@@ -498,7 +529,10 @@ export default function ScreeningResultView({
           </div>
 
           {copyNotice && <div className="inline-feedback-badge workspace-status workspace-feedback-inline">{copyNotice}</div>}
-          <div className="screening-list-toolbar workspace-view-toolbar"><span>{decisions.length ? `本页 ${decisions.length} 只 · ${evidenceLayout === 'inline' ? '选择股票，在下方核对判断依据' : '查看依据可打开完整条件与证据'}` : ''}</span></div>
+          {decisions.length > 0 && <div className="screening-list-toolbar workspace-view-toolbar">
+            <span>本页 {decisions.length} 只{!mobile && (inline ? ' · 选择股票，在下方核对判断依据' : ' · 查看依据可打开完整条件与证据')}</span>
+            {mobile && <label className="workspace-check-label"><input type="checkbox" aria-label="勾选本页全部筛选结果" checked={pageSelected} disabled={addingSelected} onChange={event => selectPage(event.target.checked)} className="workspace-check" />全选本页</label>}
+          </div>}
           {!!selectedCodes.length && <div className="screening-selection-toolbar" role="group" aria-label="所选结果操作"><strong>已选 {selectedCodes.length} 只</strong><button type="button" className="text-button workspace-button" disabled={addingSelected || loading} onClick={() => void copySelected()}>复制所选</button><button type="button" className="text-button workspace-button" disabled={addingSelected || loading} onClick={exportSelected}>导出所选</button><button type="button" className="secondary-button compact workspace-button" disabled={addingSelected || loading} data-tooltip="所选股票加入手动观察，已有关注记录直接复用" onClick={() => void addSelected()}>{addingSelected ? '正在加入…' : '加入观察池'}</button><button type="button" className="text-button workspace-button" disabled={addingSelected} onClick={() => setSelectedRows([])}>清除勾选</button></div>}
           {batchMessage && <p role="status" className="screening-selection-message workspace-feedback-inline">{batchMessage}</p>}{batchError && <p role="alert" className="screening-selection-error workspace-error">{batchError}</p>}
 
@@ -553,12 +587,13 @@ export default function ScreeningResultView({
                 )}
               </div>
             ) : (
-              decisions.length > 0 && <div className="screening-compact-scroll workspace-table-scroll workspace-table-cards"><table ref={resultTable} className="screening-compact-table workspace-data-table" aria-label="筛选结果股票列表"><thead><tr><th><input type="checkbox" aria-label="勾选本页全部筛选结果" checked={decisions.length > 0 && decisions.every(item => selectedCodes.includes(item.stock_code))} disabled={addingSelected} onChange={event => selectPage(event.target.checked)} className="workspace-check" /></th><th>股票</th><th>判断</th><th>关键值与条件</th><th>完整依据</th></tr></thead><tbody>{decisions.map(decision => <tr key={decision.stock_code} data-selected={evidenceLayout === 'inline' && activeDecision?.stock_code === decision.stock_code}>
-                <td data-label="勾选"><input type="checkbox" aria-label={`勾选筛选结果 ${decision.stock_code}`} checked={selectedCodes.includes(decision.stock_code)} disabled={addingSelected} onChange={() => selectCode(decision.stock_code)} className="workspace-check" /></td>
-                <td data-label="股票"><StockName code={decision.stock_code} />{typeof decision.close === 'number' && <small>收盘 {decision.close.toFixed(2)}（行情原始单位）</small>}</td>
+              decisions.length > 0 && <div className="screening-compact-scroll workspace-table-scroll workspace-table-cards"><table ref={resultTable} className="screening-compact-table workspace-data-table" aria-label="筛选结果股票列表"><thead><tr><th>{mobile ? '勾选' : <input type="checkbox" aria-label="勾选本页全部筛选结果" checked={pageSelected} disabled={addingSelected} onChange={event => selectPage(event.target.checked)} className="workspace-check" />}</th><th>股票</th><th>判断</th><th>关键值与条件</th><th>{mobile ? '个股依据' : '完整依据'}</th></tr></thead><tbody>{decisions.map(decision => <tr key={decision.stock_code} data-selected={inline && activeDecision?.stock_code === decision.stock_code}
+                onClick={mobile ? event => { if (!(event.target as Element).closest('button,input,label,a')) event.currentTarget.querySelector<HTMLButtonElement>('[data-evidence-stock]')?.click() } : undefined}>
+                <td data-label="勾选"><label className="mobile-list-checkbox"><input type="checkbox" aria-label={`勾选筛选结果 ${decision.stock_code}`} checked={selectedCodes.includes(decision.stock_code)} disabled={addingSelected} onChange={() => selectCode(decision.stock_code)} className="workspace-check" /></label></td>
+                <td data-label="股票">{mobile ? evidenceButton(decision) : <StockName code={decision.stock_code} />}{typeof decision.close === 'number' && <small>收盘 {decision.close.toFixed(2)}（行情原始单位）</small>}</td>
                 <td data-label="判断"><span className={["workspace-status", `conversation-turn-state ${stateClass(decision.state)}`].filter(Boolean).join(' ')}>{stateLabels[decision.state] || decision.state}</span><small>{scoreLabel && typeof decision.score === 'number' ? scoreLabel + ' ' + decision.score + ' · ' : ''}{decision.conditions.length ? `${decision.conditions.filter(item => item.state === 'true').length} / ${decision.conditions.length} 条符合` : '暂无条件明细'}</small></td>
                 <td data-label="关键值与条件" className="screening-key-values">{keyConditions(decision.conditions).map((condition, index) => <span key={condition.reference_id || index} data-tooltip={`${condition.name}：${condition.explanation}`}><i className={`screening-condition-marker ${condition.state}`} aria-label={stateLabels[condition.state] || condition.state} />{stateLabels[condition.state] || condition.state} · {conciseCondition(condition)}</span>)}</td>
-                <td data-label="完整依据"><button type="button" className="text-button workspace-button" data-evidence-stock={decision.stock_code} aria-label={`查看 ${decision.stock_code} 条件与依据`} aria-expanded={evidenceLayout === 'inline' ? activeDecision?.stock_code === decision.stock_code : undefined} onClick={event => { onEvidenceSelect?.(decision.stock_code); showEvidence(decision.stock_code, event.currentTarget) }}>查看依据</button></td>
+                {mobile ? <td data-label="进入依据" className="screening-stock-chevron" aria-hidden="true"><ChevronRight size={17} /></td> : <td data-label="完整依据">{evidenceButton(decision)}</td>}
               </tr>)}</tbody></table></div>
             )}
 
@@ -586,7 +621,7 @@ export default function ScreeningResultView({
             <Pagination offset={offset} total={total} pageSize={pageSize} onChange={value => onPageChange?.(value)} disabled={addingSelected || loading} label="筛选结果分页" unit="只" />
           )}
 
-          {evidenceLayout === 'inline' && activeDecision && <section ref={inlineEvidence} tabIndex={-1} className="screening-inline-evidence" aria-label="个股条件与依据">
+          {inline && activeDecision && <section ref={inlineEvidence} tabIndex={-1} className="screening-inline-evidence" aria-label="个股条件与依据">
             <header>
               <div><h3>判断依据</h3><StockName code={activeDecision.stock_code} /><p>数据截止日：{activeDecision.as_of || asOf || '未提供'}</p></div>
               <nav aria-label="本页个股导航">
@@ -601,6 +636,6 @@ export default function ScreeningResultView({
 
         </>
       )}
-    </div>{detailOpen && activeDecision && createPortal(<div className="screening-evidence-layer"><div className="screening-evidence-backdrop" onClick={() => setExpandedCode('')} aria-hidden="true" /><section className="screening-evidence-drawer workspace-tool-dialog workspace-drawer" role="dialog" aria-modal="true" aria-label="个股条件与依据" onKeyDown={event => { if (event.nativeEvent.isComposing || event.keyCode === 229) { event.stopPropagation(); return }; if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setExpandedCode('') }; trapDialogTab(event) }}><header><div><StockName code={activeDecision.stock_code} /><p>数据截止日：{activeDecision.as_of || asOf || '未提供'}</p></div><button ref={detailClose} type="button" className="icon-button workspace-button" aria-label="关闭个股依据" onClick={() => setExpandedCode('')}><X size={19} /></button></header><nav className="screening-evidence-navigation" aria-label="本页个股导航"><button type="button" className="text-button workspace-button" disabled={activeIndex <= 0} onClick={() => moveEvidence(decisions[activeIndex - 1].stock_code)}>上一只</button><span aria-live="polite">本页 {activeIndex + 1} / {decisions.length}</span><button type="button" className="text-button workspace-button" disabled={activeIndex >= decisions.length - 1} onClick={() => moveEvidence(decisions[activeIndex + 1].stock_code)}>下一只</button></nav><div className="screening-evidence-body" key={activeDecision.stock_code}>{decisionDetails(activeDecision)}</div></section></div>, portalTarget)}</StockText>
+    </div>{detailOpen && activeDecision && createPortal(<div className="screening-evidence-layer"><div className="screening-evidence-backdrop" onClick={() => setExpandedCode('')} aria-hidden="true" /><section className="screening-evidence-drawer workspace-tool-dialog workspace-drawer" role="dialog" aria-modal="true" aria-label="个股条件与依据" onKeyDown={event => { if (event.nativeEvent.isComposing || event.keyCode === 229) { event.stopPropagation(); return }; if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setExpandedCode('') }; trapDialogTab(event) }}><header><div><StockName code={activeDecision.stock_code} /><p>数据截止日：{activeDecision.as_of || asOf || '未提供'}</p></div><button ref={detailClose} type="button" className={mobile ? 'text-button screening-evidence-back workspace-button' : 'icon-button workspace-button'} aria-label={mobile ? undefined : '关闭个股依据'} onClick={() => setExpandedCode('')}>{mobile ? <><ArrowLeft size={18} aria-hidden="true" />返回名单</> : <X size={19} />}</button></header><nav className="screening-evidence-navigation" aria-label="本页个股导航"><button type="button" className="text-button workspace-button" disabled={activeIndex <= 0} onClick={() => moveEvidence(decisions[activeIndex - 1].stock_code)}>上一只</button><span aria-live="polite">本页 {activeIndex + 1} / {decisions.length}</span><button type="button" className="text-button workspace-button" disabled={activeIndex >= decisions.length - 1} onClick={() => moveEvidence(decisions[activeIndex + 1].stock_code)}>下一只</button></nav><div className="screening-evidence-body" key={activeDecision.stock_code}>{decisionDetails(activeDecision)}</div></section></div>, portalTarget)}</StockText>
   )
 }

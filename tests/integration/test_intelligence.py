@@ -425,6 +425,40 @@ def test_frozen_market_source_can_be_cited_and_cannot_be_overwritten(client, mon
             connection.execute("UPDATE intelligence_advisor_context SET context_json='{}' WHERE run_id=?", (run["id"],))
 
 
+def test_closing_rotation_is_saved_once_alongside_immutable_adviser_context(client, monkeypatch):
+    from apps.api.app import advisor_tasks
+
+    calls = []
+    snapshot = {
+        "as_of": "2026-10-19", "trade_date": "2026-10-19",
+        "industries": [{"code": "801080.SI", "name": "电子", "returns": {"1": 2.5, "5": None, "20": None}, "breadth": None}],
+        "breadth": {"up": 10, "down": 3, "flat": 1, "covered": 14, "total": 14},
+        "limits": {}, "streaks": [], "issues": [], "sources": [],
+    }
+
+    def collect(context):
+        calls.append(context["requested_trade_date"])
+        return snapshot
+
+    monkeypatch.setattr(advisor_tasks, "collect_rotation", collect)
+    run = start(client, kind="closing", scope={"advisor": {"trade_date": "2026-10-19"}})
+    context, _ = running(run)
+    with db.connect() as connection:
+        original = connection.execute("SELECT context_json FROM intelligence_advisor_context WHERE run_id=?", (run["id"],)).fetchone()[0]
+    captured = intelligence.read_advisor_context(None, context)
+    assert intelligence.read_advisor_context(None, context) == captured
+    assert calls == ["2026-10-19"]
+    source_id = captured["rotation_source_id"]
+    assert source_id in captured["market_source_ids"]
+    assert "申万一级电子 1 日 +2.50%" in intelligence.evidence(run["id"], source_id)["text"]
+    assert intelligence.detail(run["id"])["advisor_context"]["rotation_snapshot"] == snapshot
+    with db.connect() as connection:
+        assert connection.execute("SELECT context_json FROM intelligence_advisor_context WHERE run_id=?", (run["id"],)).fetchone()[0] == original
+    with pytest.raises(Exception, match="immutable"):
+        with db.connect() as connection:
+            connection.execute("UPDATE intelligence_rotation_snapshots SET snapshot_json='{}' WHERE run_id=?", (run["id"],))
+
+
 def test_pdf_quote_feedback_distinguishes_skipped_rows_and_repeated_passages():
     from apps.api.app.intelligence_contracts import BriefCitation
     saved = {"id": "pdf-source", "title": "财报原文", "url": "https://example.com/report.pdf",

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 import pytest
 
-from apps.api.app import auth, db, identity, main, market, pattern_language, patterns
+from apps.api.app import auth, db, identity, main, market, pattern_api, pattern_language, patterns
 from apps.api.app.security_context import actor_scope
 
 
@@ -23,7 +23,6 @@ def storage(tmp_path, monkeypatch):
         monkeypatch.setenv(variable, str(tmp_path / child))
     monkeypatch.setenv("LLMR_AUTH_MODE", "local")
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "state" / "patterns.db")
-    monkeypatch.setattr(main, "PATTERN_UPLOAD_DIR", tmp_path / "uploads" / "patterns")
     monkeypatch.setattr(patterns, "PATTERN_UPLOAD_DIR", tmp_path / "uploads" / "patterns")
     monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "data" / "missing.parquet")
     monkeypatch.setattr(market, "source_fingerprint", lambda: ("workspace-fixture", 1))
@@ -176,9 +175,9 @@ def test_repeated_text_matches_reuse_cache_without_false_confirmation(client, mo
         return iter([("600001.SH", rows(20))])
 
     monkeypatch.setattr(market, "iter_recent_bars", scan)
-    monkeypatch.setattr(main, "utc_now", lambda: "2026-01-31T10:00:00+00:00")
+    monkeypatch.setattr(pattern_api, "utc_now", lambda: "2026-01-31T10:00:00+00:00")
     first = post(client, "/match?as_of=2026-01-15", body)
-    monkeypatch.setattr(main, "utc_now", lambda: "2026-01-31T10:00:01+00:00")
+    monkeypatch.setattr(pattern_api, "utc_now", lambda: "2026-01-31T10:00:01+00:00")
     second = post(client, "/match?as_of=2026-01-15", body)
     assert first["items"] == second["items"]
     assert len(scans) == 1

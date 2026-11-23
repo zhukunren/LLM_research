@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+from pathlib import Path
 import re
 from typing import Any
 from uuid import uuid4
@@ -28,6 +29,7 @@ PAGE_SIZE = 2000
 class SourceRows:
     rows: list[dict[str, Any]]
     manifest: str
+    observed_at: str | None = None
 
 
 def _invalid(api_name: str, reason: str) -> TushareError:
@@ -61,8 +63,9 @@ def _pages(client, api_name: str, fields: tuple[str, ...], identity: tuple[str, 
     raise _invalid(api_name, "超过最大分页范围")
 
 
-def _cache(key: str, fetch, *, max_age: timedelta) -> SourceRows:
-    path = tushare_sync.STOCK_FILE.parent / "tushare-screening-v1" / f"{key}.json"
+def _cache(key: str, fetch, *, max_age: timedelta, root: Path | None = None) -> SourceRows:
+    directory = root or tushare_sync.STOCK_FILE.parent / "tushare-screening-v1"
+    path = directory / f"{key}.json"
     now = datetime.now(timezone.utc)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -75,7 +78,8 @@ def _cache(key: str, fetch, *, max_age: timedelta) -> SourceRows:
         rows = None
     if rows is None:
         rows = fetch()
-        payload = {"observed_at": now.isoformat(), "rows": rows}
+        observed = datetime.now(timezone.utc)
+        payload = {"observed_at": observed.isoformat(), "rows": rows}
         path.parent.mkdir(parents=True, exist_ok=True)
         pending = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
         try:
@@ -84,7 +88,7 @@ def _cache(key: str, fetch, *, max_age: timedelta) -> SourceRows:
         finally:
             pending.unlink(missing_ok=True)
     digest = hashlib.sha256(json.dumps(rows, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()).hexdigest()
-    return SourceRows(rows, f"tushare:{key}:sha256:{digest}")
+    return SourceRows(rows, f"tushare:{key}:sha256:{digest}", observed.isoformat())
 
 
 def _member_rows(client) -> list[dict[str, Any]]:

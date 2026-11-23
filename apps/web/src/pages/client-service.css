@@ -1,5 +1,5 @@
 .client-service-page { box-sizing: border-box; min-width: 0; max-width: none; width: 100%; margin-inline: 0; --client-navy: var(--ui-text); --client-muted: var(--ui-text-muted); }
-.viewport-workspace .page-frame > .page-content.client-service-page { max-width: none; width: 100%; min-width: 0; margin-inline: 0; display: block; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding: var(--ui-tool-gap) var(--ui-tool-gutter) 40px; background: var(--ui-canvas); }
+.viewport-workspace .page-frame > .page-content.client-service-page { --client-service-bottom-padding: 40px; max-width: none; width: 100%; min-width: 0; margin-inline: 0; display: block; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding: var(--ui-tool-gap) var(--ui-tool-gutter) var(--client-service-bottom-padding); background: var(--ui-canvas); }
 .client-service-page *, .client-service-page *::before, .client-service-page *::after { box-sizing: border-box; }
 .client-service-heading, .client-heading-title, .client-date-control, .client-day-summary, .client-slot-top, .client-editor-title, .client-section-heading, .client-preview-panel > header, .client-export-bar > div, .client-schedule > header, .client-schedule footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .client-service-heading { margin-bottom: 25px; }
@@ -148,7 +148,7 @@
   .client-card-canvas { height: 620px; max-height: 80vh; }
 }
 @media (max-width: 480px) {
-  .viewport-workspace .page-frame > .page-content.client-service-page { padding: 18px 12px 30px; }
+  .viewport-workspace .page-frame > .page-content.client-service-page { --client-service-bottom-padding: 30px; padding: 18px 12px var(--client-service-bottom-padding); }
   .client-service-heading h1 { font-size: 21px; }
   .client-heading-icon { width: 40px; height: 40px; }
   .client-service-heading p { font-size: 11px; }

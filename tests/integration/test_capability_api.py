@@ -5,7 +5,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from apps.api.app import db, main, market
+from apps.api.app import db, main, market, system_api
 
 
 @pytest.fixture
@@ -27,9 +27,9 @@ def client(tmp_path, monkeypatch):
         ),
         stock_file,
     )
-    monkeypatch.setattr(main, "STOCK_FILE", stock_file)
-    monkeypatch.setattr(main, "llm_settings", lambda: {"configured": False})
-    monkeypatch.setattr(main, "tushare_settings", lambda: {
+    monkeypatch.setattr(system_api, "STOCK_FILE", stock_file)
+    monkeypatch.setattr(system_api, "llm_settings", lambda: {"configured": False})
+    monkeypatch.setattr(system_api, "tushare_settings", lambda: {
         "configured": True, "credential_source": "environment",
         "token": "private-token", "api_url": "https://api.tushare.pro",
     })
@@ -89,7 +89,7 @@ def test_data_coverage_returns_scope_and_units_without_local_path(client):
     ("http://relay.example.test", "relay"),
 ])
 def test_tushare_status_reports_provider_without_exposing_token(client, monkeypatch, configured, url, provider):
-    monkeypatch.setattr(main, "tushare_settings", lambda: {
+    monkeypatch.setattr(system_api, "tushare_settings", lambda: {
         "configured": configured, "credential_source": "environment" if configured else "",
         "token": "private-token" if configured else "",
         "api_url": url,
@@ -107,8 +107,8 @@ def test_tushare_status_reports_provider_without_exposing_token(client, monkeypa
 def test_capability_check_reads_parquet_schema_without_accepting_invalid_files(tmp_path):
     invalid_file = tmp_path / "invalid.parquet"
     invalid_file.write_text("not parquet", encoding="utf-8")
-    assert main.market.daily_bar_source_available(invalid_file) is False
+    assert market.daily_bar_source_available(invalid_file) is False
 
     missing_field = tmp_path / "missing-field.parquet"
     pq.write_table(pa.table({"stock_code": ["600000.SH"], "close": [10.0]}), missing_field)
-    assert main.market.daily_bar_source_available(missing_field) is False
+    assert market.daily_bar_source_available(missing_field) is False

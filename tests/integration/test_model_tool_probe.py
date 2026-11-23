@@ -1,12 +1,12 @@
 from fastapi.testclient import TestClient
 
-from apps.api.app import db, main
+from apps.api.app import db, main, system_api
 
 
 def test_model_tool_probe_route_returns_only_safe_status(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "tool-probe.db")
     monkeypatch.setattr(
-        main,
+        system_api,
         "probe_function_calling",
         lambda: {
             "connected": True,

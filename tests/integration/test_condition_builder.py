@@ -4,7 +4,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import condition_builder, db, main, market, news_adapter, report_adapter, worker
+from apps.api.app import condition_builder, db, main, market, news_adapter, report_adapter, screening_strategy_execution
 
 
 @pytest.fixture
@@ -160,7 +160,10 @@ def test_composition_evaluates_saved_questions_once_per_security_at_the_frozen_c
     monkeypatch.setattr(condition_builder, 'evaluate_question', evaluate)
     item = {'id': 'evidence', 'version': 1, 'library': 'news', 'name': '已实施回购', 'expression': condition_builder.question_expression(condition_builder.EvidenceDefinition(kind='news', question='核对实际实施', fact_requirement='actual', lookback_calendar_days=30))}
     node = {'op': 'filter_ref', 'filter_id': 'evidence', 'version': 1}
-    state, details, _ = worker._eval_tree({'op': 'all', 'children': [node, node]}, '600000.SH', [], {('evidence', 1): item}, {}, {}, as_of='2026-09-30')
+    state, details, _ = screening_strategy_execution._eval_tree(
+        {'op': 'all', 'children': [node, node]}, '600000.SH', [], {('evidence', 1): item}, {}, {},
+        as_of='2026-09-30',
+    )
     assert state == 'true'
     assert len(details) == 2
     assert seen == [('news', '600000.SH', '2026-09-30', 30)]

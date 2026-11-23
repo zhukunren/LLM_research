@@ -127,21 +127,24 @@
   .workbench-composing .composition-execution-fields { grid-template-columns: minmax(0,1fr) minmax(0,1fr) 110px; }
 }
 @media (max-width: 760px) {
-  .page-content.workbench.workbench-composing { padding: 10px 12px; gap: 8px; }
-  .advanced-composition-heading h1 { font-size: 17px; }
-  .composition-heading-actions { gap: 5px; }
-  .composition-heading-actions > button { min-height: 32px; padding-inline: 6px; font-size: 11px; }
+  .page-content.workbench.workbench-composing { padding: 10px 12px; gap: 8px; overflow-y: auto; }
+  .advanced-composition-heading { flex-wrap: wrap; gap: 8px; }
+  .advanced-composition-heading h1 { font-size: 17px; white-space: nowrap; }
+  .composition-heading-actions { flex-wrap: wrap; gap: 5px; }
+  .viewport-workspace .page-frame .workbench-composing .composition-heading-actions > .secondary-button.workspace-button { gap: 4px; padding-inline: 6px; font-size: 12px; }
+  .workbench-composing .condition-compose-workspace.compose-workspace { flex: 0 0 auto; }
+  .workbench-composing .compose-main { overflow: visible; }
   .workbench-composing .composition-overview { gap: 7px; padding-bottom: 8px; }
   .workbench-composing .composition-overview > label { width: 100%; }
   .workbench-composing .composition-overview > label > input { flex: 1; width: 100%; min-width: 0; font-size: 16px; }
   .workbench-composing .composition-status { width: 100%; justify-content: space-between; font-size: 10px; }
   .condition-transfer-mobile-switch { display: flex; flex-shrink: 0; gap: 4px; padding: 6px 0; }
-  .condition-transfer-mobile-switch > button { flex: 1; min-width: 0; min-height: 32px; padding: 5px; border: 0; border-radius: 4px; background: var(--ui-surface-subtle); color: var(--ui-text-muted); font-size: 12px; }
+  .condition-transfer-mobile-switch > button { flex: 1; min-width: 0; min-height: 44px; padding: 5px; border: 0; border-radius: 8px; background: var(--ui-surface-subtle); color: var(--ui-text-muted); font-size: 12px; }
   .condition-transfer-mobile-switch > button[aria-pressed=true] { background: var(--ui-primary-soft); color: var(--ui-primary); }
-  .workbench-composing .condition-transfer-grid { grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr); }
+  .workbench-composing .condition-transfer-grid { grid-template-columns: minmax(0,1fr); grid-template-rows: auto; }
   .condition-transfer[data-mobile-pane=available] .condition-transfer-selected, .condition-transfer[data-mobile-pane=selected] .condition-transfer-available { display: none; }
   .workbench-composing .condition-transfer-available, .workbench-composing .condition-transfer-selected { padding: 0; border: 0; }
-  .workbench-composing .condition-transfer-panel { overflow-y: auto; scrollbar-width: thin; }
+  .workbench-composing .condition-transfer-panel { overflow: visible; }
   .workbench-composing .condition-transfer-panel .condition-transfer-list { flex: 0 0 auto; min-height: 140px; height: auto; overflow: visible; }
   .workbench-composing .condition-transfer-panel > header { min-height: 36px; padding-block: 4px; }
   .workbench-composing .condition-transfer-row { padding-block: 10px; }

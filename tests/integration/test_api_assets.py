@@ -5,7 +5,10 @@ from pypdf import PdfWriter
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
-from apps.api.app import db, documents, main, market, patterns, report_evidence, worker
+from apps.api.app import (
+    db, documents, filter_api, market, patterns, report_evaluation, report_evaluation_api,
+    report_evidence, screening_strategy_execution, worker,
+)
 from apps.api.app.main import app
 
 
@@ -58,7 +61,6 @@ def test_unsupported_filter_node_is_rejected(tmp_path, monkeypatch) -> None:
 def test_screenshot_source_is_stored_and_retrievable(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "app.db")
     monkeypatch.setattr(patterns, "PATTERN_UPLOAD_DIR", tmp_path / "pattern-images")
-    monkeypatch.setattr(main, "PATTERN_UPLOAD_DIR", tmp_path / "pattern-images")
     image = Image.new("RGB", (300, 180), "white")
     ImageDraw.Draw(image).line([(10, 140), (290, 50)], fill=(215, 30, 25), width=4)
     stream = BytesIO()
@@ -83,7 +85,6 @@ def test_screenshot_source_is_stored_and_retrievable(tmp_path, monkeypatch) -> N
 def test_pdf_upload_is_indexed_inside_configured_upload_root(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "app.db")
     upload_root = tmp_path / "report-uploads"
-    monkeypatch.setattr(main, "REPORT_UPLOAD_DIR", upload_root)
     monkeypatch.setattr(documents, "REPORT_UPLOAD_DIR", upload_root)
     monkeypatch.setattr(documents, "REPORT_DIR", tmp_path / "no-local-reports")
     pdf = BytesIO()
@@ -104,8 +105,8 @@ def test_report_rubric_evaluation_flows_into_strategy_with_citations(tmp_path, m
 
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "app.db")
     monkeypatch.setattr(market, "cached_profile", lambda: {"available": True, "last_date": "2026-09-25", "bytes": 100, "sha256": "snapshot"})
-    monkeypatch.setattr(worker, "cached_profile", lambda: {"available": True, "last_date": "2026-09-25", "bytes": 100, "sha256": "snapshot"})
-    monkeypatch.setattr(worker, "llm_settings", lambda: {"configured": True, "model": "test-contract-model"})
+    monkeypatch.setattr(screening_strategy_execution, "cached_profile", lambda: {"available": True, "last_date": "2026-09-25", "bytes": 100, "sha256": "snapshot"})
+    monkeypatch.setattr(report_evaluation, "llm_settings", lambda: {"configured": True, "model": "test-contract-model"})
     monkeypatch.setattr(report_evidence, "_completion", lambda _criteria, _pages: {
         "subject_name": "示例科技",
         "criteria_results": [{
@@ -113,7 +114,7 @@ def test_report_rubric_evaluation_flows_into_strategy_with_citations(tmp_path, m
             "evidence": [{"page": 1, "quote": "公司本期毛利率同比提升 4.2 个百分点，订单保持增长。", "evidence_type": "reported_fact", "period": "本期", "claim": "毛利率和订单改善"}],
         }],
     })
-    monkeypatch.setattr(worker, "iter_recent_bars", lambda _as_of, _limit: iter([("600000.SH", [{
+    monkeypatch.setattr(screening_strategy_execution, "iter_recent_bars", lambda _as_of, _limit: iter([("600000.SH", [{
         "trade_date": "2026-09-25", "open": 10.0, "high": 10.2, "low": 9.8, "close": 10.1,
         "volume": 100.0, "amount": 1010.0, "quality_valid": True,
     }])]))
@@ -184,12 +185,15 @@ def test_report_rubric_evaluation_flows_into_strategy_with_citations(tmp_path, m
 
 def test_report_rubric_draft_and_model_dependency_are_explicit(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "app.db")
-    monkeypatch.setattr(main, "llm_settings", lambda: {"configured": False, "model": ""})
+    unconfigured = {"configured": False, "model": ""}
+    monkeypatch.setattr(filter_api, "llm_settings", lambda: unconfigured)
+    monkeypatch.setattr(report_evaluation_api, "llm_settings", lambda: unconfigured)
     with TestClient(app) as client:
         draft = client.post("/api/v1/filters/draft", json={
             "library": "report", "prompt": "基本面改善，行业景气度提升，关注订单和毛利率",
         })
         assert draft.status_code == 200
+        assert draft.json()["source"] == "local_parser"
         expression = draft.json()["expression"]
         assert expression["evaluation_mode"] == "rubric"
         assert len(expression["criteria"]) == 2

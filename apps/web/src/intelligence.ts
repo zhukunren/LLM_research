@@ -1,3 +1,5 @@
+import type { RotationSnapshot } from './components/tushare/FeatureData'
+
 export type BriefKind = 'market' | 'policy' | 'industry' | 'closing' | 'stock-analysis' | 'stock-rationale'
 export type BriefScope = {
   markets: ('CN' | 'HK' | 'US' | 'GLOBAL')[]
@@ -100,4 +102,5 @@ export type AdvisorContext = {
   actual_market_date: string | null; session_status: string; gaps: string[]; market_source_ids: string[]
   observations: {stock_code: string; name: string; trade_date: string; close: number; change_pct: number | null}[]
   closing_policy?: { revision: string; preferred_turnover_scope: string; event_timezone: string }
+  rotation_snapshot?: RotationSnapshot
 }

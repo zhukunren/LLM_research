@@ -3,7 +3,10 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import db, jobs, main, market, report_evidence, worker
+from apps.api.app import (
+    db, jobs, main, market, report_evaluation, report_evaluation_api, report_evidence,
+    screening_strategy_execution, worker,
+)
 
 
 @pytest.fixture
@@ -11,8 +14,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "app.db")
     profile = lambda: {"available": True, "last_date": "2026-09-14", "securities": 1, "sha256": "fixture"}
     monkeypatch.setattr(market, "cached_profile", profile)
-    monkeypatch.setattr(worker, "cached_profile", profile)
-    monkeypatch.setattr(worker, "iter_recent_bars", lambda *_: iter([("600000.SH", [
+    monkeypatch.setattr(screening_strategy_execution, "cached_profile", profile)
+    monkeypatch.setattr(screening_strategy_execution, "iter_recent_bars", lambda *_: iter([("600000.SH", [
         {"trade_date": f"2026-09-{day:02}", "close": close, "quality_valid": True}
         for day, close in enumerate([10., 10., 10., 7., 8.], start=10)
     ])]))
@@ -85,13 +88,13 @@ def test_two_workers_cannot_claim_same_job_and_expired_owner_cannot_finish(clien
 
 def test_cancellation_during_last_batch_cannot_be_overwritten_by_success(client, monkeypatch):
     _, _, run = create_run(client)
-    source = worker.iter_recent_bars("2026-09-14", 500)
+    source = screening_strategy_execution.iter_recent_bars("2026-09-14", 500)
 
     def cancelling_scanner(*_):
         yield from source
         jobs.cancel(run["job_id"])
 
-    monkeypatch.setattr(worker, "iter_recent_bars", cancelling_scanner)
+    monkeypatch.setattr(screening_strategy_execution, "iter_recent_bars", cancelling_scanner)
     worker.execute_screening(run["job_id"])
     assert client.get(f"/api/v1/jobs/{run['job_id']}").json()["state"] == "cancelled"
     assert client.get(f"/api/v1/screening-runs/{run['id']}").json()["status"] == "cancelled"
@@ -111,7 +114,7 @@ def test_retry_is_idempotent_and_preserves_original_cancelled_run(client):
 
 def test_early_worker_exception_fails_task_without_stalling_queue(client, monkeypatch):
     _, _, run = create_run(client)
-    monkeypatch.setattr(worker, "cached_profile", lambda: (_ for _ in ()).throw(OSError("unavailable data")))
+    monkeypatch.setattr(screening_strategy_execution, "cached_profile", lambda: (_ for _ in ()).throw(OSError("unavailable data")))
     assert worker.execute_job(run["job_id"])
     assert client.get(f"/api/v1/screening-runs/{run['id']}").json()["status"] == "failed"
     assert jobs.claim(run["job_id"]) is None
@@ -119,7 +122,7 @@ def test_early_worker_exception_fails_task_without_stalling_queue(client, monkey
 
 def test_empty_scan_is_partial_and_invalid_dates_return_validation_error(client, monkeypatch):
     _, strategy, run = create_run(client)
-    monkeypatch.setattr(worker, "iter_recent_bars", lambda *_: iter([]))
+    monkeypatch.setattr(screening_strategy_execution, "iter_recent_bars", lambda *_: iter([]))
     worker.execute_screening(run["job_id"])
     assert client.get(f"/api/v1/screening-runs/{run['id']}").json()["status"] == "partial"
     response = client.post("/api/v1/screening-runs", json={"strategy_id": strategy["id"], "strategy_version": 1, "as_of": "2026-99-99", "mode": "exploratory"})
@@ -145,8 +148,8 @@ def test_repeated_worker_crashes_stop_automatic_requeue(client):
 
 
 def test_report_job_with_no_documents_is_partial_and_can_be_reloaded(client, monkeypatch):
-    monkeypatch.setattr(main, "llm_settings", lambda: {"configured": True, "model": "fixture"})
-    monkeypatch.setattr(main, "model_name", lambda: "fixture")
+    monkeypatch.setattr(report_evaluation_api, "llm_settings", lambda: {"configured": True, "model": "fixture"})
+    monkeypatch.setattr(report_evaluation_api, "model_name", lambda: "fixture")
     condition = client.post("/api/v1/filters", json={"library": "report", "name": "研报口径", "expression": {
         "op": "evidence_query", "evaluation_mode": "rubric", "combine": "all", "lookback_calendar_days": 30,
         "criteria": [{"id": "orders", "label": "订单", "question": "订单是否增长？", "signals": [], "counter_signals": []}],
@@ -162,9 +165,9 @@ def test_report_job_with_no_documents_is_partial_and_can_be_reloaded(client, mon
 
 
 def test_cancel_during_model_call_does_not_publish_evidence_or_binding(client, monkeypatch):
-    monkeypatch.setattr(main, "llm_settings", lambda: {"configured": True, "model": "fixture"})
-    monkeypatch.setattr(main, "model_name", lambda: "fixture")
-    monkeypatch.setattr(worker, "llm_settings", lambda: {"configured": True, "model": "fixture"})
+    monkeypatch.setattr(report_evaluation_api, "llm_settings", lambda: {"configured": True, "model": "fixture"})
+    monkeypatch.setattr(report_evaluation_api, "model_name", lambda: "fixture")
+    monkeypatch.setattr(report_evaluation, "llm_settings", lambda: {"configured": True, "model": "fixture"})
     condition = client.post("/api/v1/filters", json={"library": "report", "name": "取消验收", "expression": {
         "op": "evidence_query", "evaluation_mode": "rubric", "combine": "all", "lookback_calendar_days": 30,
         "criteria": [{"id": "orders", "label": "订单", "question": "订单是否增长？", "signals": [], "counter_signals": []}],

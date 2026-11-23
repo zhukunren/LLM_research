@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 import pytest
 
-from apps.api.app import db, main, market, pattern_adapter, worker
+from apps.api.app import db, main, market, pattern_adapter, screening_strategy_execution
 from apps.api.app.rules import validate_tree
 
 
@@ -73,7 +73,9 @@ def test_legacy_strategy_reference_preserves_similarity_limit_and_recent_window(
     node = {"op": "pattern_ref", "pattern_id": "shape", "version": 1, "min_similarity": 95,
             "match_mode": "recent", "recent_bars": 5, "score_weight": 1}
     assert validate_tree(node, {}, {("shape", 1)}) == []
-    state, details, _score = worker._eval_tree(node, "600000.SH", bars, {}, {("shape", 1): template}, {})
+    state, details, _score = screening_strategy_execution._eval_tree(
+        node, "600000.SH", bars, {}, {("shape", 1): template}, {},
+    )
     assert state == "true"
     assert details[0]["match_mode"] == "recent"
     assert details[0]["threshold"] == 95

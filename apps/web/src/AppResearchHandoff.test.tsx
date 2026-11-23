@@ -141,7 +141,7 @@ it('takes the question to the report, adds selected pages to the original draft 
   await waitFor(() => expect(screening).toHaveValue(question))
   expect(screen.getByRole('link', { name: '订单变化 · 第3页' })).toBeVisible()
   expect(screen.getByRole('link', { name: '订单变化 · 第4页' })).toBeVisible()
-  expect(screen.getByRole('button', { name: '生成选股方案' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: '只生成方案' })).toBeEnabled()
   view.unmount()
   render(<App />)
   const restored = await screen.findByRole('textbox', { name: '选股要求' }, { timeout: 6000 })

@@ -8,6 +8,7 @@ child process, and persist the resulting evidence for the next Codex turn.
 from __future__ import annotations
 
 import hashlib
+import logging
 import json
 import csv
 from datetime import date
@@ -18,6 +19,7 @@ from uuid import uuid4
 
 from . import conversation_store, market, program_conditions
 from .db import connect, json_dump, json_load, utc_now
+from .jobs import JobLease
 from .screening_contracts import CustomProgram
 
 
@@ -454,3 +456,20 @@ def execute_scan(lease) -> None:
     if error:
         message = f"研究扫描失败：{error}"
     lease.finish(status, message, result)
+
+
+def execute_job(lease: JobLease) -> None:
+    execute_scan(lease)
+    from .research_pdf_service import enqueue_scan as enqueue_scan_pdf
+
+    scan_id = lease.payload["scan_id"]
+    try:
+        with connect() as connection:
+            source = connection.execute(
+                "SELECT conversation_id FROM research_scans WHERE id=? AND status NOT IN ('queued','running')",
+                (scan_id,),
+            ).fetchone()
+        if source:
+            enqueue_scan_pdf(source["conversation_id"], scan_id)
+    except Exception:
+        logging.getLogger(__name__).exception("Could not queue research scan PDF")

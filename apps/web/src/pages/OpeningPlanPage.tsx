@@ -10,6 +10,7 @@ import LoadingState from '../components/LoadingState'
 import WorkspacePageHeading from '../components/WorkspacePageHeading'
 import { useClientCardPreview } from '../useClientCardPreview'
 import { useClientServiceCollection } from '../useClientServiceCollection'
+import { useMobileWorkspace } from '../useMobileWorkspace'
 import { useSessionState } from '../useSessionState'
 import { useWorkspaceSession } from '../WorkspaceSession'
 import './client-service.css'
@@ -96,22 +97,19 @@ export default function OpeningPlanPage() {
       <input id={inputId} type="date" className="workspace-field" value={date} disabled={!!saving}
         onChange={event => { if (validDate(event.target.value)) setDate(event.target.value) }} />
     </div>}><h1>开盘计划</h1></WorkspacePageHeading>
-    <nav className="client-mobile-pane-switch" aria-label="开盘计划编辑视图">
-      <button type="button" className="workspace-button" aria-pressed={pane === 'edit'} onClick={() => switchPane('edit')}>编辑</button>
-      <button type="button" className="workspace-button" aria-pressed={pane === 'preview'} onClick={() => switchPane('preview')}>预览</button>
-    </nav>
-    <OpeningPlanEditor key={date} date={date} pane={pane} mode={mode} setMode={setMode} saving={saving} setSaving={setSaving} />
+    <OpeningPlanEditor key={date} date={date} pane={pane} onSwitchPane={switchPane} mode={mode} setMode={setMode} saving={saving} setSaving={setSaving} />
   </div>
 }
 
 type Pane = 'edit' | 'preview'
 type Saving = 'saved' | 'template' | null
 
-function OpeningPlanEditor({ date, pane, mode, setMode, saving, setSaving }: {
-  date: string; pane: Pane; mode: CardPreviewMode; setMode: (mode: CardPreviewMode) => void
+function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, setSaving }: {
+  date: string; pane: Pane; onSwitchPane: (next: Pane) => void; mode: CardPreviewMode; setMode: (mode: CardPreviewMode) => void
   saving: Saving; setSaving: (saving: Saving) => void
 }) {
   const { active } = useWorkspaceSession()
+  const mobile = useMobileWorkspace()
   const savedVersion = useRef(0)
   const [draft, setDraft, storage] = useSessionState(`client-service.opening.draft.${date}`, initialDraft, validDraft)
   const [request, setRequest] = useSessionState<Request | null>(`client-service.opening.request.${date}`, null, validRequest)
@@ -279,7 +277,25 @@ function OpeningPlanEditor({ date, pane, mode, setMode, saving, setSaving }: {
   }
 
   const heading = isDraft ? '草稿预览' : '成品预览'
+  const saveCurrent = <button type="button" className="primary-button workspace-button" disabled={!workspace || reading || !!saving || !canExport || (!!saved && !dirty)}
+    onClick={() => void save('saved')}><Save size={15} />{saving === 'saved' ? '正在保存…' : '保存本次卡片'}</button>
+  const saveFeedback = <>
+    {(readError || saveError) && <div role="alert" className="workspace-error client-service-feedback">
+      <span>{readError || saveError}</span><button type="button" className="text-button workspace-button" disabled={reading || !!saving} onClick={() => {
+        setSaveError('')
+        setReadAttempt(value => value + 1)
+      }}>刷新保存版本</button>
+    </div>}
+    {saveNotice && <p role="status" className="workspace-feedback-success client-service-feedback"><Check size={15} />{saveNotice}</p>}
+  </>
   return <>
+    <nav className="client-mobile-pane-switch opening-plan-toolbar" aria-label="开盘计划编辑视图">
+      <button type="button" className="workspace-button" aria-pressed={pane === 'edit'} onClick={() => onSwitchPane('edit')}>编辑</button>
+      <button type="button" className="workspace-button" aria-pressed={pane === 'preview'} onClick={() => onSwitchPane('preview')}>预览</button>
+      {mobile && pane === 'edit' && <><div className="opening-plan-mobile-commit">
+        {dirty && <small role="status">{storage.persisted ? '本机已暂存' : '尚未保存'}</small>}{saveCurrent}
+      </div>{saveFeedback}</>}
+    </nav>
     <div className="client-service-studio opening-plan-studio" data-mobile-pane={pane}>
       <section className="client-card-editor" aria-label="编辑开盘计划">
         <header className="client-editor-title"><h2>模板编辑</h2></header>
@@ -317,18 +333,11 @@ function OpeningPlanEditor({ date, pane, mode, setMode, saving, setSaving }: {
           <p className="opening-plan-status">{reading ? '正在读取模板…' : dirty ? (storage.persisted ? '未提交的修改已留在本机' : '有未提交的修改')
             : saved ? '本次开盘计划已保存' : '正在使用默认模板'}</p>
           <div className="client-editor-actions">
-            <button type="button" className="primary-button workspace-button" disabled={!workspace || reading || !!saving || !canExport || (!!saved && !dirty)}
-              onClick={() => void save('saved')}><Save size={15} />{saving === 'saved' ? '正在保存…' : '保存本次卡片'}</button>
+            {!mobile && saveCurrent}
             <button type="button" className="secondary-button workspace-button" disabled={!workspace || reading || !!saving}
               onClick={() => void save('template')}>{saving === 'template' ? '正在保存…' : '保存为默认模板'}</button>
           </div>
-          {(readError || saveError) && <div role="alert" className="workspace-error client-service-feedback">
-            <span>{readError || saveError}</span><button type="button" className="text-button workspace-button" disabled={reading || !!saving} onClick={() => {
-              setSaveError('')
-              setReadAttempt(value => value + 1)
-            }}>刷新保存版本</button>
-          </div>}
-          {saveNotice && <p role="status" className="workspace-feedback-success client-service-feedback"><Check size={15} />{saveNotice}</p>}
+          {!mobile && saveFeedback}
         </div>
         {planTemplate.groups.map((group, index) => <details className="opening-plan-section" key={group.label} open={index < 2}>
           <summary>{group.label}</summary>

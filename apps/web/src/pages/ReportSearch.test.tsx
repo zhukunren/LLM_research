@@ -4,9 +4,10 @@ import type { ReactNode } from 'react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { api } from '../api'
 import ReportPage from './ReportPage'
+import { SecuritiesProvider } from '../components/StockSearch'
 
 vi.mock('../api', () => ({ api: vi.fn() }))
-vi.mock('../components/PdfReader', () => ({ default: ({ page, pageControls }: { page: number; pageControls?: ReactNode }) => <>{pageControls}<div role="img" aria-label={'PDF ' + page} /></> }))
+vi.mock('../components/PdfReader', () => ({ default: ({ page, pageControls, actions }: { page: number; pageControls?: ReactNode; actions?: ReactNode }) => <>{pageControls}{actions}<div role="img" aria-label={'PDF ' + page} /></> }))
 const mocked = vi.mocked(api)
 const documents = [
   { id: 'one', title: '第一份报告', filename: 'one.pdf', pages: 5, parse_status: 'indexed', metadata_status: 'ready' },
@@ -19,6 +20,32 @@ const searchCalls = () => mocked.mock.calls.filter(([path]) => path === '/docume
 const catalog = () => screen.getByRole('complementary', { name: '研报列表' })
 
 beforeEach(() => vi.clearAllMocks())
+
+it('keeps an unmatched document readable until the user explicitly selects it for citation', async () => {
+  mocked.mockImplementation(async path => {
+    if (path === '/security-catalog') return { items: [{ name: '横店东磁', stock_code: '002056.SZ', market: 'SZ' }] }
+    if (path === '/documents') return { items: [{ ...documents[0], stock_code: '002056.SZ' }, ...documents.slice(1)] }
+    return path === '/documents/search' ? result([]) : { queued: 0 }
+  })
+  const user = userEvent.setup(), describe = vi.fn(), source = vi.fn()
+  render(<SecuritiesProvider><ReportPage selectingFor="research" onDescribe={describe} onDefineCondition={vi.fn()} onSourceChange={source} /></SecuritiesProvider>)
+  await screen.findByRole('img', { name: 'PDF 1' })
+  fireEvent.change(screen.getByLabelText('研报页码'), { target: { value: '3' } })
+  fireEvent.change(screen.getByLabelText('搜索研报'), { target: { value: 'missing-company-889966' } })
+  const cite = screen.getByRole('button', { name: '用此页继续研究' })
+  expect(cite).toBeDisabled()
+  await screen.findByText('没有找到相关研报。')
+  expect(screen.getByRole('img', { name: 'PDF 3' })).toBeVisible()
+  expect(screen.getByRole('button', { name: '带此页去选股' })).toBeDisabled()
+  expect(source).toHaveBeenLastCalledWith(null)
+  await user.click(cite)
+  expect(describe).not.toHaveBeenCalled()
+  const choose = screen.getByRole('button', { name: '清除搜索并选用「002056.SZ」第 3 页' })
+  expect(choose.querySelector('[data-stock-code]')).toBeNull()
+  await user.click(choose)
+  await user.click(cite)
+  expect(describe).toHaveBeenCalledWith({ source_document_id: 'one', source_page: 3, title: '第一份报告' })
+})
 
 it('defaults to expanded search, follows relevance order, and opens the matching original page', async () => {
   mocked.mockImplementation(async path => path === '/documents' ? { items: documents } : path === '/documents/search' ? result([hit('two', 3, '光通信需求增长。', ['光通信']), hit('one', 2, '光模块订单增加。')]) : { queued: 0 })

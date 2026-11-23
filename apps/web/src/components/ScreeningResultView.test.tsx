@@ -48,6 +48,22 @@ it('opens full evidence from the compact list, including a false condition on a 
   expect(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' })).toHaveFocus()
 })
 
+it('returns from restored phone evidence to the original stock and filter', async () => {
+  vi.stubGlobal('matchMedia', vi.fn(query => ({ matches: query === '(max-width: 760px)', addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+  const user = userEvent.setup()
+  render(<ScreeningResultView status="partial" resultKey="batch-1" evidenceLayout="inline" stateFilter="unknown" query="600000"
+    decisions={[{ stock_code: '600000.SH', state: 'unknown', conditions: [{ name: '披露', state: 'unknown', explanation: '等待披露' }] }]}
+    restorePosition={{ conversationId: 'conversation-1', runId: 'batch-1', stockCode: '600000.SH', state: 'unknown', query: '600000', offset: 0 }}
+    onQueryChange={vi.fn()} onStateFilterChange={vi.fn()} />)
+  const evidence = within(await screen.findByRole('dialog', { name: '个股条件与依据' }))
+  expect(evidence.getByText('等待披露')).toBeVisible()
+  await user.click(evidence.getByRole('button', { name: '返回名单' }))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '查看 600000.SH 条件与依据' })).toHaveFocus()
+  expect(screen.getByRole('button', { name: '筛选 · 无法判断' })).toBeVisible()
+  expect(screen.getByLabelText('搜索股票名称或代码')).toHaveValue('600000')
+})
+
 it('adds only selected stocks and retains failed selections with a stable retry request', async () => {
   const user = userEvent.setup(), writes: { stock_code: string; request_id: string }[] = []
   let failed = false

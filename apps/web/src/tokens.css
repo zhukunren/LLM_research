@@ -144,6 +144,24 @@
   :root { --ui-tool-gutter: 16px; }
 }
 
+@media (max-width: 760px) {
+  :root {
+    --ui-header-height: 56px;
+    --ui-page-title-leading: 32px;
+    --ui-section-title: 16px;
+    --ui-section-title-leading: 24px;
+    --ui-reading-size: 16px;
+    --ui-body-size: 15px;
+    --ui-body-leading: 24px;
+    --ui-label-size: 14px;
+    --ui-label-leading: 21px;
+    --ui-metric-size: 20px;
+    --ui-metric-leading: 24px;
+    --ui-tool-control: var(--ui-control-lg);
+    --ui-main-action-height: 48px;
+  }
+}
+
 @media (max-width: 600px) {
   :root { --ui-tool-gutter: 12px; --ui-tool-gap: 12px; }
 }

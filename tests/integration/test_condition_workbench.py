@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from fastapi.testclient import TestClient
 
-from apps.api.app import condition_language, db, main, market, worker
+from apps.api.app import condition_language, db, main, market, screening_strategy_api, screening_strategy_execution, worker
 
 
 @pytest.fixture
@@ -13,15 +13,15 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(condition_language, "llm_settings", lambda: {"configured": False})
     profile = lambda: {"available": True, "last_date": "2026-09-14", "securities": 3, "sha256": "fixture"}
     monkeypatch.setattr(market, "cached_profile", profile)
-    monkeypatch.setattr(worker, "cached_profile", profile)
+    monkeypatch.setattr(screening_strategy_execution, "cached_profile", profile)
     monkeypatch.setattr(market, "source_fingerprint", lambda: ("fixture", 100, 1))
-    monkeypatch.setattr(worker, "source_fingerprint", lambda: ("fixture", 100, 1))
+    monkeypatch.setattr(screening_strategy_execution, "source_fingerprint", lambda: ("fixture", 100, 1))
     records = {
         "600000.SH": [{"close": value, "volume": 100., "quality_valid": True, "trade_date": f"2026-09-{day:02}"} for day, value in [(12, 10.), (13, 11.), (14, 12.)]],
         "600001.SH": [{"close": value, "volume": 100., "quality_valid": True, "trade_date": f"2026-09-{day:02}"} for day, value in [(12, 10.), (13, 9.), (14, 8.)]],
         "600002.SH": [{"close": 12., "volume": 100., "quality_valid": True, "trade_date": "2026-09-13"}],
     }
-    monkeypatch.setattr(worker, "iter_recent_bars", lambda *_: iter(records.items()))
+    monkeypatch.setattr(screening_strategy_execution, "iter_recent_bars", lambda *_: iter(records.items()))
     monkeypatch.setattr(market, "get_bars", lambda code, *_: records.get(code, []))
     with TestClient(main.app) as session:
         yield session
@@ -81,7 +81,7 @@ def test_submission_ids_reject_changed_payload_and_replay_before_dynamic_checks(
 def test_blocked_submission_replays_without_creating_jobs(client, monkeypatch):
     _, saved = compile_and_save(client)
     strategy = client.post("/api/v1/strategies", json={"name": "正式组合", "tree": saved["tree"]}).json()
-    monkeypatch.setattr(main, "_strategy_blockers", lambda *_: ["尚未确认行情口径"])
+    monkeypatch.setattr(screening_strategy_api, "_strategy_blockers", lambda *_: ["尚未确认行情口径"])
     body = {"request_id": "blocked-once", "strategy_id": strategy["id"], "strategy_version": 1, "as_of": "2026-09-14"}
     first = client.post("/api/v1/screening-runs", json=body).json()
     assert first["status"] == "blocked_dependency"
@@ -102,11 +102,11 @@ def test_submission_record_and_resources_rollback_together(client, monkeypatch, 
         path = "/api/v1/screening-runs"
         body = {"request_id": "rollback", "strategy_id": strategy["id"], "strategy_version": 1,
                 "as_of": "2026-09-14", "mode": "exploratory"}
-    remember = main._remember_submission
+    remember = screening_strategy_api._remember_submission
     def fail_after_record(*args):
         remember(*args)
         raise RuntimeError("simulated interrupted write")
-    monkeypatch.setattr(main, "_remember_submission", fail_after_record)
+    monkeypatch.setattr(screening_strategy_api, "_remember_submission", fail_after_record)
     with pytest.raises(RuntimeError, match="simulated interrupted write"):
         client.post(path, json=body)
     with db.connect() as connection:
@@ -114,7 +114,7 @@ def test_submission_record_and_resources_rollback_together(client, monkeypatch, 
         assert connection.execute("SELECT COUNT(*) FROM strategies").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM screening_runs").fetchone()[0] == 0
         assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
-    monkeypatch.setattr(main, "_remember_submission", remember)
+    monkeypatch.setattr(screening_strategy_api, "_remember_submission", remember)
     assert client.post(path, json=body).status_code == 200
 
 
@@ -221,7 +221,7 @@ def test_empty_pool_rejected_and_retry_preserves_snapshot(client):
 def test_changed_market_snapshot_does_not_silently_execute(client, monkeypatch):
     _, saved = compile_and_save(client)
     run = run_strategy(client, saved)
-    monkeypatch.setattr(worker, "source_fingerprint", lambda: ("fixture", 200, 2))
+    monkeypatch.setattr(screening_strategy_execution, "source_fingerprint", lambda: ("fixture", 200, 2))
     worker.execute_screening(run["job_id"])
     assert client.get(f"/api/v1/screening-runs/{run['id']}").json()["status"] == "failed"
     assert client.get(f"/api/v1/screening-runs/{run['id']}/decisions").json()["total"] == 0

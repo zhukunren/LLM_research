@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, MoreHorizontal } from 'lucide-react'
+import MobileSheet from './MobileSheet'
 import './screening-result-menu.css'
 
-export default function ScreeningResultMenu({ children, context }: { children: (close: () => void) => ReactNode; context: string }) {
+export default function ScreeningResultMenu({ children, context, mobile = false }: { children: (close: () => void) => ReactNode; context: string; mobile?: boolean }) {
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -11,13 +12,17 @@ export default function ScreeningResultMenu({ children, context }: { children: (
   const close = () => { setOpen(false); trigger.current?.focus() }
   useEffect(() => { setOpen(false) }, [context])
   useEffect(() => {
-    if (!open) return
+    if (!open || mobile) return
     const first = menu.current?.querySelector<HTMLElement>('button:not(:disabled), a[href]')
     ;(first || menu.current)?.focus()
     const outside = (event: PointerEvent) => { if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false) }
     document.addEventListener('pointerdown', outside)
     return () => document.removeEventListener('pointerdown', outside)
-  }, [open])
+  }, [mobile, open])
+  if (mobile) return <div className="screening-result-menu">
+    <button type="button" className="icon-button workspace-button" aria-label="结果操作" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}><MoreHorizontal size={21} aria-hidden="true" /></button>
+    {open && <MobileSheet title="结果操作" onClose={close}><div className="mobile-sheet-list mobile-result-actions">{children(close)}</div></MobileSheet>}
+  </div>
   return <div ref={root} className="screening-result-menu">
     <button ref={trigger} type="button" className="secondary-button compact workspace-button" aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setOpen(true) } }}>复制与导出<ChevronDown size={13} aria-hidden="true" /></button>
     {open && <div ref={menu} id={id} role="menu" aria-label="复制与导出" tabIndex={-1} onKeyDown={event => {

@@ -40,6 +40,13 @@ def validate_filter(library: str, expression: dict[str, Any]) -> list[str]:
     if not isinstance(op, str):
         return ["条件操作类型必须是字符串"]
     if library == "technical":
+        from .screening_contracts import TUSHARE_RULES
+        if op in TUSHARE_RULES:
+            try:
+                TUSHARE_RULES[op].model_validate(expression)
+            except ValueError:
+                return ["Tushare 条件参数不完整或超出允许范围"]
+            return []
         allowed = {
             "indicator_compare": {"op", "indicator", "field", "window", "operator", "value", "compare_field"},
             "ma_cross": {"op", "fast_window", "slow_window", "direction"},
@@ -227,6 +234,12 @@ def filter_parameters(library: str, expression: dict[str, Any]) -> dict[str, dic
     """Parameters that can be changed on one strategy reference without editing its asset."""
     if library != "technical":
         return {}
+    from .tushare_feature_rules import TEMPLATES
+    op = expression.get("op")
+    if isinstance(op, str) and op in TEMPLATES:
+        return {name: {"label": spec["label"], "type": "integer" if spec["step"] == 1 else "number",
+                       "min": spec["min"], "max": spec["max"]}
+                for name, spec in TEMPLATES[op]["parameters"].items()}
     if expression.get("op") == "timeseries_filter":
         from .time_series import parameters
         return parameters(expression["formula"])

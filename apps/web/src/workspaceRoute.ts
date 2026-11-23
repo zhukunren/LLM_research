@@ -30,7 +30,7 @@ const views: ScreeningView[] = ['conversation', 'create', 'library', 'compose', 
 const retiredObservationTabs = ['all', 'updates', 'expectations', 'portfolio']
 const objectId = /^[A-Za-z0-9_-]{1,100}$/
 const stockCode = /^\d{6}\.(SH|SZ|BJ)$/
-const simplePaths: Partial<Record<PageId, string>> = { qmt: 'tools/qmt', 'daily-signals': 'tools/daily-signals', 'client-service': 'tools/client-service', patterns: 'library/patterns' }
+const simplePaths: Partial<Record<PageId, string>> = { qmt: 'tools/qmt', 'daily-signals': 'tools/daily-signals', etf: 'tools/etf', 'client-service': 'tools/client-service', patterns: 'library/patterns' }
 
 /** Canonical runtime routes for legacy navigation IDs. */
 export function normalizeWorkspaceRoute(route: WorkspaceRoute): WorkspaceRoute {
@@ -74,6 +74,7 @@ export function parseWorkspaceRoute(hash: string): WorkspaceRoute | null {
   if (parts.length === 1 && parts[0] === 'assistants') return { page: 'screening', newDraft: true }
   if (parts.length === 2 && parts[0] === 'tools' && parts[1] === 'qmt') return { page: 'qmt', ...sharedWorkspace }
   if (parts.length === 2 && parts[0] === 'tools' && parts[1] === 'daily-signals') return { page: 'daily-signals', ...sharedWorkspace }
+  if (parts.length === 2 && parts[0] === 'tools' && parts[1] === 'etf') return { page: 'etf', ...sharedWorkspace }
   if (parts.length === 2 && parts[0] === 'tools' && parts[1] === 'client-service') {
     const requestedView = params.get('view')
     const view = requestedView === 'diagnosis' ? 'suggestions' : requestedView
@@ -112,7 +113,7 @@ export function workspaceRouteHash(input: WorkspaceRoute): string {
   if (route.page === 'library') return `#/library?type=${route.libraryTab || 'news'}${route.workspace === 'screening' ? '&workspace=screening' : ''}`
   const params = new URLSearchParams()
   if (route.page === 'client-service' && route.serviceView && route.serviceView !== 'cards') params.set('view', route.serviceView)
-  if (route.workspace === 'screening' && ['news', 'patterns', 'reports', 'watchlist', 'qmt', 'daily-signals', 'client-service'].includes(route.page)) params.set('workspace', 'screening')
+  if (route.workspace === 'screening' && ['news', 'patterns', 'reports', 'watchlist', 'qmt', 'daily-signals', 'etf', 'client-service'].includes(route.page)) params.set('workspace', 'screening')
   if ((route.page === 'screening' || route.page === 'conditions') && route.scope && route.scope !== 'screening') params.set('scope', route.scope)
   if ((route.page === 'screening' || route.page === 'conditions') && route.indicators === 'common') params.set('indicators', 'common')
   if (route.page === 'conditions' && route.conversationId && route.screeningMethod && route.screeningMethod !== 'pattern') params.set('method', route.screeningMethod)

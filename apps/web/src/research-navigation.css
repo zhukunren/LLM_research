@@ -9,7 +9,7 @@
 .screening-tools-trigger { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 10px; border: 1px solid var(--ui-border-subtle); border-radius: 8px; background: var(--ui-surface); color: var(--ui-text); font-size: 13px; white-space: nowrap; cursor: pointer; }
 .screening-tools-trigger > svg { flex-shrink: 0; color: var(--ui-text-muted); }
 .screening-tools-trigger:is(:hover,[aria-expanded=true]) { background: var(--ui-surface-subtle); border-color: var(--ui-border); }
-.screening-tools-trigger[aria-expanded=true] > svg:last-child { transform: rotate(180deg); }
+.screening-tools-trigger[aria-expanded=true] > svg + svg { transform: rotate(180deg); }
 .screening-tools-popover { position: absolute; z-index: 28; inset: calc(100% + 8px) 0 auto auto; display: grid; width: min(330px, calc(100vw - 24px)); max-height: min(480px, calc(100dvh - 140px)); overflow-y: auto; overscroll-behavior: contain; padding: 6px; border: 1px solid var(--ui-border); border-radius: 12px; background: var(--ui-surface); box-shadow: var(--ui-shadow-sm); }
 .screening-tools-popover[hidden] { display: none; }
 .screening-tools-section { display: grid; min-width: 0; }

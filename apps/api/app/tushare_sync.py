@@ -51,13 +51,15 @@ def _report_progress(callback: SyncProgress | None, stage: str, **details: Any) 
         callback(stage, details)
 
 
-def create_client() -> TushareClient:
+def create_client(*, timeout: float | None = None, retries: int | None = None) -> TushareClient:
     """Create a client for the configured Tushare endpoint."""
     config = tushare_settings()
     from .tushare_limits import configured_limiter
     return TushareClient(
-        str(config["token"]), api_url=str(config["api_url"]), timeout=float(config["timeout"]),
-        retries=int(config["retries"]), limiter=configured_limiter(),
+        str(config["token"]), api_url=str(config["api_url"]),
+        timeout=float(config["timeout"]) if timeout is None else min(timeout, float(config["timeout"])),
+        retries=int(config["retries"]) if retries is None else min(retries, int(config["retries"])),
+        limiter=configured_limiter(),
     )
 
 

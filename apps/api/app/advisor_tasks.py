@@ -105,7 +105,66 @@ def persist_context(connection, run_id, context):
 
 def read_context(connection, run_id):
     record = connection.execute("SELECT context_json FROM intelligence_advisor_context WHERE run_id=?", (run_id,)).fetchone()
-    return json_load(record[0]) if record else None
+    if not record:
+        return None
+    context = json_load(record[0])
+    rotation = connection.execute("""SELECT r.snapshot_json,r.source_id,s.text
+        FROM intelligence_rotation_snapshots r LEFT JOIN intelligence_sources s ON s.id=r.source_id
+        WHERE r.run_id=?""", (run_id,)).fetchone()
+    if rotation:
+        context["rotation_snapshot"] = json_load(rotation["snapshot_json"])
+        if rotation["source_id"]:
+            context["market_source_ids"].append(rotation["source_id"])
+            context["rotation_source_id"] = rotation["source_id"]
+            context["rotation_evidence_text"] = rotation["text"]
+    return context
+
+
+def collect_rotation(context: dict) -> dict:
+    from datetime import date
+
+    from .tushare_client import TushareError
+    from .tushare_feature_data import Reader, error_note
+    from .tushare_market_features import rotation
+
+    day = date.fromisoformat(context["requested_trade_date"])
+    try:
+        return rotation(Reader(), day, cutoff=datetime.fromisoformat(context["research_cutoff"]))
+    except TushareError as exc:
+        return {"as_of": day.isoformat(), "trade_date": None, "industries": [], "breadth": None, "limits": {},
+                "streaks": [], "issues": [{"label": "盘面数据", "message": error_note(exc)}], "sources": []}
+
+
+def persist_rotation(connection, run_id, snapshot):
+    day = snapshot["trade_date"]
+    source_id = None
+    if day and (snapshot["industries"] or snapshot["breadth"] or snapshot["limits"]):
+        source_id = str(uuid4())
+        title = f"{day} A 股盘面复盘 · Tushare"
+        lines = [title]
+        if breadth := snapshot["breadth"]:
+            lines.append(f"A 股日线上涨 {breadth['up']} 家，下跌 {breadth['down']} 家，平盘 {breadth['flat']} 家，覆盖 {breadth['covered']} 家。")
+        for item in snapshot["industries"]:
+            changes = "，".join(f"{width} 日 {change:+.2f}%" for width, change in item["returns"].items() if change is not None)
+            if changes:
+                breadth = item["breadth"]
+                coverage = f"，上涨 {breadth['up']}/{breadth['covered']} 家有行情成分" if breadth and breadth["covered"] else ""
+                lines.append(f"申万一级{item['name']} {changes}{coverage}。")
+        for key, label in (("U", "涨停"), ("D", "跌停"), ("Z", "炸板")):
+            if key in snapshot["limits"]:
+                rows = snapshot["limits"][key]
+                sample = "、".join(item["name"] for item in rows[:8])
+                lines.append(f"Tushare {label}名单 {len(rows)} 家（统计范围排除 ST）" + (f"，样例 {sample}。" if sample else "。"))
+        if snapshot["streaks"]:
+            first = snapshot["streaks"][0]
+            lines.append(f"连板天梯最高 {first['days']} 板，{first['name']}。")
+        text = "\n".join(lines)
+        url = f"/api/v1/intelligence/runs/{run_id}/evidence/{source_id}"
+        connection.execute("""INSERT INTO intelligence_sources(id,run_id,url,title,text,sha256,retrieved_at,publisher_date)
+            VALUES(?,?,?,?,?,?,?,?)""", (source_id, run_id, url, title, text, hashlib.sha256(text.encode("utf-8")).hexdigest(), utc_now(), day))
+    connection.execute("""INSERT INTO intelligence_rotation_snapshots(run_id,snapshot_json,source_id,created_at)
+        VALUES(?,?,?,?)""", (run_id, json_dump(snapshot), source_id, utc_now()))
+    return read_context(connection, run_id)
 
 
 def prompt(kind, scope, context):
@@ -139,7 +198,9 @@ client_copy 为客户沟通短稿，full_copy 为可编辑的完整推荐理由�
 允许以历史财报等背景资料支持逻辑，但须区分已经发生的事实、未来假设和未确认信息。""",
     }[kind]
     if kind == "closing" and context.get("closing_policy"):
-        contract += "\n\n" + closing_review.PROMPT
+        contract += ("\n\n" + closing_review.PROMPT +
+                     "\nread_advisor_context 返回 rotation_evidence_text 时，按需引用 rotation_source_id 下的原句。"
+                     "可以用该快照核对行业涨跌和上涨家数，涨跌停名单的统计范围排除 ST。")
     scenario = ("\n观察期限：本交易日复盘及下一交易日，稿件只作公开市场资讯交流。" if kind == "closing" else
         "\n分析期限：" + HORIZONS[advisor.horizon] + \
         "\n持仓状态：" + ("已经持有" if advisor.position == "holding" else "尚未持有/观察") + \

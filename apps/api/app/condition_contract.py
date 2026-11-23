@@ -39,6 +39,12 @@ def describe_filter(library: str, expression: dict[str, Any]) -> dict[str, Any]:
         value = f"{value:g}"
     notes = []
     if library == "technical":
+        from .screening_contracts import TUSHARE_RULES
+        if isinstance(op, str) and op in TUSHARE_RULES:
+            from .tushare_feature_rules import describe
+            summary = describe(TUSHARE_RULES[op].model_validate(expression))
+            return {"summary": summary, "notes": ["使用当前配置的 Tushare 数据，缺少可比记录时显示数据不足。"],
+                    "availability": "market", "availability_label": "可用 Tushare 数据试算"}
         notes = ["使用截止日及之前的日线；周期按该证券有记录的交易日计数。", "数据缺失、异常或历史不足时，记为“数据不足”。"]
         if op == "timeseries_filter":
             from .time_series import minimum_history, summary as formula_summary

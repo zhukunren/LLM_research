@@ -1,8 +1,19 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, setCsrfToken } from './api'
 import { clearIdentityStorage, setStorageIdentity } from './authStorage'
 
 type Me = { user_id: string; tenant_id: string; role: string; csrf_token: string }
+const AccountContext = createContext<{ label: string; message: string; logout: () => Promise<void> } | null>(null)
+
+export function WorkspaceAccount({ mobile = false }: { mobile?: boolean }) {
+  const account = useContext(AccountContext)
+  if (!account) return null
+  return <div className={mobile ? 'mobile-workspace-account' : 'workspace-account-bar'}>
+    <span>{account.label}</span>
+    <button type="button" onClick={() => void account.logout()} className="secondary-button compact workspace-button">退出登录</button>
+    {account.message && <span role="status">{account.message}</span>}
+  </div>
+}
 
 export default function AuthBoundary({ children }: { children: ReactNode }) {
   const [required, setRequired] = useState((window as Window & { __LLMR_AUTH_REQUIRED__?: boolean }).__LLMR_AUTH_REQUIRED__ === true)
@@ -78,11 +89,9 @@ export default function AuthBoundary({ children }: { children: ReactNode }) {
     } catch { if (expectedGeneration === generation.current) setMessage('退出登录失败，请重试。') }
     finally { loggingOut.current = false }
   }
-  return <div className="workspace-authenticated" key={`${user.tenant_id}:${user.user_id}`}>
-    <div className="workspace-account-bar">
-      <span>{user.role === 'viewer' ? '当前账户仅可查看资料' : '已登录'}</span>
-      <button type="button" onClick={() => { void logout() }} className="secondary-button compact workspace-button">退出登录</button>
-      {message && <span role="status">{message}</span>}
-    </div>{children}
-  </div>
+  return <AccountContext.Provider value={{ label: user.role === 'viewer' ? '当前账户仅可查看资料' : '已登录', message, logout }}>
+    <div className="workspace-authenticated" key={`${user.tenant_id}:${user.user_id}`}>
+      <WorkspaceAccount />{children}
+    </div>
+  </AccountContext.Provider>
 }

@@ -95,6 +95,27 @@ WITH source_entries AS (
 """
 
 
+@router.get("/event-calendar")
+def event_calendar(as_of: date | None = None):
+    from . import tushare_observation_events
+    from .tushare_client import TushareError
+    from .tushare_feature_data import Reader
+    from .tushare_features_api import as_of_day, unavailable
+
+    day = as_of_day(as_of)
+    with connect() as connection:
+        rows = connection.execute(_OBSERVATION_ENTRIES + """
+            SELECT stock_code, max(name) name FROM entries
+            WHERE hidden=0 AND status IN ('watching','priority')
+            GROUP BY stock_code
+        """).fetchall()
+    stocks = {row["stock_code"]: row["name"] for row in rows}
+    try:
+        return tushare_observation_events.calendar(Reader() if stocks else None, day, stocks)
+    except TushareError as exc:
+        unavailable(exc)
+
+
 def _entry_payload(row, metrics=None, latest_date=None):
     item = dict(row)
     if item['kind'] == 'screening' and item['owner_label'].startswith('选股批次 · '):
@@ -517,7 +538,7 @@ def performance(run_id: str):
             "reason": reason or ("最新交易日缺行情，可能停牌或数据缺失" if not fresh else ""),
             "invalid_bars": prices.get("invalid_bars", 0)})
     return {"items": items, "latest_date": latest, "signal_date": signal, "price_basis": basis,
-        "warning": "行情价格口径未知，暂不计算涨跌幅；入选参考价、最新价和观察备注仍可查看。" if not comparable else "涨跌幅以当前同一价格序列计算。" + ("本地行情未复权，除权除息可能影响区间表现。" if basis == "unadjusted" else "") + "原入选参考价单独保留。",
+        "warning": "行情的复权口径待核对，涨跌幅显示为 —。" if not comparable else "涨跌幅以当前同一价格序列计算。" + ("本地行情未复权，除权除息可能影响区间表现。" if basis == "unadjusted" else "") + "原入选参考价单独保留。",
         "summary": {"selected": len(items), "latest": _stats([item["return_latest"] for item in items]),
             **{str(n): _stats([item["returns"][str(n)] for item in items]) for n in (5, 10, 20)}}}
 
