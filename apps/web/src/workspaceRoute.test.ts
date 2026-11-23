@@ -40,6 +40,7 @@ describe('stable workspace URLs', () => {
   it.each<WorkspaceRoute>([
     { page: 'qmt' }, { page: 'qmt', workspace: 'screening' },
     { page: 'daily-signals' }, { page: 'daily-signals', workspace: 'screening' },
+    { page: 'data-download' }, { page: 'data-download', workspace: 'screening' },
     { page: 'client-service' }, { page: 'client-service', workspace: 'screening' },
     { page: 'screening', newDraft: true }, { page: 'screening', conversationId: 'one', scope: 'report' },
     { page: 'conditions', conversationId: 'task-1', scope: 'news', view: 'conversation' },

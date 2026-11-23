@@ -144,16 +144,17 @@ def test_malformed_responses_fail_instead_of_becoming_empty_data(monkeypatch, pa
         TushareClient("secret-token").raw_query("daily")
 
 
-def test_daily_basic_provider_nan_is_missing_and_other_nonfinite_values_still_fail(monkeypatch):
+@pytest.mark.parametrize("endpoint", ["daily_basic", "etf_basic", "dividend"])
+def test_provider_nan_is_missing_only_for_known_endpoints(monkeypatch, endpoint):
     missing = response({"code": 0, "data": {"fields": ["pe_ttm"], "items": [[float("nan")]]}})
     invalid = response({"code": 0, "data": {"fields": ["pe_ttm"], "items": [[float("inf")]]}})
     monkeypatch.setattr(tushare_client.requests, "post", Mock(side_effect=[missing, missing, invalid]))
     client = TushareClient("secret-token")
-    assert client.raw_query("daily_basic")["data"]["items"] == [[None]]
+    assert client.raw_query(endpoint)["data"]["items"] == [[None]]
     with pytest.raises(TushareError, match="无效的 JSON"):
         client.raw_query("daily")
     with pytest.raises(TushareError, match="无效的 JSON"):
-        client.raw_query("daily_basic")
+        client.raw_query(endpoint)
 
 
 def test_non_json_response_is_rejected(monkeypatch):
@@ -176,7 +177,7 @@ def test_snapshot_retains_original_bytes_and_decimal_precision(monkeypatch):
     assert snapshot.payload["data"]["items"][0][0] == Decimal("12345678901234567890.123456789")
 
 
-@pytest.mark.parametrize("message,kind", [("每分钟最多访问100次", "rate_limited"), ("没有接口权限", "denied"),
+@pytest.mark.parametrize("message,kind", [("每分钟最多访问100次", "rate_limited"), ("并发请求过多（上限 2 个）", "rate_limited"), ("没有接口权限", "denied"),
                                         ("服务维护中", "transient_error"), ("参数错误", "unknown")])
 def test_provider_failures_have_distinct_categories(monkeypatch, message, kind):
     monkeypatch.setattr(tushare_client.requests, "post", Mock(return_value=response({"code": 2002, "msg": message})))

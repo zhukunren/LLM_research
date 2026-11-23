@@ -42,6 +42,7 @@ from .financial_research_api import router as financial_research_router
 from .disclosure_api import router as disclosure_router
 from .daily_signals_api import router as daily_signals_router
 from .client_service_api import router as client_service_router
+from .tushare_download_api import router as tushare_download_router
 from .tushare_features_api import router as tushare_features_router
 from .system_api import router as system_router
 from .market_api import router as market_router
@@ -101,6 +102,7 @@ app.include_router(financial_research_router)
 app.include_router(disclosure_router)
 app.include_router(daily_signals_router)
 app.include_router(client_service_router)
+app.include_router(tushare_download_router)
 app.include_router(tushare_features_router)
 app.include_router(system_router)
 app.include_router(market_router)

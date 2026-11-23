@@ -7,7 +7,7 @@ import { clientServiceMenus, workspaceMenus, type PageId, type ServiceView } fro
 import { trapDialogTab } from '../keyboard'
 import ConversationHistoryItem, { type RecentConversation, type ConversationHistoryChange } from './ConversationHistoryItem'
 
-const toolMenus = workspaceMenus.filter(item => ['qmt', 'patterns', 'etf'].includes(item.id))
+const toolMenus = workspaceMenus.filter(item => ['qmt', 'patterns', 'etf', 'data-download'].includes(item.id))
 
 export default function ResearchSidebar({ page, conversationId, revision, mobileOpen, historyOnly, onClose, onNavigate, onNewResearch, onNewScreening, onResearch, onSearch, onConversation, onSettings, workspace, onConversationChange, historyNavigation, serviceView = 'cards', onServiceView }: {
   serviceView?: ServiceView; onServiceView?: (view: ServiceView) => void

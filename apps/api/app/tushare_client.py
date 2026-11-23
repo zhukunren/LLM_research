@@ -17,7 +17,7 @@ API_URL = "https://api.tushare.pro"
 NULLABLE_JSON_APIS = frozenset({
     "daily_basic", "report_rc", "cyq_perf", "sw_daily", "limit_list_d",
     "stk_holdertrade", "disclosure_date", "etf_share_size", "fund_daily",
-    "fina_indicator", "stk_surv",
+    "fina_indicator", "stk_surv", "etf_basic", "top_list", "top_inst", "ths_index", "dividend",
 })
 
 
@@ -39,7 +39,8 @@ class TushareError(RuntimeError):
 
 def classify_provider_error(message: str) -> str:
     lowered = message.lower()
-    if any(word in lowered for word in ("每分钟", "每小时", "每天", "每日", "频次", "频率", "访问次数", "限流", "rate limit")):
+    if any(word in lowered for word in ("每分钟", "每小时", "每天", "每日", "频次", "频率", "访问次数", "限流",
+                                         "并发请求过多", "rate limit", "too many concurrent")):
         return "rate_limited"
     if any(word in lowered for word in ("权限", "积分", "未开通", "没有访问", "permission", "token", "令牌")):
         return "denied"

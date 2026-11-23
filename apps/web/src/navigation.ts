@@ -1,4 +1,4 @@
-import { BookOpen, Bot, CalendarDays, ChartNoAxesCombined, Code2, FilePenLine, FileText, History, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Radio, Send, Shapes, Star } from 'lucide-react'
+import { BookOpen, Bot, CalendarDays, ChartNoAxesCombined, Code2, FileDown, FilePenLine, FileText, History, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Radio, Send, Shapes, Star } from 'lucide-react'
 
 export const workspaceMenus = [
   { id: 'intelligence', label: '情报台', mobileLabel: '情报', description: '市场简报、政策追踪与产业跟踪，核对证据和历史版本', icon: Newspaper },
@@ -13,6 +13,7 @@ export const workspaceMenus = [
   { id: 'qmt', label: 'QMT 脚本生成', mobileLabel: 'QMT', description: '用自然语言生成 QMT 客户端内置 Python 策略，检查并下载脚本', icon: Code2 },
   { id: 'daily-signals', label: '每日信号汇总', mobileLabel: '信号', description: '查看每日策略买卖信号、近期胜率与回测收益', icon: Radio },
   { id: 'etf', label: 'ETF 同类比较', mobileLabel: 'ETF', description: '按跟踪指数比较 ETF 份额、规模和成交额', icon: ChartNoAxesCombined },
+  { id: 'data-download', label: '数据下载', mobileLabel: '下载', description: '从 Tushare 下载行情、财务、ETF 和特色数据', icon: FileDown },
   { id: 'client-service', label: '对客服务', mobileLabel: '对客', description: '定时采集市场状态，编辑时点卡模板并下载对客图片', icon: Send },
 ] as const
 

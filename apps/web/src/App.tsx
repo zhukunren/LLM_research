@@ -134,7 +134,7 @@ export default function App() {
     if (!activateRemembered(navigationTabs[view], saved => saved.page === 'conditions' && saved.view === view)) openRoute({ page: 'conditions', view }, undefined, true)
   }
   function navigateFromMenu(nextPage: PageId) {
-    openRoute({ page: nextPage, ...(['library', 'news', 'patterns', 'reports', 'watchlist', 'qmt', 'daily-signals', 'client-service'].includes(nextPage) ? { workspace: workspaceArea } : {}), ...((nextPage === 'screening' || nextPage === 'conditions') ? { scope: storedConversationScope() } : {}), ...(nextPage === 'conditions' ? { view: storedScreeningView() } : {}) }, undefined, ['screening', 'conditions', 'watchlist', 'intelligence', 'library', 'daily-signals', 'client-service'].includes(nextPage))
+    openRoute({ page: nextPage, ...(['library', 'news', 'patterns', 'reports', 'watchlist', 'qmt', 'daily-signals', 'data-download', 'client-service'].includes(nextPage) ? { workspace: workspaceArea } : {}), ...((nextPage === 'screening' || nextPage === 'conditions') ? { scope: storedConversationScope() } : {}), ...(nextPage === 'conditions' ? { view: storedScreeningView() } : {}) }, undefined, ['screening', 'conditions', 'watchlist', 'intelligence', 'library', 'daily-signals', 'data-download', 'client-service'].includes(nextPage))
   }
   function navigateFromMobile(nextPage: PageId) {
     setMobileSheet(null)

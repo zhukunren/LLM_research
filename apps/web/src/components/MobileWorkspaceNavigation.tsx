@@ -8,7 +8,7 @@ import type { WorkspaceTab } from '../workspaceTabs'
 import MobileSheet from './MobileSheet'
 
 const primaryMenus = workspaceMenus.filter(item => ['screening', 'conditions', 'watchlist', 'client-service'].includes(item.id))
-const moreMenus = workspaceMenus.filter(item => ['intelligence', 'library', 'patterns', 'qmt', 'daily-signals', 'etf'].includes(item.id))
+const moreMenus = workspaceMenus.filter(item => ['intelligence', 'library', 'patterns', 'qmt', 'daily-signals', 'etf', 'data-download'].includes(item.id))
 const servicePages = clientServiceMenus.filter(item => ['cards', 'opening-plan', 'suggestions'].includes(item.id))
 const serviceManagementPages = clientServiceMenus.filter(item => !servicePages.includes(item))
 

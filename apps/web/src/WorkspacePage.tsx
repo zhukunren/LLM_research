@@ -20,6 +20,7 @@ const QmtScriptsPage = lazy(() => import('./pages/QmtScriptsPage'))
 const IntelligencePage = lazy(() => import('./pages/IntelligencePage'))
 const DailySignalsPage = lazy(() => import('./pages/DailySignalsPage'))
 const EtfPeersPage = lazy(() => import('./pages/EtfPeersPage'))
+const TushareDownloadPage = lazy(() => import('./pages/TushareDownloadPage'))
 const ClientServicePage = lazy(() => import('./pages/ClientServicePage'))
 const OpeningPlanPage = lazy(() => import('./pages/OpeningPlanPage'))
 const RebalanceSuggestionPage = lazy(() => import('./pages/RebalanceSuggestionPage'))
@@ -143,6 +144,7 @@ export default function WorkspacePage({ tab, data, fixedRulesOpen, onCloseFixedR
     {page === 'qmt' && <QmtScriptsPage onOpenDraft={value => openConversation('screening', undefined, value, 'research', 'qmt-script')} />}
     {page === 'daily-signals' && <DailySignalsPage />}
     {page === 'etf' && <EtfPeersPage />}
+    {page === 'data-download' && <TushareDownloadPage onSettings={onSettings} />}
     {page === 'client-service' && route.serviceView === 'opening-plan' && <OpeningPlanPage />}
     {page === 'client-service' && route.serviceView === 'suggestions' && <RebalanceSuggestionPage />}
     {page === 'client-service' && route.serviceView !== 'opening-plan' && route.serviceView !== 'suggestions' &&

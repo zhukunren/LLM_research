@@ -26,6 +26,8 @@ it.each([false, true])('keeps shared research navigation stable for both task ty
   expect(callbacks.onNavigate).toHaveBeenLastCalledWith('qmt')
   await user.click(menu.getByRole('button', { name: '形态库' }))
   expect(callbacks.onNavigate).toHaveBeenLastCalledWith('patterns')
+  await user.click(menu.getByRole('button', { name: '数据下载' }))
+  expect(callbacks.onNavigate).toHaveBeenLastCalledWith('data-download')
   expect(callbacks.onAssistant).not.toHaveBeenCalled()
 })
 

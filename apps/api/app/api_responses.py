@@ -1,4 +1,5 @@
 import csv
+from collections.abc import Iterable, Sequence
 from io import StringIO
 from typing import Any
 
@@ -16,7 +17,7 @@ def _csv_cell(value: Any) -> Any:
     return value
 
 
-def csv_response(filename: str, rows: list[list[Any]]):
+def csv_response(filename: str, rows: Iterable[Sequence[Any]]):
     output = StringIO(newline="")
     writer = csv.writer(output, lineterminator="\r\n")
     for row in rows:

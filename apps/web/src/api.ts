@@ -11,7 +11,7 @@ const API = '/api/v1'
 let csrfToken = ''
 export function setCsrfToken(value: string) { csrfToken = value }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiResponse(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers)
   if (csrfToken && !['GET', 'HEAD', 'OPTIONS'].includes((init?.method || 'GET').toUpperCase())) headers.set('X-CSRF-Token', csrfToken)
   if (!(init?.body instanceof FormData)) headers.set('Content-Type', 'application/json')
@@ -22,11 +22,21 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     if (init?.signal?.aborted || (error as Error).name === 'AbortError') throw error
     throw new Error('暂时无法连接本地服务，请稍后重试。')
   }
+  if (!response.ok) await readApiJson(response, init?.signal)
+  return response
+}
+
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await apiResponse(path, init)
   if (response.status === 204) return undefined as T
+  return readApiJson(response, init?.signal)
+}
+
+async function readApiJson(response: Response, signal?: AbortSignal | null) {
   let body
   try { body = await response.json() }
   catch (error) {
-    if (init?.signal?.aborted) throw error
+    if (signal?.aborted) throw error
     throw new Error(response.ok ? '服务返回的数据格式异常，请重试。' : `服务暂时不可用（${response.status}），请重试。`)
   }
   if (!response.ok) {
@@ -35,7 +45,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     const detail = Array.isArray(body?.details) ? `：${body.details.join('；')}` : ''
     throw new ApiRequestError(message + detail, response.status, body?.code ?? body?.detail?.code, body?.details ?? body?.detail?.details)
   }
-  return body as T
+  return body
 }
 
 export type DataStatus = {

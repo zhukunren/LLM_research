@@ -1,0 +1,140 @@
+.tushare-download-panel {
+  --tushare-panel-inset: clamp(12px, 2vw, 22px);
+  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border-subtle);
+  border-radius: var(--ui-tool-radius);
+  background: var(--ui-surface);
+}
+.tushare-download-form { padding: 16px var(--tushare-panel-inset); }
+.tushare-download-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.tushare-download-fields > label {
+  flex: 1 1 144px;
+  min-width: 0;
+  max-width: 224px;
+}
+.tushare-download-fields > .tushare-download-dataset {
+  flex-basis: 218px;
+  max-width: 320px;
+}
+.tushare-download-fields input, .tushare-download-fields select { width: 100%; }
+.tushare-download-form-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+.tushare-download-metadata {
+  flex: 1 1 min(100%, 440px);
+  min-width: 0;
+  color: var(--ui-text-muted);
+  font-size: var(--ui-label-size);
+}
+.tushare-download-form-footer > button { margin-inline-start: auto; white-space: nowrap; }
+.tushare-download-description {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+}
+.tushare-download-description a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ui-primary);
+  white-space: nowrap;
+}
+.tushare-download-hint { margin: 4px 0 0; }
+.tushare-download-connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 16px;
+  padding: 4px 12px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-sidebar);
+}
+.tushare-download-notice { margin: 14px 0 0; }
+.tushare-download-notice.is-error { color: var(--ui-danger, #b42318); }
+.tushare-download-results {
+  min-width: 0;
+  border-top: 1px solid var(--ui-border-subtle);
+}
+.tushare-download-results-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px var(--tushare-panel-inset);
+}
+.tushare-download-results-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+.tushare-download-results-heading h2 { margin: 0; font-size: 16px; line-height: 1.4; }
+.tushare-download-results-heading p { margin: 0; color: var(--ui-text-muted); font-size: var(--ui-label-size); }
+.tushare-download-results-heading > button { flex-shrink: 0; white-space: nowrap; }
+.tushare-download-results .tushare-table-scroll {
+  max-height: min(720px, 72vh);
+  border: 0;
+  border-top: 1px solid var(--ui-border-subtle);
+  border-radius: 0;
+}
+.tushare-download-results .tushare-table-scroll:focus-visible { outline-offset: -2px; }
+.tushare-download-results .tushare-table { width: 100%; }
+.tushare-download-results .tushare-table th { white-space: nowrap; }
+.tushare-download-results .tushare-table td {
+  vertical-align: top;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.tushare-download-results .tushare-table .tushare-download-long-cell {
+  min-width: 160px;
+  max-width: 360px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tushare-download-results .tushare-table :is(th, td):first-child {
+  position: sticky;
+  left: 0;
+  padding-inline-start: var(--tushare-panel-inset);
+  background: var(--ui-surface);
+  box-shadow: 1px 0 var(--ui-border-subtle);
+}
+.tushare-download-results .tushare-table tbody td:first-child { z-index: 1; }
+.tushare-download-results .tushare-table thead th:first-child {
+  z-index: 2;
+  background: var(--ui-surface-subtle);
+}
+.tushare-download-empty-cell { color: var(--ui-text-muted); }
+.tushare-download-results .workspace-pagination {
+  margin: 0;
+  padding: 10px var(--tushare-panel-inset);
+}
+
+@media (max-width: 600px) {
+  .tushare-download-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tushare-download-fields > label { max-width: none; }
+  .tushare-download-fields > .tushare-download-wide-field { grid-column: 1 / -1; max-width: none; }
+  .tushare-download-results .tushare-table-scroll { max-height: 55vh; }
+  .tushare-download-results .workspace-pagination { gap: 8px; }
+  .tushare-download-results .workspace-pagination-controls { width: 100%; gap: 6px; }
+  .tushare-download-results .workspace-pagination-controls > button { flex: 1 0 auto; min-width: 0; }
+  .tushare-download-results .workspace-pagination-jump { flex: 1 0 100%; justify-content: flex-end; }
+}
