@@ -5,6 +5,7 @@ from typing import Any
 
 from . import industry_valuation, market, program_conditions, runtime_executor, ranking, report_adapter, news_adapter, pattern_adapter, tushare_feature_rules
 from .evidence_analysis import EvidenceAnalysisCancelled
+from .model_modes import DEFAULT_MODEL_MODE
 from .screening_contracts import (
     ConditionDecision,
     CustomProgram,
@@ -35,11 +36,13 @@ def evaluate_reference(
         return pattern_adapter.evaluate(condition, reference, stock_code, as_of)
     if condition.get("library") == "news":
         return news_adapter.evaluate(condition, reference, stock_code, as_of,
-            lookback_days=reference.get("_news_lookback_days"), active=reference.get("_active", lambda: True))
+            lookback_days=reference.get("_news_lookback_days"), active=reference.get("_active", lambda: True),
+            model_mode=reference.get("_model_mode", DEFAULT_MODEL_MODE))
     if condition.get("library") == "report":
         return report_adapter.evaluate(
             condition, reference, stock_code, as_of,
             lookback_days=reference.get("_report_lookback_days"), active=reference.get("_active", lambda: True),
+            model_mode=reference.get("_model_mode", DEFAULT_MODEL_MODE),
         )
     if condition.get("library") == "fundamentals":
         op = condition["expression"].get("op")
@@ -297,7 +300,7 @@ def execute_snapshot(
                 try:
                     runtime_reference = {**reference, "_report_lookback_days": task.scope.report_lookback_calendar_days,
                                          "_news_lookback_days": task.scope.news_lookback_calendar_days,
-                                         "_active": active} if condition["library"] in {"report", "news"} else reference
+                                         "_active": active, "_model_mode": snapshot.get("model_mode", DEFAULT_MODEL_MODE)} if condition["library"] in {"report", "news"} else reference
                     if condition["library"] == "pattern":
                         runtime_reference = {**reference, "_pattern_template": pattern_assets.get(condition["condition_id"]),
                                              "_bars": bars_by_stock[stock_code], "_effective_market_date": snapshot.get("effective_market_date")}

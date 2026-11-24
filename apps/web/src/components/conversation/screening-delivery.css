@@ -30,7 +30,7 @@
 @media (max-width: 760px) {
   .chat-page .research-studio.screening-studio .conversation-workspace > .screening-results-drawer {
     inset: 0;
-    height: var(--mobile-viewport-height, 100dvh);
+    height: var(--ui-viewport-height);
     max-height: none;
     gap: 8px;
     padding: 0 env(safe-area-inset-right) max(12px, env(safe-area-inset-bottom)) env(safe-area-inset-left);

@@ -77,28 +77,29 @@ it('copies a manual exit template with the fixed disclosure and optional paragra
 
 it('fills the chosen model draft, opens independent sources and copies plain text without URLs', async () => {
   let id = ''
+  const focus = '优先核对最新公告。'
   vi.mocked(api).mockImplementation(async (path, init) => {
     const supporting = supportingResponse(path)
     if (supporting) return supporting
     if (path === endpoint) {
       const payload = JSON.parse(String(init?.body))
       id = payload.request_id
-      expect(payload).toEqual({ request_id: id, code: '603650.SH', direction: '开仓买入', mode: 'deep' })
-      return { ...fixture, request_id: id, state: 'awaiting_agent', mode: 'deep' }
+      expect(payload).toEqual({ request_id: id, code: '603650.SH', direction: '开仓买入', mode: 'deep', generation_focus: focus })
+      return { ...fixture, request_id: id, state: 'awaiting_agent', mode: 'deep', generation_focus: focus }
     }
     expect(path).toBe(endpoint + '/' + id)
-    return { ...fixture, request_id: id, mode: 'deep' }
+    return { ...fixture, request_id: id, mode: 'deep', generation_focus: focus }
   })
   const { user, clipboard, view } = setup()
   fields('603650.SH', '开仓买入', '0%', '5', '46.70')
-  const mode = screen.getByRole('combobox', { name: 'AI 生成档位' })
-  expect(mode).toHaveValue('instant')
-  expect(screen.getByText('GPT-6.2 Astra · Low · Fast')).toBeVisible()
-  expect(screen.queryByRole('button', { name: /即时.*Astra/ })).not.toBeInTheDocument()
-  await user.selectOptions(mode, 'deep')
-  expect(screen.getByText('GPT-6.2 Sol · Max')).toBeVisible()
-  await user.click(screen.getByRole('button', { name: 'AI 生成理由' }))
+  expect(screen.getByRole('button', { name: '即时' })).toHaveAttribute('aria-pressed', 'true')
+  await user.click(screen.getByRole('button', { name: '深度' }))
+  expect(screen.getByRole('button', { name: '深度' })).toHaveAttribute('aria-pressed', 'true')
+  await user.click(screen.getByText('关注点（Prompt）', { selector: 'summary' }))
+  fill('关注点（Prompt）', ` ${focus} `)
+  await user.click(screen.getByRole('button', { name: 'AI生成' }))
   await waitFor(() => expect(screen.getByLabelText(/^调仓理由/)).toHaveValue(fixture.reason))
+  expect(screen.getByText(`已提交关注点 · ${focus}`)).toBeVisible()
   await user.click(screen.getByRole('button', { name: '查看依据' }))
   expect(screen.getByRole('textbox', { name: '依据文案' })).toHaveValue(fixture.basis)
   expect(screen.getByRole('link', { name: '公司经营公告' })).toHaveAttribute('href', fixture.sources[0].url)
@@ -111,11 +112,13 @@ it('fills the chosen model draft, opens independent sources and copies plain tex
   expect(text).toContain('调仓理由：复核公告后，继续观察电子材料。')
   expect(text).toContain('调仓依据：' + fixture.basis)
   expect(text).not.toContain('example.com')
+  expect(text).not.toContain(focus)
   expect(text?.endsWith(disclosureLines.join('\n'))).toBe(true)
 
   view.unmount()
   render(<SecuritiesProvider><RebalanceSuggestionPage /></SecuritiesProvider>)
   await screen.findByText('理由已生成')
+  expect(screen.getByText(`已提交关注点 · ${focus}`)).toBeVisible()
   expect(screen.getByLabelText(/^调仓理由/)).toHaveValue('复核[公告](https://example.com/report)后，继续观察电子材料。')
   expect(screen.getByLabelText('调仓后（%）')).toHaveValue('5.5')
   expect(vi.mocked(api).mock.calls.filter(([path]) => path === endpoint)).toHaveLength(1)
@@ -136,7 +139,7 @@ it('preserves text edited during collection until the user applies the collected
   })
   const { user } = setup()
   fields('603650', '开仓买入', '0', '5', '46.70')
-  await user.click(screen.getByRole('button', { name: 'AI 生成理由' }))
+  await user.click(screen.getByRole('button', { name: 'AI生成' }))
   await screen.findByRole('button', { name: '停止生成' })
   fill(/^调仓理由/, '用户已写好的内容')
   await act(async () => finish({ ...fixture, request_id: id, mode: 'instant' }))

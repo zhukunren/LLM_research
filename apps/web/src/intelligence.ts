@@ -1,4 +1,5 @@
 import type { RotationSnapshot } from './components/tushare/FeatureData'
+import type { ModelMode } from './modelSelection'
 
 export type BriefKind = 'market' | 'policy' | 'industry' | 'closing' | 'stock-analysis' | 'stock-rationale'
 export type BriefScope = {
@@ -66,7 +67,7 @@ export type BriefDetail = BriefRun & {
 }
 export type BriefCatalog = { items: BriefRun[]; total: number; next_offset: number | null; latest_result_id: string | null; default_scope: BriefScope; legacy: { conversation_id: string; started_at: string; title: string }[] }
 export type BriefSource = { id: string; url: string; title: string; text: string; sha256: string; retrieved_at: string; publisher_date: string | null }
-export type BriefRequest = { request_id: string; kind: BriefKind; scope: BriefScope; cutoff_at: string | null; retry_of?: string }
+export type BriefRequest = { request_id: string; kind: BriefKind; scope: BriefScope; cutoff_at: string | null; retry_of?: string; model_mode?: ModelMode }
 
 export type AdvisorScope = {
   stock_code: string | null; trade_date: string | null; horizon: 'short' | 'medium' | 'long'

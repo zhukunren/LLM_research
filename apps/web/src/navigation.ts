@@ -1,4 +1,4 @@
-import { BookOpen, Bot, CalendarDays, ChartNoAxesCombined, Code2, FileDown, FilePenLine, FileText, History, LayoutDashboard, ListFilter, MessageCircle, Newspaper, Radio, Send, Shapes, Star } from 'lucide-react'
+import { BookOpen, Bot, CalendarDays, ChartNoAxesCombined, Code2, FileDown, FilePenLine, FileText, History, LayoutDashboard, ListFilter, MessageCircle, Newspaper, PartyPopper, Radio, Send, Shapes, Star } from 'lucide-react'
 
 export const workspaceMenus = [
   { id: 'intelligence', label: '情报台', mobileLabel: '情报', description: '市场简报、政策追踪与产业跟踪，核对证据和历史版本', icon: Newspaper },
@@ -21,8 +21,9 @@ export const clientServiceMenus = [
   { id: 'cards', label: '时点卡片', description: '编辑并导出各个时点的市场卡片', icon: Send },
   { id: 'opening-plan', label: '开盘计划', description: '按日期采集资料并编辑盘前计划', icon: CalendarDays },
   { id: 'suggestions', label: '调仓建议', description: '整理股票、仓位和调仓依据', icon: FilePenLine },
+  { id: 'celebrations', label: '喜报', description: '按收盘涨幅或盘中最高涨幅生成喜报图片', icon: PartyPopper },
   { id: 'templates', label: '生成计划与模板', description: '设置生成时间和默认文案', icon: FileText },
-  { id: 'robots', label: '群机器人', description: '配置企业微信群和群发功能', icon: Bot },
+  { id: 'robots', label: '群机器人', description: '按企业微信群管理合规监控、信息推送、聊天总结和客户需求', icon: Bot },
   { id: 'deliveries', label: '发送记录', description: '查看已发送内容和状态', icon: History },
 ] as const
 export type ServiceView = typeof clientServiceMenus[number]['id']

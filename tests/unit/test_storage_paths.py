@@ -58,6 +58,7 @@ def test_external_config_is_read_without_modifying_or_copying_it(tmp_path, monke
     config.write_text("[app]\nmodel=fixture-model\n[model_providers.OpenAI]\nbase_url=https://example.invalid\nwire_api=responses\n", encoding="utf-8")
     monkeypatch.setattr(settings, "PROJECT_ROOT", code)
     monkeypatch.setenv("LLMR_CONFIG_FILE", str(config))
-    assert settings.llm_settings()["model"] == "fixture-model"
+    assert settings.llm_settings()["base_url"] == "https://example.invalid"
+    assert settings.llm_settings()["model"] == "gpt-6.2-astra"
     assert list(code.iterdir()) == []
     assert config.read_text(encoding="utf-8").startswith("[app]")

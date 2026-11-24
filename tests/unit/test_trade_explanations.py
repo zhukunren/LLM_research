@@ -9,7 +9,7 @@ from apps.api.app import db, trade_explanations as service, daily_signals_api, r
 def configured(tmp_path, monkeypatch):
     monkeypatch.setattr(db,'DB_PATH',tmp_path/'test.db')
     monkeypatch.setattr(research_models,'llm_settings',lambda:{'configured':True,'model':'gpt-6-luna','reasoning_effort':'high'})
-    monkeypatch.setattr(research_models,'_discover',lambda _:({'gpt-6-luna'},'verified'))
+    monkeypatch.setattr(research_models,'_discover',lambda _:({'gpt-6.2-astra', 'gpt-6.2-sol'},'verified'))
     monkeypatch.setattr(service.codex_runtime,'availability',lambda:{'available':True,'web_search':{'enabled':True}})
     monkeypatch.setattr(service,'names',lambda:{'300001.SZ':'测试公司'})
     monkeypatch.setattr(service.research_turn_service,'enqueue_turn',lambda cid,tid:None)

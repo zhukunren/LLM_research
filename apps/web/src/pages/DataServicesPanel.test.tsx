@@ -124,13 +124,14 @@ it('distinguishes configured search from a verified test, and refreshes all serv
   const original = vi.mocked(api).getMockImplementation()!
   vi.mocked(api).mockImplementation(async (path, init) => {
     if (path === '/settings/status') return configured as never
-    if (path === '/settings/model-test') return { connected: true } as never
-    if (path === '/settings/web-search-test') return { message: '已验证搜索与访问', search_results: 2, latency_ms: 130, connected: true, verified: true, opened_page: true } as never
+    if (path === '/settings/model-test?model_mode=deep') return { connected: true } as never
+    if (path === '/settings/web-search-test?model_mode=deep') return { message: '已验证搜索与访问', search_results: 2, latency_ms: 130, connected: true, verified: true, opened_page: true } as never
     return original(path, init)
   })
   await open()
   expect(screen.getByText('实时搜索已配置')).toBeInTheDocument()
   expect(screen.getByText('配置状态不代表实时搜索已成功。')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '深度' }))
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: '检查助手连接' })) })
   expect(screen.getByText(/本次检查未发起实时检索/)).toBeInTheDocument()
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: '测试原生网页搜索' })) })
@@ -140,5 +141,5 @@ it('distinguishes configured search from a verified test, and refreshes all serv
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: '重新检查状态' })) })
   expect(vi.mocked(api).mock.calls.filter(([path]) => path === '/financial-data/status')).toHaveLength(before + 1)
   expect(vi.mocked(api).mock.calls.filter(([path]) => path === '/settings/status')).toHaveLength(settingsBefore + 1)
-  expect(vi.mocked(api).mock.calls.filter(([, init]) => init?.method === 'POST').map(([path]) => path)).toEqual(['/settings/model-test', '/settings/web-search-test'])
+  expect(vi.mocked(api).mock.calls.filter(([, init]) => init?.method === 'POST').map(([path]) => path)).toEqual(['/settings/model-test?model_mode=deep', '/settings/web-search-test?model_mode=deep'])
 })

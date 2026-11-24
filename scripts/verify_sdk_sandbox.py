@@ -91,7 +91,7 @@ def verify(*, native: bool, build: bool, image: str, output: Path, runtime: str 
                     "mcp_tool_call", "image_input", "thread_resume"}
         if not native:
             required.add("runtime_code_read_only")
-        valid = probe.get("sdk_version") == "0.159.0" and all(probe.get("checks", {}).get(key) is True for key in required)
+        valid = probe.get("sdk_version") == "0.171.0" and all(probe.get("checks", {}).get(key) is True for key in required)
         report["status"] = "passed" if result.returncode == 0 and probe.get("status") == "passed" and valid else "failed"
         if native:
             report["limitation"] = "Native protocol checks do not verify Linux/gVisor or immutable container mounts"

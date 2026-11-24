@@ -1,5 +1,6 @@
 import LoadingState from '../LoadingState'
 import { useWorkspaceSession } from '../../WorkspaceSession'
+import { workspaceRect, workspaceViewport } from '../../workspaceGeometry'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { BookOpen, Bot, Check, ChevronDown, ChevronRight, Paperclip, Plus, RefreshCw, X } from 'lucide-react'
@@ -52,13 +53,14 @@ export default function ResearchComposerMenu({ value, snapshot, disabled, showAs
   useLayoutEffect(() => {
     if (!open) return
     const reposition = () => {
-      const rect = (submenu ? methodTrigger : trigger).current?.getBoundingClientRect()
-      if (!rect) return
-      const width = Math.min(300, window.innerWidth - 24)
-      const maxHeight = Math.max(180, window.innerHeight - 40)
+      const button = (submenu ? methodTrigger : trigger).current
+      if (!button) return
+      const rect = workspaceRect(button), viewport = workspaceViewport()
+      const width = Math.min(300, viewport.width - 24)
+      const maxHeight = Math.max(180, viewport.height - 40)
       const height = Math.min(popup.current?.scrollHeight || (submenu ? 390 : 110), maxHeight)
-      const top = Math.max(12, rect.top >= height + 20 ? rect.top - height - 8 : Math.min(rect.bottom + 8, window.innerHeight - height - 12))
-      setPosition({ left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)), top, width, maxHeight })
+      const top = Math.max(12, rect.top >= height + 20 ? rect.top - height - 8 : Math.min(rect.bottom + 8, viewport.height - height - 12))
+      setPosition({ left: Math.max(12, Math.min(rect.left, viewport.width - width - 12)), top, width, maxHeight })
     }
     reposition()
     window.addEventListener('resize', reposition)

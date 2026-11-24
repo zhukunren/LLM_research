@@ -20,15 +20,17 @@ const fixture = {
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 const defaultEditor = { template: { revision: 0, content: { theme: 'soochow', sections: {} }, collection_request_id: null }, saved: null }
 const png = 'data:image/png;base64,cGxhbg=='
-function mockApi(collect: (path: string, init?: RequestInit) => Promise<unknown> = async () => { throw new Error('Unexpected collection request') }) {
+function mockApi(collect: (path: string, init?: RequestInit) => Promise<unknown> = async () => { throw new Error('Unexpected collection request') },
+  upcoming = () => planDate) {
   vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path === endpoint + '/default-date') return { plan_date: upcoming() }
     if (path.startsWith(endpoint + '/preview')) return { image: png, width: 1080, height: 1660, regions: [] }
     if (path.startsWith(endpoint + '/editor/')) return defaultEditor
     return collect(path, init)
   })
 }
 async function collectPlan(user: ReturnType<typeof userEvent.setup>) {
-  const button = screen.getByRole('button', { name: 'AI 采集资料' })
+  const button = screen.getByRole('button', { name: 'AI生成' })
   await waitFor(() => expect(button).toBeEnabled())
   await user.click(button)
 }
@@ -37,7 +39,7 @@ beforeEach(() => {
   vi.mocked(api).mockReset()
   mockApi()
   sessionStorage.removeItem('client-service.opening.date')
-  for (const date of [planDate, '2026-11-18']) {
+  for (const date of [planDate, '2026-11-18', '2026-11-23']) {
     sessionStorage.removeItem('client-service.opening.draft.' + date)
     sessionStorage.removeItem('client-service.opening.request.' + date)
   }
@@ -47,7 +49,7 @@ it('copies an editable dated template with fixed adviser details, selected secti
   const user = userEvent.setup()
   const clipboard = vi.spyOn(navigator.clipboard, 'writeText')
   render(<OpeningPlanPage />)
-  const copy = screen.getByRole('button', { name: '复制文案' })
+  const copy = await screen.findByRole('button', { name: '复制文案' })
   expect(copy).toBeDisabled()
   fill('计划日期', planDate)
   fill('今日核心判断', '依据[行情公告](https://example.com/market)观察量能。')
@@ -73,6 +75,40 @@ it('copies an editable dated template with fixed adviser details, selected secti
   expect(screen.getByLabelText('今日核心判断')).toHaveValue('依据[行情公告](https://example.com/market)观察量能。')
 })
 
+it('rechecks automatic dates at collection and keeps the previous draft on its own date', async () => {
+  const nextDate = '2026-11-23'
+  const focus = '优先补充盘前速览。'
+  let upcoming = planDate
+  let requestId = ''
+  sessionStorage.setItem('client-service.opening.date', JSON.stringify('2026-11-18'))
+  mockApi(async (path, init) => {
+    if (path === endpoint) {
+      const body = JSON.parse(String(init?.body))
+      expect(body).toMatchObject({ plan_date: nextDate, model_mode: 'deep', generation_focus: focus })
+      requestId = body.request_id
+    } else expect(path).toBe(endpoint + '/' + requestId)
+    return { ...fixture, plan_date: nextDate, request_id: requestId, generation_focus: focus,
+      sections: { judgment: '下一交易日观察量能。' } }
+  }, () => upcoming)
+  const user = userEvent.setup()
+  render(<OpeningPlanPage />)
+  await screen.findByRole('button', { name: 'AI生成' })
+  expect(screen.getByLabelText('计划日期')).toHaveValue(planDate)
+  fill('今日核心判断', '原日期的草稿。')
+  await user.click(screen.getByRole('button', { name: '深度' }))
+  await user.click(screen.getByText('关注点（Prompt）', { selector: 'summary' }))
+  fill('关注点（Prompt）', focus)
+  upcoming = nextDate
+  await collectPlan(user)
+  await waitFor(() => expect(screen.getByLabelText('今日核心判断')).toHaveValue('下一交易日观察量能。'))
+  expect(screen.getByLabelText('计划日期')).toHaveValue(nextDate)
+  expect(screen.getByText(`已提交关注点 · ${focus}`)).toBeVisible()
+  expect(screen.getByRole('button', { name: '深度' })).toHaveAttribute('aria-pressed', 'true')
+  fill('计划日期', planDate)
+  expect(screen.getByLabelText('今日核心判断')).toHaveValue('原日期的草稿。')
+  expect(vi.mocked(api).mock.calls.filter(([path, init]) => path === endpoint && init?.method === 'POST')).toHaveLength(1)
+})
+
 it('fills untouched sections, preserves edits and leaves the source available for review', async () => {
   let id = ''
   let resolve!: (value: unknown) => void
@@ -81,7 +117,7 @@ it('fills untouched sections, preserves edits and leaves the source available fo
     if (path === endpoint) {
       const request = JSON.parse(String(init?.body))
       id = request.request_id
-      expect(request).toEqual({ request_id: id, plan_date: planDate })
+      expect(request).toEqual({ request_id: id, plan_date: planDate, model_mode: 'deep' })
       return { ...fixture, request_id: id, state: 'awaiting_agent' }
     }
     expect(path).toBe(endpoint + '/' + id)
@@ -90,8 +126,9 @@ it('fills untouched sections, preserves edits and leaves the source available fo
   const user = userEvent.setup()
   const page = render(<OpeningPlanPage />)
   fill('计划日期', planDate)
+  await user.click(screen.getByRole('button', { name: '深度' }))
   await collectPlan(user)
-  await screen.findByRole('button', { name: '停止采集' })
+  await screen.findByRole('button', { name: '停止生成' })
   fill('今日核心判断', '用户手写判断。')
   fill('今日风控', '用户填写仓位口径。')
   await act(async () => resolve({ ...fixture, request_id: id }))
@@ -128,7 +165,7 @@ it('applies a pending result only to its own plan date', async () => {
   render(<OpeningPlanPage />)
   fill('计划日期', planDate)
   await collectPlan(user)
-  await screen.findByRole('button', { name: '停止采集' })
+  await screen.findByRole('button', { name: '停止生成' })
   fill('计划日期', '2026-11-18')
   await act(async () => resolve({ ...fixture, request_id: id }))
   expect(screen.getByLabelText('隔夜与昨日')).toHaveValue('')
@@ -160,6 +197,7 @@ it('previews and exports the selected artwork, and saves a dated card apart from
   let template = defaultEditor.template
   let saved: typeof template | null = null
   vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path === endpoint + '/default-date') return { plan_date: planDate }
     if (path.startsWith(endpoint + '/preview')) return { image: png, width: 1080, height: 1660, regions: [] }
     if (init?.method === 'PUT') {
       const submitted = JSON.parse(String(init.body))

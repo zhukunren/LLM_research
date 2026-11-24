@@ -84,7 +84,7 @@ it('canonicalizes old reading URLs and merges legacy page IDs into material-spec
   expect(result.current.activeTab.title).toBe('资讯')
 })
 
-it('names the opening plan and suggestion editor within the same service tab', () => {
+it('names each service page within the same tab', () => {
   window.history.replaceState(null, '', '#/tools/client-service')
   const { result } = renderHook(useWorkspaceTabs)
   const id = result.current.activeId
@@ -92,8 +92,12 @@ it('names the opening plan and suggestion editor within the same service tab', (
   expect(result.current.activeTab).toMatchObject({ id, title: '调仓建议' })
   act(() => result.current.update(id, { page: 'client-service', serviceView: 'opening-plan' }))
   expect(result.current.activeTab).toMatchObject({ id, title: '开盘计划' })
+  act(() => result.current.update(id, { page: 'client-service', serviceView: 'templates' }))
+  expect(result.current.activeTab).toMatchObject({ id, title: '生成计划与模板' })
+  act(() => result.current.update(id, { page: 'client-service', serviceView: 'deliveries' }))
+  expect(result.current.activeTab).toMatchObject({ id, title: '发送记录' })
   act(() => result.current.update(id, { page: 'client-service', serviceView: 'cards' }))
-  expect(result.current.activeTab).toMatchObject({ id, title: '对客服务' })
+  expect(result.current.activeTab).toMatchObject({ id, title: '时点卡片' })
 })
 
 it('sets the robot workspace title when opened and restored from browser history', async () => {
@@ -104,7 +108,7 @@ it('sets the robot workspace title when opened and restored from browser history
   expect(result.current.activeTab).toMatchObject({ id, title: '群机器人' })
   expect(window.location.hash).toBe('#/tools/client-service?view=robots')
   act(() => window.history.back())
-  await waitFor(() => expect(result.current.activeTab).toMatchObject({ id, title: '对客服务' }))
+  await waitFor(() => expect(result.current.activeTab).toMatchObject({ id, title: '时点卡片' }))
   act(() => window.history.forward())
   await waitFor(() => expect(result.current.activeTab).toMatchObject({ id, title: '群机器人' }))
 })

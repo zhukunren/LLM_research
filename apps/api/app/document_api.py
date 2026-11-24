@@ -12,7 +12,8 @@ from . import documents
 from .api_responses import bad_request
 from .db import connect, json_dump, json_load, utc_now
 from .models import ConfirmAvailabilityInput, ConfirmSecurityBindingInput, ReportSearchInput
-from .report_evidence import PROMPT_VERSION, model_name, normalize_quote
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode
+from .report_evidence import PROMPT_VERSION, normalize_quote
 from .security_context import current_actor
 
 router = APIRouter(prefix="/api/v1/documents")
@@ -40,9 +41,9 @@ def import_documents():
 
 
 @router.post("/catalog")
-def catalog_documents(retry_failed: bool = False):
+def catalog_documents(retry_failed: bool = False, model_mode: ModelMode = DEFAULT_MODEL_MODE):
     from .report_catalog import enqueue
-    return enqueue(retry_failed=retry_failed)
+    return enqueue(retry_failed=retry_failed, model_mode=model_mode)
 
 
 @router.get("/{document_id}/pdf")
@@ -117,7 +118,7 @@ def confirm_llm_security_binding(document_id: str):
             valid_candidates.append(item)
         if issuer_codes != {row[1]} or not valid_candidates:
             bad_request("LLM 主体代码候选缺少唯一有效页码引用", 409, "llm_security_candidate_unverified")
-        if row[4] != model_name():
+        if row[4] not in {preset.model_id for preset in MODEL_PRESETS.values()}:
             bad_request("LLM 候选生成模型已变化，请重新运行判断口径后再确认", 409, "llm_security_candidate_model_changed")
         if row[5] != PROMPT_VERSION:
             bad_request("LLM 候选由旧版提示词生成，请重新运行判断口径后再确认", 409, "llm_security_candidate_prompt_changed")

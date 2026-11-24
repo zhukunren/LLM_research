@@ -5,6 +5,7 @@ import { Archive, ArchiveRestore, Check, Copy, Download, ListFilter, MoreHorizon
 import { api, conversationWorkflow, type Conversation, type ConversationScope, type WorkflowType } from '../api'
 import { trapDialogTab } from '../keyboard'
 import { workspaceRouteHash } from '../workspaceRoute'
+import { workspaceRect, workspaceViewport } from '../workspaceGeometry'
 import './conversation-history.css'
 
 export type RecentConversation = {
@@ -48,13 +49,13 @@ export default function ConversationHistoryItem({ item, current, onOpen, onChang
   useLayoutEffect(() => {
     if (!menu) return
     const place = () => {
-      const rect = trigger.current?.getBoundingClientRect()
-      if (!rect) return
-      const width = Math.min(260, window.innerWidth - 24)
-      const maxHeight = Math.max(80, window.innerHeight - 24)
+      if (!trigger.current) return
+      const rect = workspaceRect(trigger.current), viewport = workspaceViewport()
+      const width = Math.min(260, viewport.width - 24)
+      const maxHeight = Math.max(80, viewport.height - 24)
       const height = Math.min(popup.current?.scrollHeight || 310, maxHeight)
-      const left = rect.right + width + 8 <= window.innerWidth - 12 ? rect.right + 8 : Math.min(rect.right - width, window.innerWidth - width - 12)
-      setPosition({ left: Math.max(12, left), top: Math.max(12, Math.min(rect.top, window.innerHeight - height - 12)), width, maxHeight })
+      const left = rect.right + width + 8 <= viewport.width - 12 ? rect.right + 8 : Math.min(rect.right - width, viewport.width - width - 12)
+      setPosition({ left: Math.max(12, left), top: Math.max(12, Math.min(rect.top, viewport.height - height - 12)), width, maxHeight })
     }
     place()
     window.addEventListener('resize', place)

@@ -32,6 +32,15 @@ def _error(status: int, message: str):
     raise HTTPException(status, {"code": "daily_signal_error", "message": message})
 
 
+def _named_signal_stock(stock: dict) -> dict:
+    result = {'code': stock['code'], 'name': stock['name']}
+    ratio = stock.get('position_ratio')
+    position_date = stock.get('position_date')
+    if type(ratio) in (int, float) and 0 <= ratio < math.inf and isinstance(position_date, str):
+        result.update(position_ratio=ratio, position_date=position_date)
+    return result
+
+
 def named_signals(payload: dict) -> dict:
     """Project only public fields; upstream identifiers and extra metadata stay here."""
     if payload.get('schema_version') != 1 or not isinstance(payload.get('strategies'), list):
@@ -46,7 +55,7 @@ def named_signals(payload: dict) -> dict:
         strategy = {key: item[key] for key in fields if key in item}
         strategy.update(strategy_name=identity, strategy_title=title, generation_id='')
         for side in ('buy_signals', 'sell_signals'):
-            strategy[side] = [{'code': stock['code'], 'name': stock['name']} for stock in item[side]]
+            strategy[side] = [_named_signal_stock(stock) for stock in item[side]]
         strategies.append(strategy)
     result['strategies'] = strategies
     return result

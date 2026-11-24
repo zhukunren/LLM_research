@@ -1,0 +1,29 @@
+.celebration-options { min-width: 0; margin: 16px 0 0; padding: 0; border: 0; }
+.celebration-code-field small { display: block; margin-top: 6px; }
+.celebration-options legend { margin-bottom: 8px; padding: 0; font-size: var(--ui-label-size); font-weight: 600; }
+.celebration-options > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.celebration-options label {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  font-size: var(--ui-label-size);
+  line-height: var(--ui-label-leading);
+  cursor: pointer;
+}
+.celebration-options:not(:disabled) label:hover { background: var(--ui-surface-hover); }
+.celebration-options label:has(:checked) { background: var(--ui-primary-soft); border-color: var(--ui-primary-border); color: var(--ui-primary); }
+.celebration-options input { flex-shrink: 0; accent-color: var(--ui-primary); }
+.celebration-themes label { display: grid; justify-items: center; gap: 8px; padding: 6px; }
+.celebration-themes img { display: block; width: auto; height: 108px; max-width: 100%; object-fit: contain; border-radius: 4px; }
+.celebration-themes label > span { display: flex; gap: 6px; align-items: center; }
+.celebration-themes input { margin: 0; }
+.celebration-theme-rail .celebration-themes { margin: 0; }
+.celebration-theme-rail .celebration-themes legend { font-size: var(--ui-panel-title); line-height: var(--ui-panel-title-leading); }
+.celebration-theme-rail .celebration-themes > div { grid-template-columns: minmax(0,1fr); }
+.celebration-modes label { display: flex; align-items: start; gap: 6px; }
+.celebration-modes input { margin: 4px 0 0; }
+.celebration-modes strong, .celebration-modes small { display: block; }
+.celebration-modes small { margin-top: 3px; color: var(--ui-text-muted); font-size: var(--ui-meta-size); line-height: var(--ui-meta-leading); }
+.client-card-canvas > .celebration-poster { align-self: center; width: auto; max-width: min(100%,440px); max-height: 100%; object-fit: contain; }

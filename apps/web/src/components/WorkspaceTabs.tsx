@@ -4,6 +4,7 @@ import { ArrowLeftToLine, ArrowRightToLine, List, ListX, Plus, RotateCcw, Square
 import type { WorkflowType } from '../api'
 import type { WorkspaceTab } from '../workspaceTabs'
 import { workspaceMenus } from '../navigation'
+import { workspaceRect, workspaceViewport, workspaceZoom } from '../workspaceGeometry'
 
 export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onCloseOthers, onCloseSide, onCloseAll, canReopen, onReopen, onMove, onNew, newWorkflow = 'research' }: { tabs: WorkspaceTab[]; activeId: string; onActivate: (id: string) => void; onClose: (id: string) => void; onCloseOthers: (id: string) => void; onCloseSide: (id: string, side: 'left' | 'right') => void; onCloseAll: () => void; canReopen: boolean; onReopen: () => void; onMove: (id: string, targetId: string, placement: 'before' | 'after') => void; onNew: () => void; newWorkflow?: WorkflowType }) {
   const list = useRef<HTMLDivElement>(null)
@@ -71,9 +72,10 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
   }
   useLayoutEffect(() => {
     if (!menu || !popup.current) return
-    const node = popup.current, rect = node.getBoundingClientRect()
-    node.style.left = `${Math.max(8, Math.min(menu.x, window.innerWidth - rect.width - 8))}px`
-    node.style.top = `${Math.max(8, Math.min(menu.y, window.innerHeight - rect.height - 8))}px`
+    const node = popup.current, rect = workspaceRect(node)
+    const { width, height } = workspaceViewport()
+    node.style.left = `${Math.max(8, Math.min(menu.x, width - rect.width - 8))}px`
+    node.style.top = `${Math.max(8, Math.min(menu.y, height - rect.height - 8))}px`
     node.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
   }, [menu])
   useEffect(() => {
@@ -119,7 +121,7 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
     }
     if (event.key === 'ContextMenu' || event.key === 'F10' && event.shiftKey) {
       event.preventDefault()
-      const rect = event.currentTarget.getBoundingClientRect()
+      const rect = workspaceRect(event.currentTarget)
       setMenu({ id: tabs[index].id, x: rect.left, y: rect.bottom })
       return
     }
@@ -160,8 +162,9 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
         return <div key={tab.id} className="workspace-tab-item" data-tab-id={tab.id} data-active={tab.id === activeId} data-dragging={draggingId === tab.id || undefined} data-drop={dropTarget?.id === tab.id ? dropTarget.placement : undefined} onContextMenu={event => {
           event.preventDefault()
           event.stopPropagation()
-          const rect = event.currentTarget.getBoundingClientRect()
-          setMenu({ id: tab.id, x: event.clientX || rect.left, y: event.clientY || rect.bottom })
+          const zoom = workspaceZoom()
+          const rect = workspaceRect(event.currentTarget, zoom)
+          setMenu({ id: tab.id, x: event.clientX / zoom || rect.left, y: event.clientY / zoom || rect.bottom })
         }}>
           <button id={`workspace-tab-${tab.id}`} role="tab" type="button" draggable={tabs.length > 1} onDragStart={event => {
             closeMenu(false)
@@ -177,7 +180,7 @@ export default function WorkspaceTabs({ tabs, activeId, onActivate, onClose, onC
     <button type="button" className="workspace-tab-new workspace-button" aria-label={newWorkflow === 'screening' ? '新建选股标签' : '新建研究标签'} data-tooltip={newWorkflow === 'screening' ? '新建选股标签' : '新建研究标签'} onClick={onNew}><Plus size={16} aria-hidden="true" /></button>
     <button ref={allTrigger} type="button" className="workspace-tab-new workspace-button" aria-label={`已打开工作区（${tabs.length}）`} aria-haspopup="menu" aria-expanded={!!menu?.all} aria-controls={menu?.all ? menuId : undefined} onClick={event => {
       if (menu?.all) { closeMenu(); return }
-      const rect = event.currentTarget.getBoundingClientRect()
+      const rect = workspaceRect(event.currentTarget)
       setMenu({ id: '', x: rect.right - 320, y: rect.bottom, all: true })
     }}><List size={16} aria-hidden="true" /></button>
     {menu && createPortal(<div ref={popup} id={menuId} role="menu" aria-label={menu.all ? '已打开工作区' : '标签页操作'} className={`workspace-tab-context-menu workspace-tool-dialog workspace-popover workspace-menu${menu.all ? ' workspace-tab-overflow' : ''}`} style={{ left: menu.x, top: menu.y }} onKeyDown={menuKeys} onContextMenu={event => event.preventDefault()}>

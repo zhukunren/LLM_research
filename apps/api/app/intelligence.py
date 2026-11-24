@@ -15,6 +15,7 @@ from .intelligence_contracts import (
     BriefScope, CaptureBriefSource, ReadBriefSource, PublishBrief, StartBrief, KIND_DEFINITIONS, MARKETS,
 )
 from .settings import research_web_search_mode
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS
 from . import advisor_tasks
 from .advisor_contracts import ADVISOR_KINDS, STOCK_KINDS
 from .models import StrictModel
@@ -90,6 +91,8 @@ def _prompt(kind, scope, cutoff, start, previous, advisor_context=None):
 
 def start(payload: StartBrief):
     requested = payload.model_dump(mode="json")
+    if payload.model_mode is None:
+        requested.pop("model_mode")
     requested["scope"] = payload.scope.business_payload()
     digest = _hash(requested)
     clock = now()
@@ -98,7 +101,7 @@ def start(payload: StartBrief):
         existing = connection.execute("SELECT * FROM intelligence_runs WHERE request_id=?", (payload.request_id,)).fetchone()
         if existing:
             if existing["request_hash"] != digest:
-                raise IntelligenceError("同一提交不能更换任务或范围，请重新提交。", 409)
+                raise IntelligenceError("同一提交不能更换任务、范围或模型档位，请重新提交。", 409)
             run_id = existing["id"]
         else:
             if research_web_search_mode() != "live":
@@ -129,8 +132,13 @@ def start(payload: StartBrief):
                 advisor_context = advisor_tasks.build_context(connection, payload.kind, payload.scope, cutoff)
             except advisor_tasks.AdvisorTaskError as exc:
                 raise IntelligenceError(str(exc)) from exc
-            conversation = conversation_store.create_conversation(
-                "news", workflow_type="research", assistant_id=KIND_DEFINITIONS[payload.kind]["assistant"], _connection=connection)
+            selection = MODEL_PRESETS[payload.model_mode or DEFAULT_MODEL_MODE].selection()
+            try:
+                conversation = conversation_store.create_conversation(
+                    "news", workflow_type="research", assistant_id=KIND_DEFINITIONS[payload.kind]["assistant"],
+                    _connection=connection, **selection)
+            except conversation_store.ConversationStoreError as exc:
+                raise IntelligenceError(str(exc), 422) from exc
             cid = conversation["id"]
             research_scope = {"as_of": cutoff.date().isoformat()}
             if payload.kind in STOCK_KINDS:

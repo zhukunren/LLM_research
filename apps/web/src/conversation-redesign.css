@@ -140,7 +140,7 @@
   .research-studio .conversation-composer-footer { flex-wrap: wrap; }
   .research-studio .conversation-composer textarea { min-height: 96px; }
   .studio-mode-select > span { display: none; }
-  .research-studio .conversation-sessions.sessions-open { inset: 0 auto 0 0; width: min(370px, 92vw); height: 100dvh; border-radius: 0 12px 12px 0; padding: 22px; }
+  .research-studio .conversation-sessions.sessions-open { inset: 0 auto 0 0; width: min(370px, 92vw); height: var(--ui-viewport-height); border-radius: 0 12px 12px 0; padding: 22px; }
   .research-studio .conversation-task-panel { padding: 18px; }
   .observation-page .selection-controls, .observation-batch-controls { padding: 18px; }
   .observation-execute-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }

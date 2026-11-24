@@ -24,6 +24,7 @@ const TushareDownloadPage = lazy(() => import('./pages/TushareDownloadPage'))
 const ClientServicePage = lazy(() => import('./pages/ClientServicePage'))
 const OpeningPlanPage = lazy(() => import('./pages/OpeningPlanPage'))
 const RebalanceSuggestionPage = lazy(() => import('./pages/RebalanceSuggestionPage'))
+const CelebrationPage = lazy(() => import('./pages/CelebrationPage'))
 
 type Props = {
   tab: WorkspaceTab; data: DataStatus | null; workspace: WorkflowType
@@ -147,7 +148,8 @@ export default function WorkspacePage({ tab, data, fixedRulesOpen, onCloseFixedR
     {page === 'data-download' && <TushareDownloadPage onSettings={onSettings} />}
     {page === 'client-service' && route.serviceView === 'opening-plan' && <OpeningPlanPage />}
     {page === 'client-service' && route.serviceView === 'suggestions' && <RebalanceSuggestionPage />}
-    {page === 'client-service' && route.serviceView !== 'opening-plan' && route.serviceView !== 'suggestions' &&
+    {page === 'client-service' && route.serviceView === 'celebrations' && <CelebrationPage />}
+    {page === 'client-service' && route.serviceView !== 'opening-plan' && route.serviceView !== 'suggestions' && route.serviceView !== 'celebrations' &&
       <ClientServicePage researchDraft={tab.seed?.serviceDraft} view={route.serviceView} onViewChange={serviceView => onUpdate({ ...route, serviceView }, true)} />}
     {page === 'screening' && <div className="research-space"><div className="research-space-panel research-space-panel-screening">
       {homeDraft.trim() && <div className="legacy-draft-notice"><span>还有一个之前保存的问题</span><button className="text-button workspace-button" onClick={onLegacyDraft}>继续未发送的问题</button></div>}

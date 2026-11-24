@@ -308,7 +308,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyboardShortcuts)
   }, [mobileNavigationOpen])
 
-  const mobileTitle = isService ? '对客服务' : showTaskTypes && !route.screeningMethod ? (page === 'screening' ? '研究对话' : '选股对话') : workspaces.activeTab.title
+  const mobileTitle = showTaskTypes && !route.screeningMethod ? (page === 'screening' ? '研究对话' : '选股对话') : workspaces.activeTab.title
   const showResearchNavigation = mobileApp ? page === 'conditions' || route.screeningMethod === 'pattern' : !isService && (workspaceArea === 'screening' || showTaskTypes)
   const researchNavigation = showResearchNavigation && <ResearchWorkspaceNavigation compact={mobileApp} showTaskTypes={showTaskTypes && !mobileApp} screeningMethod={route.screeningMethod} workspace={workspaceArea} page={page} view={route.view} onTaskTypeChange={switchTaskType} onScreeningView={openScreeningView} onFixedRules={openFixedRules} onPatternSamples={openPatternSamples} />
 

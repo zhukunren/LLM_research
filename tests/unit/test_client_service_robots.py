@@ -1,4 +1,5 @@
 from datetime import timedelta
+import time
 import base64
 import hashlib
 from dataclasses import asdict
@@ -10,6 +11,7 @@ import pytest
 import requests
 
 from apps.api.app import client_service_robots as robots, client_service as service, db
+from apps.api.app import client_service_archive as archive
 from apps.api.app.client_service_api import router
 from apps.api.app.client_service_disclosure import disclosure_lines
 from apps.api.app.rebalance_card import RebalanceCard
@@ -82,7 +84,7 @@ def test_delivery_is_idempotent_and_does_not_follow_redirects(setup):
     assert len(calls) == 1
     assert calls[0][0] == 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send'
     assert calls[0][1]['allow_redirects'] is False
-    other = create(client, name='另一个群')
+    other = create(client, name='另一个群', webhook=WEBHOOK.replace('test-only-secret-key', 'test-other-secret-key'))
     assert client.post('/api/v1/client-service/robots/' + other['id'] + '/send', json=body).status_code == 409
     assert 'test-only-secret-key' not in client.get('/api/v1/client-service/robots/deliveries').text
 
@@ -250,3 +252,85 @@ def test_group_send_can_use_a_themed_rebalance_card(setup, monkeypatch):
     })
     assert response.status_code == 200 and response.json()["state"] == "sent"
     assert base64.b64decode(calls[0][1]["json"]["image"]["base64"]) == b"test-image-jade"
+
+
+def test_archive_reads_each_bound_group_and_retries_from_the_saved_cursor(setup, tmp_path, monkeypatch):
+    client, pushes = setup
+    root = '/api/v1/client-service/robots'
+    library = tmp_path / 'finance.so'
+    library.touch()
+    config = archive.ArchiveSettings(
+        'ww-test', library, tmp_path, 'WECOM_TEST_ARCHIVE_SECRET', {'roomA': '一组', 'roomB': '二组'},
+    )
+    monkeypatch.setattr(archive, 'archive_settings', lambda: config)
+    monkeypatch.setenv(config.secret_env, 'test-only-archive-secret')
+    first = create(client, archive_room_id='roomA', name='一组')
+    other_url = WEBHOOK.replace('test-only-secret-key', 'test-other-secret-key')
+    second = create(client, archive_room_id='roomB', name='二组', webhook=other_url)
+    assert client.post(root, json={'name': '重复配置', 'webhook': WEBHOOK}).status_code == 409
+    assert client.post(root, json={
+        'name': '同群不同地址', 'webhook': WEBHOOK + '-new', 'archive_room_id': 'roomA',
+    }).status_code == 409
+    assert client.post(root, json={
+        'name': '未授权群', 'webhook': WEBHOOK + '-new', 'archive_room_id': 'roomC',
+    }).status_code == 422
+    assert client.put(root + '/' + second['id'], json={'name': '二组新名', 'revision': 0}).json()['archive_room_id'] == 'roomB'
+
+    now = int(time.time())
+    seen = []
+
+    def message(id_, room, sender, text):
+        return {'msgid': id_, 'roomid': room, 'from': sender, 'action': 'send', 'msgtype': 'text',
+                'msgtime': (now - 180) * 1000, 'text': {'content': text}}
+
+    first_page = [
+        message('a1', 'roomA', 'wo-client', '请问赎回流程？'),
+        message('a2', 'roomA', 'adviser', '本产品保证收益'),
+        message('b1', 'roomB', 'wm-client', '二组想了解仓位安排'),
+        message('other', 'roomC', 'wo-other', '未授权的记录'),
+    ]
+
+    class FakeArchive:
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def read(self, cursor):
+            seen.append(cursor)
+            if len(seen) == 1:
+                return 100, first_page
+            if len(seen) == 2:
+                raise archive.ArchiveError('样例连接中断')
+            return 200, [first_page[0], message('b2', 'roomB', 'adviser', '客户可核对风险说明')]
+
+    monkeypatch.setattr(archive, 'FinanceArchive', FakeArchive)
+    assert client.get(root + '/' + first['id'] + '/chat').json()['state'] == 'waiting'
+    archive.sync_archive(config, clock=now - 120)
+    archive.sync_archive(config, clock=now - 110)
+    archive.sync_archive(config, clock=now - 60)
+    mid = client.get(root + '/' + first['id'] + '/chat').json()
+    assert mid['state'] == 'error' and mid['total'] == 2 and mid['synced_at']
+    archive.sync_archive(config, clock=now)
+    assert seen == [0, 100, 100]
+    a = client.get(root + '/' + first['id'] + '/chat').json()
+    b = client.get(root + '/' + second['id'] + '/chat').json()
+    assert a['state'] == b['state'] == 'ready'
+    assert a['total'] == b['total'] == 2
+    assert [item['id'] for item in a['needs']] == ['a1']
+    assert [item['id'] for item in a['alerts']] == ['a2']
+    assert [item['id'] for item in b['needs']] == ['b1']
+    assert b['alerts'] == []
+    assert '二组想了解' not in str(a) and '赎回流程' not in str(b)
+    with db.connect() as connection:
+        assert connection.execute('SELECT COUNT(*) FROM client_service_wecom_messages').fetchone()[0] == 4
+    assert pushes == []
+
+
+def test_push_rejects_a_changed_group_configuration(setup):
+    client, pushes = setup
+    robot = create(client)
+    path = '/api/v1/client-service/robots/' + robot['id']
+    assert client.put(path, json={'name': '更新后的群', 'webhook': WEBHOOK + '-other', 'revision': 0}).status_code == 200
+    assert client.post(path + '/send', json={'request_id': 'old-target', 'kind': 'test', 'robot_revision': 0}).status_code == 409
+    assert pushes == []
+    assert client.post(path + '/send', json={'request_id': 'new-target', 'kind': 'test', 'robot_revision': 1}).json()['state'] == 'sent'
+    assert len(pushes) == 1

@@ -9,6 +9,7 @@ from typing import Any, Callable, Literal
 from pydantic import Field
 
 from . import evidence_sources, model_client
+from .model_modes import DEFAULT_MODEL_MODE, ModelMode
 from .screening_contracts import ContractModel
 
 MAX_ROUNDS = 16
@@ -100,7 +101,8 @@ def _complete_coverage(total: int, sources: dict, chunks: list[dict]) -> bool:
     return True
 
 
-def _judge(request: EvidenceRequest, stock_code: str, submission: dict, chunks: list[dict], complete: bool) -> dict:
+def _judge(request: EvidenceRequest, stock_code: str, submission: dict, chunks: list[dict], complete: bool,
+           *, model_mode: ModelMode = DEFAULT_MODEL_MODE) -> dict:
     if not isinstance(submission, dict) or set(submission) != {"state", "explanation", "evidence"} or submission["state"] not in {"true", "false", "unknown"}:
         raise EvidenceAnalysisError("资料判断输出不符合合同")
     if not isinstance(submission["explanation"], str) or not submission["explanation"].strip():
@@ -147,7 +149,7 @@ event_group（同一事件转述使用完全相同的非空标记）、units_mat
         event_requirement=request.event_requirement,
         numeric_requirement=request.numeric_requirement,
         evidence=validated,
-    ), ensure_ascii=False), max_output_tokens=4000)
+    ), ensure_ascii=False), max_output_tokens=4000, model_mode=model_mode)
     assessments = checked.get("assessments") if isinstance(checked, dict) else None
     if not isinstance(assessments, list) or len(assessments) != len(validated):
         raise EvidenceAnalysisError("引用语义核验输出不完整")
@@ -222,7 +224,7 @@ event_group（同一事件转述使用完全相同的非空标记）、units_mat
 
 
 def analyze(request: EvidenceRequest, stock_code: str, as_of: str, provider: EvidenceProvider,
-            *, active: Callable[[], bool] = lambda: True) -> dict:
+            *, active: Callable[[], bool] = lambda: True, model_mode: ModelMode = DEFAULT_MODEL_MODE) -> dict:
     total = provider.list_sources(offset=0, limit=1)["total"]
     if not total:
         return dict(state="unknown", reason_code="data_missing", explanation="本次证券和时间范围内没有可用资料。",
@@ -235,7 +237,7 @@ def analyze(request: EvidenceRequest, stock_code: str, as_of: str, provider: Evi
     for _ in range(MAX_ROUNDS):
         if not active():
             raise EvidenceAnalysisCancelled("资料分析已取消")
-        turn = model_client.create_tool_turn(INSTRUCTIONS, conversation, tools(), max_output_tokens=6000)
+        turn = model_client.create_tool_turn(INSTRUCTIONS, conversation, tools(), max_output_tokens=6000, model_mode=model_mode)
         if not active():
             raise EvidenceAnalysisCancelled("资料分析已取消")
         if turn.refusal or not turn.calls:
@@ -255,7 +257,7 @@ def analyze(request: EvidenceRequest, stock_code: str, as_of: str, provider: Evi
                 if len(turn.calls) != 1:
                     raise EvidenceAnalysisError("最终判断必须单独提交")
                 complete = _complete_coverage(total, sources, chunks)
-                result = _judge(request, stock_code, args, chunks, complete)
+                result = _judge(request, stock_code, args, chunks, complete, model_mode=model_mode)
                 if not active():
                     raise EvidenceAnalysisCancelled("资料分析已取消")
                 result["coverage"] = dict(sources_total=total, sources_listed=len(sources), read_characters=read_chars,

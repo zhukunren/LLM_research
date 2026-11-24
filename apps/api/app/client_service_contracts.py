@@ -1,11 +1,12 @@
 """Editable service templates; Codex owns only the market snapshot."""
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 import re
 
 from .client_service_disclosure import FIXED_DISCLOSURE, with_fixed_disclosure
+from .model_modes import ModelMode
 
 SLOTS = {
     'preopen': ('盘前简报', '08:45'),
@@ -24,6 +25,7 @@ class StrictModel(BaseModel):
 CardTheme = Literal['soochow', 'river', 'jade', 'gold', 'cosmos', 'cinnabar', 'ocean', 'platinum']
 DEFAULT_CARD_THEME: CardTheme = 'soochow'
 LEGACY_CARD_THEME: CardTheme = 'river'
+GenerationFocus = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
 
 
 class CardContent(StrictModel):
@@ -94,6 +96,8 @@ class GenerateCard(StrictModel):
     slot_id: Literal['preopen', 'opening', 'checkpoint', 'midday', 'late', 'close']
     date: date
     regenerate: bool = False
+    model_mode: ModelMode | None = None
+    generation_focus: GenerationFocus = ''
 
 
 class SaveCard(StrictModel):
@@ -110,4 +114,7 @@ class PreviewCard(StrictModel):
 
 class InstantBrief(StrictModel):
     theme: CardTheme | None = None
+    source_card_id: str | None = Field(default=None, pattern=r'^[a-f0-9-]{36}$')
     request_id: str = Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$')
+    model_mode: ModelMode | None = None
+    generation_focus: GenerationFocus = ''

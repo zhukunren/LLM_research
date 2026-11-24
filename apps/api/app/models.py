@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .model_modes import DEFAULT_MODEL_MODE, ModelMode
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -23,11 +24,13 @@ class DraftInput(StrictModel):
     library: Literal["news", "technical", "report"]
     prompt: str = Field(min_length=1, max_length=4000)
     context_code: str | None = None
+    model_mode: ModelMode = DEFAULT_MODEL_MODE
 
 
 class PreviewInput(StrictModel):
     stock_code: str | None = Field(default=None, min_length=4, max_length=16)
     as_of: str | None = None
+    model_mode: ModelMode = DEFAULT_MODEL_MODE
 
 
 class IndicatorPreviewInput(StrictModel):
@@ -57,6 +60,7 @@ class ScreenInput(StrictModel):
     as_of: str
     mode: Literal["formal", "exploratory"] = "formal"
     watchlist_id: str | None = None
+    model_mode: ModelMode | None = None
 
     @field_validator("as_of")
     @classmethod
@@ -151,6 +155,7 @@ class ReportSearchInput(StrictModel):
 
 class ReportEvaluationInput(StrictModel):
     as_of: str = Field(pattern=r"^20\d{2}-\d{2}-\d{2}$")
+    model_mode: ModelMode = DEFAULT_MODEL_MODE
 
     @field_validator("as_of")
     @classmethod

@@ -120,7 +120,7 @@
   :is(.workspace-modal-backdrop,.chat-history-dialog-backdrop,.observation-quick-note-layer,.research-result-dialog-backdrop) { padding: 12px; }
   :is(.chat-history-dialog,.observation-quick-note,.resource-navigation,.condition-item-dialog,.active-tasks-dialog,.quick-navigation,.research-result-dialog).workspace-tool-dialog { max-height: calc(100dvh - 24px); }
   :is(.research-sources-backdrop,.source-reader-backdrop) { padding: 0; }
-  .research-result-dialog.research-sources-drawer.workspace-drawer { width: 100vw; max-height: 100dvh; }
+  .research-result-dialog.research-sources-drawer.workspace-drawer { width: var(--ui-viewport-width); max-height: var(--ui-viewport-height); }
   .workspace-tool-dialog :is(.my-indicators-header,.observation-drawer-header,.research-result-dialog-header) { padding-block: 16px; }
   .workspace-tool-dialog :is(.my-indicators-header h2,.observation-drawer-header h2,.research-result-dialog-header h2,.resource-navigation-heading h2), :is(.chat-history-dialog,.observation-quick-note,.active-tasks-dialog,.condition-item-dialog).workspace-tool-dialog h2 { font-size: 17px; }
   .workspace-tool-dialog :is(input:not([type=checkbox],[type=radio],[type=file],[type=range]),textarea,select) { font-size: 16px; }

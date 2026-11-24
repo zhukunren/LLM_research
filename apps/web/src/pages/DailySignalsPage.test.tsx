@@ -52,6 +52,26 @@ it('reads the named strategies from the local endpoint, preserves zero/null, and
   expect(init?.credentials).toBe('same-origin')
 })
 
+it('shows stock position percentages and dates without requesting trading quantities', async () => {
+  const results = { ...payload, strategies: [strategy('positions', {
+    buy_signals: [
+      { code: '300001.SZ', name: '已成交', position_ratio: 0.125, position_date: '2026-11-13', qty: 100 },
+      { code: '300002.SZ', name: '待成交' },
+    ],
+    sell_signals: [{ code: '600000.SH', name: '已卖出', position_ratio: 0, position_date: '2026-11-11' }],
+  })] }
+  const fetcher = vi.fn(async (_url: string) => response(results))
+  vi.stubGlobal('fetch', fetcher)
+  render(<DailySignalsPage />)
+  const buyPosition = await screen.findByText(/买入后仓位 12.50%/)
+  expect(buyPosition).toHaveTextContent('11-13成交')
+  expect(buyPosition.querySelector('time')).toHaveAttribute('datetime', '2026-11-13')
+  expect(screen.getByText('仓位待确认')).toBeInTheDocument()
+  expect(screen.getByText('卖出前仓位 0.00%')).toHaveAttribute('title', expect.stringContaining('2026-11-11'))
+  expect(fetcher.mock.calls.map(([url]) => url)).toEqual([`${dailySignalsEndpoint}?n=20`])
+  expect(screen.queryByText(/100手|100股|量 —/)).not.toBeInTheDocument()
+})
+
 it('queries an explicit historical date and sample count, then returns to the latest cache without a date parameter', async () => {
   const fetcher = vi.fn(async (url: string) => {
     if (!url.startsWith(dailySignalsEndpoint)) return response({ items: [] })

@@ -1,3 +1,4 @@
+import { modelCatalog } from '../../test/modelCatalog'
 import { openResearchSettings } from '../../test/openResearchSettings'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -37,7 +38,7 @@ function backend({ loseMessage = false, loseCreation = false }: { loseMessage?: 
     const method = init?.method || 'GET'
     if (method !== 'GET') paths.push(path)
     if (path === '/research-assistants') return json({ items: profiles })
-    if (path === '/research-models') return json({ account_tier: 'free', default_model_id: 'gpt-6-luna', default_reasoning_effort: 'high', discovery_status: 'verified', models: [{ id: 'gpt-6-luna', label: 'GPT-6 Luna', description: '研究', available: true, unavailable_reason: null, default_reasoning_effort: 'high', reasoning_efforts: [{ id: 'high', label: '深入' }] }] })
+    if (path === '/research-models') return json(modelCatalog())
     if (path === '/conversations' && method === 'GET') return json({ items: stored ? [stored] : [] })
     if (path === '/conversations' && method === 'POST') {
       const body = JSON.parse(String(init?.body)); creates.push(body)

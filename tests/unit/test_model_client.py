@@ -5,7 +5,12 @@ import urllib.request
 
 import pytest
 
-from apps.api.app import model_client, settings
+from apps.api.app import model_client, research_models, settings
+
+
+@pytest.fixture(autouse=True)
+def verified_model_provider(monkeypatch):
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
 
 
 @pytest.mark.parametrize("kind", ["json", "tool"])
@@ -42,7 +47,8 @@ def test_responses_configuration_is_loaded_from_config_ini(tmp_path, monkeypatch
     monkeypatch.setattr(settings, "PROJECT_ROOT", tmp_path)
     result = settings.llm_settings()
     assert result["configured"] is True
-    assert result["model"] == "gpt-5.5"
+    assert result["model"] == "gpt-6.2-astra"
+    assert result["reasoning_effort"] == "low"
     assert result["api_mode"] == "responses"
     assert result["api_path"] == "/v1/responses"
     assert result["api_key"] == "local-test-secret"
@@ -77,7 +83,9 @@ def test_responses_request_uses_json_output_store_false_and_extracts_result(monk
     assert result == {"status": "ok"}
     assert captured["url"] == "http://127.0.0.1:8081/v1/responses"
     assert captured["body"]["store"] is False
-    assert captured["body"]["model"] == "gpt-5.5"
+    assert captured["body"]["model"] == "gpt-6.2-astra"
+    assert captured["body"]["reasoning"] == {"effort": "low"}
+    assert captured["body"]["service_tier"] == "priority"
     assert "JSON" in captured["body"]["input"]
     assert captured["authorization"] == "Bearer private-test-key"
 

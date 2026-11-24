@@ -4,13 +4,14 @@ from typing import Any, Callable
 
 from . import evidence_sources
 from .evidence_analysis import EvidenceProvider, EvidenceRequest, analyze
+from .model_modes import DEFAULT_MODEL_MODE, ModelMode
 from .screening_contracts import ConditionDecision
 from .settings import llm_settings
 
 
 def evaluate(
     condition: dict[str, Any], reference: dict[str, Any], stock_code: str, as_of: str, *,
-    lookback_days: int | None = None, active: Callable[[], bool] = lambda: True,
+    lookback_days: int | None = None, active: Callable[[], bool] = lambda: True, model_mode: ModelMode = DEFAULT_MODEL_MODE,
 ) -> ConditionDecision:
     request = EvidenceRequest.model_validate(condition["expression"])
     if reference.get("parameter_overrides"):
@@ -33,7 +34,7 @@ def evaluate(
         return evidence_sources.read_report_chunk(source_id, stock_code=stock_code, as_of=as_of,
                                                   lookback_days=lookback_days, **arguments)
 
-    result = analyze(request, stock_code, as_of, EvidenceProvider(list_sources, read_chunk), active=active)
+    result = analyze(request, stock_code, as_of, EvidenceProvider(list_sources, read_chunk), active=active, model_mode=model_mode)
     return ConditionDecision(
         **identity, state=result["state"], evaluation_status="completed", reason_code=result["reason_code"],
         explanation=result["explanation"],

@@ -7,7 +7,8 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 
 from . import client_service as service
-from . import opening_plans, rebalance_suggestions, stock_diagnosis
+from . import celebration, opening_plans, rebalance_suggestions, stock_diagnosis
+from .celebration_card import render_poster
 from .client_service_contracts import GenerateCard, InstantBrief, PreviewCard, SaveCard, ServiceSettings
 from .client_service_images import render_card, display_market
 from .opening_plan_card import OpeningPlanPreview, PlanDate, render_opening_plan
@@ -21,6 +22,12 @@ def _image_preview(data: bytes, regions: list) -> dict:
     width, height = struct.unpack('>II', data[16:24])
     return {'image': 'data:image/png;base64,' + base64.b64encode(data).decode('ascii'),
             'width': width, 'height': height, 'regions': regions, 'image_hash': hashlib.sha256(data).hexdigest()}
+
+
+@router.post('/celebrations')
+def create_celebration(payload: celebration.CelebrationRequest):
+    report = celebration.collect(payload)
+    return {**report, **_image_preview(render_poster(report), [])}
 
 
 @router.get('/settings')
@@ -129,6 +136,11 @@ def cancel_rebalance_suggestion(request_id: str):
 @router.post('/opening-plans', status_code=202)
 def collect_opening_plan(payload: opening_plans.OpeningPlanRequest):
     return opening_plans.start(payload)
+
+
+@router.get('/opening-plans/default-date')
+def default_opening_plan_date():
+    return opening_plans.default_date()
 
 
 @router.get('/opening-plans/editor/{plan_date}')

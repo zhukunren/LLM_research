@@ -30,3 +30,8 @@ def without_web_links(text: str) -> str:
 def card_copy_content(content: dict) -> dict:
     fields = ("brand", "headline", "conclusion", "action", "focus", "service")
     return {**content, **{field: without_web_links(content[field]) for field in fields if field in content}}
+
+
+def contains_return_promise(text: str) -> bool:
+    body = re.sub(r"(?:不|不得|不能|禁止)(?:直接)?(?:承诺收益|保证收益|保证获利|承诺保本|保本保收益)", "", text)
+    return bool(re.search(r"稳赚(?:不赔)?|包赚|承诺收益|保证(?:收益|获利|盈利)|承诺保本|保本保收益|必涨|必赚", body))

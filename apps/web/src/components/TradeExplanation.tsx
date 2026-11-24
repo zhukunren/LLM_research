@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Check, Copy, RefreshCw } from 'lucide-react'
-import { api } from '../api'
+import { api, ApiRequestError } from '../api'
 import { sessionStorage } from '../authStorage'
+import type { ModelMode } from '../modelSelection'
+import ModelModeSwitch from './ModelModeSwitch'
 
 type Result = { request_id: string; state: string; message: string; client_copy?: string; analysis?: string; sources?: { title: string; url: string; published_at?: string | null }[]; limitations?: string[] }
 const activeStates = new Set(['awaiting_agent', 'running'])
 
 function ExplanationDraft({ code, date, side, onBusy }: { code: string; date: string; side: 'buy' | 'sell'; onBusy: (busy: boolean) => void }) {
   const key = `trade-explanation:${code}:${date}:${side}`
-  const [job, setJob] = useState<{ id: string; start: boolean } | null>(() => {
+  const [job, setJob] = useState<{ id: string; start: boolean; modelMode?: ModelMode } | null>(() => {
     try { const id = sessionStorage.getItem(key); return id ? { id, start: false } : null } catch { return null }
   })
+  const [modelMode, setModelMode] = useState<ModelMode>('instant')
   const [result, setResult] = useState<Result | null>(null)
   const [text, setText] = useState('')
   const [copied, setCopied] = useState(false)
@@ -27,7 +30,7 @@ function ExplanationDraft({ code, date, side, onBusy }: { code: string; date: st
     async function read(start: boolean) {
       try {
         const value = start ? await api<Result>('/daily-signals/reason', {
-          method: 'POST', signal: controller.signal, body: JSON.stringify({ request_id: job!.id, code, date, side }),
+          method: 'POST', signal: controller.signal, body: JSON.stringify({ request_id: job!.id, code, date, side, model_mode: job!.modelMode }),
         }) : await api<Result>(`/daily-signals/reason/${encodeURIComponent(job!.id)}`, { signal: controller.signal })
         if (controller.signal.aborted) return
         setResult(value)
@@ -35,7 +38,7 @@ function ExplanationDraft({ code, date, side, onBusy }: { code: string; date: st
         else { setBusy(false); if (value.state === 'succeeded') setText(value.client_copy || '') }
       } catch (error) {
         if (!controller.signal.aborted) {
-          setNetworkError(true); setBusy(false)
+          setNetworkError(!(error instanceof ApiRequestError && [409, 422].includes(error.status))); setBusy(false)
           setResult({ request_id: job!.id, state: 'connection_error', message: error instanceof Error ? error.message : '暂时无法读取说明。' })
         }
       }
@@ -44,9 +47,10 @@ function ExplanationDraft({ code, date, side, onBusy }: { code: string; date: st
     return () => { controller.abort(); clearTimeout(timer) }
   }, [job, attempt, code, date, side])
   function generate() {
-    const id = networkError && job ? job.id : crypto.randomUUID()
+    const retry = networkError && job
+    const id = retry ? retry.id : crypto.randomUUID()
     try { sessionStorage.setItem(key, id) } catch { /* Server still retains the request. */ }
-    setResult(null); setText(''); setActionError(''); setJob({ id, start: true }); setAttempt(value => value + 1)
+    setResult(null); setText(''); setActionError(''); setJob({ id, start: true, modelMode: retry ? retry.modelMode : modelMode }); setAttempt(value => value + 1)
   }
   async function copy() {
     try { await navigator.clipboard.writeText(text); setCopied(true); setActionError('') }
@@ -60,7 +64,8 @@ function ExplanationDraft({ code, date, side, onBusy }: { code: string; date: st
     } catch { setActionError('停止请求未成功，请稍后重试。') }
   }
   return <div className="trade-explanation-draft">
-    <div className="trade-explanation-actions"><button className="secondary-button workspace-button" disabled={busy} onClick={generate}><RefreshCw size={14} />{networkError ? '重试' : result?.state === 'succeeded' ? '重新生成' : 'Codex 生成说明'}</button>
+    <div className="trade-explanation-actions"><ModelModeSwitch value={modelMode} disabled={busy || networkError} onChange={setModelMode} />
+      <button className="secondary-button workspace-button" disabled={busy} onClick={generate}><RefreshCw size={14} />{networkError ? '重试' : result?.state === 'succeeded' ? '重新生成' : 'Codex 生成说明'}</button>
       {busy && <><span role="status">{result?.message || '正在准备公开信息研究…'}</span><button className="text-button workspace-button" onClick={() => void cancel()}>停止</button></>}
     </div>
     {result && !busy && result.state !== 'succeeded' && <p role="alert" className="workspace-error">{result.message}</p>}

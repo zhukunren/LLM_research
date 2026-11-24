@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Check, Copy, Download, Image, Maximize2, Send, Sparkles } from 'lucide-react'
+import { Check, Copy, Download, Image, Maximize2, Send } from 'lucide-react'
 import { api } from '../api'
-import { cardThemes, defaultCardTheme, disclosureLines, marketTime, withoutWebLinks, type CardTheme, type RebalanceCardContent } from '../clientService'
+import { cardThemes, defaultCardTheme, disclosureLines, isGenerationFocus, marketTime, withoutWebLinks, type CardTheme, type RebalanceCardContent } from '../clientService'
 import { ClientCardFullscreen, ClientCardImageStage, ClientCardPreviewSwitch, type CardPreviewMode } from '../components/ClientCardPreview'
 import { ClientBroadcastPanel } from '../components/ClientRobotOperations'
 import ClientThemePicker from '../components/ClientThemePicker'
@@ -9,32 +9,27 @@ import ConditionWorkspaceDrawer from '../components/ConditionWorkspaceDrawer'
 import EditableClientCard from '../components/EditableClientCard'
 import LoadingState from '../components/LoadingState'
 import { useSecurities } from '../components/StockSearch'
-import WorkspacePageHeading from '../components/WorkspacePageHeading'
+import { modelModes, type ModelMode } from '../modelSelection'
 import { useClientCardPreview } from '../useClientCardPreview'
 import { useClientServiceCollection } from '../useClientServiceCollection'
 import { useRemoteResource } from '../useRemoteResource'
 import { useSessionState } from '../useSessionState'
 import { useWorkspaceSession } from '../WorkspaceSession'
-import './client-service.css'
+import ClientServiceLayout, { ClientServiceEditor, ClientServiceGeneration, ClientServicePreview, ClientServiceStudio, useClientServicePane } from './ClientServiceLayout'
 import './rebalance-suggestion.css'
 
 const endpoint = '/client-service/rebalance-suggestions'
 const codePattern = /^[0-9]{6}(?:\.(SH|SZ|BJ))?$/
-const modes = [
-  { id: 'instant', label: '即时', model: 'GPT-6.2 Astra · Low · Fast' },
-  { id: 'deep', label: '深度', model: 'GPT-6.2 Sol · Max' },
-] as const
-type Mode = typeof modes[number]['id']
 type Quote = { code: string; price: string; observed_at: string; source: string; kind: 'live' | 'latest' | 'close' }
 const initial = {
   product: '丰收成长尊享（全账户）', code: '', name: '', direction: '',
   before: '', after: '', price: '', reason: '', basis: '',
 }
 type Fields = typeof initial
-type Draft = Fields & { appliedRequest: string; theme?: CardTheme; mode?: Mode; quote?: Quote }
+type Draft = Fields & { appliedRequest: string; theme?: CardTheme; mode?: ModelMode; quote?: Quote }
 const initialDraft: Draft = { ...initial, appliedRequest: '' }
 const directions = ['开仓买入', '加仓', '减仓', '止盈调出', '止损调出', '调出']
-type Request = { id: string; code: string; direction: string; accepted: boolean; mode?: Mode }
+type Request = { id: string; code: string; direction: string; accepted: boolean; mode?: ModelMode; generationFocus?: string }
 type Report = { document_id?: string; url?: string; title: string; broker: string; authors: string; publication_date: string }
 type Evidence = { url: string; title: string; published_at: string | null; quote: string }
 type Collected = {
@@ -42,13 +37,16 @@ type Collected = {
   market?: { trade_date: string; close: string; pct_change: string | null } | null
 }
 type Status = {
-  request_id: string; code: string; stock_name: string; direction: string; cutoff: string; message: string; mode?: Mode | null
+  request_id: string; code: string; stock_name: string; direction: string; cutoff: string; message: string; mode?: ModelMode | null
+  generation_focus?: string
 } & (Collected | { state: 'awaiting_agent' | 'running' | 'no_evidence' | 'failed' | 'cancelled' })
 type SuccessfulStatus = Extract<Status, Collected>
 type Broadcast = { text: string; card?: RebalanceCardContent; image?: string }
 
 const normalizeCode = (code: string) => code.trim().toUpperCase()
-const submission = (request: Request) => ({ request_id: request.id, code: request.code, direction: request.direction, mode: request.mode })
+const submission = (request: Request) => ({
+  request_id: request.id, code: request.code, direction: request.direction, mode: request.mode, generation_focus: request.generationFocus,
+})
 const clean = (value: string) => withoutWebLinks(value).trim()
 const priceValid = (value: string) => /^\d+(?:\.\d+)?$/.test(value) && Number(value) > 0
 
@@ -64,7 +62,7 @@ function validDraft(value: unknown): value is Draft {
   const draft = value as Partial<Draft> | null
   return !!draft && typeof draft === 'object' && Object.keys(initial).every(key => typeof draft[key as keyof Fields] === 'string')
     && typeof draft.appliedRequest === 'string' && (!draft.theme || cardThemes.some(item => item.id === draft.theme))
-    && (!draft.mode || modes.some(item => item.id === draft.mode)) && (!draft.quote || validQuote(draft.quote))
+    && (!draft.mode || Object.hasOwn(modelModes, draft.mode)) && (!draft.quote || validQuote(draft.quote))
 }
 
 function validRequest(value: unknown): value is Request | null {
@@ -72,7 +70,8 @@ function validRequest(value: unknown): value is Request | null {
   const item = value as Partial<Request> | undefined
   return typeof item?.id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(item.id)
     && typeof item.code === 'string' && codePattern.test(item.code) && typeof item.direction === 'string'
-    && typeof item.accepted === 'boolean' && (!item.mode || modes.some(mode => mode.id === item.mode))
+    && typeof item.accepted === 'boolean' && (!item.mode || Object.hasOwn(modelModes, item.mode))
+    && (item.generationFocus === undefined || isGenerationFocus(item.generationFocus))
 }
 
 function percentage(input: string) {
@@ -102,13 +101,12 @@ export default function RebalanceSuggestionPage() {
   const draftRef = useRef(draft)
   draftRef.current = draft
   const [notice, setNotice] = useState('')
+  const [generationFocus, setGenerationFocus] = useState('')
   const [actionError, setActionError] = useState('')
   const [basisOpen, setBasisOpen] = useState(false)
   const [previewMode, setPreviewMode] = useState<CardPreviewMode>('image')
-  const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit')
   const [fullscreen, setFullscreen] = useState(false)
-  const pageRef = useRef<HTMLDivElement>(null)
-  const mobileScroll = useRef<Partial<Record<typeof mobilePane, number>>>({})
+  const { pageRef, pane, switchPane } = useClientServicePane()
   const [quoteBusy, setQuoteBusy] = useState(false)
   const [quoteError, setQuoteError] = useState('')
   const [quoteRefresh, setQuoteRefresh] = useState(0)
@@ -132,6 +130,7 @@ export default function RebalanceSuggestionPage() {
   const collection = current?.state === 'succeeded' && matchesDraft(current, draft) ? current : null
   const code = normalizeCode(draft.code)
   const direction = clean(draft.direction)
+  const submittedFocus = current && matchesDraft(current, draft) ? current.generation_focus ?? request?.generationFocus : undefined
   const matchingStocks = useMemo(() => codePattern.test(code) ? items.filter(item =>
     item.market !== '指数' && (item.stock_code === code || item.stock_code.slice(0, 6) === code),
   ) : [], [code, items])
@@ -144,7 +143,6 @@ export default function RebalanceSuggestionPage() {
   const mode = draft.mode || 'instant'
   const theme = draft.theme ?? defaultCardTheme
   const themeLabel = cardThemes.find(item => item.id === theme)!.name
-  const selectedMode = modes.find(item => item.id === mode)
   const quote = draft.quote && sameStock(draft.quote.code, code) && draft.quote.price === price ? draft.quote : null
   const imageValues: Fields = { product: draft.product, code, name, direction, before: draft.before, after: draft.after,
     price: draft.price, reason: draft.reason, basis: draft.basis }
@@ -208,7 +206,8 @@ export default function RebalanceSuggestionPage() {
     event.preventDefault()
     if (!codeReady || !direction || busy || stopping) return
     setActionError(''); setNotice('')
-    begin({ id: crypto.randomUUID(), code, direction, mode, accepted: false })
+    begin({ id: crypto.randomUUID(), code, direction, mode, accepted: false, generationFocus: generationFocus.trim() || undefined })
+    setGenerationFocus('')
   }
 
   function selectTheme(value: CardTheme) {
@@ -218,14 +217,6 @@ export default function RebalanceSuggestionPage() {
   function switchTheme(direction: -1 | 1) {
     const index = cardThemes.findIndex(item => item.id === theme)
     selectTheme(cardThemes[(index + direction + cardThemes.length) % cardThemes.length].id)
-  }
-
-  function switchMobilePane(next: typeof mobilePane) {
-    if (next === mobilePane) return
-    const page = pageRef.current
-    if (page) mobileScroll.current[mobilePane] = page.scrollTop
-    setMobilePane(next)
-    requestAnimationFrame(() => { if (page?.isConnected) page.scrollTop = mobileScroll.current[next] ?? 0 })
   }
 
   function openFullscreen() {
@@ -255,20 +246,22 @@ export default function RebalanceSuggestionPage() {
     link.click()
   }
 
-  return <div ref={pageRef} className="page-content workspace-tool-page client-service-page rebalance-suggestion-page">
-    <WorkspacePageHeading actions={null}><h1>调仓建议</h1></WorkspacePageHeading>
-    <div className="client-mobile-pane-switch" role="group" aria-label="调仓建议编辑视图">
-      <button type="button" className="workspace-button" aria-pressed={mobilePane === 'edit'} onClick={() => switchMobilePane('edit')}>编辑</button>
-      <button type="button" className="workspace-button" aria-pressed={mobilePane === 'preview'} onClick={() => switchMobilePane('preview')}>预览</button>
-    </div>
-    <div className="client-service-studio" data-mobile-pane={mobilePane}>
-      <form className="client-card-editor" aria-label="模板编辑" onSubmit={collect}>
-        <header className="client-editor-title"><h2>模板编辑</h2></header>
+  return <ClientServiceLayout view="suggestions" pageRef={pageRef}>
+    <ClientServiceStudio pane={pane} onChange={switchPane} label="调仓建议编辑视图">
+      <ClientServiceEditor label="模板编辑" title="调仓内容" onSubmit={collect}
+        generation={<ClientServiceGeneration mode={mode} onModeChange={next => setDraft(current => ({ ...current, mode: next }))}
+          canGenerate={codeReady && !!direction} busy={busy} locked={stopping}
+          focus={{ value: generationFocus, onChange: setGenerationFocus, example: '例如，优先核对公告，写清理由成立的条件和主要风险。', submitted: submittedFocus }}
+          progress={busy && <>
+            <LoadingState compact label={current?.state === 'running' ? '正在核对资料并编写理由…' : '等待开始生成…'} />
+            {request?.accepted && <button type="button" className="text-button workspace-button" disabled={stopping}
+              onClick={() => void stop()}>{stopping ? '正在停止…' : '停止生成'}</button>}
+          </>} />}>
         <div className="client-content-fields rebalance-suggestion-fields">
-          <label className="rebalance-suggestion-wide">投顾产品<input className="workspace-field" maxLength={80} value={draft.product} onChange={event => change('product', event.target.value)} /></label>
+          <label className="client-field-wide">投顾产品<input className="workspace-field" maxLength={80} value={draft.product} onChange={event => change('product', event.target.value)} /></label>
           <label>股票代码<input className="workspace-field" placeholder="如 603650" maxLength={15} autoComplete="off" value={draft.code} onChange={event => change('code', event.target.value)} /></label>
           <label>股票名称<input className="workspace-field" value={draft.name || name} maxLength={50} onChange={event => change('name', event.target.value)} /></label>
-          {code && !codeReady && <p className="rebalance-suggestion-wide rebalance-suggestion-feedback">请输入六位 A 股代码，可带 .SH、.SZ 或 .BJ。</p>}
+          {code && !codeReady && <p className="client-field-wide client-field-error">请输入六位 A 股代码，可带 .SH、.SZ 或 .BJ。</p>}
           <label>调仓方向<input className="workspace-field" list="rebalance-directions" placeholder="选择或输入" maxLength={30} value={draft.direction} onChange={event => change('direction', event.target.value)} /><datalist id="rebalance-directions">{directions.map(item => <option key={item} value={item} />)}</datalist></label>
           <div className="rebalance-quote">
             <label>参考价格<input className="workspace-field" inputMode="decimal" placeholder="输入股票代码后取价" maxLength={18}
@@ -277,7 +270,7 @@ export default function RebalanceSuggestionPage() {
             {quote && <small>{quote.kind === 'live' ? '实时行情' : quote.kind === 'close' ? '最近收盘' : '最近报价'} · {marketTime(quote.observed_at)} · {quote.source}</small>}
             {quoteError && !quote && <small>{quoteError}</small>}
           </div>
-          <fieldset className="rebalance-suggestion-wide">
+          <fieldset className="client-field-wide">
             <legend>仓位变化</legend>
             <div className="rebalance-suggestion-percentages">
               <label>调仓前（%）<input className="workspace-field" inputMode="decimal" maxLength={12} value={draft.before} onChange={event => change('before', event.target.value)} aria-invalid={!!draft.before && !before} /></label>
@@ -286,49 +279,43 @@ export default function RebalanceSuggestionPage() {
           </fieldset>
         </div>
         <div className="client-section-heading"><h3>核心内容</h3></div>
-        <div className="rebalance-suggestion-collection">
-          <label className="rebalance-mode-select">
-            <span>AI 生成档位</span>
-            <select className="workspace-field" aria-label="AI 生成档位" value={mode} disabled={busy || stopping}
-              onChange={event => {
-                const next = event.currentTarget.value as Mode
-                setDraft(current => ({ ...current, mode: next }))
-              }}>
-              {modes.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
-          </label>
-          <button type="submit" className="primary-button workspace-button" disabled={!codeReady || !direction || busy || stopping}><Sparkles size={16} />AI 生成理由</button>
-          <small className="rebalance-mode-detail">{selectedMode?.model}</small>
-          {busy && <LoadingState compact label={current?.state === 'running' ? '正在核对资料并编写理由…' : '等待开始生成…'} />}
-          {busy && request?.accepted && <button type="button" className="text-button workspace-button" disabled={stopping} onClick={() => void stop()}>{stopping ? '正在停止…' : '停止生成'}</button>}
-        </div>
-        {error && <div role="alert" className="workspace-error rebalance-suggestion-feedback">{error.message} {error.retry && <button type="button" className="text-button workspace-button" onClick={retry}>重试连接</button>}</div>}
-        {stopError && <p role="alert" className="workspace-error rebalance-suggestion-feedback">{stopError}</p>}
-        {current && !busy && !error && <p role="status" className="rebalance-suggestion-feedback">{current.message}</p>}
+        {error && <div role="alert" className="workspace-error client-service-feedback">{error.message} {error.retry && <button type="button" className="text-button workspace-button" onClick={retry}>重试连接</button>}</div>}
+        {stopError && <p role="alert" className="workspace-error client-service-feedback">{stopError}</p>}
+        {current && !busy && !error && <p role="status" className="client-plan-help">{current.message}</p>}
         {collection && (draft.reason !== collection.reason || draft.basis !== collection.basis) &&
           <button type="button" className="secondary-button workspace-button" onClick={() => setBasisOpen(true)}>查看本次 AI 草稿</button>}
         <div className="client-content-fields">
-          <label className="rebalance-suggestion-wide"><span>调仓理由 <small>选填</small></span><textarea aria-label="调仓理由" className="workspace-field" rows={6}
+          <label><span>调仓理由 <small>选填</small></span><textarea aria-label="调仓理由" className="workspace-field" rows={6}
             maxLength={1600} value={draft.reason} onChange={event => change('reason', event.target.value)} /></label>
         </div>
-      </form>
-      <section className="client-preview-workspace" aria-label="调仓卡片预览">
-        <section className="client-preview-panel" aria-label="草稿预览">
-          <header>
-            <h2>草稿预览</h2>
-            <div className="client-preview-toolbar">
-              <button type="button" className="secondary-button workspace-button" onClick={() => setBasisOpen(true)}>查看依据</button>
-              <button type="button" className="secondary-button workspace-button" disabled={!currentPreview} onClick={openFullscreen}>
-                <Maximize2 size={14} />全屏查看
-              </button>
-              <ClientCardPreviewSwitch mode={previewMode} onChange={setPreviewMode} />
-            </div>
-          </header>
-          <div className="client-preview-meta">
-            <span>{themeLabel}{previewMode === 'image' && ' · 点击图片文字可编辑'}</span>
-            {previewMode === 'image' && <span>{currentPreview ? `${currentPreview.width} × ${currentPreview.height} px`
-              : previewError ? '预览暂不可用' : '正在同步…'}</span>}
-          </div>
+      </ClientServiceEditor>
+      <ClientServicePreview label="调仓卡片预览" title="草稿预览"
+        toolbar={<>
+          <button type="button" className="secondary-button workspace-button" onClick={() => setBasisOpen(true)}>查看依据</button>
+          <button type="button" className="secondary-button workspace-button" disabled={!currentPreview} onClick={openFullscreen}>
+            <Maximize2 size={14} />全屏查看
+          </button>
+          <ClientCardPreviewSwitch mode={previewMode} onChange={setPreviewMode} />
+        </>}
+        meta={<>
+          <span>{themeLabel}{previewMode === 'image' && ' · 点击图片文字可编辑'}</span>
+          {previewMode === 'image' && <span>{currentPreview ? `${currentPreview.width} × ${currentPreview.height} px`
+            : previewError ? '预览暂不可用' : '正在同步…'}</span>}
+        </>}
+        status={<>
+          {!ready && <p>填齐产品、股票、方向、前后仓位和参考价格后即可导出。</p>}
+          {actionError && <p role="alert" className="workspace-error">{actionError}</p>}
+          {notice && <p role="status" className="workspace-feedback-success"><Check size={15} />{notice}</p>}
+        </>}
+        actions={<>
+          <button type="button" className="secondary-button workspace-button" onClick={() => void copy()} disabled={!ready}><Copy size={16} />复制文案</button>
+          <button type="button" className="primary-button workspace-button" disabled={!ready || !currentPreview} onClick={download}><Download size={15} />下载图片</button>
+          <button type="button" className="secondary-button workspace-button" disabled={!ready || (previewMode === 'image' && !currentPreview)}
+            onClick={() => setBroadcast({ text, card: currentPreview ? card : undefined, image: currentPreview?.image })}><Send size={15} />发送到群</button>
+        </>}
+        themes={<ClientThemePicker theme={theme} onSelect={selectTheme} ariaLabel="调仓卡片底图" caption="调仓专用底图"
+          thumbnail={id => <img className="client-theme-thumbnail rebalance-theme-thumbnail" alt="" loading="lazy" decoding="async"
+            src={`/client-service/rebalance-themes/${id}.png`} />} />}>
           {previewError && previewMode === 'image' && <div role="alert" className="workspace-error client-service-feedback">
             <span>{previewError}</span><button type="button" className="workspace-button text-button" onClick={retryPreview}>重试预览</button>
           </div>}
@@ -338,23 +325,8 @@ export default function RebalanceSuggestionPage() {
               previewError ? <div className="client-preview-placeholder"><Image size={34} /><p>重试后可查看图片</p></div> :
                 <LoadingState label="正在排版卡片…" />}
           </ClientCardImageStage> : <div className="client-text-preview" aria-label="文案预览"><pre aria-label="可复制文案预览">{text}</pre></div>}
-          <div className="client-export-bar">
-            {!ready && <p>填齐产品、股票、方向、前后仓位和参考价格后即可导出。</p>}
-            {actionError && <p role="alert" className="workspace-error">{actionError}</p>}
-            {notice && <p role="status" className="workspace-feedback-success"><Check size={15} />{notice}</p>}
-            <div>
-              <button type="button" className="primary-button workspace-button" onClick={() => void copy()} disabled={!ready}><Copy size={16} />复制文案</button>
-              <button type="button" className="secondary-button workspace-button" disabled={!ready || !currentPreview} onClick={download}><Download size={15} />下载图片</button>
-              <button type="button" className="secondary-button workspace-button" disabled={!ready || (previewMode === 'image' && !currentPreview)}
-                onClick={() => setBroadcast({ text, card: currentPreview ? card : undefined, image: currentPreview?.image })}><Send size={15} />发送到群</button>
-            </div>
-          </div>
-        </section>
-        <ClientThemePicker theme={theme} onSelect={selectTheme} ariaLabel="调仓卡片底图" caption="调仓专用底图"
-          thumbnail={id => <img className="client-theme-thumbnail rebalance-theme-thumbnail" alt="" loading="lazy" decoding="async"
-            src={`/client-service/rebalance-themes/${id}.png`} />} />
-      </section>
-    </div>
+      </ClientServicePreview>
+    </ClientServiceStudio>
     {basisOpen && <ConditionWorkspaceDrawer title="调仓依据" closeLabel="关闭调仓依据" className="client-service-drawer" onClose={() => setBasisOpen(false)}>
       <div className="rebalance-basis">
         {collection && <>
@@ -388,5 +360,5 @@ export default function RebalanceSuggestionPage() {
         mode={mode} onApply={applyImageEdits} /> :
         previewError ? <p role="alert" className="client-fullscreen-error">{previewError}</p> : <LoadingState label="正在同步卡片图片…" />}
     </ClientCardFullscreen>}
-  </div>
+  </ClientServiceLayout>
 }

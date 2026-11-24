@@ -1,6 +1,8 @@
 model_provider = "OpenAI"
-model = "gpt-6-luna"
-review_model = "gpt-6-luna"
+model = "gpt-6.2-astra"
+review_model = "gpt-6.2-astra"
+model_reasoning_effort = "low"
+service_tier = "fast"
 disable_response_storage = true
 network_access = "enabled"
 windows_wsl_setup_acknowledged = true

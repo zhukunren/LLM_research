@@ -18,8 +18,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from . import codex_store, conversation_store, research_workspace
+from . import codex_store, conversation_store, local_codex, research_workspace
 from .execution_policy import message_requests_execution
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode, saved_model_mode
 from .screening_contracts import validate_executable_task
 from .settings import DATA_ROOT, DB_PATH, PROJECT_ROOT, llm_settings, research_mode_settings, research_web_search_mode, tushare_settings
 from .storage import storage_paths, application_paths
@@ -147,6 +148,9 @@ def availability() -> dict[str, Any]:
             "model": settings.get("model", ""),
             "web_search": web_search_status(settings),
         }
+    if settings.get("backend") == "local_codex" and not (local_codex.home() / "auth.json").is_file():
+        return {"available": False, "reason": "本机 Codex 尚未登录 ChatGPT", "sdk": "installed",
+                "model": settings.get("model", ""), "web_search": web_search_status(settings)}
     return {
         "available": True,
         "reason": None,
@@ -193,7 +197,7 @@ def _search_probe_evidence(item: dict[str, Any]) -> tuple[int, bool]:
     return count, bool(opened)
 
 
-def probe_web_search() -> dict[str, Any]:
+def probe_web_search(model_mode: ModelMode = DEFAULT_MODEL_MODE) -> dict[str, Any]:
     runtime = availability()
     if not runtime["available"]:
         raise CodexRuntimeError(str(runtime["reason"]))
@@ -205,6 +209,13 @@ def probe_web_search() -> dict[str, Any]:
     try:
         ApprovalMode, Codex, CodexConfig, Sandbox, _, TextInput = _sdk()
         settings = llm_settings()
+        from .research_models import resolve_selection
+
+        preset = MODEL_PRESETS[model_mode]
+        resolve_selection(**preset.selection(), settings=settings)
+        settings = {**settings, "model": preset.model_id, "reasoning_effort": preset.reasoning_effort}
+        native = settings.get("backend") == "local_codex"
+        provider = local_codex.PROVIDER if native else codex_provider_name()
         with tempfile.TemporaryDirectory(prefix="llmr-web-search-probe-") as directory:
             workspace = Path(directory).resolve()
             (workspace / ".research-root").touch()
@@ -219,12 +230,14 @@ def probe_web_search() -> dict[str, Any]:
                 "PYTHONIOENCODING": "utf-8",
                 "PYTHONUTF8": "1",
             })
+            if native:
+                environment = local_codex.environment(environment)
             config = CodexConfig(
                 codex_bin=os.environ.get("LLMR_CODEX_BIN", "").strip() or None,
                 config_overrides=(
                     _provider_overrides(settings)
-                    + (f"model_providers.{codex_provider_name()}.stream_idle_timeout_ms=45000",)
-                    + _workspace_overrides(workspace)
+                    + (() if native else (f"model_providers.{provider}.stream_idle_timeout_ms=45000",))
+                    + _workspace_overrides(workspace, protected_home=local_codex.home() if native else None)
                 ),
                 cwd=str(workspace),
                 env=environment,
@@ -239,9 +252,10 @@ def probe_web_search() -> dict[str, Any]:
                 codex._client._approval_handler = _codex_approval_handler
                 thread = codex.thread_start(
                     model=str(settings["model"]),
-                    model_provider=codex_provider_name(),
+                    model_provider=provider,
                     cwd=str(workspace),
-                    sandbox=Sandbox.workspace_write,
+                    sandbox=None if native else Sandbox.workspace_write,
+                    ephemeral=True,
                     approval_mode=ApprovalMode.deny_all,
                     developer_instructions="Use native web search and open one official result page. Do not use shell, local files, MCP tools or remembered facts. Report only the page URL actually opened.",
                     service_name="llm_research_web_search_probe",
@@ -253,6 +267,7 @@ def probe_web_search() -> dict[str, Any]:
                     effort=str(settings.get("reasoning_effort") or "high"),
                     model=str(settings["model"]),
                     source="web_user",
+                    turn_service_tier=preset.service_tier,
                 )
                 for event in handle.stream():
                     if time.monotonic() >= deadline:
@@ -336,6 +351,7 @@ def _runtime_environment(conversation_id: str, turn_id: str, task_revision: int,
             "LLMR_STATE_ROOT": str(paths.state_root), "LLMR_UPLOAD_ROOT": str(paths.upload_root),
             "LLMR_ARTIFACT_ROOT": str(paths.artifact_root), "LLMR_SANDBOX_STATE_ROOT": str(paths.sandbox_state_root),
             "LLMR_CODEX_HOME": str(paths.codex_home), "LLMR_AUTH_MODE": "oidc"})
+    native = settings.get("backend") == "local_codex"
     try:
         profile = Path.home().resolve()
         if not profile.is_dir():
@@ -347,6 +363,10 @@ def _runtime_environment(conversation_id: str, turn_id: str, task_revision: int,
             environment["HOMEPATH"] = str(profile)[len(profile.drive):]
         legacy_home = Path(environment.get("CODEX_HOME") or profile / ".codex").expanduser().resolve()
         state_home = paths.codex_home if auth_mode() == "oidc" else storage_paths(project_root=PROJECT_ROOT).codex_home
+        if native:
+            if auth_mode() == "oidc":
+                legacy_home = state_home
+            state_home = local_codex.home()
         state_home.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryFile(dir=state_home):
             pass
@@ -376,7 +396,7 @@ def _runtime_environment(conversation_id: str, turn_id: str, task_revision: int,
         name = "LLMR_RESEARCH_" + scheme.upper() + "_PROXY"
         if not environment.get(name) and proxies.get(scheme):
             environment[name] = proxies[scheme]
-    return environment
+    return local_codex.environment(environment) if native else environment
 
 
 def _migrate_thread_rollout(thread_id: str, environment: dict[str, str]) -> Path | None:
@@ -439,9 +459,6 @@ def _profile_overrides(profile: dict[str, Any], prefix: str = "") -> tuple[str, 
 
 
 def _provider_overrides(settings: dict[str, Any]) -> tuple[str, ...]:
-    base_url = str(settings.get("base_url") or "").rstrip("/")
-    if not base_url:
-        raise CodexRuntimeError("模型服务没有配置 base_url")
     model = str(settings.get("model") or "")
     if not model:
         raise CodexRuntimeError("模型服务没有配置 model")
@@ -455,39 +472,40 @@ def _provider_overrides(settings: dict[str, Any]) -> tuple[str, ...]:
     # Network access alone does not register Codex's native web tool. The pinned
     # runtime requires both its standalone feature and the provider capability.
     standalone_search = supports_search and search_mode != "disabled"
+    effort = settings.get("reasoning_effort")
+    model_overrides = (
+        f"model={_toml_string(model)}",
+        f"web_search={_toml_string(search_mode)}",
+        f"features.standalone_web_search={str(standalone_search).lower()}",
+    ) + ((f"model_reasoning_effort={_toml_string(str(effort))}",) if effort else ())
+    if settings.get("backend") == "local_codex":
+        return local_codex.AUTH_OVERRIDES + model_overrides
+    base_url = str(settings.get("base_url") or "").rstrip("/")
+    if not base_url:
+        raise CodexRuntimeError("模型服务没有配置 base_url")
     profile = _codex_profile()
     provider_name = codex_provider_name()
     provider_key = f"model_providers.{provider_name}"
-    overrides = _profile_overrides(profile) + (
+    return _profile_overrides(profile) + model_overrides + (
         f"model_provider={_toml_string(provider_name)}",
-        f"model={_toml_string(model)}",
         f'{provider_key}.name={_toml_string(provider_name if profile else "LLM Research provider")}',
         f"{provider_key}.base_url={_toml_string(base_url)}",
         f'{provider_key}.wire_api="responses"',
         f'{provider_key}.env_key="LLMR_CODEX_API_KEY"',
-        f"web_search={_toml_string(search_mode)}",
-        f"features.standalone_web_search={str(standalone_search).lower()}",
         f"{provider_key}.supports_standalone_web_search={str(supports_search).lower()}",
         f"{provider_key}.request_max_retries=2",
         f"{provider_key}.stream_idle_timeout_ms={research_mode_settings('research')['model_request_timeout_seconds'] * 1000}",
     )
-    effort = settings.get("reasoning_effort")
-    return overrides + ((f"model_reasoning_effort={_toml_string(str(effort))}",) if effort else ())
 
 
-def _workspace_overrides(workspace: Path) -> tuple[str, ...]:
+def _workspace_overrides(workspace: Path, *, protected_home: Path | None = None) -> tuple[str, ...]:
     overrides = (
         # Research uses its own skills and MCP bridge; avoid downloading the
         # unrelated curated plugin marketplace into every isolated session.
         'features.plugins=false',
         'features.plugin_discovery_prefetch=false',
-        'sandbox_mode="workspace-write"',
         'approval_policy="never"',
         'project_root_markers=[".research-root"]',
-        'sandbox_workspace_write.network_access=true',
-        'sandbox_workspace_write.exclude_tmpdir_env_var=true',
-        'sandbox_workspace_write.exclude_slash_tmp=true',
-        f"sandbox_workspace_write.writable_roots=[{_toml_string(str(workspace))}]",
         'shell_environment_policy.inherit="core"',
         'shell_environment_policy.ignore_default_excludes=false',
         f"shell_environment_policy.set.PYTHONPATH={_toml_string(str(storage_paths(project_root=PROJECT_ROOT).python_deps))}",
@@ -497,6 +515,21 @@ def _workspace_overrides(workspace: Path) -> tuple[str, ...]:
         f"shell_environment_policy.set.TEMP={_toml_string(str(workspace / 'tmp'))}",
         f"shell_environment_policy.set.TMP={_toml_string(str(workspace / 'tmp'))}",
     )
+    if protected_home is not None:
+        denied = _toml_string(str(protected_home))
+        overrides += (
+            'default_permissions="llmr_research"',
+            'permissions.llmr_research={filesystem={":root"="read", ":workspace_roots"={"."="write"}, '
+            f'{denied}="deny"}}, network={{enabled=true}}}}',
+        )
+    else:
+        overrides += (
+            'sandbox_mode="workspace-write"',
+            'sandbox_workspace_write.network_access=true',
+            'sandbox_workspace_write.exclude_tmpdir_env_var=true',
+            'sandbox_workspace_write.exclude_slash_tmp=true',
+            f"sandbox_workspace_write.writable_roots=[{_toml_string(str(workspace))}]",
+        )
     return overrides + (('windows.sandbox="unelevated"',) if os.name == "nt" else ())
 
 
@@ -723,16 +756,22 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
         # Validate account policy again at execution and use the immutable turn
         # selection for new threads, resumed threads and turn/start alike.
         from .research_models import resolve_selection
-        selection = resolve_selection(app_turn.get("model_id"), app_turn.get("reasoning_effort"))
+
+        preset = MODEL_PRESETS[saved_model_mode(app_turn.get("reasoning_effort"))]
+        selection = resolve_selection(**preset.selection())
         settings = {**settings, "model": selection["model_id"], "reasoning_effort": selection["reasoning_effort"]}
         task_revision = conversation["task_revision"]
         environment = _runtime_environment(conversation_id, turn_id, task_revision, settings, task_timeout=int(budget["turn_timeout_seconds"]))
+        native = settings.get("backend") == "local_codex"
+        provider = local_codex.PROVIDER if native else codex_provider_name()
+        sandbox = None if native else Sandbox.workspace_write
         configured_binary = os.environ.get("LLMR_CODEX_BIN", "").strip() or None
         tool_overrides = client_service_runtime.overrides() if brief else _mcp_overrides(environment)
         instructions = brief["instructions"] if brief else CODEX_DEVELOPER_INSTRUCTIONS
         config = CodexConfig(
             codex_bin=configured_binary,
-            config_overrides=_provider_overrides(settings) + tool_overrides + _workspace_overrides(workspace),
+            config_overrides=_provider_overrides(settings) + tool_overrides + _workspace_overrides(
+                workspace, protected_home=local_codex.home() if native else None),
             cwd=str(workspace),
             env=environment,
             client_name="llm_research_web",
@@ -753,9 +792,9 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                 thread = codex.thread_resume(
                     existing["thread_id"],
                     model=str(settings["model"]),
-                    model_provider=codex_provider_name(),
+                    model_provider=provider,
                     cwd=str(workspace),
-                    sandbox=Sandbox.workspace_write,
+                    sandbox=sandbox,
                     approval_mode=ApprovalMode.deny_all,
                     developer_instructions=instructions,
                     **({'base_instructions': client_service_runtime.BASE_INSTRUCTIONS} if brief else {}),
@@ -763,9 +802,9 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
             else:
                 thread = codex.thread_start(
                     model=str(settings["model"]),
-                    model_provider=codex_provider_name(),
+                    model_provider=provider,
                     cwd=str(workspace),
-                    sandbox=Sandbox.workspace_write,
+                    sandbox=sandbox,
                     approval_mode=ApprovalMode.deny_all,
                     developer_instructions=instructions,
                     service_name="llm_research_web",
@@ -792,7 +831,7 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                 effort=str(settings.get("reasoning_effort") or "high"),
                 model=str(settings["model"]),
                 source="web_user",
-                **({"service_tier": brief["service_tier"]} if brief and brief.get("service_tier") else {}),
+                turn_service_tier=preset.service_tier,
             )
             delta_parts: list[str] = []
             completed_parts: list[str] = []
@@ -855,6 +894,7 @@ def run_conversation_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
                 "event_count": event_count,
                 "model": str(settings["model"]),
                 "reasoning_effort": settings.get("reasoning_effort"),
+                "service_tier": preset.service_tier,
                 "files": [] if brief else research_workspace.list_outputs(conversation_id),
                 "response": response,
                 "research_summary": research_summary.read(conversation_id, turn_id) if not brief and app_turn.get("workflow_type", conversation.get("workflow_type", "research")) == "research" else None,

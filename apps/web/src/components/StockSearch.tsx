@@ -1,6 +1,7 @@
 import LoadingState from './LoadingState'
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from '../api'
+import { workspaceRect, workspaceViewport } from '../workspaceGeometry'
 import { StockMention } from './StockMentions'
 import { placeStockOptions } from './stockSearchLayout'
 
@@ -52,15 +53,15 @@ export default function StockSearch({ value, onChange, label = '搜索股票', i
     function position() {
       const node = control.current
       if (!node) return
-      const viewport = window.visualViewport
-      let top = (viewport?.offsetTop || 0) + 8
-      let bottom = (viewport?.offsetTop || 0) + (viewport?.height || window.innerHeight) - 8
+      const viewport = workspaceViewport(window.visualViewport)
+      let top = viewport.top + 8
+      let bottom = viewport.top + viewport.height - 8
       for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
         if (!/(auto|scroll|hidden|clip)/.test(getComputedStyle(parent).overflowY)) continue
-        const rect = parent.getBoundingClientRect()
+        const rect = workspaceRect(parent)
         top = Math.max(top, rect.top + 4); bottom = Math.min(bottom, rect.bottom - 4)
       }
-      const next = placeStockOptions(node.getBoundingClientRect(), { top, bottom }, options.current?.scrollHeight || 320)
+      const next = placeStockOptions(workspaceRect(node), { top, bottom }, options.current?.scrollHeight || 320)
       setPlacement(current => current.above === next.above && current.maxHeight === next.maxHeight ? current : next)
     }
     position()

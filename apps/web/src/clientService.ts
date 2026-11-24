@@ -2,7 +2,7 @@ import disclosure from '../../api/app/assets/client-service/disclosure.json'
 
 export const fixedDisclosure = disclosure
 export const disclosureLines = [
-  `风险提示：${disclosure.risk}`, `投顾顾问：${disclosure.adviser}`,
+  `风险提示：${disclosure.risk}`, `投资顾问：${disclosure.adviser}`,
   `投顾执业编码：${disclosure.license}`, `执业机构：${disclosure.institution}`,
 ]
 export function withFixedDisclosure(content: CardContent): CardContent {
@@ -42,6 +42,8 @@ export type ServiceTemplate = { id: string; title: string; time: string; enabled
 export type ServiceSettings = { revision: number; enabled: boolean; timezone: 'Asia/Shanghai'; weekdays: number[]; templates: ServiceTemplate[] }
 export type MarketSnapshot = {
   summary: string; cutoff: string; quality: 'verified' | 'partial'
+  commentary?: Partial<Pick<CardContent, 'headline' | 'conclusion' | 'action' | 'focus'>>
+  generated_at?: string | null
   metrics: { label: string; value: string; observed_at: string | null; source_url: string | null }[]
   public_notes?: string[]
   data_note?: string
@@ -51,8 +53,11 @@ export type MarketSnapshot = {
 export type ServiceCard = {
   id: string; service_date: string; slot_id: string; cutoff: string; revision: number
   state: 'awaiting_agent' | 'running' | 'ready' | 'failed'; message: string
+  generation_focus?: string
   template: ServiceTemplate; content: CardContent; market: MarketSnapshot | null; updated_at: string
 }
+export const generationFocusLimit = 200
+export const isGenerationFocus = (value: unknown): value is string => typeof value === 'string' && value.length <= generationFocusLimit
 export const conclusionLimit = 160
 export const contentFields: { key: Exclude<keyof CardContent, 'theme' | 'market_overrides' | keyof typeof fixedDisclosure>; label: string; max: number; rows?: number }[] = [
   { key: 'brand', label: '服务名称', max: 20 }, { key: 'headline', label: '卡片标题', max: 20 },
@@ -86,7 +91,9 @@ export function cardText(template: ServiceTemplate, content: CardContent, card: 
   const notes = forwardingLines(card?.market?.public_notes || [])
   const title = withoutWebLinks(content.headline) || withoutWebLinks(template.title)
   const summary = content.market_overrides?.summary || card?.market?.summary || '市场状态尚未采集。'
-  return [`【${withoutWebLinks(content.brand)}·${title}】${date} ${template.time}`,
+  const cutoff = card?.cutoff ? `资料截止 ${marketTime(card.cutoff)}（北京时间）` : `服务时点 ${date} ${template.time}（北京时间）`
+  return [`【${withoutWebLinks(content.brand)}·${title}】`, cutoff,
+    card?.market?.generated_at ? `生成时间 ${marketTime(card.market.generated_at)}` : '',
     withoutWebLinks(summary),
     ...(card?.market?.metrics.map((item, index) => {
       const label = withoutWebLinks(content.market_overrides?.[`metric.${index}.label`] || item.label)
@@ -98,7 +105,7 @@ export function cardText(template: ServiceTemplate, content: CardContent, card: 
       const label = template.id.startsWith('live-') && field.key === 'action' ? '盘面主线' : field.label
       return text ? [`${label}：${text}`] : []
     }),
-    ...(notes.length ? ['数据说明：' + notes.join('；')] : []),
+    ...notes,
     ...(Object.keys(content.market_overrides || {}).length ? ['展示说明：市场展示文字含手工编辑，原始采集记录可在工作台来源中核对。'] : []),
     ...forwardingSourceTitles(card?.market?.sources || []).map(title => `来源：${title}`),
     ...disclosureLines,

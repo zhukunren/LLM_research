@@ -1,4 +1,6 @@
 import LoadingState from '../components/LoadingState'
+import ModelModeSwitch from '../components/ModelModeSwitch'
+import type { ModelMode } from '../modelSelection'
 import { StockText } from '../components/StockMentions'
 import EmptyState from '../components/EmptyState'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -54,6 +56,7 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState('')
+  const [modelMode, setModelMode] = useState<ModelMode>('instant')
   const [mobileView, setMobileView] = useSessionState<'catalog' | 'reader'>('report.mobileView', 'catalog', (value): value is 'catalog' | 'reader' => value === 'catalog' || value === 'reader')
   const uploadInput = useRef<HTMLInputElement>(null)
   const searchVersion = useRef(0)
@@ -244,7 +247,7 @@ export default function ReportPage({ onDescribe, onDefineCondition, onSourceChan
           <div className="report-reading-meta"><span>{selected.metadata?.fields?.stock_name?.value} {selected.stock_code}</span><span>{selected.metadata?.fields?.broker?.value || '券商待识别'}</span><span>{selected.publication_date ?? '日期待识别'}</span></div>
           <details key={selected.id} className="report-info-details"><summary>{selected.metadata_status === 'failed' ? '研报信息 · 待核对' : '研报信息'}</summary>
           {mobile && <a className="quiet-button workspace-button" href={pdfUrl} target="_blank" rel="noreferrer"><ArrowUpRight size={14} />在浏览器中打开原文</a>}
-          {selected.metadata_status === 'failed' && <div className="library-error workspace-error">{selected.metadata_error?.replace(/研报字典字段 (\w+) 的第 (\d+) 页证据无法在原文核对/, (_, field: string, number: string) => `第 ${number} 页未能核实「${fieldLabels[field] || '研报信息'}」。`) || '研报信息待核对。'} <button className="text-button workspace-button" disabled={!!busy} onClick={() => action('retry', async () => { await api('/documents/catalog?retry_failed=true', { method: 'POST' }) })}>重新整理</button></div>}
+          {selected.metadata_status === 'failed' && <div className="library-error workspace-error">{selected.metadata_error?.replace(/研报字典字段 (\w+) 的第 (\d+) 页证据无法在原文核对/, (_, field: string, number: string) => `第 ${number} 页未能核实「${fieldLabels[field] || '研报信息'}」。`) || '研报信息待核对。'} <ModelModeSwitch value={modelMode} disabled={!!busy} onChange={setModelMode} /> <button className="text-button workspace-button" disabled={!!busy} onClick={() => action('retry', async () => { await api('/documents/catalog?retry_failed=true&model_mode=' + modelMode, { method: 'POST' }) })}>重新整理</button></div>}
           <dl className="report-dictionary">{[
             ['代码', selected.stock_code], ['股票名称', selected.metadata?.fields?.stock_name?.value],
             ['标题', selected.metadata?.fields?.title?.value ?? selected.title], ['分析师', selected.metadata?.fields?.analysts?.value],

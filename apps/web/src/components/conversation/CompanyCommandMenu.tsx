@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useWorkspaceSession } from '../../WorkspaceSession'
+import { workspaceRect, workspaceViewport } from '../../workspaceGeometry'
 
 export type CompanyCommandOption = { id: string; label: string; detail: string; choose: () => void }
 
@@ -12,18 +13,17 @@ export default function CompanyCommandMenu({ id, anchor, options, selected, titl
   const [position, setPosition] = useState({ left: 12, top: 12, width: 320, maxHeight: 320 })
   useLayoutEffect(() => {
     function place() {
-      const rect = anchor.current?.getBoundingClientRect()
-      if (!rect) return
-      const viewport = window.visualViewport
-      const top = viewport?.offsetTop || 0, left = viewport?.offsetLeft || 0
-      const width = Math.min(Math.max(240, rect.width), (viewport?.width || window.innerWidth) - 24)
-      const bottom = top + (viewport?.height || window.innerHeight)
+      if (!anchor.current) return
+      const rect = workspaceRect(anchor.current), viewport = workspaceViewport(window.visualViewport)
+      const { top, left } = viewport
+      const width = Math.min(Math.max(240, rect.width), viewport.width - 24)
+      const bottom = top + viewport.height
       const above = rect.top - top - 12, below = bottom - rect.bottom - 12
       const height = Math.min(root.current?.scrollHeight || 320, 360)
       const useAbove = above >= height || above >= below
       const maxHeight = Math.max(60, Math.min(360, useAbove ? above - 8 : below - 8))
       setPosition({
-        left: Math.max(left + 12, Math.min(rect.left, left + (viewport?.width || window.innerWidth) - width - 12)),
+        left: Math.max(left + 12, Math.min(rect.left, left + viewport.width - width - 12)),
         top: Math.max(top + 8, useAbove ? rect.top - Math.min(height, maxHeight) - 8 : rect.bottom + 8), width, maxHeight,
       })
     }

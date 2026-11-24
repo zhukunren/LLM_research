@@ -23,26 +23,47 @@ WIDTH = 1080
 MASTHEAD_HEIGHT = 400
 BODY_TOP = 422
 INK = '#213d55'
+TZ = ZoneInfo('Asia/Shanghai')
+MARKET_VALUE_SIZE = 35
 
 
-@lru_cache(maxsize=24)
-def _font(size: int, bold: bool = False):
+@lru_cache(maxsize=8)
+def _simplified_chinese_face(path: str) -> int:
+    with Path(path).open('rb') as stream:
+        header = stream.read(12)
+    if header[:4] != b'ttcf':
+        return 0
+    for index in range(int.from_bytes(header[8:12], 'big')):
+        family, _ = ImageFont.truetype(path, 12, index=index).getname()
+        if re.search(r'\bSC\b|Simplified Chinese|简体|Microsoft YaHei', family, re.I):
+            return index
+    return 0
+
+
+@lru_cache(maxsize=32)
+def _font(size: int, bold: bool = False, *, serif: bool = False):
     configured = os.environ.get('LLMR_CLIENT_CARD_FONT')
     candidates = [configured] if configured else []
-    candidates += [f"/usr/share/fonts/opentype/noto/NotoSansCJK-{'Bold' if bold else 'Regular'}.ttc",
+    weight = 'Bold' if bold else 'Regular'
+    if serif:
+        candidates.append(f'/usr/share/fonts/opentype/noto/NotoSerifCJK-{weight}.ttc')
+    candidates += [f'/usr/share/fonts/opentype/noto/NotoSansCJK-{weight}.ttc',
                    f"C:/Windows/Fonts/{'msyhbd' if bold else 'msyh'}.ttc", '/System/Library/Fonts/PingFang.ttc']
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
-            return ImageFont.truetype(candidate, size)
+            return ImageFont.truetype(candidate, size, index=_simplified_chinese_face(candidate))
     raise OSError('缺少中文图片字体，请安装 Noto Sans CJK 或配置 LLMR_CLIENT_CARD_FONT。')
 
 
 def _lines(text: str, font, width: int):
-    """Wrap Chinese text while keeping dates, times and numeric tokens intact."""
+    """Wrap Chinese text while keeping dates, times and amounts with their units intact."""
     lines = []
     for paragraph in str(text).split('\n'):
         line = []
-        tokens = re.findall(r'[+-]?\d+(?:[.,:/-]\d+)*(?:年\d{1,2}月\d{1,2}日(?:\d{1,2}时(?:\d{1,2}分)?)?)?[%％]?|[A-Za-z]+|.', paragraph)
+        tokens = re.findall(
+            r'[+-]?\d+(?:[.,:/-]\d+)*(?:年\d{1,2}月\d{1,2}日(?:\d{1,2}时(?:\d{1,2}分)?)?'
+            r'|[%％点]|(?:万亿|亿|万)?[元股只家])?|[A-Za-z]+|.', paragraph,
+        )
         for token in tokens:
             if font.getlength(token) > width:
                 if line: lines.append(''.join(line)); line=[]
@@ -116,19 +137,26 @@ class CardLayout:
     """Shared masthead, typography, and disclosure for the client-service cards."""
 
     def __init__(self, theme: str, body_end: int, regions: list | None, *,
-                 risk: str = FIXED_DISCLOSURE['risk'], min_height: int = 0):
+                 risk: str = FIXED_DISCLOSURE['risk'], min_height: int = 0, market_card: bool = False):
         self.palette = THEMES[theme]
         self.ink, self.muted, self.accent, self.paper = (self.palette[key] for key in ('ink', 'muted', 'accent', 'paper'))
         self.regions = regions
-        self.risk = _lines(risk, _font(26), 936)
-        self.identity = [line for text in disclosure_lines()[1:] for line in _lines(text, _font(25), 936)]
-        self.disclosure_height = 76 + len(self.risk) * 42 + 38 + len(self.identity) * 39 + 24
+        self.market_card = market_card
+        self.risk_font = _font(28 if market_card else 26)
+        self.identity_font = _font(27 if market_card else 25)
+        self.risk_line_height = 44 if market_card else 42
+        self.identity_line_height = 42 if market_card else 39
+        self.risk = _lines(risk, self.risk_font, 936)
+        self.identity = [line for text in disclosure_lines()[1:] for line in _lines(text, self.identity_font, 936)]
+        self.disclosure_height = (
+            76 + len(self.risk) * self.risk_line_height + 38 + len(self.identity) * self.identity_line_height + 24
+        )
         self.height = max(min_height, body_end + self.disclosure_height + 72)
         self.image = Image.new('RGB', (WIDTH, self.height), self.paper)
         self.draw = ImageDraw.Draw(self.image)
 
     def masthead(self, artwork: Image.Image | None, *, brand: str, title: str, edition: str,
-                 date: str = '', time: str = '', caption: str = '', draft: bool = False) -> int:
+                 date: str = '', time: str = '', caption: str = '', generated: str = '', draft: bool = False) -> int:
         draw = self.draw
         if artwork is None:
             draw.rectangle((0, 0, WIDTH, MASTHEAD_HEIGHT), fill=self.ink)
@@ -157,20 +185,25 @@ class CardLayout:
             left = right - round(font.getlength(label)) - 28
             draw.rounded_rectangle((left, 107, right, 146), radius=6, fill='#fff1d5')
             draw.text(((left + right) / 2, 126), label, font=font, fill=INK, anchor='mm')
-        size = 62
-        while size > 30 and _font(size, True).getlength(title) > 640:
+        size = 64 if self.market_card else 62
+        font = _font(size, True, serif=self.market_card)
+        while size > 30 and font.getlength(title) > 640:
             size -= 2
-        draw.text((62, 155), title, font=_font(size, True), fill='white')
+            font = _font(size, True, serif=self.market_card)
+        draw.text((62, 145 if self.market_card else 155), title, font=font, fill='white')
         draw.line((64, 246, 123, 246), fill=self.accent, width=3)
         draw.ellipse((132, 243, 138, 249), fill=self.accent)
         if time:
-            draw.text((64, 268), time, font=_font(54, True), fill='white')
+            draw.text((64, 268), time, font=_font(56 if self.market_card else 54, True), fill='white')
             draw.line((254, 278, 254, 322), fill=self.accent, width=2)
         x = 278 if time else 64
         if date:
-            draw.text((x, 273), date.replace('-', ' / '), font=_font(23), fill='#f1f4ef')
+            draw.text((x, 271 if self.market_card else 273), date.replace('-', ' / '), font=_font(24 if self.market_card else 23), fill='#f1f4ef')
         if caption:
-            draw.text((x, 308 if date else 273), caption, font=_font(18), fill='#d9e0e1')
+            caption_y = (302 if self.market_card else 308) if date else 273
+            draw.text((x, caption_y), caption, font=_font(22 if self.market_card else 18), fill='#d9e0e1')
+        if generated:
+            draw.text((x, 333), generated, font=_font(22 if self.market_card else 17), fill='#d9e0e1')
         return max(50, len(brand_lines) * 24 + 6)
 
     def lines_at(self, lines, x, y, font, color, step):
@@ -188,8 +221,8 @@ class CardLayout:
         self.draw.line((365, y + 16, 615, y + 16), fill=self.accent, width=1)
         self.draw.ellipse((624, y + 13, 630, y + 19), fill=self.accent)
         self.draw.text((72, y), number, font=_font(23, True), fill=self.accent)
-        self.draw.text((120, y - 3), label, font=_font(27, True), fill='white' if dark else self.ink)
-        self.draw.text((120, y + 36), english, font=_font(14), fill='#c3d1cf' if dark else self.muted)
+        self.draw.text((120, y - 3), label, font=_font(30 if self.market_card else 27, True), fill='white' if dark else self.ink)
+        self.draw.text((120, y + 36), english, font=_font(16 if self.market_card else 14), fill='#c3d1cf' if dark else self.muted)
 
     def action_band(self, y: int, height: int):
         self.draw.rectangle((0, y, WIDTH, y + height), fill=self.ink)
@@ -203,9 +236,9 @@ class CardLayout:
         draw.text((72, y + 22), '风险提示', font=_font(28, True), fill=ink)
         audience = 'R4 · 仅供已签约客户参考'
         draw.text((1008 - _font(23, True).getlength(audience), y + 26), audience, font=_font(23, True), fill=ink)
-        y = self.lines_at(self.risk, 72, y + 76, _font(26), ink, 42) + 20
+        y = self.lines_at(self.risk, 72, y + 76, self.risk_font, ink, self.risk_line_height) + 20
         draw.line((72, y, 1008, y), fill=accent, width=1)
-        self.lines_at(self.identity, 72, y + 18, _font(25), ink, 39)
+        self.lines_at(self.identity, 72, y + 18, self.identity_font, ink, self.identity_line_height)
         draw.text((72, self.height - 47), 'S E R V I C E   N O T E S', font=_font(14), fill=self.muted)
         if reference:
             draw.text((795, self.height - 47), reference, font=_font(14), fill=self.muted)
@@ -244,58 +277,67 @@ def render_card(card: dict, *, regions: list | None = None, draft: bool = False)
         theme = LEGACY_CARD_THEME
     palette = THEMES[theme]
     ink, muted, accent = (palette[key] for key in ('ink', 'muted', 'accent'))
-    body, small = _font(29), _font(21)
-    conclusion = _lines(content.get('conclusion', '').strip() or '等待补充今日判断', _font(35, True), 908)
+    body, lead = _font(34), _font(36, True)
+    body_step, lead_step = 50, 56
+    metric_label, metric_value, metric_time = _font(24), _font(MARKET_VALUE_SIZE, True), _font(22)
+    label_step, value_step = 32, 44
+    conclusion = _lines(content.get('conclusion', '').strip() or '等待补充今日判断', lead, 908)
     summary = _lines(market.get('summary') or '市场快照尚未采集，核实信息后更新。', body, 936)
-    action = _lines(content.get('action', '').strip() or '等待补充行动安排', _font(30), 884)
+    action = _lines(content.get('action', '').strip() or '等待补充行动安排', body, 884)
     focus = _lines(content.get('focus', '').strip() or '等待补充观察重点', body, 936)
     metrics = market.get('metrics', [])[:6]
     rows = []
     for offset in range(0, len(metrics), 3):
-        group = [(_lines(item['label'], small, 270), _metric_lines(item['value'], _font(29, True), 270), item)
+        group = [(_lines(item['label'], metric_label, 270), _metric_lines(item['value'], metric_value, 270), item)
                  for item in metrics[offset:offset + 3]]
-        row_height = max(128, *(24 + len(labels) * 29 + len(values) * 38 + (36 if item.get('observed_at') else 18)
+        row_height = max(146, *(28 + len(labels) * label_step + len(values) * value_step + (38 if item.get('observed_at') else 18)
                                 for labels, values, item in group))
         rows.append((group, row_height))
-    from .client_service_quality import publication_notes, publisher
-    notes=publication_notes(market)
+    from .client_service_quality import observation_span, publication_notes, publisher
+    notes = publication_notes(market, include_time=False)
     if content.get('market_overrides'):notes.append('市场展示文字含手工编辑，原始记录见来源面板。')
-    footer_font = _font(24)
-    limits = _lines('数据 / ' + '；'.join(notes), footer_font, 936) if notes else []
+    footer_font, source_font = _font(26), _font(24)
+    footer_step, source_step = 40, 37
+    limits = _lines('\n'.join(notes), footer_font, 936) if notes else []
     service = _lines(content.get('service', ''), footer_font, 936) if content.get('service') else []
     source_names = list(dict.fromkeys(filter(None, map(publisher, market.get('sources', [])))))[:4]
-    sources = _lines('来源 / ' + ' · '.join(source_names), _font(23), 936) if source_names else []
-    conclusion_height = 114 + len(conclusion) * 53
-    market_height = 116 + len(summary) * 43 + sum(height for _, height in rows)
-    action_height = 124 + len(action) * 47
-    focus_height = 115 + len(focus) * 44
+    sources = _lines('来源 / ' + ' · '.join(source_names), source_font, 936) if source_names else []
+    conclusion_height = 114 + len(conclusion) * lead_step
+    market_height = 116 + len(summary) * body_step + sum(height for _, height in rows)
+    action_height = 124 + len(action) * body_step
+    focus_height = 115 + len(focus) * body_step
     body_end = BODY_TOP + conclusion_height + market_height + action_height + focus_height
-    body_end += 87 + len(limits) * 38 + len(service) * 37 + len(sources) * 35
-    layout = CardLayout(theme, body_end, regions, min_height=1660)
+    body_end += 87 + (len(limits) + len(service)) * footer_step + len(sources) * source_step
+    layout = CardLayout(theme, body_end, regions, min_height=1660, market_card=True)
     draw, region, lines_at, section_label = layout.draw, layout.region, layout.lines_at, layout.section_label
     edition = artwork_index(template['id']) + 1
+    cutoff_time = market.get('cutoff')
+    generated_at = market.get('generated_at')
+    time = datetime.fromisoformat(cutoff_time).astimezone(TZ).strftime('%H:%M') if cutoff_time else template['time']
+    generated = datetime.fromisoformat(generated_at).astimezone(TZ).strftime('生成时间 %Y-%m-%d %H:%M') if generated_at else ''
+    time_label = '资料截止（北京时间）' if cutoff_time else '服务时点（北京时间）'
     brand_height = layout.masthead(
         themed_masthead(theme, template['id']), brand=content['brand'], title=content.get('headline') or template_title,
-        edition=f'M A R K E T   N O T E S   /   {edition:02}', date=card['service_date'], time=template['time'],
-        caption='北京时间  /  ' + template_title, draft=draft,
+        edition=f'M A R K E T   N O T E S   /   {edition:02}', date=card['service_date'], time=time,
+        caption=time_label + '  /  ' + template_title, generated=generated, draft=draft,
     )
     region('brand', '服务名称', 86, 44, 630, brand_height, 20, content['brand'], '#f1f4ef')
-    region('headline', '卡片标题', 62, 150, 650, 80, 20, content.get('headline', ''), 'white')
+    region('headline', '卡片标题', 62, 145, 650, 96, 20, content.get('headline', ''), 'white')
 
     y = BODY_TOP
     section_label('01', '今日判断', 'THE VIEW', y)
-    draw.line((72, y + 88, 72, y + 88 + len(conclusion) * 53 - 8), fill=accent, width=4)
-    region('conclusion', '今日判断', 98, y + 76, 908, len(conclusion) * 53 + 6, 160, content.get('conclusion', ''))
-    lines_at(conclusion, 98, y + 78, _font(35, True), ink if content.get('conclusion', '').strip() else muted, 53)
+    draw.line((72, y + 88, 72, y + 88 + len(conclusion) * lead_step - 8), fill=accent, width=4)
+    region('conclusion', '今日判断', 98, y + 76, 908, len(conclusion) * lead_step + 6, 160, content.get('conclusion', ''))
+    lines_at(conclusion, 98, y + 78, lead, ink if content.get('conclusion', '').strip() else muted, lead_step)
     y += conclusion_height
     draw.line((72, y - 8, 1000, y - 8), fill='#cdd8d6', width=1)
     draw.polygon(((1000, y - 8), (1005, y - 13), (1010, y - 8), (1005, y - 3)), fill=accent)
     section_label('02', '市场速览', 'MARKET PULSE', y + 19)
-    if market.get('cutoff'):
-        cutoff = datetime.fromisoformat(market['cutoff'].replace('Z', '+00:00')).astimezone(ZoneInfo('Asia/Shanghai'))
-        draw.text((710, y + 24), '截至 ' + cutoff.strftime('%m-%d %H:%M'), font=_font(19), fill=muted)
-    region('market.summary', '市场摘要', 72, y + 98, 936, len(summary) * 43 + 6, 600, market.get('summary', ''))
-    cursor = lines_at(summary, 72, y + 100, body, ink, 43) + 16
+    if span := observation_span(market):
+        label = '行情时点 ' + span
+        draw.text((1008 - metric_time.getlength(label), y + 24), label, font=metric_time, fill=muted)
+    region('market.summary', '市场摘要', 72, y + 98, 936, len(summary) * body_step + 6, 600, market.get('summary', ''))
+    cursor = lines_at(summary, 72, y + 100, body, ink, body_step) + 16
     metric_index = 0
     for group, row_height in rows:
         draw.line((72, cursor, 1008, cursor), fill='#cdd8d6', width=1)
@@ -303,36 +345,36 @@ def render_card(card: dict, *, regions: list | None = None, draft: bool = False)
             x = 72 + index * 324
             if index:
                 draw.line((x - 18, cursor + 20, x - 18, cursor + row_height - 18), fill='#d9e0dc', width=1)
-            region(f'market.metric.{metric_index}.label', '指标名称', x, cursor + 12, 270, len(labels) * 29, 30, metric['label'])
-            top = lines_at(labels, x, cursor + 15, small, muted, 29) + 4
+            region(f'market.metric.{metric_index}.label', '指标名称', x, cursor + 12, 270, len(labels) * label_step, 30, metric['label'])
+            top = lines_at(labels, x, cursor + 15, metric_label, muted, label_step) + 4
             tone = '#ae454d' if '+' in metric['value'] else '#2a7c66' if '-' in metric['value'] else ink
-            region(f'market.metric.{metric_index}.value', metric['label'], x, top - 2, 270, len(values) * 38, 80, metric['value'])
+            region(f'market.metric.{metric_index}.value', metric['label'], x, top - 2, 270, len(values) * value_step, 80, metric['value'])
             metric_index += 1
-            lines_at(values, x, top, _font(29, True), tone, 38)
+            lines_at(values, x, top, metric_value, tone, value_step)
             if metric.get('observed_at'):
-                observed = datetime.fromisoformat(metric['observed_at'].replace('Z', '+00:00')).astimezone(ZoneInfo('Asia/Shanghai'))
-                draw.text((x, cursor + row_height - 29), observed.strftime('%m-%d %H:%M'), font=_font(17), fill=muted)
+                observed = datetime.fromisoformat(metric['observed_at']).astimezone(TZ)
+                draw.text((x, cursor + row_height - 33), observed.strftime('%m-%d %H:%M'), font=metric_time, fill=muted)
         cursor += row_height
     y += market_height
     # A full-bleed band creates a strong focal point for the practical takeaway.
     layout.action_band(y, action_height)
     section_label('03', '盘面主线' if template['id'].startswith('live-') else '行动安排', 'MARKET DRIVERS' if template['id'].startswith('live-') else 'NEXT STEPS', y + 25, dark=True)
     draw.text((940, y + 16), '”', font=_font(82), fill=accent)
-    region('action', '盘面主线' if template['id'].startswith('live-') else '行动安排', 92, y + 96, 884, len(action) * 47 + 6, 180, content.get('action', ''), '#f4f5ef')
-    lines_at(action, 92, y + 98, _font(30), '#f4f5ef', 47)
+    region('action', '盘面主线' if template['id'].startswith('live-') else '行动安排', 92, y + 96, 884, len(action) * body_step + 6, 180, content.get('action', ''), '#f4f5ef')
+    lines_at(action, 92, y + 98, body, '#f4f5ef', body_step)
     y += action_height
     section_label('04', '观察重点', 'ON THE RADAR', y + 30)
-    region('focus', '观察重点', 72, y + 103, 936, len(focus) * 44 + 6, 140, content.get('focus', ''))
-    lines_at(focus, 72, y + 105, body, ink if content.get('focus', '').strip() else muted, 44)
+    region('focus', '观察重点', 72, y + 103, 936, len(focus) * body_step + 6, 140, content.get('focus', ''))
+    lines_at(focus, 72, y + 105, body, ink if content.get('focus', '').strip() else muted, body_step)
     y += focus_height
     draw.line((72, y + 8, 1008, y + 8), fill=accent, width=2)
     y += 33
-    region('service', '服务说明', 72, y, 936, max(1, len(service)) * 37, 80, content.get('service', ''))
-    y = lines_at(service, 72, y, footer_font, ink, 37)
+    region('service', '服务说明', 72, y, 936, max(1, len(service)) * footer_step, 80, content.get('service', ''))
+    y = lines_at(service, 72, y, footer_font, ink, footer_step)
     y += 18
-    y = lines_at(limits, 72, y, footer_font, ink, 38)
+    y = lines_at(limits, 72, y, footer_font, ink, footer_step)
     y += 12
-    lines_at(sources, 72, y, _font(23), ink, 35)
+    lines_at(sources, 72, y, source_font, ink, source_step)
     return layout.finish(reference=card['service_date'].replace('-', '.') + f'  /  {edition:02}')
 
 

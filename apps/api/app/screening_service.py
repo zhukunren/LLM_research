@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from . import conversation_store, market, pattern_adapter, runtime_executor, screening_execution
+from .model_modes import saved_model_mode
 from .db import connect, json_dump, json_load, utc_now
 from .jobs import JobLease
 from .screening_contracts import ExecutionRequest, ScreeningTaskRevision, validate_executable_task
@@ -228,6 +229,7 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
         "source_fingerprint": list(source_fingerprint) if source_fingerprint else None,
         "tool_call_ids": turn_tool_ids,
         "model_metadata": turn_metadata,
+        "model_mode": saved_model_mode(conversation["reasoning_effort"] if button_authorized else turn["reasoning_effort"]),
         "pattern_assets": pattern_assets,
     }
     if observation is not None:
@@ -266,7 +268,7 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
                 "idempotent_replay": True,
             }
         current = connection.execute(
-            "SELECT task_revision,pending_execute_message_id,state,workflow_type FROM conversations WHERE id=?",
+            "SELECT task_revision,pending_execute_message_id,state,workflow_type,model_revision FROM conversations WHERE id=?",
             (conversation_id,),
         ).fetchone()
         current_turn = connection.execute(
@@ -278,6 +280,7 @@ def enqueue_turn(conversation_id: str, turn_id: str, *, observation: dict | None
             not current or current["state"] != "active"
             or current["workflow_type"] != "screening"
             or current["task_revision"] != task_revision
+            or (button_authorized and current["model_revision"] != conversation["model_revision"])
             or ((not button_authorized) and current["pending_execute_message_id"] != pending_message_id)
             or not current_turn or current_turn["state"] != expected_state
             or current_turn["workflow_type"] != "screening"

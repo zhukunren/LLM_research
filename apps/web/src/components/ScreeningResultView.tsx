@@ -1,5 +1,6 @@
 import Pagination from './Pagination'
 import { useWorkspaceSession } from '../WorkspaceSession'
+import { workspaceRect } from '../workspaceGeometry'
 import { StockText } from './StockMentions'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -244,7 +245,7 @@ export default function ScreeningResultView({
       if (!section?.isConnected) return
       const heading = panel?.querySelector('.screening-results-heading')
       if (panel && heading) {
-        const offset = section.getBoundingClientRect().top - heading.getBoundingClientRect().bottom - 8
+        const offset = workspaceRect(section).top - workspaceRect(heading).bottom - 8
         if (offset !== 0) panel.scrollTop += offset
       } else section.scrollIntoView?.({ block: 'nearest' })
       section.focus({ preventScroll: true })

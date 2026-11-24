@@ -22,6 +22,9 @@ UNOPENED = "https://example.com/unopened"
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "opening-plans.db")
     monkeypatch.setattr(opening_plans, "now", lambda: datetime.fromisoformat("2026-11-20T16:00:00+08:00"))
+    monkeypatch.setattr(opening_plans, "_trade_days", lambda _: list(map(date.fromisoformat, [
+        "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-23", "2026-11-24",
+    ])))
     monkeypatch.setattr(codex_runtime, "availability", lambda: {"available": True})
     monkeypatch.setattr(research_models, "llm_settings", lambda: {
         "configured": True, "model": "gpt-6.1-sol", "reasoning_effort": "high",
@@ -29,12 +32,13 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(research_models, "research_model_settings", lambda: {
         "account_tier": "paid", "allowed_models": [], "reasoning_efforts": {},
     })
-    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.1-sol"}, "verified"))
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
     monkeypatch.setattr(index_market, "_read_cache", lambda: {"bars": [
         {"trade_date": "2026-11-18", "close": 3500, "source": "测试行情"},
         {"trade_date": "2026-11-19", "close": 3550, "source": "测试行情"},
         {"trade_date": "2026-11-20", "close": 3600, "source": "测试行情"},
     ]})
+    monkeypatch.setattr(index_market, "get_bars", lambda *_: [])
     with TestClient(main.app) as session:
         yield session
 
@@ -61,18 +65,27 @@ def mock_collection(monkeypatch, reply, *, opened=()):
     return prompts
 
 
-def launch(client, day=PLAN_DATE, request_id="plan"):
-    response = client.post(PATH, json={"request_id": request_id, "plan_date": day})
+def launch(client, day=PLAN_DATE, request_id="plan", **options):
+    response = client.post(PATH, json={"request_id": request_id, "plan_date": day, **options})
     assert response.status_code == 202, response.text
     return response.json()
 
 
 def test_plan_freezes_preopen_data_and_only_accepts_supported_sections(client, monkeypatch):
-    queued = launch(client)
+    focus = "重点补充盘前速览和观察方向。"
+    queued = launch(client, model_mode="deep", generation_focus=focus)
     assert queued["state"] == "awaiting_agent"
     assert queued["cutoff"] == "2026-11-20T09:15:00+08:00"
-    assert launch(client) == queued
-    assert client.post(PATH, json={"request_id": "plan", "plan_date": "2026-11-23"}).status_code == 409
+    assert queued["generation_focus"] == focus
+    assert launch(client, model_mode="deep", generation_focus=focus) == queued
+    request = {"request_id": "plan", "plan_date": PLAN_DATE, "model_mode": "deep", "generation_focus": focus}
+    assert client.post(PATH, json={**request, "model_mode": "instant"}).status_code == 409
+    assert client.post(PATH, json={**request, "generation_focus": "另一关注点"}).status_code == 409
+    with db.connect() as connection:
+        row = connection.execute("""SELECT t.model_id,t.reasoning_effort FROM conversation_turns t
+            JOIN client_opening_plans p ON p.turn_id=t.id WHERE p.request_id='plan'""").fetchone()
+    assert tuple(row) == ("gpt-6.2-sol", "max")
+    assert client.post(PATH, json={**request, "plan_date": "2026-11-23"}).status_code == 409
     prompts = mock_collection(monkeypatch, {
         "sections": {
             "overnight": {"text": "11月19日上证指数收于3550点，隔夜观察[市场原文](https://example.com/before)。",
@@ -95,8 +108,10 @@ def test_plan_freezes_preopen_data_and_only_accepts_supported_sections(client, m
     assert worker.execute_job(client_service=True)
     assert prompts[0]["A股已完成日线日期上限"] == "2026-11-19"
     assert prompts[0]["本地上证指数"]["close"] == "3550.00"
+    assert prompts[0]["本次关注点"] == focus
     result = client.get(PATH + "/plan").json()
     assert result["state"] == "succeeded"
+    assert result["generation_focus"] == focus
     assert result["sections"] == {
         "overnight": "11月19日上证指数收于3550点，隔夜观察市场原文。",
         "judgment": "盘中观察量能变化。",
@@ -120,6 +135,58 @@ def test_future_plan_uses_only_already_closed_sessions(client, monkeypatch, hour
     assert result["state"] == "succeeded"
     assert result["sections"]["overnight"].startswith(trade_date)
     assert result["sources"] == []
+
+
+@pytest.mark.parametrize("clock,expected", [
+    ("2026-11-20T14:59:59+08:00", "2026-11-20"),
+    ("2026-11-20T15:00:00+08:00", "2026-11-23"),
+    ("2026-11-21T10:00:00+08:00", "2026-11-23"),
+    ("2026-11-23T18:30:00+08:00", "2026-11-24"),
+])
+def test_default_plan_date_follows_exchange_sessions(client, monkeypatch, clock, expected):
+    monkeypatch.setattr(opening_plans, "now", lambda: datetime.fromisoformat(clock))
+    assert client.get(PATH + "/default-date").json() == {"plan_date": expected}
+
+
+def test_after_close_dates_the_next_plan_and_refreshes_the_just_closed_session(client, monkeypatch):
+    previous = {"trade_date": "2026-11-19", "close": 3550}
+    latest = {"trade_date": "2026-11-20", "close": 3600}
+    monkeypatch.setattr(index_market, "_read_cache", lambda: {"bars": [previous]})
+
+    def refresh(as_of, limit):
+        assert (as_of, limit) == ("2026-11-20", 20)
+        return [previous, latest]
+
+    monkeypatch.setattr(index_market, "get_bars", refresh)
+    payload = {"request_id": "after-close"}
+    queued = client.post(PATH, json=payload)
+    assert queued.status_code == 202
+    assert queued.json()["plan_date"] == "2026-11-23"
+    assert queued.json()["cutoff"] == "2026-11-20T16:00:00+08:00"
+    monkeypatch.setattr(opening_plans, "now", lambda: datetime.fromisoformat("2026-11-23T16:00:00+08:00"))
+    assert client.post(PATH, json=payload).json() == queued.json()
+
+    prompts = mock_collection(monkeypatch, {"sections": {}, "sources": []})
+    assert worker.execute_job(client_service=True)
+    assert prompts[0]["计划日期"] == "2026-11-23"
+    assert prompts[0]["A股已完成日线日期上限"] == "2026-11-20"
+    result = client.get(PATH + "/after-close").json()
+    assert result["sections"] == {"overnight": "2026-11-20上证指数收于3600.00点。"}
+
+
+def test_holiday_plan_skips_closed_days_and_never_fills_an_older_close(client, monkeypatch):
+    monkeypatch.setattr(opening_plans, "now", lambda: datetime.fromisoformat("2026-10-02T18:00:00+08:00"))
+    monkeypatch.setattr(opening_plans, "_trade_days", lambda _: [date(2026, 9, 30), date(2026, 10, 8)])
+    previous = {"trade_date": "2026-09-29", "close": 3550}
+    monkeypatch.setattr(index_market, "_read_cache", lambda: {"bars": [previous]})
+    monkeypatch.setattr(index_market, "get_bars", lambda *_: [previous])
+    queued = client.post(PATH, json={"request_id": "holiday"}).json()
+    assert queued["plan_date"] == "2026-10-08"
+    prompts = mock_collection(monkeypatch, {"sections": {}, "sources": []})
+    assert worker.execute_job(client_service=True)
+    assert prompts[0]["A股已完成日线日期上限"] == "2026-09-30"
+    assert prompts[0]["本地上证指数"] is None
+    assert client.get(PATH + "/holiday").json()["state"] == "no_evidence"
 
 
 def test_missing_data_and_cancellation_preserve_the_manual_template_path(client, monkeypatch):

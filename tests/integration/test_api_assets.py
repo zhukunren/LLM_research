@@ -106,8 +106,8 @@ def test_report_rubric_evaluation_flows_into_strategy_with_citations(tmp_path, m
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "app.db")
     monkeypatch.setattr(market, "cached_profile", lambda: {"available": True, "last_date": "2026-09-25", "bytes": 100, "sha256": "snapshot"})
     monkeypatch.setattr(screening_strategy_execution, "cached_profile", lambda: {"available": True, "last_date": "2026-09-25", "bytes": 100, "sha256": "snapshot"})
-    monkeypatch.setattr(report_evaluation, "llm_settings", lambda: {"configured": True, "model": "test-contract-model"})
-    monkeypatch.setattr(report_evidence, "_completion", lambda _criteria, _pages: {
+    monkeypatch.setattr(report_evaluation, "llm_settings", lambda: {"configured": True, "model": "gpt-6.2-astra"})
+    monkeypatch.setattr(report_evidence, "_completion", lambda _criteria, _pages, **_options: {
         "subject_name": "示例科技",
         "criteria_results": [{
             "criterion_id": "fundamental_improvement", "state": "true", "summary": "订单和毛利率均有改善证据",
@@ -147,7 +147,7 @@ def test_report_rubric_evaluation_flows_into_strategy_with_citations(tmp_path, m
         connection.execute(
             """INSERT INTO report_evaluation_runs(id,filter_id,filter_version,as_of,lookback_start,model,prompt_version,status,coverage_json,result_json,job_id,created_at)
                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (evaluation_id, filter_id, 1, "2026-09-25", "2025-09-25", "test-contract-model", report_evidence.PROMPT_VERSION, "queued", "{}", "{}", eval_job_id, now),
+            (evaluation_id, filter_id, 1, "2026-09-25", "2025-09-25", "gpt-6.2-astra", report_evidence.PROMPT_VERSION, "queued", "{}", "{}", eval_job_id, now),
         )
         connection.execute(
             "INSERT INTO jobs(id,kind,payload_json,state,message,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",

@@ -35,7 +35,7 @@ export default function QmtScriptsPage({ onOpenDraft }: { onOpenDraft: (prompt: 
         </select></label>
         <label className="workspace-field-label">文件编码<select value={encoding} onChange={event => setEncoding(event.target.value)} className="workspace-field workspace-select"><option value="gbk">GBK（QMT 常用）</option><option value="utf-8">UTF-8</option></select></label>
       </div>
-      <div className="qmt-script-submit"><p id="qmt-draft-help">下一步选择模型并发送。生成后可预览、下载，也可继续对话修改。</p><button type="submit" className="primary-button workspace-button" disabled={!requirement.trim()}>带入生成对话<ArrowRight size={16} /></button></div>
+      <div className="qmt-script-submit"><p id="qmt-draft-help">下一步选择即时或深度后发送。生成后可预览、下载，也可继续对话修改。</p><button type="submit" className="primary-button workspace-button" disabled={!requirement.trim()}>带入生成对话<ArrowRight size={16} /></button></div>
     </form>
     <aside className="qmt-starting-points" aria-label="编写脚本的起点">
       <h2>从一个例子开始</h2><p>选入需求后，可以继续修改。</p>

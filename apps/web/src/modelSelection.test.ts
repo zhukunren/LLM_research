@@ -6,10 +6,15 @@ afterEach(() => { sessionStorage.clear(); vi.restoreAllMocks() })
 describe('model preference', () => {
   it('stores only validated model and effort strings for this session', () => {
     expect(readModelPreference()).toBeNull()
-    const value = { model_id: 'gpt-6-luna', reasoning_effort: 'high' }
+    const value = { model_id: 'gpt-6.2-sol', reasoning_effort: 'max' }
     writeModelPreference(value)
     expect(JSON.parse(sessionStorage.getItem('research.modelPreference')!)).toEqual(value)
     expect(readModelPreference()).toEqual(value)
+  })
+
+  it('maps an older saved preference to an available preset', () => {
+    sessionStorage.setItem('research.modelPreference', JSON.stringify({ model_id: 'gpt-6-luna', reasoning_effort: 'high' }))
+    expect(readModelPreference()).toEqual({ model_id: 'gpt-6.2-astra', reasoning_effort: 'low' })
   })
 
   it.each(['null', '[]', '{invalid', '{"model_id":"gpt-6-luna"}', '{"model_id":"https://secret@example.com","reasoning_effort":"high"}', '{"model_id":"gpt-6-luna","reasoning_effort":"unbounded"}', '{"model_id":"gpt-6-luna","reasoning_effort":"high","api_key":"secret"}'])('ignores malformed or non-preference data: %s', stored => {

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import threading
 import time
@@ -11,6 +10,8 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from . import local_codex
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS
 from .settings import llm_settings, research_model_settings
 
 
@@ -18,27 +19,34 @@ class ResearchModelError(ValueError):
     pass
 
 
-# Only models supported by this research runtime are offered. A provider's image,
-# audio, review or unknown model IDs never become selectable by discovery alone.
-MODEL_DEFINITIONS = {
-    "gpt-6-luna": ("GPT-6 Luna", "日常研究与资料分析", ("none", "low", "medium", "high", "xhigh", "max"), True),
-    "gpt-5.6-luna": ("GPT-5.6 Luna", "轻量研究与快速问答", ("low", "medium", "high", "max"), True),
-    "gpt-6.1-sol": ("GPT-6.1 Sol", "对客简评与复杂研究", ("low", "medium", "high", "xhigh", "max"), False),
-    "gpt-6.2-astra": ("GPT-6.2 Astra", "复杂研究与深入分析", ("low", "medium", "high", "xhigh", "max", "ultra"), False),
-    "gpt-6.2-sol": ("GPT-6.2 Sol", "综合研究与推理", ("low", "medium", "high", "xhigh", "max"), False),
-    "gpt-6-astra": ("GPT-6 Astra", "复杂研究与深入分析", ("low", "medium", "high", "xhigh", "max"), False),
-    "gpt-6-sol": ("GPT-6 Sol", "综合研究与推理", ("low", "medium", "high", "xhigh", "max"), False),
-}
-EFFORT_LABELS = {"none": "即时", "minimal": "极轻", "low": "轻量", "medium": "标准", "high": "深入",
-                 "xhigh": "更深入", "max": "最大", "ultra": "极致"}
 _cache: dict[str, tuple[float, set[str], str]] = {}
 _cache_lock = threading.Lock()
+
+
+def discover_local(timeout_seconds: int = 3) -> tuple[set[str], str]:
+    auth_file = local_codex.home() / "auth.json"
+    try:
+        stamp = auth_file.stat().st_mtime_ns
+    except OSError:
+        return set(), "authentication_failed"
+    key = str(auth_file)
+    with _cache_lock:
+        entry = _cache.get(f"{key}:{stamp}")
+        if entry and entry[0] > time.monotonic():
+            return entry[1], entry[2]
+        models, state = local_codex.discover(timeout_seconds)
+        if len(_cache) > 8:
+            _cache.clear()
+        _cache[f"{key}:{stamp}"] = (time.monotonic() + (300 if state == "verified" else 30), models, state)
+    return models, state
 
 
 def _discover(settings: dict) -> tuple[set[str], str]:
     """Bounded, cached discovery. Never return provider URLs, credentials or errors."""
     if not settings.get("configured"):
         return set(), "unconfigured"
+    if settings.get("backend") == "local_codex":
+        return discover_local()
     key = hashlib.sha256((str(settings.get("base_url")) + "\0" + str(settings.get("api_key"))).encode()).hexdigest()
     with _cache_lock:
         cached = _cache.get(key)
@@ -64,71 +72,49 @@ def _discover(settings: dict) -> tuple[set[str], str]:
         return models, state
 
 
-def catalog() -> dict[str, Any]:
-    settings, policy = llm_settings(), research_model_settings()
+def catalog(settings: dict | None = None) -> dict[str, Any]:
+    settings = llm_settings() if settings is None else settings
+    policy = research_model_settings()
     discovered, discovery_state = _discover(settings)
-    configured = str(settings.get("model") or "gpt-6-luna")
-    definitions = dict(MODEL_DEFINITIONS)
-    catalog_path = os.environ.get("LLMR_CODEX_MODEL_CATALOG", "")
-    if catalog_path:
-        # This file is provisioned by the operator from the local Codex catalog.
-        # Only metadata is imported; provider discovery still verifies access.
-        entries = json.loads(Path(catalog_path).read_text(encoding="utf-8"))["models"]
-        definitions = {
-            entry["id"]: (entry["label"], "Codex 可用模型", tuple(entry["efforts"]), True)
-            for entry in entries
-        }
-    disabled_models = set(os.environ.get("LLMR_DISABLED_MODELS", "").split(","))
-    # A custom configured model is explicit operator support, with only its
-    # configured effort exposed until the operator declares further capabilities.
-    for model_id in dict.fromkeys([configured, *policy["allowed_models"]]):
-        if model_id not in definitions:
-            definitions[model_id] = (model_id, "服务端配置模型", (str(settings.get("reasoning_effort") or "high"),), model_id == configured)
+    default = MODEL_PRESETS[DEFAULT_MODEL_MODE]
+    disabled_models = {value.strip() for value in os.environ.get("LLMR_DISABLED_MODELS", "").split(",")}
     result = []
-    for model_id, (label, description, default_efforts, free_supported) in definitions.items():
-        efforts = policy["reasoning_efforts"].get(model_id, default_efforts)
-        default_effort = str(settings.get("reasoning_effort") or "high")
-        if default_effort not in efforts:
-            default_effort = "high" if "high" in efforts else efforts[0]
+    for preset in MODEL_PRESETS.values():
+        model_id, effort = preset.model_id, preset.reasoning_effort
         reason = None
-        if model_id in disabled_models:
-            reason = "管理员已禁用 Sol / Astra 模型"
-        elif policy["account_tier"] == "free" and (re.search(r"(?:^|-)(astra|sol)(?:-|$)", model_id, re.I) or not free_supported):
+        if not settings.get("configured"):
+            reason = "模型服务尚未配置"
+        elif model_id in disabled_models:
+            reason = "管理员已禁用此档位"
+        elif policy["account_tier"] == "free":
             reason = "当前 Free 账户不可用"
         elif policy["allowed_models"] and model_id not in policy["allowed_models"]:
             reason = "管理员未启用此模型"
-        elif not settings.get("configured"):
-            reason = "模型服务尚未配置"
+        elif effort not in policy["reasoning_efforts"].get(model_id, (effort,)):
+            reason = "服务配置未启用固定推理档位"
         elif discovery_state == "authentication_failed":
-            reason = "模型服务认证失败"
-        elif model_id not in discovered and (model_id != configured or discovery_state == "verified"):
-            reason = "当前模型服务尚未确认支持"
-        result.append({"id": model_id, "label": label, "description": description, "available": reason is None,
-                       "unavailable_reason": reason, "reasoning_efforts": [{"id": effort, "label": EFFORT_LABELS[effort]} for effort in efforts],
-                       "default_reasoning_effort": default_effort})
-    default = next(item for item in result if item["id"] == configured)
-    return {"models": result, "default_model_id": configured, "default_reasoning_effort": default["default_reasoning_effort"],
+            reason = "本机 Codex 尚未登录 ChatGPT" if settings.get("backend") == "local_codex" else "模型服务认证失败"
+        elif discovery_state == "verified" and model_id not in discovered:
+            reason = f"当前服务商未提供 {model_id}"
+        elif discovery_state == "unreachable" and (preset != default or settings.get("backend") == "local_codex"):
+            reason = "暂时无法确认此档位可用"
+        result.append({"id": model_id, "label": preset.label, "description": model_id, "available": reason is None,
+                       "unavailable_reason": reason, "reasoning_efforts": [{"id": effort, "label": effort}],
+                       "default_reasoning_effort": effort})
+    return {"models": result, "default_model_id": default.model_id, "default_reasoning_effort": default.reasoning_effort,
             "account_tier": policy["account_tier"], "discovery_status": discovery_state}
 
 
 def resolve_selection(model_id: str | None = None, reasoning_effort: str | None = None,
-                      *, allow_unconfigured_default: bool = False) -> dict[str, str]:
-    value = catalog()
+                      *, settings: dict | None = None) -> dict[str, str]:
+    value = catalog(settings) if settings is not None else catalog()
     selected_id = model_id or value["default_model_id"]
     item = next((item for item in value["models"] if item["id"] == selected_id), None)
     if item is None:
-        raise ResearchModelError("模型不在可用目录中，请选择已配置模型")
-    if not item["available"] and not (allow_unconfigured_default and not model_id and value["discovery_status"] == "unconfigured"
-                                      and item["unavailable_reason"] == "模型服务尚未配置"):
+        raise ResearchModelError("请选择即时或深度档")
+    if not item["available"]:
         raise ResearchModelError(f"{item['label']}：{item['unavailable_reason']}")
     effort = reasoning_effort or item["default_reasoning_effort"]
     if effort not in {entry["id"] for entry in item["reasoning_efforts"]}:
-        raise ResearchModelError("此模型不支持所选推理档位")
+        raise ResearchModelError("此模型的推理档位固定，请选择即时或深度档")
     return {"model_id": selected_id, "reasoning_effort": effort}
-
-
-def legacy_selection() -> dict[str, str]:
-    """Display a legacy row without network I/O; validate again before executing."""
-    settings = llm_settings()
-    return {"model_id": str(settings.get("model") or "gpt-6-luna"),
-            "reasoning_effort": str(settings.get("reasoning_effort") or "high")}

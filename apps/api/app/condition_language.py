@@ -8,6 +8,7 @@ from pydantic import Field, ValidationError
 
 from .condition_contract import describe_filter
 from .model_client import ModelRequestError, complete_json
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode
 from .models import StrictModel
 from .rules import filter_parameters, validate_filter
 from .settings import llm_settings
@@ -214,7 +215,7 @@ def validate_plan(candidate: dict, prompt: str) -> dict:
     return plan
 
 
-def compile_plan(prompt: str, library_context: str | None = None) -> dict:
+def compile_plan(prompt: str, library_context: str | None = None, *, model_mode: ModelMode = DEFAULT_MODEL_MODE) -> dict:
     candidate = local_plan(prompt) if library_context in (None, "technical") else None
     literal_news_request = False
     if library_context == "news":
@@ -229,14 +230,14 @@ def compile_plan(prompt: str, library_context: str | None = None) -> dict:
     if candidate is None:
         config = llm_settings()
         if config["configured"]:
-            source, model = "configured_llm", config["model"]
+            source, model = "configured_llm", MODEL_PRESETS[model_mode].model_id
             try:
                 context = {
                     "technical": "当前在技术指标库，只生成 technical 条件。若请求包含其他类别，不得忽略，应在 issues 中说明应到相应资料库建立条件再组合。",
                     "report": "当前在研报库，用户已明确选择以研报为依据，即使未在原句重复写研报，也应按 report rubric 整理研究目标。只生成判断口径，不声称已找到证据；其他数据类要求用 issues 说明。",
                     "news": "当前在资讯库，允许定义未来接入数据后执行的 news 原文关键词条件。仅当用户明确要求文本包含某些词时使用 evidence_query + terms + lookback_calendar_days + source=tushare；每项关键词组合都要保留。资讯源尚未接入不妨碍保存明确的定义，但必须在 assumptions 说明当前无法执行。复杂事件语义、数值抽取或关系推断暂不支持，不能把它们降级成关键词，必须给出 issues。只生成 news 条件。",
                 }.get(library_context, "")
-                candidate = complete_json(SYSTEM_PROMPT + "\n" + context, prompt, max_output_tokens=5000)
+                candidate = complete_json(SYSTEM_PROMPT + "\n" + context, prompt, max_output_tokens=5000, model_mode=model_mode)
             except ModelRequestError as exc:
                 return {"conditions": [], "tree": None, "issues": [{"kind": "clarification", "text": "本次模型解析没有完成，原描述已保留。", "suggestion": str(exc)}], "assumptions": [], "status": "service_error", "source": source, "model": model, "compiler_version": COMPILER_VERSION}
         else:

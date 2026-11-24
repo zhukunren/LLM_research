@@ -103,5 +103,5 @@
   .screening-studio .conversation-message-list { padding: 18px 16px; }
   .screening-studio .conversation-workspace-empty .conversation-message-list { padding: 0; }
   .screening-studio .conversation-task-panel { padding: 17px; }
-  .screening-studio .conversation-sessions.sessions-open { inset: 0 0 0 auto; width: min(410px, 94vw); height: 100dvh; border-radius: 12px 0 0 12px; padding: 22px; }
+  .screening-studio .conversation-sessions.sessions-open { inset: 0 0 0 auto; width: min(410px, 94vw); height: var(--ui-viewport-height); border-radius: 12px 0 0 12px; padding: 22px; }
 }

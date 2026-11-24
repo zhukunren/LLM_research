@@ -23,9 +23,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(rebalance_suggestions, "now", lambda: CUTOFF)
     monkeypatch.setattr(codex_runtime, "availability", lambda: {"available": True})
     monkeypatch.setattr(research_models, "llm_settings", lambda: {
-        "configured": True, "model": "gpt-6.1-sol", "reasoning_effort": "high",
+        "configured": True, "model": "gpt-6-luna", "reasoning_effort": "high",
     })
-    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.1-sol", "gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
     monkeypatch.setattr(research_models, "research_model_settings", lambda: {
         "account_tier": "paid", "allowed_models": [], "reasoning_efforts": {},
     })
@@ -54,12 +54,13 @@ def add_report(document_id, publication, *, code=CODE, available_status="confirm
         connection.execute("INSERT INTO document_pages VALUES (?,1,?)", (document_id, QUOTE))
 
 
-def mock_collection(monkeypatch, reply, *, report_ids=(), opened=False):
+def mock_collection(monkeypatch, reply, *, report_ids=(), opened=False, focus=None):
     def run(conversation_id, turn_id):
         manifest = client_service_runtime.prepare(conversation_id, turn_id)
         assert manifest["profile"] == "rebalance-suggestion"
         prompt = json.loads(client_service_runtime.prompt(conversation_id, turn_id, manifest["profile"]))
         assert prompt["股票代码"] == CODE and prompt["调仓场景"] == "开仓买入"
+        assert prompt.get("本次关注点") == focus
         assert tuple(report["document_id"] for report in prompt["本地研报"]) == report_ids
         assert "仓位变化" not in prompt and "参考价格" not in prompt
         if opened:
@@ -70,13 +71,13 @@ def mock_collection(monkeypatch, reply, *, report_ids=(), opened=False):
                 )
         return {
             "response": json.dumps(reply, ensure_ascii=False), "thread_id": "test-thread", "codex_turn_id": "test-turn",
-            "event_count": 2 if opened else 0, "model": "gpt-6.1-sol", "reasoning_effort": "high",
+            "event_count": 2 if opened else 0, "model": "gpt-6-luna", "reasoning_effort": "high",
         }
     monkeypatch.setattr(codex_runtime, "run_conversation_turn", run)
 
 
-def enqueue(client):
-    payload = {"request_id": "sample", "code": "603650", "direction": "开仓买入"}
+def enqueue(client, **options):
+    payload = {"request_id": "sample", "code": "603650", "direction": "开仓买入", **options}
     response = client.post(PATH, json=payload)
     assert response.status_code == 202, response.text
     assert response.json()["state"] == "awaiting_agent"
@@ -88,17 +89,20 @@ def test_collects_confirmed_local_report_and_formats_editable_basis(client, monk
     add_report("future", "2026-11-21")
     add_report("undated", "2026-11-19", available_status="unknown")
     add_report("other-stock", "2026-11-19", code="688012.SH")
-    payload = enqueue(client)
+    focus = "聚焦电子材料的经营变化，并注明观察条件。"
+    payload = enqueue(client, generation_focus=focus)
     assert client.post(PATH, json={**payload, "code": "603650.SH"}).status_code == 202
     assert client.post(PATH, json={**payload, "direction": "止盈调出"}).status_code == 409
+    assert client.post(PATH, json={**payload, "generation_focus": "另一关注点"}).status_code == 409
     mock_collection(monkeypatch, {
         "reason": "考虑到[电子材料](https://example.com/data)是营收增长的主要贡献来源，跟踪后续表现。",
         "report": {"document_id": "current", "quote": QUOTE, "authors": "错误名字"},
-    }, report_ids=("current",))
+    }, report_ids=("current",), focus=focus)
     assert not worker.execute_job(client_service=False)
     assert worker.execute_job(client_service=True)
     result = client.get(PATH + "/sample").json()
     assert result["state"] == "succeeded", result
+    assert result["generation_focus"] == focus
     assert result["reason"] == "考虑到电子材料是营收增长的主要贡献来源，跟踪后续表现。"
     assert result["basis"] == "参考研报：《样例股份季度点评》 研报作者：样例证券 示例作者，发布日期 2026年10月29日。"
     assert result["report"]["document_id"] == "current"
@@ -140,10 +144,10 @@ def test_rejects_a_quote_absent_from_the_local_report(client, monkeypatch):
 
 
 @pytest.mark.parametrize("mode,model,effort,tier", [
-    ("instant", "gpt-6.2-astra", "low", "fast"),
+    ("instant", "gpt-6.2-astra", "low", "priority"),
     ("deep", "gpt-6.2-sol", "max", "default"),
 ])
-def test_freezes_the_selected_mode_and_supports_a_reason_without_a_report(client, monkeypatch, mode, model, effort, tier):
+def test_freezes_the_model_for_the_selected_mode(client, monkeypatch, mode, model, effort, tier):
     body = {"request_id": "mode-sample", "code": CODE, "direction": "开仓买入", "mode": mode}
     assert client.post(PATH, json=body).status_code == 202
     assert client.post(PATH, json={**body, "mode": "deep" if mode == "instant" else "instant"}).status_code == 409
@@ -151,7 +155,7 @@ def test_freezes_the_selected_mode_and_supports_a_reason_without_a_report(client
         saved = connection.execute("""SELECT s.conversation_id,s.turn_id,t.model_id,t.reasoning_effort,s.service_tier
             FROM client_rebalance_suggestions s JOIN conversation_turns t ON t.id=s.turn_id""").fetchone()
     assert tuple(saved)[2:] == (model, effort, tier)
-    assert client_service_runtime.prepare(saved["conversation_id"], saved["turn_id"])["service_tier"] == tier
+    assert client_service_runtime.prepare(saved["conversation_id"], saved["turn_id"])["profile"] == "rebalance-suggestion"
     mock_collection(monkeypatch, {"reason": "若后续经营数据支持原有判断，再考虑这次调整。"})
     assert worker.execute_job(client_service=True)
     result = client.get(PATH + "/mode-sample").json()

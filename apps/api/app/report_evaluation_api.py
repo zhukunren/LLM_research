@@ -29,6 +29,7 @@ def evaluate_report_filter(filter_id: str, payload: ReportEvaluationInput, versi
     lookback_start = (as_of - timedelta(days=lookback)).isoformat()
     run_id, job_id, now = str(uuid4()), str(uuid4()), utc_now()
     configured = bool(llm_settings()["configured"])
+    model = model_name(payload.model_mode)
     status = "queued" if configured else "blocked_dependency"
     coverage = {"state": status, "message": None if configured else "未配置文本模型；口径已保存，但不会伪造研报评估。"}
     result = {"assessments": [], "by_security": {}, "coverage": coverage}
@@ -37,22 +38,22 @@ def evaluate_report_filter(filter_id: str, payload: ReportEvaluationInput, versi
             """INSERT INTO report_evaluation_runs
                (id,filter_id,filter_version,as_of,lookback_start,model,prompt_version,status,coverage_json,result_json,job_id,created_at,finished_at)
                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (run_id, item["id"], item["version"], payload.as_of, lookback_start, model_name(), PROMPT_VERSION, status, json_dump(coverage), json_dump(result), job_id, now, now if not configured else None),
+            (run_id, item["id"], item["version"], payload.as_of, lookback_start, model, PROMPT_VERSION, status, json_dump(coverage), json_dump(result), job_id, now, now if not configured else None),
         )
         connection.execute(
             "INSERT INTO jobs(id,kind,payload_json,state,message,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
-            (job_id, "report_evaluation", json_dump({"evaluation_run_id": run_id, "filter_id": item["id"], "filter_version": item["version"]}), status, coverage["message"] or "等待研报评估 worker", now, now),
+            (job_id, "report_evaluation", json_dump({"evaluation_run_id": run_id, "filter_id": item["id"], "filter_version": item["version"], "model_mode": payload.model_mode}), status, coverage["message"] or "等待研报评估 worker", now, now),
         )
     if not configured:
         return {
             "id": run_id, "job_id": job_id, "filter_id": item["id"], "filter_version": item["version"],
-            "as_of": payload.as_of, "lookback_start": lookback_start, "model": model_name(),
+            "as_of": payload.as_of, "lookback_start": lookback_start, "model": model,
             "prompt_version": PROMPT_VERSION, "status": status, "coverage": coverage, "result": result,
             "created_at": now,
         }
     return {
         "id": run_id, "job_id": job_id, "filter_id": item["id"], "filter_version": item["version"],
-        "as_of": payload.as_of, "lookback_start": lookback_start, "model": model_name(),
+        "as_of": payload.as_of, "lookback_start": lookback_start, "model": model,
         "prompt_version": PROMPT_VERSION, "status": status, "coverage": coverage, "result": result,
         "created_at": now, "message": "研报判断口径已进入后台评估队列；只处理截止日和回溯范围内的报告。",
     }

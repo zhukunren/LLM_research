@@ -1,0 +1,53 @@
+.model-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  background: var(--ui-surface-subtle, #f6f7f9);
+}
+
+.model-mode-switch > button.workspace-button {
+  min-height: 32px;
+  min-width: 46px;
+  padding: 4px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.model-mode-switch > button.workspace-button:hover:not(:disabled) {
+  background: var(--ui-surface-hover);
+}
+
+.model-mode-switch > button.workspace-button[aria-pressed="true"] {
+  border-color: var(--ui-primary-border);
+  background: var(--ui-primary-soft);
+  color: var(--ui-brand);
+}
+
+.research-model-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.research-model-picker small {
+  max-width: 280px;
+  color: var(--ui-text-muted);
+}
+
+@media (pointer: coarse) {
+  .model-mode-switch > button.workspace-button {
+    min-height: 40px;
+  }
+}

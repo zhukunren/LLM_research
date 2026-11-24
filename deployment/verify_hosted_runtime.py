@@ -8,6 +8,7 @@ import tempfile
 import tomllib
 
 from apps.api.app import codex_runtime as runtime
+from apps.api.app.model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS
 from apps.api.app.settings import llm_settings, SANDBOX_STATE_ROOT
 
 settings = llm_settings()
@@ -45,7 +46,8 @@ with tempfile.TemporaryDirectory(prefix='runtime-check-', dir=SANDBOX_STATE_ROOT
             from openai_codex import TextInput
             status = None
             for event in thread.turn([TextInput(text='Reply only OK. Do not use tools.')],
-                    model=str(settings['model']), effort=str(settings['reasoning_effort'])).stream():
+                    model=str(settings['model']), effort=str(settings['reasoning_effort']),
+                    turn_service_tier=MODEL_PRESETS[DEFAULT_MODEL_MODE].service_tier).stream():
                 payload = runtime._jsonable(event.payload)
                 if event.method == 'turn/completed':
                     status = payload['turn']['status']

@@ -1,5 +1,7 @@
 import Pagination from '../components/Pagination'
 import LoadingState from '../components/LoadingState'
+import ModelModeSwitch from '../components/ModelModeSwitch'
+import type { ModelMode } from '../modelSelection'
 import { StockText } from '../components/StockMentions'
 import EmptyState from '../components/EmptyState'
 import { localStorage } from '../authStorage'
@@ -59,7 +61,8 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
   const { mobile, catalog, reader, catalogScroll, rememberCatalog } = useMobileReadingPosition(mobileView)
   const readingFontSize = mobile ? mobileFontSize : fontSize
   const setReadingFontSize = mobile ? setMobileFontSize : setFontSize
-  const request = useRef({ url: '', id: '' })
+  const [modelMode, setModelMode] = useState<ModelMode>('instant')
+  const request = useRef({ url: '', id: '', modelMode })
   const selection = useRef(selectedId)
   const importedId = useRef('')
   const listRef = useRef<HTMLDivElement>(null)
@@ -121,9 +124,11 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
   async function importUrl() {
     setBusy(true); setImportError(''); setNotice('')
     try {
-      if (request.current.url !== url.trim()) request.current = { url: url.trim(), id: crypto.randomUUID() }
+      if (request.current.url !== url.trim() || request.current.modelMode !== modelMode) {
+        request.current = { url: url.trim(), id: crypto.randomUUID(), modelMode }
+      }
       const result = await api<{ created: number; duplicates: number; items?: NewsRecord[] }>('/news/import-url', {
-        method: 'POST', body: JSON.stringify({ request_id: request.current.id, url: url.trim() }),
+        method: 'POST', body: JSON.stringify({ request_id: request.current.id, url: url.trim(), model_mode: modelMode }),
       })
       setNotice('已保存 ' + result.created + ' 条，跳过重复内容 ' + result.duplicates + ' 条。')
       importedId.current = result.items?.[0]?.id ?? ''
@@ -138,6 +143,7 @@ export default function NewsPage({ onDiscuss, onDefineCondition, onSourceChange,
     {(importOpen || localImportOpen) && <ConditionWorkspaceDrawer title="导入资讯" closeLabel="关闭导入" description="从网址保存资讯，导入后可在本地资讯中阅读。" onClose={closeImport}>
       <form onSubmit={event => { event.preventDefault(); void importUrl() }} className="workspace-form library-news-import-form">
         <label className="workspace-field-label">资讯网址<input type="url" required value={url} disabled={busy} placeholder="https://…" onChange={event => setUrl(event.target.value)} className="workspace-field" /></label>
+        <ModelModeSwitch value={modelMode} disabled={busy} onChange={setModelMode} />
         <button className="primary-button workspace-button" disabled={busy || !url.trim()}>{busy ? '正在读取并整理…' : '导入'}</button>
         {importError && <p role="alert" className="library-error workspace-error">{importError}</p>}
       </form>

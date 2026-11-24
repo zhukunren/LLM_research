@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { BookOpen, ChevronDown, Search, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { api } from '../api'
+import { workspaceRect } from '../workspaceGeometry'
 
 type Reference = { id: string; title: string; kind: string; sha256: string; sources: string[]; runtime_verified: boolean }
 type SearchResult = { items: Reference[]; total: number; next_offset: number | null; version: string; verified_at: string; compatibility: string }
@@ -13,7 +14,7 @@ const kindLabels: Record<string, string> = { official_reference: '官方接口�
 function focusInReadingPane(element: HTMLElement | null) {
   if (!element) return
   const pane = element.closest<HTMLElement>('.qmt-scripts-page')
-  if (pane) pane.scrollTop += element.getBoundingClientRect().top - pane.getBoundingClientRect().top - 12
+  if (pane) pane.scrollTop += workspaceRect(element).top - workspaceRect(pane).top - 12
   else element.scrollIntoView?.({ block: 'start', behavior: 'instant' })
   element.focus({ preventScroll: true })
 }

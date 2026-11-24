@@ -21,11 +21,20 @@ it('does not mark a changed image as passed and requires a saved card',async()=>
 
 it('only requests a model review after an explicit click',async()=>{
  const user=userEvent.setup()
- vi.mocked(api).mockImplementation(async(_,init)=>init?.method==='POST'?{...review,state:'queued',image_hash:'image',result:null,message:'等待 Codex 视觉复核'}:{review:null})
+ const result={...review,image_hash:'image',review_focus:['metrics','disclosure']}
+ let submitted=false
+ vi.mocked(api).mockImplementation(async(_,init)=>{
+  if(init?.method==='POST'){submitted=true;return result}
+  return {review:submitted?result:null}
+ })
  render(<ClientCardReview card={card} dirty={false} imageHash="image"/>)
  await user.click(screen.getByText('成品视觉复核'))
+ await user.click(screen.getByRole('checkbox',{name:'指标区'}))
+ await user.click(screen.getByRole('checkbox',{name:'风险提示与落款'}))
+ expect(vi.mocked(api).mock.calls.some(([,init])=>init?.method==='POST')).toBe(false)
  await user.click(screen.getByRole('button',{name:'Codex 视觉复核'}))
  const call=vi.mocked(api).mock.calls.find(([,init])=>init?.method==='POST')!
  expect(call[0]).toBe('/client-service/cards/card/review')
- expect(JSON.parse(String(call[1]?.body))).toMatchObject({expected_revision:2})
+ expect(JSON.parse(String(call[1]?.body))).toMatchObject({expected_revision:2,review_focus:['metrics','disclosure']})
+ expect(await screen.findByText('已提交检查重点 · 指标区、风险提示与落款')).toBeVisible()
 })

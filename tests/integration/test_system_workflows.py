@@ -149,7 +149,7 @@ def test_repeated_worker_crashes_stop_automatic_requeue(client):
 
 def test_report_job_with_no_documents_is_partial_and_can_be_reloaded(client, monkeypatch):
     monkeypatch.setattr(report_evaluation_api, "llm_settings", lambda: {"configured": True, "model": "fixture"})
-    monkeypatch.setattr(report_evaluation_api, "model_name", lambda: "fixture")
+    monkeypatch.setattr(report_evaluation_api, "model_name", lambda _mode: "gpt-6.2-astra")
     condition = client.post("/api/v1/filters", json={"library": "report", "name": "研报口径", "expression": {
         "op": "evidence_query", "evaluation_mode": "rubric", "combine": "all", "lookback_calendar_days": 30,
         "criteria": [{"id": "orders", "label": "订单", "question": "订单是否增长？", "signals": [], "counter_signals": []}],
@@ -166,7 +166,7 @@ def test_report_job_with_no_documents_is_partial_and_can_be_reloaded(client, mon
 
 def test_cancel_during_model_call_does_not_publish_evidence_or_binding(client, monkeypatch):
     monkeypatch.setattr(report_evaluation_api, "llm_settings", lambda: {"configured": True, "model": "fixture"})
-    monkeypatch.setattr(report_evaluation_api, "model_name", lambda: "fixture")
+    monkeypatch.setattr(report_evaluation_api, "model_name", lambda _mode: "gpt-6.2-astra")
     monkeypatch.setattr(report_evaluation, "llm_settings", lambda: {"configured": True, "model": "fixture"})
     condition = client.post("/api/v1/filters", json={"library": "report", "name": "取消验收", "expression": {
         "op": "evidence_query", "evaluation_mode": "rubric", "combine": "all", "lookback_calendar_days": 30,
@@ -177,7 +177,7 @@ def test_cancel_during_model_call_does_not_publish_evidence_or_binding(client, m
         connection.execute("INSERT INTO document_pages VALUES('cancel-doc',1,'600000.SH 公司订单同比增长。')")
     run = client.post(f"/api/v1/filters/{condition['id']}/evaluate-reports?version=1", json={"as_of": "2026-09-14"}).json()
 
-    def cancelled_response(*_):
+    def cancelled_response(*_, **_options):
         jobs.cancel(run["job_id"])
         return {"security_candidates": [{"reported_code": "600000.SH", "role": "issuer", "page": 1, "quote": "600000.SH 公司订单同比增长。"}], "criteria_results": []}
 

@@ -9,7 +9,7 @@
 
 .pattern-research-trigger { flex-shrink: 0; white-space: nowrap; }
 .pattern-research-overlay { position: fixed; inset: 0; z-index: 180; display: flex; justify-content: flex-end; background: var(--ui-overlay-backdrop, #172c4340); }
-.pattern-research-records.workspace-drawer { display: flex; flex-direction: column; width: min(1100px, 100vw); height: 100dvh; min-height: 0; border-left: 1px solid var(--ui-border); overflow: hidden; color: var(--ui-text); }
+.pattern-research-records.workspace-drawer { display: flex; flex-direction: column; width: min(1100px, var(--ui-viewport-width)); height: var(--ui-viewport-height); min-height: 0; border-left: 1px solid var(--ui-border); overflow: hidden; color: var(--ui-text); }
 .pattern-research-heading { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--ui-border-subtle); }
 .pattern-research-heading > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; min-width: 0; }
 .pattern-research-heading h2 { margin: 0; font-size: 18px; line-height: 1.5; }

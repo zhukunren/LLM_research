@@ -348,7 +348,6 @@ export default function ConversationWorkspace({
   const modelSelection = conversation ? { model_id: conversation.model_id, reasoning_effort: conversation.reasoning_effort } : modelPreference ?? undefined
   const modelSelectionKey = JSON.stringify([modelSelection?.model_id, modelSelection?.reasoning_effort])
   const [modelAvailability, setModelAvailability] = useState<{ key: string; available: boolean } | null>(null)
-  const [modelCatalogError, setModelCatalogError] = useState('')
   const modelUnavailable = modelAvailability?.key === modelSelectionKey && !modelAvailability.available
   const conversationReady = !selectedId || conversation?.id === selectedId
   const workflowType = conversation ? conversationWorkflow(conversation, initialWorkflowType) : initialWorkflowType
@@ -1178,7 +1177,7 @@ export default function ConversationWorkspace({
     setBusy(true); setError('')
     try {
       if (!attempt.conversation) attempt.conversation = (independent ? null : conversation) ?? await api<Conversation>('/conversations', {
-        method: 'POST', body: JSON.stringify({ entry_scope: entryScope, workflow_type: 'screening', research_depth: researchDepth, ...modelPreference, ...(independent ? { request_id: attempt.clientId } : {}) }),
+        method: 'POST', body: JSON.stringify({ entry_scope: entryScope, workflow_type: 'screening', research_depth: researchDepth, ...(independent ? { request_id: attempt.clientId } : {}) }),
       })
       const current = attempt.conversation
       if (!isCurrent() || templateOwnerRef.current !== ownerKey) return false
@@ -1261,7 +1260,7 @@ export default function ConversationWorkspace({
     const routeScreening = isResearch && scope === 'screening' && assistantId === 'general' && !embedded && !conversation?.messages.length
     if (content.length > 8000) { setError('问题加上当前公司信息超过 8000 字，请先精简问题。'); return }
     if (!originalAttachments && attachments.hasUnready) { setError('请等待附件上传完成，或移除未上传的文件。'); return }
-    if (modelUnavailable) { setError('当前模型或推理档位不可用，请选择可用模型后发送。'); return }
+    if (modelUnavailable) { setError('当前模型档位不可用。'); return }
     const inputIntent = screeningInputIntent(content)
     const resultQuestion = !isResearch && screeningResultQuestionPattern.test(value.trim())
     if (!retryOriginal && !isResearch && !task && (pendingPlan || inputIntent !== 'question') && !resultQuestion && !screeningSavePattern.test(value.trim())) {
@@ -1568,18 +1567,6 @@ export default function ConversationWorkspace({
     } finally { modelSavingRef.current = false; setModelSaving(false) }
   }
 
-  function openModelPicker() {
-    const container = composerRef.current
-    const settings = container?.querySelector<HTMLButtonElement>('.screening-settings-trigger')
-    if (settings?.getAttribute('aria-expanded') === 'false') settings.click()
-    requestAnimationFrame(() => {
-      const trigger = container?.querySelector<HTMLButtonElement>('.research-model-trigger')
-      trigger?.focus()
-      if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click()
-    })
-  }
-
-
   async function ensureAttachmentConversation() {
     if (conversation?.id && conversation.id === selectedIdRef.current) return { conversationId: conversation.id, draftKey }
     const owner = draftKey
@@ -1687,19 +1674,20 @@ export default function ConversationWorkspace({
   const showResearchStarter = isResearch && scope === 'screening' && assistantId === 'general' && !pendingSource && !pendingExtraSources.length && !messageCount && !loadingConversation
   const showDraftActions = !embedded && !showResearchStarter && assistantId !== 'qmt-script' && !!handoff
   const navigationDisabled = !!archived || busy || saving || !conversationReady || loadingConversation || loadingSessions
+  const modelPicker = <ResearchModelPicker value={modelSelection}
+    disabled={navigationDisabled || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress}
+    onChange={selection => void changeModel(selection)}
+    onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} />
 
   const showMethodSetup = !!screeningMethod && !isResearch && !pendingPlan && !embedded && !conversation?.messages.length && !task
-  const methodSettings = <ScreeningSettings label="选股设置">{open => <>
+  const methodSettings = <ScreeningSettings label="选股设置">{() => <>
     <label className="workspace-field-label">条件核验<select aria-label="专用选股条件核验" className="workspace-field workspace-select" value={researchDepth} disabled={busy || modeSaving} onChange={event => void changeResearchDepth(event.target.value as ResearchDepth)}>{Object.entries(depthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-    <ResearchModelPicker visible={open} value={modelSelection} disabled={busy || modelSaving || turnInProgress} onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} onCatalogError={setModelCatalogError} />
   </>}</ScreeningSettings>
 
   const composerFirst = !embedded && !messageCount && !task
   const composer = (
     <form key="composer" className="conversation-composer workspace-form" ref={composerRef} onSubmit={(event) => { event.preventDefault(); submitComposer() }}>
       {archived && <div className="conversation-pending-source workspace-feedback workspace-feedback-info" role="status"><span>此对话已归档。可在左侧更多操作中恢复后继续。</span></div>}
-      {modelCatalogError && <div className="conversation-pending-source workspace-error" role="alert"><span>分析服务设置暂时无法读取：{modelCatalogError}。当前选择保留。</span><button type="button" className="text-button workspace-button" onClick={openModelPicker}>检查模型设置</button></div>}
-      {modelUnavailable && <div className="conversation-pending-source workspace-feedback workspace-feedback-info" role="status"><span>当前模型或推理档位不可用，请切换后发送。</span><button type="button" className="text-button workspace-button" disabled={busy || modelSaving || turnInProgress} onClick={openModelPicker}>切换模型</button></div>}
       {conversation?.screening_draft_source && <div className="conversation-pending-source workspace-feedback workspace-feedback-info"><span>来源：研究答复</span><button type="button" className="text-button workspace-button" onClick={() => onOpenConversation?.(conversation.screening_draft_source!.source_conversation_id, 'screening', 'research')}>查看原研究</button></div>}
       <label htmlFor="conversation-input">{isResearch ? '研究要求' : '选股要求'}</label>
       {companyShortcuts.context}
@@ -1731,17 +1719,16 @@ export default function ConversationWorkspace({
           {!embedded && <ResearchComposerMenu value={assistantId} snapshot={conversation?.assistant} showAssistants={false}
             disabled={archived || busy || saving || assistantSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions}
             onChange={id => void changeAssistant(id)} onUpload={files => void attachments.upload(files)} />}
-          {isResearch && <ScreeningSettings label="研究设置" key={`research-settings:${draftKey}:${newResearchKey || 0}`}>{open => <>
+          {isResearch && <ScreeningSettings label="研究设置" key={`research-settings:${draftKey}:${newResearchKey || 0}`}>{() => <>
             <p className="research-settings-note">默认设置即可开始研究。这里的调整只影响后续提问，历史研究保留原配置。</p>
             {!embedded && <ResearchComposerMenu value={assistantId} snapshot={conversation?.assistant} showUpload={false} disabled={!!archived || busy || saving || assistantSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={id => void changeAssistant(id)} onUpload={files => void attachments.upload(files)} />}
-            <ResearchModelPicker visible={open} value={modelSelection} disabled={!!archived || busy || saving || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} onCatalogError={setModelCatalogError} />
             {indicatorControl}
           </>}</ScreeningSettings>}
-          {!isResearch && <ScreeningSettings key={`${draftKey}:${newResearchKey || 0}`}>{open => <>
+          {!isResearch && <ScreeningSettings key={`${draftKey}:${newResearchKey || 0}`}>{() => <>
             <label className="studio-mode-select workspace-field-label"><span>条件核验</span><select aria-label="研究深度" value={researchDepth} disabled={busy || saving || modeSaving || modelSaving || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={event => void changeResearchDepth(event.target.value as ResearchDepth)} className="workspace-field workspace-select">{Object.entries(depthLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{modeSaving && <LoaderCircle size={14} className="spin" />}</label>
-            <ResearchModelPicker visible={open} value={modelSelection} disabled={archived || busy || saving || assistantSaving || modeSaving || modelSaving || attachments.uploading || turnInProgress || !conversationReady || loadingConversation || loadingSessions} onChange={selection => void changeModel(selection)} onAvailabilityChange={available => setModelAvailability({ key: modelSelectionKey, available })} onCatalogError={setModelCatalogError} />
           </>}</ScreeningSettings>}
         </div>
+        {modelPicker}
         {!isResearch && composerPlanControl}
         <span>{draft.length >= 7000 ? `${draft.length}/8000` : ''}</span>
         <div className="conversation-submit-actions">
@@ -1817,7 +1804,7 @@ export default function ConversationWorkspace({
       <section id="screening-view-conversation" hidden={embedded && !!showTaskPanel} role={isResearch ? undefined : 'region'} tabIndex={isResearch ? undefined : 0} className="conversation-main" aria-label={isResearch ? '研究对话' : '选股对话'}>{showMethodSetup ? <ScreeningMethodSetup key={`${screeningMethod}:${newResearchKey || 0}`} method={screeningMethod!} requirement={draft} onRequirement={setDraft}
           asOf={scopeDate} pool={scopePool} watchlists={watchlists} onDate={value => { setScopeDate(value); setScopeOverrides(current => ({ ...current, date: true })) }} onPool={value => { setScopePool(value); setScopeOverrides(current => ({ ...current, pool: true })) }} data={data}
           disabled={!!archived || busy || saving || turnInProgress || !conversationReady || loadingConversation || loadingSessions || modelSaving || modeSaving} modelUnavailable={modelUnavailable}
-          settings={methodSettings} indicators={composerPlanControl} descriptionKey={methodDescriptionKey}
+          settings={methodSettings} modelPicker={modelPicker} indicators={composerPlanControl} descriptionKey={methodDescriptionKey}
           onSubmit={(value, previewOnly) => void submitMessage(value, undefined, false, { previewOnly })} onTemplate={(template, parameters) => void selectTemplate(template, parameters)}
           onSaved={shellNavigation ? undefined : onScreeningSaved} onHistory={shellNavigation ? undefined : onScreeningHistory} onBrowse={onBrowseScreeningSources} onOpenData={onOpenDataServices} /> : <>{!conversation?.messages.length && (isResearch || !task) && !loadingConversation && <div className="chat-empty-heading">
           <span className="research-welcome-mark" aria-hidden="true"><img src="/brand/soochow-symbol-blue.png" alt="" /></span>

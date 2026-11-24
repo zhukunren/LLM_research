@@ -7,7 +7,7 @@
 .company-command-context { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; color: var(--ui-text-muted); font-size: 12px; }
 .company-command-context small { flex-basis: 100%; }
 .company-command-backdrop { position: fixed; inset: 0; z-index: 1250; background: rgb(15 30 50 / 24%); }
-.company-command-dialog { position: absolute; inset: 0 0 0 auto; display: flex; flex-direction: column; width: min(900px, 96vw); height: 100dvh; min-width: 0; padding: 0; background: var(--ui-surface, white); box-shadow: -8px 0 32px rgb(0 35 85 / 12%); }
+.company-command-dialog { position: absolute; inset: 0 0 0 auto; display: flex; flex-direction: column; width: min(900px, 96vw); height: var(--ui-viewport-height); min-width: 0; padding: 0; background: var(--ui-surface, white); box-shadow: -8px 0 32px rgb(0 35 85 / 12%); }
 .company-command-dialog > header { display: flex; flex: 0 0 auto; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--ui-border); }
 .company-command-dialog > header h2 { margin: 0; font-size: 18px; }
 .company-command-dialog > header p { margin: 5px 0 0; color: var(--ui-text-muted); }

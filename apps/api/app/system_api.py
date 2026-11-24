@@ -9,6 +9,7 @@ from . import capability_service, codex_runtime
 from .api_responses import bad_request
 from .db import connect
 from .model_client import ModelRequestError, complete_json, probe_function_calling, probe_models
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode
 from .models import AdvisorValidationLevelInput
 from .settings import REPORT_DIR, STOCK_FILE, TUSHARE_API_URL, llm_settings, tushare_settings
 
@@ -59,7 +60,10 @@ def settings_status():
     llm = llm_settings()
     tushare = tushare_settings()
     return {
-        "text_model": {"configured": llm["configured"], "model": llm["model"] if llm["configured"] else None, "api_mode": llm["api_mode"] if llm["configured"] else None, "credential_source": "config.ini" if llm["configured"] else None},
+        "text_model": {"configured": llm["configured"], "model": llm["model"] if llm["configured"] else None,
+                       "api_mode": llm["api_mode"] if llm["configured"] else None,
+                       "credential_source": ("local_codex" if llm.get("backend") == "local_codex" else "config.ini")
+                       if llm["configured"] else None},
         "codex_runtime": codex_runtime.availability(),
         "tushare": {
             "configured": tushare["configured"],
@@ -72,35 +76,40 @@ def settings_status():
 
 
 @router.post("/settings/web-search-test")
-async def test_web_search_connection():
+async def test_web_search_connection(model_mode: ModelMode = DEFAULT_MODEL_MODE):
     try:
-        return await run_in_threadpool(codex_runtime.probe_web_search)
+        return await run_in_threadpool(codex_runtime.probe_web_search, model_mode)
     except codex_runtime.CodexRuntimeError as exc:
         raise HTTPException(503, {"code": "web_search_unavailable", "message": str(exc)}) from exc
 
 
 @router.post("/settings/model-test")
-def test_model_connection():
-    if not llm_settings()["configured"]:
+def test_model_connection(model_mode: ModelMode = DEFAULT_MODEL_MODE):
+    config = llm_settings()
+    if not config["configured"]:
         bad_request("未配置文本模型环境变量", 409, "model_not_configured")
+    model = MODEL_PRESETS[model_mode].model_id
     started = time.perf_counter()
     endpoint = probe_models(timeout_seconds=12)
+    native = config.get("backend") == "local_codex"
+    if not endpoint["reachable"]:
+        return {"connected": False, "endpoint_reachable": False, "authenticated": False,
+                "message": "本机 Codex 暂时无法读取模型目录。" if native else endpoint["reason"], "api_mode": config["api_mode"]}
     if endpoint["authenticated"] is False:
         return {
             "connected": False,
             "endpoint_reachable": endpoint["reachable"],
             "authenticated": False,
-            "message": "模型端点可达，但凭证未通过认证。",
-            "api_mode": llm_settings()["api_mode"],
+            "message": "本机 Codex 尚未登录 ChatGPT。" if native else "模型端点可达，但凭证未通过认证。",
+            "api_mode": config["api_mode"],
         }
-    if not endpoint["reachable"]:
-        return {"connected": False, "endpoint_reachable": False, "authenticated": False, "message": endpoint["reason"], "api_mode": llm_settings()["api_mode"]}
     try:
         response = complete_json(
             'Return only this JSON object: {"status":"ok","reply":"ready"}.',
             "Run the connection check.",
-            timeout_seconds=20,
-            max_output_tokens=80,
+            timeout_seconds=60 if native else 20,
+            max_output_tokens=256,
+            model_mode=model_mode,
         )
     except ModelRequestError as exc:
         return {
@@ -108,22 +117,21 @@ def test_model_connection():
             "endpoint_reachable": True,
             "authenticated": endpoint["authenticated"],
             "models_endpoint_supported": endpoint["reason"] is None,
-            "model_listed": llm_settings()["model"] in endpoint["models"] if endpoint["models"] else None,
-            "model": llm_settings()["model"],
+            "model_listed": model in endpoint["models"] if endpoint["models"] else None,
+            "model": model,
             "message": str(exc),
-            "api_mode": llm_settings()["api_mode"],
+            "api_mode": config["api_mode"],
             "latency_ms": round((time.perf_counter() - started) * 1000),
         }
     if response.get("status") != "ok":
         bad_request("模型已响应，但没有通过 JSON 连接检查", 502, "model_connection_invalid_response")
-    config = llm_settings()
     return {
         "connected": True,
         "endpoint_reachable": True,
         "authenticated": endpoint["authenticated"],
         "models_endpoint_supported": endpoint["reason"] is None,
-        "model_listed": config["model"] in endpoint["models"] if endpoint["models"] else None,
-        "model": config["model"],
+        "model_listed": model in endpoint["models"] if endpoint["models"] else None,
+        "model": model,
         "api_mode": config["api_mode"],
         "latency_ms": round((time.perf_counter() - started) * 1000),
     }

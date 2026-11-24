@@ -3,7 +3,7 @@ import urllib.request
 
 import pytest
 
-from apps.api.app import model_client
+from apps.api.app import local_codex, model_client, research_models, settings
 
 
 def market_tool():
@@ -23,6 +23,7 @@ def market_tool():
 
 
 def configure(monkeypatch, mode="responses"):
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
     monkeypatch.setattr(
         model_client,
         "llm_settings",
@@ -49,6 +50,36 @@ class Response:
 
     def read(self):
         return json.dumps(self.payload).encode("utf-8")
+
+
+def test_local_codex_keeps_tool_calls_in_the_application(tmp_path, monkeypatch):
+    config_file = tmp_path / "config.ini"
+    config_file.write_text("[app]\nmodel_backend = local_codex\n", encoding="utf-8")
+    monkeypatch.setenv("LLMR_CONFIG_FILE", str(config_file))
+    monkeypatch.setenv("LLMR_LLM_BASE_URL", "https://legacy.invalid")
+    monkeypatch.setenv("LLMR_LLM_API_KEY", "unused-legacy-key")
+    monkeypatch.setattr(research_models, "discover_local", lambda: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
+    config = settings.llm_settings()
+    assert config["base_url"] == config["api_key"] == ""
+
+    def complete(preset, instructions, prompt, *, schema, **kwargs):
+        assert preset.model_id == "gpt-6.2-sol"
+        assert preset.reasoning_effort == "max"
+        assert schema["properties"]["call"]["anyOf"][0]["properties"]["arguments"] == market_tool().parameters
+        if "function_call_output" in prompt:
+            assert "available_rows" in prompt
+            return json.dumps({"call": None, "text": "读取成功", "refusal": None}), {}
+        return json.dumps({"call": {"name": "query_market", "arguments": {"stock_code": "600000.SH", "limit": 5}},
+                           "text": None, "refusal": None}), {}
+
+    monkeypatch.setattr(local_codex, "complete", complete)
+    prompt = [{"role": "user", "content": "查询最近 5 根日线"}]
+    first = model_client.create_tool_turn("按需读取行情", prompt, [market_tool()], model_mode="deep")
+    assert first.calls[0].arguments == {"stock_code": "600000.SH", "limit": 5}
+    continuation = model_client.tool_output_items(first, {first.calls[0].call_id: {"available_rows": 5}})
+    final = model_client.create_tool_turn("按需读取行情", [*prompt, *first.continuation_items, *continuation],
+                                          [market_tool()], model_mode="deep")
+    assert final.text == "读取成功"
 
 
 def test_responses_tool_call_is_strict_and_preserves_continuation_items(monkeypatch):
@@ -86,6 +117,9 @@ def test_responses_tool_call_is_strict_and_preserves_continuation_items(monkeypa
     assert captured["timeout"] == 17
     assert captured["authorization"] == "Bearer private-test-key"
     assert captured["body"]["store"] is False
+    assert captured["body"]["model"] == "gpt-6.2-astra"
+    assert captured["body"]["reasoning"] == {"effort": "low"}
+    assert captured["body"]["service_tier"] == "priority"
     assert captured["body"]["parallel_tool_calls"] is False
     assert captured["body"]["tools"][0]["strict"] is True
     assert captured["body"]["tools"][0]["parameters"]["additionalProperties"] is False
@@ -152,6 +186,28 @@ def test_final_text_response_has_no_continuation_items(monkeypatch):
     assert turn.text == "没有符合条件的股票。"
     assert turn.calls == ()
     assert turn.continuation_items == ()
+
+
+@pytest.mark.parametrize("api_mode", ["responses", "chat_completions"])
+def test_deep_json_request_uses_fixed_sol_parameters(monkeypatch, api_mode):
+    configure(monkeypatch, api_mode)
+    captured = {}
+    result = '{"ok":true}'
+
+    def request(config, body, timeout):
+        captured.update(body)
+        if api_mode == "responses":
+            return {"output_text": result}
+        return {"choices": [{"message": {"content": result}}]}
+
+    monkeypatch.setattr(model_client, "_request_json_body", request)
+    assert model_client.complete_json("Return JSON.", "Check.", model_mode="deep") == {"ok": True}
+    assert captured["model"] == "gpt-6.2-sol"
+    assert captured["service_tier"] == "default"
+    if api_mode == "responses":
+        assert captured["reasoning"] == {"effort": "max"}
+    else:
+        assert captured["reasoning_effort"] == "max"
 
 
 def test_function_output_ids_and_values_are_checked_before_serialization(monkeypatch):

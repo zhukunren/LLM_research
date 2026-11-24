@@ -27,7 +27,7 @@ def diagnosis_client(tmp_path, monkeypatch):
     monkeypatch.setattr(research_models, "research_model_settings", lambda: {
         "account_tier": "paid", "allowed_models": [], "reasoning_efforts": {},
     })
-    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.1-sol"}, "verified"))
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
 
     def bars(code, as_of, limit):
         assert (code, as_of, limit) == ("600519.SH", "2026-11-19", 180)

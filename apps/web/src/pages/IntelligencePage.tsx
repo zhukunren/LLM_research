@@ -5,6 +5,8 @@ import { sessionStorage } from '../authStorage'
 import { trapDialogTab } from '../keyboard'
 import { useWorkspaceSession } from '../WorkspaceSession'
 import LoadingState from '../components/LoadingState'
+import ModelModeSwitch from '../components/ModelModeSwitch'
+import type { ModelMode } from '../modelSelection'
 import ConditionWorkspaceDrawer from '../components/ConditionWorkspaceDrawer'
 import { AdvisorSettings, AdvisorResult, EvidenceDimension } from '../components/AdvisorTask'
 import { ValidationResult } from '../components/ValidationResult'
@@ -104,6 +106,7 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
   const [industries, setIndustries] = useState(''), [cutoff, setCutoff] = useState('')
   const [busy, setBusy] = useState(false), [actionError, setActionError] = useState('')
   const [pending, setPending] = useState<BriefRequest | null>(() => pendingRequest(kind))
+  const [modelMode, setModelMode] = useState<ModelMode>(() => pending?.model_mode ?? 'instant')
   const [citation, setCitation] = useState<BriefCitation | null>(null)
   const [query, setQuery] = useState(''), [onlyChanges, setOnlyChanges] = useState(false)
   const [moreBusy, setMoreBusy] = useState(false)
@@ -189,7 +192,7 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
     if (!pending && !retryRun && parsedCutoff && (!Number.isFinite(parsedCutoff.valueOf()) || parsedCutoff > new Date())) {
       setActionError('请选择有效且不晚于当前时间的截止时间。'); return
     }
-    const request: BriefRequest = pending || { request_id: crypto.randomUUID(), kind, scope: inputScope,
+    const request: BriefRequest = pending || { request_id: crypto.randomUUID(), kind, scope: inputScope, model_mode: modelMode,
       cutoff_at: retryRun?.cutoff_at || parsedCutoff?.toISOString() || null, ...(retryRun ? { retry_of: retryRun.id } : {}) }
     persistPending(request); sending.current = true; setBusy(true); setActionError('')
     const attempt = generation.current
@@ -231,7 +234,9 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
   const nextScopeChanged = detail && scopeDirty && JSON.stringify({ ...scope, advisor: scope.advisor || null }) !== JSON.stringify({ ...detail.scope, advisor: detail.scope.advisor || null })
   return <div className="page-content intelligence-page workspace-tool-page">
     <header className="intelligence-heading"><div><span className="intelligence-eyebrow">情报台</span><h1>{name}</h1><p>{briefKinds.find(item => item.id === kind)!.description}</p></div>
-      <div className="intelligence-heading-actions"><button className="secondary-button workspace-button" onClick={() => { setCitation(null); setSidePanel('scope') }} aria-haspopup="dialog" aria-expanded={sidePanel === 'scope'}><Settings2 size={15} />{advisor ? '任务设置' : '范围设置'}</button><button className="secondary-button workspace-button" onClick={() => { setCitation(null); setSidePanel('history') }} aria-haspopup="dialog" aria-expanded={sidePanel === 'history'}><History size={15} />历史版本</button><button className="primary-button workspace-button" disabled={busy || !!pending || !catalog || !!active || !!ongoing} onClick={() => void submit()}><RefreshCw size={15} className={busy ? 'spin' : ''} />{busy ? '正在提交…' : active || ongoing ? '正在执行' : result ? '更新' + noun : '生成' + noun}</button></div>
+      <div className="intelligence-heading-actions"><button className="secondary-button workspace-button" onClick={() => { setCitation(null); setSidePanel('scope') }} aria-haspopup="dialog" aria-expanded={sidePanel === 'scope'}><Settings2 size={15} />{advisor ? '任务设置' : '范围设置'}</button><button className="secondary-button workspace-button" onClick={() => { setCitation(null); setSidePanel('history') }} aria-haspopup="dialog" aria-expanded={sidePanel === 'history'}><History size={15} />历史版本</button>
+        {sidePanel !== 'scope' && <ModelModeSwitch value={modelMode} disabled={busy || !!pending || !!active || !!ongoing} onChange={setModelMode} />}
+        <button className="primary-button workspace-button" disabled={busy || !!pending || !catalog || !!active || !!ongoing} onClick={() => void submit()}><RefreshCw size={15} className={busy ? 'spin' : ''} />{busy ? '正在提交…' : active || ongoing ? '正在执行' : result ? '更新' + noun : '生成' + noun}</button></div>
     </header>
     <nav ref={kindTabs} className="intelligence-kind-tabs" aria-label="情报类型">{briefKinds.map(item => <button key={item.id} className="workspace-button" aria-current={kind === item.id ? 'page' : undefined} onClick={() => { if (kind !== item.id) onLocation(item.id) }}>{item.name}</button>)}</nav>
     {(nextScopeChanged || cutoff || !detail || pending) && <div className="intelligence-scope-summary"><span><Settings2 size={14} />下次生成：{briefScopeLabel(scope)}</span><span>{cutoff ? `截止 ${cutoff.replace('T', ' ')}（北京时间）` : '截止提交时刻'} · 最多 {scope.max_items} 项</span></div>}
@@ -269,7 +274,7 @@ export default function IntelligencePage({ kind = 'market', runId, onLocation, o
       </>}
     </section>}
     {catalog && !selected && <section className="intelligence-intro"><div><FileSearch size={27} /><h2>{advisor ? '从工作场景开始，形成有依据的投顾稿件' : '从确认范围开始，交付一份有证据的简报'}</h2><p>{advisor ? '固定股票或复盘日期，核对真实资料，形成研判、行动条件与可复制的沟通稿。每个版本保留原文与输入。' : '每项事件包含事实、影响分析、排序依据和原文摘录。每次运行固定截止时间，形成可回看的独立版本。'}</p></div><ol><li><span>01</span>选择市场与时间范围</li><li><span>02</span>查找来源并核对原文</li><li><span>03</span>查看成果、证据与版本变化</li></ol></section>}
-    {sidePanel && session.active && <ConditionWorkspaceDrawer title={sidePanel === 'history' ? '历史版本' : advisor ? '任务设置' : '范围设置'} description={sidePanel === 'history' ? `${name} · 查看已保存的成果与原文` : `${name} · 下次生成使用的范围，提交后固定保存`} closeLabel={sidePanel === 'history' ? '关闭历史版本' : '关闭范围设置'} className="intelligence-settings-drawer" onClose={() => setSidePanel(null)} footer={sidePanel === 'scope' ? <><p>范围在提交时固定，可靠资料不足时按实际数量交付。</p><div><button type="button" className="secondary-button workspace-button" onClick={() => setSidePanel(null)}>返回成果</button><button type="submit" form={scopeFormId} className="primary-button workspace-button" disabled={busy || !!pending || !catalog || !!active || !!ongoing}>{advisor ? '按此设置生成' : '按此范围生成'}<ArrowRight size={15} /></button></div></> : undefined}>
+    {sidePanel && session.active && <ConditionWorkspaceDrawer title={sidePanel === 'history' ? '历史版本' : advisor ? '任务设置' : '范围设置'} description={sidePanel === 'history' ? `${name} · 查看已保存的成果与原文` : `${name} · 下次生成使用的范围，提交后固定保存`} closeLabel={sidePanel === 'history' ? '关闭历史版本' : '关闭范围设置'} className="intelligence-settings-drawer" onClose={() => setSidePanel(null)} footer={sidePanel === 'scope' ? <><p>范围在提交时固定，可靠资料不足时按实际数量交付。</p><div><ModelModeSwitch value={modelMode} disabled={busy || !!pending || !!active || !!ongoing} onChange={setModelMode} /><button type="button" className="secondary-button workspace-button" onClick={() => setSidePanel(null)}>返回成果</button><button type="submit" form={scopeFormId} className="primary-button workspace-button" disabled={busy || !!pending || !catalog || !!active || !!ongoing}>{advisor ? '按此设置生成' : '按此范围生成'}<ArrowRight size={15} /></button></div></> : undefined}>
       {sidePanel === 'scope' ? <>
     <form id={scopeFormId} className="intelligence-scope-form" aria-label="情报范围设置" onSubmit={event => { event.preventDefault(); void submit() }}>
       {advisor && <AdvisorSettings kind={kind} scope={scope} disabled={busy || !!pending} onChange={changeAdvisor} />}

@@ -14,7 +14,7 @@ ADMIN_PATHS = {"/api/v1/documents/import-local", "/api/v1/documents/catalog", "/
 READ_ONLY_POSTS = {
     "/api/v1/documents/search", "/api/v1/daily-signals/market", "/api/v1/client-service/preview",
     "/api/v1/client-service/rebalance-suggestions/preview", "/api/v1/client-service/opening-plans/preview",
-    "/api/v1/client-service/robots/review",
+    "/api/v1/client-service/robots/review", "/api/v1/client-service/celebrations",
 }
 RESOURCE_PARAMETERS = {
     "conversation_id": (("conversations", "id"),), "turn_id": (("conversation_turns", "id"),),

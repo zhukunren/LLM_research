@@ -1,3 +1,4 @@
+import { modelCatalog } from '../../test/modelCatalog'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
@@ -37,8 +38,7 @@ function backend({ catalogFailure = false, loseMessage = false, unavailableModel
       catalogCalls++
       return catalogFailure && catalogCalls === 1 ? json({ message: '读取目录失败' }, 503) : json({ items: securities })
     }
-    if (path === '/research-models') return json({ account_tier: 'free', default_model_id: 'model', default_reasoning_effort: 'high', discovery_status: 'verified',
-      models: [{ id: 'model', label: '模型', available: !unavailableModel, default_reasoning_effort: 'high', reasoning_efforts: [{ id: 'high', label: '深入' }] }] })
+    if (path === '/research-models') return json(modelCatalog(unavailableModel ? 'instant' : undefined))
     if (path === '/conversations' && method === 'GET') return json({ items: stored ? [stored] : [] })
     if (path === '/conversations' && method === 'POST') {
       stored = { id: 'company-chat', task_id: 'company-chat', entry_scope: 'screening', workflow_type: 'research',

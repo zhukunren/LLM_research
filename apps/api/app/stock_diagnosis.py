@@ -13,6 +13,7 @@ from .client_service import error, now
 from .client_service_disclosure import FIXED_DISCLOSURE
 from .codex_store import web_evidence
 from .db import connect, json_dump, json_load
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS
 from .screening_contracts import ResearchScope
 from .trade_explanations import technical_snapshot
 
@@ -120,7 +121,11 @@ def start(payload: DiagnosisRequest) -> dict:
             connection.execute("BEGIN IMMEDIATE")
             row = _find(connection, payload.request_id)
             if row is None:
-                conversation = conversation_store.create_conversation("news", workflow_type="research", _connection=connection)
+                try:
+                    conversation = conversation_store.create_conversation(
+                        "news", workflow_type="research", _connection=connection, **MODEL_PRESETS[DEFAULT_MODEL_MODE].selection())
+                except conversation_store.ConversationStoreError as exc:
+                    error(503, str(exc))
                 conversation_id = conversation["id"]
                 scope = ResearchScope(as_of=cutoff.date()).model_dump(mode="json")
                 connection.execute(

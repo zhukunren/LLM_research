@@ -38,12 +38,11 @@ def quote(code,price,previous,observed,provider,url,raw,change=None):
             'observed_at':observed.isoformat(),'source_url':url,'provider':provider,'raw':raw}
 
 
-def eligible(item,cutoff,*,live=False,preopen=False):
+def eligible(item,cutoff,*,preopen=False):
     if not item:return False
     try:observed=datetime.fromisoformat(item['observed_at']).astimezone(TZ)
     except (ValueError,TypeError):return False
-    upper=datetime.now(TZ) if live else cutoff
-    if observed>upper+timedelta(seconds=2):return False
+    if observed>cutoff:return False
     if preopen:return cutoff.date()-timedelta(days=10)<=observed.date()<cutoff.date()
     return observed.date()==cutoff.date()
 
@@ -144,14 +143,14 @@ def akshare_quotes(cutoff,references,*,preopen=False):
     return values
 
 
-def collect(cutoff,*,live=False):
-    cutoff=datetime.fromisoformat(cutoff) if isinstance(cutoff,str) else cutoff
+def collect(cutoff):
+    cutoff=(datetime.fromisoformat(cutoff) if isinstance(cutoff,str) else cutoff).astimezone(TZ)
     preopen=(cutoff.hour,cutoff.minute)<(9,30)
     found={};attempts=[];references={}
     def accept(values):
         for item in values:
-            if eligible(item,cutoff,live=live,preopen=preopen):found.setdefault(item['code'],item)
-    try:accept(tushare_quotes(cutoff,live=live and not preopen,preopen=preopen));attempts.append({'provider':'Tushare','state':'complete' if len(found)==3 else 'empty'})
+            if eligible(item,cutoff,preopen=preopen):found.setdefault(item['code'],item)
+    try:accept(tushare_quotes(cutoff,preopen=preopen));attempts.append({'provider':'Tushare','state':'complete' if len(found)==3 else 'empty'})
     except Exception as exc:attempts.append({'provider':'Tushare','state':'unavailable','reason':type(exc).__name__})
     if len(found)<3:
         try:
@@ -166,9 +165,8 @@ def collect(cutoff,*,live=False):
     if len(found)<3:
         try:accept(akshare_quotes(cutoff,references,preopen=preopen));attempts.append({'provider':'AkShare','state':'complete' if len(found)==3 else 'partial'})
         except Exception as exc:attempts.append({'provider':'AkShare','state':'unavailable','reason':type(exc).__name__})
-    final_cutoff=datetime.now(TZ) if live else cutoff
     metrics=[found[code] for code in INDEXES if code in found]
-    return {'cutoff':final_cutoff.isoformat(),'metrics':metrics,'sources':[{'title':item['provider'],'url':item['source_url'],'published_at':None} for item in metrics],
+    return {'cutoff':cutoff.isoformat(),'metrics':metrics,'sources':[{'title':item['provider'],'url':item['source_url'],'published_at':None} for item in metrics],
             'missing':[INDEXES[code][0] for code in INDEXES if code not in found], 'attempts':attempts}
 
 
@@ -178,16 +176,12 @@ def read(conversation_id,turn_id):
 
 
 def prepare(conversation_id,turn_id):
-    with connect() as c:card=c.execute('SELECT * FROM client_service_cards WHERE conversation_id=? AND turn_id=?',(conversation_id,turn_id)).fetchone()
+    with connect() as c:card=c.execute('SELECT cutoff FROM client_service_cards WHERE conversation_id=? AND turn_id=?',(conversation_id,turn_id)).fetchone()
     if not card:return None
     previous=read(conversation_id,turn_id)
     if previous:return previous
-    live=card['slot_id'].startswith('live-')
-    snapshot=collect(card['cutoff'],live=live)
+    snapshot=collect(card['cutoff'])
     snapshot['sha256']=hashlib.sha256(json_dump(snapshot).encode()).hexdigest()
     with connect() as c:
-        inserted=c.execute('INSERT OR IGNORE INTO client_service_market_snapshots VALUES(?,?,?,?,?)',(turn_id,conversation_id,snapshot['cutoff'],json_dump(snapshot),utc_now())).rowcount
-        if live and inserted:
-            template=json_load(card['template_json']);template['time']=datetime.fromisoformat(snapshot['cutoff']).strftime('%H:%M')
-            c.execute('UPDATE client_service_cards SET cutoff=?,template_json=? WHERE id=? AND turn_id=?',(snapshot['cutoff'],json_dump(template),card['id'],turn_id))
+        c.execute('INSERT OR IGNORE INTO client_service_market_snapshots VALUES(?,?,?,?,?)',(turn_id,conversation_id,snapshot['cutoff'],json_dump(snapshot),utc_now()))
     return read(conversation_id,turn_id)

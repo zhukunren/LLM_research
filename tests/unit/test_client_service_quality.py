@@ -1,7 +1,8 @@
 from copy import deepcopy
+from pathlib import Path
 import pytest
 
-from apps.api.app.client_service_quality import compact_metrics, layout_checks
+from apps.api.app.client_service_quality import compact_metrics, layout_checks, observation_span
 
 
 def metric(label,value,**extra):
@@ -67,7 +68,36 @@ def test_density_checks_use_actual_chinese_text_width_and_require_explicit_direc
 def test_renderer_keeps_times_dates_and_closing_punctuation_together():
     from apps.api.app.client_service_images import _lines, _font
     font=_font(24)
-    for text,atom in [('信息截至14:05:22，仍待核实。','14:05:22'),('来源日期为2026年11月16日12时。','2026年11月16日12时')]:
+    for text,atom in [('信息截至14:05:22，仍待核实。','14:05:22'),('来源日期为2026年11月16日12时。','2026年11月16日12时'),
+                      ('午间成交较上一交易日同期增加606亿元，行情仍在变化。','606亿元')]:
         lines=_lines(text,font,300)
         assert ''.join(lines)==text and any(atom in line for line in lines)
         assert not any(line.startswith(('，','。','；')) for line in lines)
+
+
+def test_observation_span_keeps_both_dates_for_mixed_day_quotes():
+    market = {'metrics': [metric('上证指数', '3600点'), metric('上涨家数', '2000家', observed_at='2026-11-17T09:30:00+08:00')]}
+    assert observation_span(market) == '11-16 10:30–11-17 09:30'
+
+
+def test_compact_snapshot_keeps_horizon_once_and_shortens_breadth_counts():
+    original = [metric('半日成交额', '9164亿元（半日）'), metric('沪深涨跌家数', '1575只上涨，3557只下跌')]
+    result = compact_metrics({'format_version': 3, 'raw_metrics': original})
+    assert result['raw_metrics'] == original
+    assert [item['value'] for item in result['metrics']] == ['9164亿元', '涨1575 / 跌3557']
+
+
+def test_card_font_uses_simplified_chinese_face_in_noto_collection(monkeypatch):
+    from PIL import ImageFont
+    from apps.api.app.client_service_images import _font
+
+    path = Path('/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc')
+    if not path.is_file():
+        pytest.skip('Noto CJK collection unavailable')
+    monkeypatch.setenv('LLMR_CLIENT_CARD_FONT', str(path))
+    _font.cache_clear()
+    font = _font(62, True)
+    _font.cache_clear()
+    assert font.getname()[0] == 'Noto Sans CJK SC'
+    old_font = ImageFont.truetype(path, 62)
+    assert bytes(font.getmask('复')) != bytes(old_font.getmask('复'))

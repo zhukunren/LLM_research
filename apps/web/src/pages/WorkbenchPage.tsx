@@ -1,6 +1,8 @@
 import SavedScreeningPlans from './SavedScreeningPlans'
 import type { ScreeningFormMethod, ScreeningMethod } from '../screeningMethods'
 import LoadingState from '../components/LoadingState'
+import ModelModeSwitch from '../components/ModelModeSwitch'
+import type { ModelMode } from '../modelSelection'
 import { StockText } from '../components/StockMentions'
 import { localStorage } from '../authStorage'
 import ConversationRunView from '../components/ConversationRunView'
@@ -152,6 +154,7 @@ export default function WorkbenchPage({ handoff, onResearchResult, fixedRulesOpe
   const [historyChart, setHistoryChart] = useState('')
   const [resultError, setResultError] = useState('')
   const [busy, setBusy] = useState('')
+  const [modelMode, setModelMode] = useState<ModelMode>('instant')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [resultLoading, setResultLoading] = useState(false)
@@ -272,6 +275,7 @@ export default function WorkbenchPage({ handoff, onResearchResult, fixedRulesOpe
     ...filters.map(filter => ({ key: `filter:${filter.id}@${filter.version}`, label: `${filter.name} · v${filter.version}`, filter })),
     ...patterns.map(pattern => ({ key: `pattern:${pattern.id}@${pattern.version}`, label: `${pattern.name} · v${pattern.version} · 形态`, pattern })),
   ], [filters, patterns])
+  const compositionUsesModel = catalog.some(asset => compositionKeys.has(asset.key) && asset.filter?.expression.evaluation_mode === 'question')
   const ready = draft?.status === 'ready' && prompt.trim() === draft.prompt
   const filtered = latest.filter(item => (library === 'all' || item.library === library) && `${item.name} ${item.description} ${item.contract?.summary ?? ''} ${item.provenance?.prompt ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a, b) => conditionSort === 'name' ? a.name.localeCompare(b.name, 'zh-CN') : b.created_at.localeCompare(a.created_at))
@@ -331,7 +335,7 @@ export default function WorkbenchPage({ handoff, onResearchResult, fixedRulesOpe
   }
   async function generate() {
     await action('generate', async () => {
-      const next = await api<Draft>('/condition-drafts', { method: 'POST', body: JSON.stringify({ prompt, previous_draft_id: conditionTools && creationOpen && draft?.conditions.some(item => item.library !== 'technical') ? undefined : draft?.id, library: conditionTools && creationOpen ? 'technical' : scope, source_document_id: conditionTools && creationOpen ? undefined : sourceDocument?.source_document_id, source_page: conditionTools && creationOpen ? undefined : sourceDocument?.source_page, start_date: scope === 'news' ? newsStart || undefined : undefined, end_date: scope === 'news' ? newsEnd || undefined : undefined }) })
+      const next = await api<Draft>('/condition-drafts', { method: 'POST', body: JSON.stringify({ prompt, model_mode: modelMode, previous_draft_id: conditionTools && creationOpen && draft?.conditions.some(item => item.library !== 'technical') ? undefined : draft?.id, library: conditionTools && creationOpen ? 'technical' : scope, source_document_id: conditionTools && creationOpen ? undefined : sourceDocument?.source_document_id, source_page: conditionTools && creationOpen ? undefined : sourceDocument?.source_page, start_date: scope === 'news' ? newsStart || undefined : undefined, end_date: scope === 'news' ? newsEnd || undefined : undefined }) })
       shouldScroll.current = true; setDraft(next); setDraftId(next.id); setEdits({}); setPreview(null); await refresh()
     })
   }
@@ -443,7 +447,8 @@ export default function WorkbenchPage({ handoff, onResearchResult, fixedRulesOpe
       setNotice(`“${saved.name}”第 ${saved.version} 版已保存。`)
       if(execute) {
         try {
-          const runBody = { strategy_id: saved.id, strategy_version: saved.version, as_of: asOf, mode: 'exploratory', watchlist_id: poolId || undefined }
+          const runBody = { strategy_id: saved.id, strategy_version: saved.version, as_of: asOf, mode: 'exploratory', watchlist_id: poolId || undefined,
+            ...(compositionUsesModel ? { model_mode: modelMode } : {}) }
           const runKey = 'run:' + JSON.stringify(runBody)
           const next = await api<{ id: string }>('/screening-runs', { method: 'POST', body: JSON.stringify({ ...runBody, request_id: submissionRequest(runKey) }) })
           try {
@@ -487,7 +492,7 @@ export default function WorkbenchPage({ handoff, onResearchResult, fixedRulesOpe
 
         {sourceDocument?.source_document_id && <div className="source-context"><strong>来源：{sourceDocument.title} · 第 {sourceDocument.source_page} 页</strong><div className="source-context-actions"><button className="text-button workspace-button" disabled={!!busy} onClick={() => { setSourceDocument(null); setDraft(null); setDraftId('') }}>清除来源</button>{scope === 'report' && sourceDocument.source_page && <button className="secondary-button compact workspace-button" disabled={!!busy} onClick={() => onConversation?.(scope, { reference: { kind: 'report_page', source_id: sourceDocument.source_document_id!, page_number: sourceDocument.source_page }, label: `${sourceDocument.title} · 第 ${sourceDocument.source_page} 页` })}><MessageCircle size={14} />在对话中讨论此页</button>}</div></div>}<label className="sr-only" htmlFor="stock-intent">选股条件描述</label><textarea id="stock-intent" className="intent-textarea workspace-field" value={prompt} disabled={!!busy} maxLength={4000} aria-keyshortcuts="Control+Enter Meta+Enter" onChange={e => { setPrompt(e.target.value); setPreview(null) }} onKeyDown={onIntentKeyDown} />
         {scope === 'news' && <div className="news-match-dates"><label className="workspace-field-label">开始日期<input aria-label="匹配资讯开始日期" type="date" value={newsStart} max={newsEnd || undefined} disabled={!!busy} onInput={event => setNewsStart(event.currentTarget.value)} onChange={event => setNewsStart(event.target.value)} className="workspace-field" /></label><label className="workspace-field-label">结束日期<input aria-label="匹配资讯结束日期" type="date" value={newsEnd} min={newsStart || undefined} disabled={!!busy} onInput={event => setNewsEnd(event.currentTarget.value)} onChange={event => setNewsEnd(event.target.value)} className="workspace-field" /></label></div>}
-        <div className="prompt-bottom"><span>{prompt.length}/4000</span><button className="primary-button workspace-button" disabled={!!busy || !prompt.trim() || (scope === 'news' && (!newsStart || !newsEnd || newsStart > newsEnd))} onClick={generate}><Sparkles size={16} />{busy === 'generate' ? (scope === 'news' ? '正在匹配资讯…' : '正在理解完整描述…') : scope === 'news' ? '匹配资讯' : draft && prompt.trim() !== draft.prompt ? '按补充后的描述重新生成' : '生成条件'}</button></div>
+        <div className="prompt-bottom"><span>{prompt.length}/4000</span><ModelModeSwitch value={modelMode} disabled={!!busy} onChange={setModelMode} /><button className="primary-button workspace-button" disabled={!!busy || !prompt.trim() || (scope === 'news' && (!newsStart || !newsEnd || newsStart > newsEnd))} onClick={generate}><Sparkles size={16} />{busy === 'generate' ? (scope === 'news' ? '正在匹配资讯…' : '正在理解完整描述…') : scope === 'news' ? '匹配资讯' : draft && prompt.trim() !== draft.prompt ? '按补充后的描述重新生成' : '生成条件'}</button></div>
 
         {!draft && (workflowOnly ? <div className="condition-starter-examples"><div>{[
           { title: '趋势向上', text: '价格与短期涨幅', icon: TrendingUp, prompt: '收盘价高于20日均线，且近5个交易日涨幅超过3%' },
@@ -626,6 +631,7 @@ export default function WorkbenchPage({ handoff, onResearchResult, fixedRulesOpe
           </fieldset>
           </div>
           <div className="compose-execution-actions">
+            {compositionUsesModel && <ModelModeSwitch value={modelMode} disabled={!!busy} onChange={setModelMode} />}
             <button type="button" className="text-button composition-ranking-launch workspace-button" disabled={!!busy || !catalogLoaded || !countRefs(tree)} onClick={() => setRankingTree(tree)}><ListOrdered size={15} />排序设置</button>
             <button className="secondary-button workspace-button" disabled={!!busy || !catalogLoaded || !!saveIssues.length || !!currentSaved} onClick={() => saveStrategy(false)}><Save size={15} />{busy === 'strategy' ? '保存中…' : '保存组合'}</button>
             <button className="primary-button run-button workspace-button" disabled={!catalogLoaded || !!busy || !!runIssues.length} onClick={() => saveStrategy(true)}><Play size={16} />{busy === 'run' ? '正在提交…' : '开始筛选'}</button>

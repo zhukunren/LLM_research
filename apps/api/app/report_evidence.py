@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from .model_client import ModelRequestError, complete_json
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode
 from .settings import llm_settings
 
 
@@ -31,9 +32,9 @@ class EvidenceServiceError(RuntimeError):
     pass
 
 
-def model_name() -> str:
+def model_name(model_mode: ModelMode = DEFAULT_MODEL_MODE) -> str:
     config = llm_settings()
-    return str(config["model"]) if config["configured"] else "unconfigured"
+    return MODEL_PRESETS[model_mode].model_id if config["configured"] else "unconfigured"
 
 
 def normalize_quote(value: str) -> str:
@@ -73,7 +74,7 @@ def _validate_security_candidates(candidate: dict[str, Any], included_pages: dic
     return output
 
 
-def _completion(criteria: list[dict[str, Any]], pages: list[dict[str, Any]]) -> dict[str, Any]:
+def _completion(criteria: list[dict[str, Any]], pages: list[dict[str, Any]], *, model_mode: ModelMode) -> dict[str, Any]:
     config = llm_settings()
     if not config["configured"]:
         raise EvidenceServiceError("未配置文本模型；可保存并编辑判断口径，但不能执行语义评估")
@@ -81,7 +82,7 @@ def _completion(criteria: list[dict[str, Any]], pages: list[dict[str, Any]]) -> 
         result = complete_json(
             SYSTEM_PROMPT,
             json.dumps({"criteria": criteria, "pages": pages}, ensure_ascii=False),
-            max_output_tokens=7000,
+            max_output_tokens=7000, model_mode=model_mode,
         )
     except ModelRequestError as exc:
         raise EvidenceServiceError(str(exc)) from exc
@@ -94,6 +95,8 @@ def evaluate_report(
     criteria: list[dict[str, Any]],
     combine: str,
     source_pages: list[dict[str, Any]],
+    *,
+    model_mode: ModelMode = DEFAULT_MODEL_MODE,
 ) -> dict[str, Any]:
     page_texts = [page for page in source_pages if isinstance(page.get("text"), str) and page["text"].strip()]
     input_pages: list[dict[str, Any]] = []
@@ -113,7 +116,7 @@ def evaluate_report(
         remaining -= len(text)
     included_pages = {page["page"]: page["text"] for page in input_pages}
     coverage_complete = not truncated and len(input_pages) == len(source_pages) and len(page_texts) == len(source_pages)
-    candidate = _completion(criteria, input_pages)
+    candidate = _completion(criteria, input_pages, model_mode=model_mode)
     security_candidates = _validate_security_candidates(candidate, included_pages)
     issuer_candidates = [item for item in security_candidates if item["role"] == "issuer"]
     issuer_codes = {item["canonical_code"] for item in issuer_candidates}

@@ -15,6 +15,6 @@ def with_fixed_disclosure(content: dict) -> dict:
 
 def disclosure_lines() -> list[str]:
     return [f'{label}：{FIXED_DISCLOSURE[key]}' for key, label in (
-        ('risk', '风险提示'), ('adviser', '投顾顾问'),
+        ('risk', '风险提示'), ('adviser', '投资顾问'),
         ('license', '投顾执业编码'), ('institution', '执业机构'),
     )]

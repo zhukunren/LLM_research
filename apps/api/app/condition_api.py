@@ -9,6 +9,7 @@ from pydantic import Field, field_validator
 
 from . import market, news_library, news_sources
 from .model_client import ModelRequestError
+from .model_modes import DEFAULT_MODEL_MODE, ModelMode
 from .condition_contract import describe_filter, filter_object
 from .condition_language import compile_plan
 from .db import connect, json_dump, json_load, utc_now
@@ -26,6 +27,7 @@ class DraftRequest(StrictModel):
     source_page: int | None = Field(default=None, ge=1)
     start_date: date | None = None
     end_date: date | None = None
+    model_mode: ModelMode = DEFAULT_MODEL_MODE
 
     @field_validator("prompt")
     @classmethod
@@ -92,7 +94,7 @@ def create_draft(payload: DraftRequest):
     news_matches = None
     if payload.library == "news" and (payload.start_date or payload.end_date):
         try:
-            news_matches = news_library.match_news(payload.prompt, payload.start_date, payload.end_date)
+            news_matches = news_library.match_news(payload.prompt, payload.start_date, payload.end_date, model_mode=payload.model_mode)
         except news_sources.NewsError as exc:
             fail(str(exc), exc.status)
         except ModelRequestError as exc:
@@ -102,7 +104,7 @@ def create_draft(payload: DraftRequest):
                 "assumptions": [], "status": "matched", "source": "configured_llm",
                 "model": None, "compiler_version": "news-date-match-v1"}
     else:
-        plan = compile_plan(payload.prompt, payload.library)
+        plan = compile_plan(payload.prompt, payload.library, model_mode=payload.model_mode)
     plan["library_context"] = payload.library
     plan["source_document"] = source_document or (previous.get("source_document") if previous else None)
     plan["previous_draft_id"] = payload.previous_draft_id

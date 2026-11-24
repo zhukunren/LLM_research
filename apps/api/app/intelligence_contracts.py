@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from .models import StrictModel
+from .model_modes import ModelMode
 from .advisor_contracts import AdvisorScope, AdvisorReport, STOCK_KINDS, ADVISOR_KINDS
 
 BriefKind = Literal["market", "policy", "industry", "closing", "stock-analysis", "stock-rationale"]
@@ -60,6 +61,7 @@ class StartBrief(StrictModel):
     scope: BriefScope = Field(default_factory=BriefScope)
     cutoff_at: datetime | None = None
     retry_of: str | None = Field(default=None, max_length=100)
+    model_mode: ModelMode | None = None
 
     @model_validator(mode="after")
     def task_inputs(self):

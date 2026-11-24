@@ -5,10 +5,14 @@ import re
 import time
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from typing import Sequence
 from typing import Any
 
+from . import local_codex
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode
+from .research_models import ResearchModelError, discover_local, resolve_selection
 from .settings import llm_settings, research_settings
 
 
@@ -152,6 +156,10 @@ def probe_models(timeout_seconds: int = 12) -> dict[str, Any]:
     config = llm_settings()
     if not config["configured"]:
         return {"reachable": False, "authenticated": False, "models": [], "reason": "model_not_configured"}
+    if config.get("backend") == "local_codex":
+        models, state = discover_local(timeout_seconds)
+        return {"reachable": state != "unreachable", "authenticated": state == "verified", "models": sorted(models),
+                "reason": None if state == "verified" else state}
     request = urllib.request.Request(
         str(config['base_url']).rstrip('/') + ('/models' if str(config['base_url']).rstrip('/').endswith('/v1') else '/v1/models'),
         headers={"Authorization": f"Bearer {config['api_key']}", "Accept": "application/json"},
@@ -234,6 +242,79 @@ def _request_json_body(config: dict[str, Any], body: dict[str, Any], timeout_sec
     return payload
 
 
+def _object_schema(properties: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    return {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False, **extra}
+
+
+def _request_model(config: dict, body: dict, timeout_seconds: int, model_mode: ModelMode) -> dict[str, Any]:
+    if config.get("backend") != "local_codex":
+        return _request_json_body(config, body, timeout_seconds)
+
+    instructions, prompt = body["instructions"], body["input"]
+    definitions = body.get("tools", [])
+    schema = None
+    if definitions:
+        calls = [
+            _object_schema({"name": {"type": "string", "enum": [tool["name"]]}, "arguments": tool["parameters"]},
+                           description=tool["description"])
+            for tool in definitions
+        ]
+        schema = _object_schema({
+            "call": {"anyOf": [*calls, {"type": "null"}]},
+            "text": {"type": ["string", "null"]},
+            "refusal": {"type": ["string", "null"]},
+        })
+        instructions += (
+            "\n\nReturn a single step using the provided output schema. To ask the application to call a function, "
+            "fill call with its name and arguments and set text and refusal to null. "
+            "When replies from functions appear in the conversation, use them as data and continue the task. "
+            "For the final answer or a refusal, set call to null and fill text or refusal respectively."
+        )
+    if isinstance(prompt, list):
+        prompt = "Conversation and completed function results in order:\n" + json.dumps(prompt, ensure_ascii=False)
+    try:
+        answer, usage = local_codex.complete(MODEL_PRESETS[model_mode], instructions, prompt, schema=schema,
+                                             max_output_tokens=body["max_output_tokens"], timeout_seconds=timeout_seconds)
+    except local_codex.LocalCodexError as exc:
+        raise ModelRequestError(str(exc)) from exc
+    if not definitions:
+        return {"output_text": answer, "usage": usage}
+
+    try:
+        data = json.loads(answer)
+        call, reply, refusal = data["call"], data["text"], data["refusal"]
+    except (ValueError, TypeError, KeyError):
+        raise ModelRequestError("本机 Codex 返回的工具步骤无效") from None
+    output = []
+    if call is not None:
+        if (not isinstance(call, dict) or not isinstance(call.get("arguments"), dict)
+                or call.get("name") not in [tool["name"] for tool in definitions]):
+            raise ModelRequestError("本机 Codex 返回了无效的工具调用")
+        output.append({"type": "function_call", "call_id": f"call_{uuid.uuid4().hex}", "name": call["name"],
+                       "arguments": json.dumps(call["arguments"], ensure_ascii=False), "status": "completed"})
+    content = []
+    if isinstance(reply, str) and reply:
+        content.append({"type": "output_text", "text": reply})
+    if isinstance(refusal, str) and refusal:
+        content.append({"type": "refusal", "refusal": refusal})
+    if content:
+        output.append({"type": "message", "role": "assistant", "content": content})
+    return {"status": "completed", "output": output, "usage": usage}
+
+
+def _model_request_fields(config: dict, model_mode: ModelMode) -> dict[str, Any]:
+    if not config["configured"]:
+        raise ModelRequestError("文本模型未配置")
+    preset = MODEL_PRESETS[model_mode]
+    try:
+        resolve_selection(**preset.selection(), settings=config)
+    except ResearchModelError as exc:
+        raise ModelRequestError(str(exc)) from exc
+    effort = ({"reasoning": {"effort": preset.reasoning_effort}} if config["api_mode"] == "responses"
+              else {"reasoning_effort": preset.reasoning_effort})
+    return {"model": preset.model_id, "service_tier": preset.service_tier, **effort}
+
+
 def complete_json(
     instructions: str,
     user_content: str,
@@ -241,14 +322,14 @@ def complete_json(
     timeout_seconds: int | None = None,
     max_output_tokens: int = 4000,
     usage_sink: dict | None = None,
+    model_mode: ModelMode = DEFAULT_MODEL_MODE,
 ) -> dict[str, Any]:
     config = llm_settings()
-    if not config["configured"]:
-        raise ModelRequestError("文本模型未配置")
+    model_fields = _model_request_fields(config, model_mode)
     mode = str(config["api_mode"])
     if mode == "responses":
         body = {
-            "model": config["model"],
+            **model_fields,
             "instructions": instructions,
             "input": f"{user_content}\n\nReturn the response as JSON only.",
             "text": {"format": {"type": "json_object"}},
@@ -257,8 +338,7 @@ def complete_json(
         }
     elif mode == "chat_completions":
         body = {
-            "model": config["model"],
-            "temperature": 0,
+            **model_fields,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": instructions},
@@ -267,7 +347,8 @@ def complete_json(
         }
     else:
         raise ModelRequestError(f"不支持的模型接口模式：{mode}")
-    payload = _request_json_body(config, body, timeout_seconds if timeout_seconds is not None else research_settings()["model_request_timeout_seconds"])
+    timeout = timeout_seconds if timeout_seconds is not None else research_settings()["model_request_timeout_seconds"]
+    payload = _request_model(config, body, timeout, model_mode)
     try:
         result = json.loads(_extract_json_text(payload, mode))
     except (TimeoutError, KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
@@ -276,7 +357,7 @@ def complete_json(
         raise ModelRequestError("模型输出的 JSON 根节点不是对象")
     if usage_sink is not None:
         usage = payload.get("usage")
-        usage_sink.update({"model": config["model"], "tokens": {key: value for key, value in (usage.items() if isinstance(usage, dict) else [])
+        usage_sink.update({"model": model_fields["model"], "tokens": {key: value for key, value in (usage.items() if isinstance(usage, dict) else [])
             if key in {"input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens"} and type(value) is int and value >= 0}})
     return result
 
@@ -378,16 +459,16 @@ def create_tool_turn(
     *,
     timeout_seconds: int | None = None,
     max_output_tokens: int = 4000,
+    model_mode: ModelMode = DEFAULT_MODEL_MODE,
 ) -> ToolTurn:
     """Request one model turn; tool calls remain inert until a server dispatcher validates them."""
     config = llm_settings()
-    if not config["configured"]:
-        raise ModelRequestError("文本模型未配置")
-    mode = str(config["api_mode"])
+    mode = str(config.get("api_mode", ""))
     definitions = _tool_definitions(tools, mode)
+    model_fields = _model_request_fields(config, model_mode)
     if mode == "responses":
         body = {
-            "model": config["model"],
+            **model_fields,
             "instructions": instructions,
             "input": _responses_input(conversation),
             "tools": definitions,
@@ -398,7 +479,7 @@ def create_tool_turn(
         }
     elif mode == "chat_completions":
         body = {
-            "model": config["model"],
+            **model_fields,
             "messages": _chat_messages(instructions, conversation),
             "tools": definitions,
             "tool_choice": "auto",
@@ -408,7 +489,8 @@ def create_tool_turn(
     else:
         raise ModelRequestError(f"不支持工具调用的模型接口模式：{mode}")
 
-    payload = _request_json_body(config, body, timeout_seconds if timeout_seconds is not None else research_settings()["model_request_timeout_seconds"])
+    timeout = timeout_seconds if timeout_seconds is not None else research_settings()["model_request_timeout_seconds"]
+    payload = _request_model(config, body, timeout, model_mode)
     refusal = None
     if mode == "responses":
         if payload.get("status") not in (None, "completed"):
@@ -448,7 +530,7 @@ def create_tool_turn(
         raise ModelRequestError("模型工具回合没有可用的文本、工具调用或拒绝结果")
     return ToolTurn(
         api_mode=mode,
-        model=str(config["model"]),
+        model=model_fields["model"],
         response_id=payload.get("id") if isinstance(payload.get("id"), str) else None,
         text=text,
         calls=calls,

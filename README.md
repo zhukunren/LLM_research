@@ -202,13 +202,13 @@ Tushare 行情、资讯和研究查询使用 Tushare Pro 的 JSON 请求格式�
 
 ## 模型与助手配置（维护者）
 
-[配置示例](config.example.ini) 中的 `[research_models]` 由服务端控制账户和模型范围：
+项目提供「即时」和「深度」两档。「即时」使用 GPT-6.2 Astra / low / Fast，是新对话的默认档位。「深度」使用 GPT-6.2 Sol / max / 标准速度，对客定时简评默认使用这一档。任务提交后固定使用所选档位。
 
-- `account_tier = free`：可用值为 `free`、`paid`、`enterprise`；环境变量 `LLMR_RESEARCH_ACCOUNT_TIER` 优先。此设置不会授予供应商账户原本没有的权限。
-- `allowed_models =`：可选的逗号分隔模型白名单；留空表示不额外限制受支持的模型目录。环境变量为 `LLMR_RESEARCH_ALLOWED_MODELS`。白名单不能绕过 Free 账户限制。
-- `reasoning_efforts_json = {}`：维护者核验过的模型档位映射，例如 `{"gpt-6-luna":["low","medium","high"]}`；环境变量为 `LLMR_RESEARCH_MODEL_EFFORTS_JSON`。未覆盖的模型使用内置档位。
+运行这两档需按 `requirements.lock` 安装 Codex SDK 和运行时 0.171.0。若使用 `LLMR_CODEX_BIN` 指定独立 CLI，选用支持 GPT-6.2 和 Fast 的版本。
 
-模型目录结合以上策略与供应商 `/v1/models` 返回值决定可用性。未确认支持的备选模型保持禁用；发现服务暂不可达时，仅保留已显式配置且符合账户策略的默认模型，认证失败则全部禁用。`[app].reasoning_effort` 是新会话的默认档位；执行时使用当轮保存的选择，普通／深入研究的时限预算不会再把它强制映射为 `high`／`max`。
+[配置示例](config.example.ini) 中的 `[research_models]` 控制档位可用性。`account_tier` 支持 `free`、`paid`、`enterprise`，默认为 `paid`。`allowed_models`、`reasoning_efforts_json` 和 `LLMR_DISABLED_MODELS` 可进一步限制两档。
+
+在 `[app]` 下设置 `model_backend = local_codex`，网页会使用服务账户的 Codex 登录访问 OpenAI 官方接口。先以运行网页服务的系统用户执行 `codex login --device-auth`，将 `CODEX_HOME` 指向服务使用的 `LLMR_CODEX_HOME`。此模式从 Codex 读取模型目录。HTTP 模型配置通过供应商的 `/v1/models` 核对访问权限。
 
 三个即时助手要求 `[research].web_search = live`（或 `LLMR_RESEARCH_WEB_SEARCH=live`），并需要模型服务实际支持联网检索；原生搜索还需在对应 `[model_providers.<名称>]` 中按实际能力启用 `supports_standalone_web_search`。变更供应商后应验证真实搜索和打开来源页面；检索失败须在答复中说明，不能用模型记忆补齐“今日资讯”。
 

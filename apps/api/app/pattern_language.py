@@ -11,6 +11,7 @@ from pydantic import Field, ValidationError, field_validator
 from .db import connect, json_dump, utc_now
 from .models import StrictModel
 from .model_client import ModelRequestError, complete_json
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode
 from .settings import llm_settings
 
 router = APIRouter(prefix="/api/v1/patterns", tags=["形态描述"])
@@ -25,6 +26,7 @@ SHAPES = {
 
 class PatternDraftRequest(StrictModel):
     prompt: str = Field(min_length=1, max_length=2000)
+    model_mode: ModelMode = DEFAULT_MODEL_MODE
 
     @field_validator("prompt")
     @classmethod
@@ -42,7 +44,7 @@ class ShapePlan(StrictModel):
     issues: list[str] = Field(default_factory=list, max_length=10)
 
 
-def compile_pattern(prompt: str) -> dict:
+def compile_pattern(prompt: str, *, model_mode: ModelMode = DEFAULT_MODEL_MODE) -> dict:
     source, model = "local_template", None
     text = re.sub(r"\s+", "", prompt)
     match = re.fullmatch(r"(?:近|最近)?(\d+)(?:个)?交易日(?:的)?(V形反转|V型反转|双底|W底|圆弧底|先上涨再回调|上涨后回调)(?:走势|形态)?(?:[，,]相似度(?:不低于|至少)(\d+(?:\.\d+)?)%)?[。！]?", text, re.I)
@@ -50,7 +52,7 @@ def compile_pattern(prompt: str) -> dict:
         shape = {"v形反转": "v_bottom", "v型反转": "v_bottom", "双底": "double_bottom", "w底": "double_bottom", "圆弧底": "round_bottom", "先上涨再回调": "rise_pullback", "上涨后回调": "rise_pullback"}[match[2].lower()]
         candidate = {"shape": shape, "target_bars": int(match[1]), "min_similarity": float(match[3] or 80), "assumptions": [] if match[3] else ["最低相似度采用 80 分，可在保存前调整。"], "issues": []}
     elif llm_settings()["configured"]:
-        source, model = "configured_llm", llm_settings()["model"]
+        source, model = "configured_llm", MODEL_PRESETS[model_mode].model_id
         try:
             candidate = complete_json(
                 '把用户的走势描述整理成可编辑模板，只输出 JSON：{shape,target_bars,min_similarity,assumptions,issues}。'
@@ -59,7 +61,7 @@ def compile_pattern(prompt: str) -> dict:
                 '不要将圆弧底称作V形，不支持的形态如头肩顶、三重底必须shape=null且issues给出问题。'
                 '成交量、精确涨跌幅、突破颈线、保证上涨、区间内曾经发生等要求不能由归一化路径模板表达，必须issues说明，不能遗漏。'
                 '本接口生成目标模板，不推断真实行情，不声明已匹配，也不输出代码。', prompt,
-                max_output_tokens=1500,
+                max_output_tokens=1500, model_mode=model_mode,
             )
         except ModelRequestError:
             candidate = {"shape": None, "target_bars": 40, "min_similarity": 80, "issues": ["本次解析未完成，请重试；原描述已保留。"], "assumptions": []}
@@ -86,7 +88,7 @@ def compile_pattern(prompt: str) -> dict:
 
 @router.post("/draft")
 def pattern_draft(payload: PatternDraftRequest):
-    plan = compile_pattern(payload.prompt)
+    plan = compile_pattern(payload.prompt, model_mode=payload.model_mode)
     draft_id, now = str(uuid4()), utc_now()
     with connect() as connection:
         connection.execute("INSERT INTO pattern_drafts VALUES(?,?,?,?)", (draft_id, payload.prompt, json_dump(plan), now))

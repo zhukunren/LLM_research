@@ -6,14 +6,14 @@
 .client-text-hotspot:hover, .client-text-hotspot:focus-visible { outline: 1px dashed #5b9acb; outline-offset: 2px; background: #72b9f014; }
 .client-text-hotspot > span { display: none; position: absolute; left: 0; bottom: calc(100% + 4px); align-items: center; gap: 3px; padding: 3px 5px; background: #185b8c; color: #fff; font-size: 10px; line-height: 1.5; white-space: nowrap; }
 .client-text-hotspot:hover > span, .client-text-hotspot:focus-visible > span { display: inline-flex; }
-.client-inline-editor { position: absolute; z-index: 5; left: 6px; right: 6px; display: grid; gap: 8px; padding: 12px; border: 1px solid #92b5d2; border-radius: 9px; background: #fff; color: #24435e; box-shadow: 0 8px 30px #0f2f4f38; font-size: 12px; }
+.client-inline-editor { position: absolute; z-index: 5; left: 6px; right: 6px; display: grid; gap: 8px; padding: 12px; border: 1px solid #92b5d2; border-radius: var(--ui-radius-sm); background: #fff; color: #24435e; box-shadow: 0 8px 30px #0f2f4f38; font-size: 12px; }
 .client-inline-editor header { display: flex; justify-content: space-between; gap: 8px; }
 .client-inline-editor small { font-size: 10px; color: #7d91a3; line-height: 1.7; }
-.client-inline-editor textarea, .client-inline-editor input { width: 100%; box-sizing: border-box; border: 1px solid #cbd9e6; border-radius: 5px; padding: 8px; font: inherit; font-size: 13px; line-height: 1.8; color: #213c54; background: #fff; }
+.client-inline-editor textarea, .client-inline-editor input { width: 100%; box-sizing: border-box; border: 1px solid #cbd9e6; border-radius: var(--ui-radius-sm); padding: 8px; font: inherit; font-size: 13px; line-height: 1.8; color: #213c54; background: #fff; }
 .client-inline-editor textarea { resize: vertical; min-height: 80px; }
 .client-inline-editor label { display: grid; gap: 5px; }
 .client-inline-editor footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.client-inline-editor footer button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 5px 8px; border: 1px solid #b6cddd; border-radius: 5px; background: #f2f7fb; color: #345c7a; font-size: 11px; cursor: pointer; }
+.client-inline-editor footer button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 5px 8px; border: 1px solid #b6cddd; border-radius: var(--ui-radius-sm); background: #f2f7fb; color: #345c7a; font-size: 11px; cursor: pointer; }
 .client-inline-editor footer button[type=submit] { background: #165f96; color: white; border-color: #165f96; }
 .client-inline-editor footer button:disabled { opacity: .4; cursor: not-allowed; }
 .client-inline-editor p[role=alert] { margin: 0; color: #ad4949; font-size: 11px; }

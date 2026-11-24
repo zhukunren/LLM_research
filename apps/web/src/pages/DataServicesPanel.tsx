@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Database, Globe, Sparkles } from 'lucide-react'
 import { api, type DataStatus } from '../api'
 import { useSecurities } from '../components/StockSearch'
+import ModelModeSwitch from '../components/ModelModeSwitch'
 import { trapDialogTab } from '../keyboard'
+import type { ModelMode } from '../modelSelection'
 import DataUpdateProgress, { type UpdateJob } from './DataUpdateProgress'
 import NewsRetentionPanel from './NewsRetentionPanel'
 import FinancialProbePanel from './FinancialProbePanel'
@@ -10,7 +12,7 @@ import FinancialSyncStatusRow from './FinancialSyncStatusRow'
 import './data-services-list.css'
 
 type Settings = {
-  text_model: { configured: boolean; model: string | null; api_mode?: string | null }
+  text_model: { configured: boolean; model: string | null; api_mode?: string | null; credential_source?: string | null }
   tushare: { configured: boolean; provider?: 'official' | 'relay' }
   codex_runtime?: {
     available: boolean; reason?: string
@@ -37,6 +39,7 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
   const [job, setJob] = useState<UpdateJob | null>(null)
   const [error, setError] = useState('')
   const [checking, setChecking] = useState<'model' | 'web' | null>(null)
+  const [modelMode, setModelMode] = useState<ModelMode>('instant')
   const [submitting, setSubmitting] = useState(false)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [statusError, setStatusError] = useState('')
@@ -108,28 +111,30 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
     try {
       const current = await api<Settings>('/settings/status'); setSettings(current)
       if (!current.text_model.configured) { setModelResult('智能助手尚未配置，请联系维护者完成首次设置。'); return }
-      const result = await api<{ connected: boolean }>('/settings/model-test', { method: 'POST' })
+      const result = await api<{ connected: boolean; message?: string }>('/settings/model-test?model_mode=' + modelMode, { method: 'POST' })
       setModelResult(result.connected
-        ? current.codex_runtime?.available === false
+        ? current.text_model.credential_source === 'local_codex'
+          ? `${modelMode === 'instant' ? '即时' : '深度'}已通过本机 Codex 连接检查。`
+          : current.codex_runtime?.available === false
           ? '模型接口已连通，Codex 研究运行时尚未就绪。请保存诊断信息交给维护者。'
           : current.codex_runtime?.web_search?.enabled
             ? '模型接口与 Codex 运行时可用；网页搜索为配置状态，本次检查未发起实时检索。'
             : `模型接口与 Codex 运行时可用；网页搜索状态：${webSearchLabel(current.codex_runtime)}。`
-        : '模型接口暂时无法连接，请稍后重试，或保存诊断信息交给维护者。')
+        : result.message || '模型接口暂时无法连接，请稍后重试，或保存诊断信息交给维护者。')
     } catch (reason) { setModelResult((reason as Error).message || '连接检查失败，请稍后重试。') }
     finally { setChecking(null) }
   }
   async function checkWebSearch() {
     setChecking('web'); setError(''); setWebSearchResult('')
     try {
-      const result = await api<{ connected: boolean; verified: boolean; search_results: number; opened_page: boolean; latency_ms: number; message: string }>('/settings/web-search-test', { method: 'POST' })
+      const result = await api<{ connected: boolean; verified: boolean; search_results: number; opened_page: boolean; latency_ms: number; message: string }>('/settings/web-search-test?model_mode=' + modelMode, { method: 'POST' })
       setWebSearchResult(`${result.message} · ${result.search_results} 条搜索结果 · ${result.latency_ms} ms`)
     } catch (reason) { setWebSearchResult((reason as Error).message || '网页搜索检查失败，请稍后重试。') }
     finally { setChecking(null) }
   }
   function downloadDiagnostics() {
     const report = { checked_at: new Date().toISOString(), market_date: data?.last_date ?? null, market_available: !!data?.available,
-      quality_status: data?.quality_status, model_configured: !!settings?.text_model.configured, research_runtime_available: settings?.codex_runtime?.available ?? null, research_runtime_reason: settings?.codex_runtime?.reason ?? null, connection: modelResult || '尚未检查',
+      quality_status: data?.quality_status, model_configured: !!settings?.text_model.configured, model_credential_source: settings?.text_model.credential_source ?? null, research_runtime_available: settings?.codex_runtime?.available ?? null, research_runtime_reason: settings?.codex_runtime?.reason ?? null, connection: modelResult || '尚未检查',
       web_search: settings?.codex_runtime?.web_search ?? null, web_search_test: webSearchResult || null,
       update: job }
     const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'text/plain;charset=utf-8' }))
@@ -163,6 +168,7 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
         <section className="service-status-row" aria-label="智能助手连接">
           <div className="service-status-main"><Sparkles size={17} aria-hidden="true" /><div><h3>智能助手</h3><p>{!settings ? '连接设置读取中' : settings.text_model.configured ? `已配置 · ${settings.codex_runtime ? settings.codex_runtime.available ? '研究运行时可用' : '研究运行时待处理' : '研究运行时状态不可用'}` : '尚未配置智能助手'}</p></div><div className="service-status-actions"><button className="secondary-button workspace-button" disabled={!!checking} onClick={() => void checkConnection()}>{checking === 'model' ? '正在检查…' : '检查助手连接'}</button></div></div>
           <p className="service-status-message" role="status">{modelResult || '连接尚未检查。'}</p>
+          <ModelModeSwitch value={modelMode} disabled={!!checking} onChange={mode => { setModelMode(mode); setModelResult(''); setWebSearchResult('') }} />
           {settings?.codex_runtime?.reason && <p className="service-status-message">{settings.codex_runtime.reason}</p>}
         </section>
         <section className="service-status-row" aria-label="原生网页搜索">
@@ -170,7 +176,7 @@ export default function DataServicesPanel({ data, onClose, onRefresh }: { data: 
           <p className="service-status-message" role="status">{webSearchResult || '配置状态不代表实时搜索已成功。'}</p>
         </section>
       </div>
-      <details className="drawer-section support-details"><summary>诊断与维护信息</summary><button className="secondary-button compact workspace-button" onClick={downloadDiagnostics}>保存诊断信息</button><p>模型：{settings?.text_model.model || '未配置'} · {settings?.text_model.api_mode || '未配置'}</p><p>行情记录 {data?.rows?.toLocaleString() || '—'} 条，证券 {data?.securities?.toLocaleString() || '—'} 只。</p>{data?.formal_blockers?.map(item => <p key={item}>{item}</p>)}</details>
+      <details className="drawer-section support-details"><summary>诊断与维护信息</summary><button className="secondary-button compact workspace-button" onClick={downloadDiagnostics}>保存诊断信息</button><p>模型：{settings?.text_model.model || '未配置'} · {settings?.text_model.credential_source === 'local_codex' ? '本机 Codex' : settings?.text_model.api_mode || '未配置'}</p><p>行情记录 {data?.rows?.toLocaleString() || '—'} 条，证券 {data?.securities?.toLocaleString() || '—'} 只。</p>{data?.formal_blockers?.map(item => <p key={item}>{item}</p>)}</details>
       </div>
       <div className="drawer-footer"><button className="secondary-button workspace-button" onClick={() => { onRefresh(); setPoll(i => i + 1); setSettingsRetry(value => value + 1) }}>重新检查状态</button></div>
     </aside>

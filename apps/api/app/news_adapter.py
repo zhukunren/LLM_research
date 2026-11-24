@@ -3,12 +3,14 @@ from typing import Any, Callable
 from . import news_sources
 from .evidence_sources import EvidenceSourceError
 from .evidence_analysis import EvidenceProvider, EvidenceRequest, analyze
+from .model_modes import DEFAULT_MODEL_MODE, ModelMode
 from .screening_contracts import ConditionDecision
 from .settings import llm_settings
 
 
 def evaluate(condition: dict[str, Any], reference: dict[str, Any], stock_code: str, as_of: str, *,
-             lookback_days: int | None = None, active: Callable[[], bool] = lambda: True) -> ConditionDecision:
+             lookback_days: int | None = None, active: Callable[[], bool] = lambda: True,
+             model_mode: ModelMode = DEFAULT_MODEL_MODE) -> ConditionDecision:
     request = EvidenceRequest.model_validate(condition["expression"])
     if reference.get("parameter_overrides"):
         raise ValueError("资讯条件修改必须形成明确的新问题")
@@ -27,7 +29,7 @@ def evaluate(condition: dict[str, Any], reference: dict[str, Any], stock_code: s
             raise EvidenceSourceError("source_outside_scope", "资讯不属于本条件指定范围")
         return news_sources.read_news_chunk(source_id, stock_code=stock_code, as_of=as_of,
                                             lookback_days=lookback_days, **args)
-    result = analyze(request, stock_code, as_of, EvidenceProvider(listing, reading), active=active)
+    result = analyze(request, stock_code, as_of, EvidenceProvider(listing, reading), active=active, model_mode=model_mode)
     return ConditionDecision(**identity, state=result["state"], evaluation_status="completed",
         reason_code=result["reason_code"], explanation=result["explanation"],
         actual_values=dict(evidence=result["evidence"], coverage=result["coverage"],

@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { ConversationSourceReference } from './api'
 import { screeningMethodLabel } from './screeningMethods'
 import { sessionStorage } from './authStorage'
-import { isPageId, workspaceMenus } from './navigation'
+import { clientServiceMenus, isPageId, workspaceMenus } from './navigation'
 import { normalizeWorkspaceRoute, parseWorkspaceRoute, persistWorkspaceRoute, workspaceRouteHash, type WorkspaceRoute } from './workspaceRoute'
 import type { ServiceResearchDraft } from './clientServiceResearchDraft'
 import type { TabLocation, WorkspaceHandoff } from './workspaceHandoff'
@@ -24,9 +24,7 @@ export function workspaceTabTitle(route: WorkspaceRoute) {
   if (route.screeningMethod && !route.conversationId) return screeningMethodLabel(route.screeningMethod)
   if (route.page === 'conditions') return ({ saved: '我的方案', history: '筛选记录', library: '条件库管理', compose: '条件组合', create: '新增条件', conversation: route.conversationId ? '选股对话' : '新选股' })[route.view || 'conversation']
   if (route.page === 'library') return route.libraryTab === 'reports' ? '研报与公告' : '资讯'
-  if (route.page === 'client-service' && route.serviceView === 'opening-plan') return '开盘计划'
-  if (route.page === 'client-service' && route.serviceView === 'suggestions') return '调仓建议'
-  if (route.page === 'client-service' && route.serviceView === 'robots') return '群机器人'
+  if (route.page === 'client-service') return clientServiceMenus.find(item => item.id === (route.serviceView ?? 'cards'))?.label || '时点卡片'
   return workspaceMenus.find(item => item.id === route.page)?.label || '研究'
 }
 
@@ -51,8 +49,7 @@ function migrateSavedTab(tab: WorkspaceTab): WorkspaceTab {
     return { ...tab, route, title: workspaceTabTitle(route) }
   }
   const route = normalizeWorkspaceRoute(tab.route)
-  if (route.page === 'client-service' && route.serviceView === 'suggestions' && ['对客服务', 'AI 诊股', '生成建议'].includes(tab.title)) return { ...tab, route, title: workspaceTabTitle(route) }
-  if (route.page === 'client-service' && route.serviceView === 'robots' && tab.title === '对客服务') return { ...tab, route, title: workspaceTabTitle(route) }
+  if (route.page === 'client-service' && (tab.title === '对客服务' || route.serviceView === 'suggestions' && ['AI 诊股', '生成建议'].includes(tab.title))) return { ...tab, route, title: workspaceTabTitle(route) }
   if (route === tab.route) return tab
   return { ...tab, route, title: workspaceTabTitle(route) }
 }

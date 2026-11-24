@@ -23,7 +23,7 @@ URL = 'https://www.sse.com.cn/market/verified-source'
 def configured(tmp_path, monkeypatch):
     monkeypatch.setattr(db, 'DB_PATH', tmp_path / 'app.db')
     monkeypatch.setattr(research_models, 'llm_settings', lambda: {'configured': True, 'model': 'gpt-6-luna', 'reasoning_effort': 'high'})
-    monkeypatch.setattr(research_models, '_discover', lambda _: ({'gpt-6-luna', 'gpt-6.1-sol'}, 'verified'))
+    monkeypatch.setattr(research_models, '_discover', lambda _: ({'gpt-6.2-astra', 'gpt-6.2-sol'}, 'verified'))
     monkeypatch.setattr(research_models, 'research_model_settings', lambda: {'account_tier': 'paid', 'allowed_models': [], 'reasoning_efforts': {}})
     monkeypatch.setattr(service.codex_runtime, 'availability', lambda: {'available': True, 'web_search': {'enabled': True, 'mode': 'live'}})
     calls = []
@@ -47,10 +47,10 @@ def request(identifier='generate-1', **values):
     return GenerateCard(request_id=identifier, slot_id='checkpoint', date=DAY, **values)
 
 
-def finish(card, *, opened=True, published=None, observed=None, commentary=None):
+def finish(card, *, opened=True, published=None, observed=None, commentary=None, summary='市场震荡，成交较为活跃，板块走势分化。'):
     with db.connect() as connection:
         row = dict(connection.execute('SELECT * FROM client_service_cards WHERE id=?', (card['id'],)).fetchone())
-        body = {'summary': '市场震荡，成交较为活跃，板块走势分化。',
+        body = {'summary': summary,
                 'metrics': [{'label':label,'value':value,'observed_at':observed or WHEN.isoformat(),'source_url':URL} for label,value in [('上证指数','3600.00（+0.20%）'),('深证成指','12000.00（-0.30%）'),('创业板指','2600.00（-0.50%）')]],
                 'sources': [{'title': '交易所市场数据', 'url': URL, 'published_at': published or WHEN.isoformat()}], 'limitations': []}
         if commentary is not None:
@@ -214,11 +214,33 @@ def test_generation_is_idempotent_and_does_not_send_editable_copy_to_codex(confi
     assert service.start(request('another-click'))['id'] == first['id'] and len(calls) == 1
 
 
-def test_client_briefs_pin_sol_max_for_scheduled_instant_and_regenerated_turns(configured):
+def test_card_generation_records_the_focus_and_rejects_changes_to_a_queued_request(configured):
+    from apps.api.app import client_service_runtime
+
+    client, calls = configured
+    endpoint = '/api/v1/client-service/cards'
+    focus = '优先观察量能变化。'
+    payload = {'request_id': 'focused-card', 'slot_id': 'checkpoint', 'date': DAY, 'generation_focus': f' {focus} '}
+    started = client.post(endpoint, json=payload)
+    assert started.status_code == 202, started.text
+    card = started.json()
+    assert card['generation_focus'] == focus and card['cutoff'] == WHEN.isoformat()
+    assert client.post(endpoint, json={**payload, 'generation_focus': focus}).json()['id'] == card['id']
+    assert client.post(endpoint, json={**payload, 'generation_focus': '换一组重点'}).status_code == 409
+    assert client.post(endpoint, json={**payload, 'request_id': 'concurrent', 'generation_focus': '换一组重点', 'regenerate': True}).status_code == 409
+    assert client.post(endpoint, json={**payload, 'request_id': 'too-long', 'generation_focus': '字' * 201}).status_code == 422
+    assert len(calls) == 1
+    prompt = json.loads(client_service_runtime.prompt(*calls[0]))
+    assert prompt['本次关注点'] == focus
+    assert focus not in prompt['current_user_request']
+    assert client.get(f"{endpoint}/{card['id']}").json()['generation_focus'] == focus
+
+
+def test_client_briefs_freeze_the_model_for_each_turn(configured):
     from apps.api.app.client_service_contracts import InstantBrief
-    scheduled = finish(service.start(request('sol-scheduled')))
-    regenerated = service.start(request('sol-regenerated', regenerate=True))
-    instant = service.start_instant(InstantBrief(request_id='sol-instant'))
+    scheduled = finish(service.start(request('scheduled')))
+    regenerated = service.start(request('regenerated', regenerate=True))
+    instant = service.start_instant(InstantBrief(request_id='instant', model_mode='instant'))
     assert regenerated['id'] == scheduled['id']
     assert instant['slot_id'].startswith('live-')
     with db.connect() as connection:
@@ -226,10 +248,10 @@ def test_client_briefs_pin_sol_max_for_scheduled_instant_and_regenerated_turns(c
             t.model_id,t.reasoning_effort FROM client_service_turns s
             JOIN conversations c ON c.id=s.conversation_id JOIN conversation_turns t ON t.id=s.turn_id''').fetchall()
     assert len(rows) == 3
-    assert all(dict(row) == {'conversation_model': 'gpt-6.1-sol', 'conversation_effort': 'max',
-                             'model_id': 'gpt-6.1-sol', 'reasoning_effort': 'max'} for row in rows)
-    # The main research/chat default remains independent from the client-writing route.
-    assert research_models.resolve_selection() == {'model_id': 'gpt-6-luna', 'reasoning_effort': 'high'}
+    assert [(row['model_id'], row['reasoning_effort']) for row in rows].count(('gpt-6.2-sol', 'max')) == 2
+    assert any((row['model_id'], row['reasoning_effort']) == ('gpt-6.2-astra', 'low') for row in rows)
+    assert all(row['model_id'] == row['conversation_model'] and row['reasoning_effort'] == row['conversation_effort'] for row in rows)
+    assert research_models.resolve_selection() == {'model_id': 'gpt-6.2-astra', 'reasoning_effort': 'low'}
 
 
 @pytest.mark.parametrize('resume', [False, True])
@@ -276,8 +298,9 @@ def test_client_runtime_uses_inline_snapshot_and_native_search_without_general_r
     monkeypatch.setattr(service.codex_runtime, '_sdk', lambda: (openai_codex.ApprovalMode, FakeCodex, openai_codex.CodexConfig,
                         openai_codex.Sandbox, openai_codex.SkillInput, openai_codex.TextInput))
     result = service.codex_runtime.run_conversation_turn(cid, tid)
-    assert result['model'] == 'gpt-6.1-sol' and result['reasoning_effort'] == 'max'
-    assert observed['turn']['model'] == 'gpt-6.1-sol' and observed['turn']['effort'] == 'max'
+    assert result['model'] == 'gpt-6.2-sol' and result['reasoning_effort'] == 'max'
+    assert observed['turn']['model'] == 'gpt-6.2-sol' and observed['turn']['effort'] == 'max'
+    assert observed['turn']['turn_service_tier'] == 'default'
     assert len(observed['inputs']) == 1 and isinstance(observed['inputs'][0], openai_codex.TextInput)
     compact = json.loads(observed['inputs'][0].text)
     assert 'conversation_history' not in compact and 'research_workspace' not in compact
@@ -318,18 +341,18 @@ def test_brief_can_omit_repeated_indices_without_losing_numeric_evidence(configu
     assert result['quality'] == 'verified'
 
 
-@pytest.mark.parametrize('blocker', ['provider', 'account', 'effort'])
+@pytest.mark.parametrize('blocker', ['provider', 'policy', 'effort'])
 def test_unavailable_client_model_fails_before_creating_a_card_without_falling_back(configured, monkeypatch, blocker):
     client, calls = configured
     if blocker == 'provider':
-        monkeypatch.setattr(research_models, '_discover', lambda _: ({'gpt-6-luna'}, 'verified'))
-    elif blocker == 'account':
-        monkeypatch.setattr(research_models, 'research_model_settings', lambda: {'account_tier': 'free', 'allowed_models': [], 'reasoning_efforts': {}})
+        monkeypatch.setattr(research_models, '_discover', lambda _: ({'gpt-5.6-luna'}, 'verified'))
+    elif blocker == 'policy':
+        monkeypatch.setattr(research_models, 'research_model_settings', lambda: {'account_tier': 'paid', 'allowed_models': ['gpt-5.6-luna'], 'reasoning_efforts': {}})
     else:
-        monkeypatch.setattr(research_models, 'research_model_settings', lambda: {'account_tier': 'paid', 'allowed_models': [], 'reasoning_efforts': {'gpt-6.1-sol': ['high']}})
-    response = client.post('/api/v1/client-service/briefs', json={'request_id': 'sol-unavailable'})
+        monkeypatch.setattr(research_models, 'research_model_settings', lambda: {'account_tier': 'paid', 'allowed_models': [], 'reasoning_efforts': {'gpt-6.2-sol': ['high']}})
+    response = client.post('/api/v1/client-service/briefs', json={'request_id': 'configured-model-unavailable'})
     assert response.status_code == 503
-    assert 'GPT-6.1 Sol / max' in response.text
+    assert '深度' in response.json()['detail']['message']
     assert not calls
     with db.connect() as connection:
         assert connection.execute('SELECT COUNT(*) FROM client_service_cards').fetchone()[0] == 0
@@ -355,22 +378,28 @@ def test_visual_review_reads_two_native_images_is_idempotent_and_does_not_change
     client,calls=configured
     card=finish(service.start(request()))
     endpoint=f"/api/v1/client-service/cards/{card['id']}/review"
-    payload={'request_id':'review-1','expected_revision':card['revision']}
+    payload={'request_id':'review-1','expected_revision':card['revision'],'review_focus':['disclosure','metrics']}
     assert client.get(endpoint).json()=={'review':None}
     response=client.post(endpoint,json=payload)
     assert response.status_code==202,response.text
     review=response.json()
     assert review['state']=='queued',review
-    assert client.post(endpoint,json=payload).json()['id']==review['id']
+    assert review['review_focus']==['metrics','disclosure']
+    assert client.post(endpoint,json={**payload,'review_focus':['metrics','disclosure']}).json()['id']==review['id']
+    assert client.post(endpoint,json={**payload,'review_focus':['legibility']}).status_code==409
+    assert client.post(endpoint,json={**payload,'review_focus':['always_pass']}).status_code==422
     assert len(calls)==2
     with db.connect() as c:
         row=c.execute('SELECT * FROM client_service_reviews WHERE id=?',(review['id'],)).fetchone()
         attachments=c.execute('SELECT * FROM research_attachments WHERE conversation_id=?',(row['conversation_id'],)).fetchall()
         assert len(attachments)==2 and all(item['model_image_name'] for item in attachments)
+        prompt=c.execute("SELECT content FROM conversation_messages WHERE conversation_id=? AND role='user'",(row['conversation_id'],)).fetchone()[0]
+        assert '指数与指标区域、风险提示与投顾落款' in prompt and '完整执行上述全部检查' in prompt
         verdict={'verdict':'passed','summary':'指数区域可读，但正文需要压缩。','issues':[{'area':'正文','severity':'warning','message':'文字过密','suggestion':'缩短摘要'}]}
         c.execute("UPDATE conversation_turns SET state='succeeded',response_text=? WHERE id=?",(json.dumps(verdict),row['turn_id']))
     result=client.get(endpoint).json()['review']
     assert result['state']=='complete' and result['result']['verdict']=='needs_changes'
+    assert result['review_focus']==review['review_focus']
     assert service.detail(card['id'])==card
     assert service.conversation_store.list_conversations(exclude_intelligence=True)==[]
     assert client.post(endpoint,json={**payload,'request_id':'stale','expected_revision':99}).status_code==409
@@ -610,6 +639,73 @@ def test_instant_completion_fills_copy_but_preserves_saved_user_edits(configured
     assert completed['content']['action'] == COMMENTARY['action']
     assert completed['revision'] == 2
     assert client.post('/api/v1/client-service/preview', json={'template': completed['template'], 'date': DAY, 'content': completed['content'], 'card_id': completed['id']}).status_code == 200
+
+
+def test_replayed_brief_prepares_quotes_at_original_cutoff_and_keeps_generation_time(configured, monkeypatch):
+    from apps.api.app import client_service_market as market, client_service_runtime
+
+    client, _ = configured
+    cutoff = WHEN.replace(hour=13, minute=4, second=11)
+    generated_at = (cutoff + timedelta(hours=1)).isoformat()
+    monkeypatch.setattr(service, 'now', lambda: cutoff)
+    original = finish(client.post('/api/v1/client-service/briefs', json={'request_id': 'original-brief', 'theme': 'gold'}).json(),
+                      commentary=COMMENTARY)
+    monkeypatch.setattr(service, 'now', lambda: cutoff + timedelta(hours=1))
+    focus = '重点解释半日成交和行业分化。'
+    command = {'request_id': 'original-cutoff', 'source_card_id': original['id'], 'generation_focus': focus}
+    replay = client.post('/api/v1/client-service/briefs', json=command)
+    assert replay.status_code == 202, replay.text
+    replay = replay.json()
+    assert replay['id'] != original['id'] and replay['cutoff'] == original['cutoff'] == cutoff.isoformat()
+    assert replay['generation_focus'] == focus and original['generation_focus'] == ''
+    assert replay['template']['time'] == '13:04' and replay['content']['theme'] == 'gold'
+    assert replay['content']['headline'] == '' and original['content']['headline'] == COMMENTARY['headline']
+    assert client.post('/api/v1/client-service/briefs', json=command).json()['id'] == replay['id']
+    assert client.post('/api/v1/client-service/briefs', json={'request_id': 'original-cutoff'}).status_code == 409
+
+    observed = cutoff.replace(second=0)
+    metrics = [market.quote(code, '2990', '3000', observed, '样例行情', f'https://example.com/{code}', {})
+               for code in market.INDEXES]
+    snapshot = {'cutoff': cutoff.isoformat(), 'metrics': metrics, 'sources': [], 'attempts': [], 'missing': []}
+    calls = []
+    monkeypatch.setattr(market, 'collect', lambda value: calls.append(value) or snapshot)
+    with db.connect() as connection:
+        row = connection.execute('SELECT conversation_id,turn_id FROM client_service_cards WHERE id=?', (replay['id'],)).fetchone()
+        connection.execute('UPDATE conversation_turns SET updated_at=? WHERE id=?', (generated_at, row['turn_id']))
+    client_service_runtime.prepare(*row)
+    client_service_runtime.prepare(*row)
+    prompt = json.loads(client_service_runtime.prompt(*row))
+    assert calls == [cutoff.isoformat()]
+    assert prompt['client_market_snapshot']['cutoff'] == cutoff.isoformat()
+    assert len(prompt['client_market_snapshot']['metrics']) == 3
+    assert prompt['本次关注点'] == focus
+
+    result = finish(replay, commentary=COMMENTARY)
+    assert result['state'] == 'ready', result['message']
+    assert result['market']['generated_at'] == generated_at
+    assert result['market']['public_notes'] == ['行情时点 11-13 13:04（北京时间）']
+    images_before = images.render_card(result)
+    saved = service.save_card(result['id'], SaveCard(revision=result['revision'], content=CardContent(**result['content'])))
+    assert saved['market']['generated_at'] == generated_at and images.render_card(saved) == images_before
+
+
+@pytest.mark.parametrize('summary, commentary, message', [
+    ('A股早盘探底回升，沪指仍收跌。', COMMENTARY, '收盘措辞'),
+    ('午间指数表现分化。', {**COMMENTARY, 'headline': '修复分化仍待验证'}, '标题'),
+    ('午间指数表现分化。', {**COMMENTARY, 'action': '两条行业消息催化相关题材。'}, '涨跌原因'),
+    ('午间指数表现分化。', {**COMMENTARY, 'action': '行业消息已公开，直接催化关系尚不明确。'}, None),
+    ('截至午间收盘，沪指下跌。', COMMENTARY, None),
+])
+def test_instant_copy_checks_timing_and_cause_before_publishing(configured, monkeypatch, summary, commentary, message):
+    client, _ = configured
+    monkeypatch.setattr(service, 'now', lambda: WHEN.replace(hour=13, minute=4))
+    card = client.post('/api/v1/client-service/briefs', json={'request_id': 'copy-check'}).json()
+    result = finish(card, observed=WHEN.replace(hour=11, minute=30).isoformat(), summary=summary, commentary=commentary)
+    if message:
+        assert result['state'] == 'failed' and message in result['message']
+        assert result['market'] is None and not images.image_path(card['id']).exists()
+    else:
+        assert result['state'] == 'ready', result['message']
 
 
 def test_instant_rejects_missing_commentary_and_unopened_sources(configured):

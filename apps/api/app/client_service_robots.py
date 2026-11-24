@@ -16,10 +16,11 @@ from pydantic import Field, SecretStr
 from PIL import Image
 
 from . import client_service as service
+from .client_service_archive import available_rooms, chat_overview
 from .client_service_contracts import StrictModel
 from .client_service_disclosure import FIXED_DISCLOSURE
 from .client_service_images import render_card, display_market
-from .client_service_text import without_web_links
+from .client_service_text import contains_return_promise, without_web_links
 from .db import connect, utc_now, json_dump
 from .rebalance_card import RebalanceCard, render_rebalance_card
 
@@ -31,6 +32,7 @@ class RobotInput(StrictModel):
     webhook: SecretStr | None = None
     enabled: bool = True
     revision: int = Field(default=0, ge=0)
+    archive_room_id: str | None = Field(default=None, pattern=r'^[A-Za-z0-9_-]{1,128}$')
 
 
 class RobotRevision(StrictModel):
@@ -40,6 +42,7 @@ class RobotRevision(StrictModel):
 class DeliveryInput(StrictModel):
     request_id: str = Field(pattern=r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$')
     kind: Literal['test', 'text', 'image']
+    robot_revision: int | None = Field(default=None, ge=0)
     card_id: str | None = Field(default=None, pattern=r'^[a-f0-9-]{36}$')
     revision: int | None = Field(default=None, ge=0)
     content_text: str | None = Field(default=None, max_length=6000)
@@ -66,7 +69,7 @@ def webhook_key(value: str) -> str:
 
 
 def public_robot(row):
-    return {key: row[key] for key in ('id', 'name', 'revision', 'created_at', 'updated_at')} | {
+    return {key: row[key] for key in ('id', 'name', 'revision', 'created_at', 'updated_at', 'archive_room_id')} | {
         'enabled': bool(row['enabled']), 'webhook_configured': bool(row['webhook_key']),
         'webhook_hint': '已配置 · 密钥不回显',
     }
@@ -76,7 +79,10 @@ def public_robot(row):
 def list_robots():
     with connect() as db:
         rows = db.execute('SELECT * FROM client_service_robots WHERE archived=0 ORDER BY created_at,id').fetchall()
-    return {'items': [public_robot(row) for row in rows]}
+    return {
+        'items': [public_robot(row) for row in rows],
+        'archive_rooms': [{'id': room, 'name': name} for room, name in available_rooms().items()],
+    }
 
 
 @router.get('/deliveries')
@@ -87,14 +93,29 @@ def deliveries():
 
 
 @router.get('/risks')
-def monitor_delivery_risks():
+def monitor_delivery_risks(robot_id: str | None = None):
     with connect() as db:
+        scope = " AND robot_id=?" if robot_id else ""
+        args = (robot_id,) if robot_id else ()
         rows = db.execute(
-            """SELECT id,robot_id,robot_name,kind,card_id,state,message,created_at,updated_at FROM client_service_deliveries
-               WHERE state IN ('failed','unknown','sending') ORDER BY created_at DESC,id DESC LIMIT 50"""
+            f"""SELECT id,robot_id,robot_name,kind,card_id,state,message,created_at,updated_at FROM client_service_deliveries
+                WHERE state IN ('failed','unknown','sending'){scope} ORDER BY created_at DESC,id DESC LIMIT 50""",
+            args,
         ).fetchall()
-        paused = db.execute("SELECT id,name FROM client_service_robots WHERE archived=0 AND enabled=0 ORDER BY name").fetchall()
+        paused_scope = " AND id=?" if robot_id else ""
+        paused = db.execute(
+            f"SELECT id,name FROM client_service_robots WHERE archived=0 AND enabled=0{paused_scope} ORDER BY name", args,
+        ).fetchall()
     return {"items": [delivery_status(dict(row)) for row in rows], "paused": [dict(row) for row in paused]}
+
+
+@router.get('/{robot_id}/chat')
+def robot_chat(robot_id: str):
+    with connect() as db:
+        robot = db.execute('SELECT archive_room_id FROM client_service_robots WHERE id=? AND archived=0', (robot_id,)).fetchone()
+    if robot is None:
+        service.error(404, '找不到此群机器人。')
+    return chat_overview(robot['archive_room_id'])
 
 
 def review_content(text: str, *, kind: str = 'text') -> dict:
@@ -107,8 +128,7 @@ def review_content(text: str, *, kind: str = 'text') -> dict:
         issues.append({"code": "signature", "message": "补齐当前投顾姓名、执业编码和机构落款。"})
     if without_web_links(text) != text:
         issues.append({"code": "link", "message": "从群发文案中去掉网址。"})
-    body = re.sub(r'(?:不|不得|不能|禁止)(?:直接)?(?:承诺收益|保证收益|保证获利|承诺保本|保本保收益)', '', text)
-    if re.search(r'稳赚(?:不赔)?|包赚|承诺收益|保证(?:收益|获利|盈利)|承诺保本|保本保收益|必涨|必赚', body):
+    if contains_return_promise(text):
         issues.append({"code": "promise", "message": "核对并改写保证收益、保本或必涨等确定性表述。"})
     if re.search(r'草稿[ ·・]*[待未]核对', text):
         issues.append({"code": "draft", "message": "核对完成后再使用成品文案。"})
@@ -128,24 +148,43 @@ def save_robot(payload, robot_id=None):
     if not name:
         service.error(422, '请填写机器人名称。')
     key = webhook_key(payload.webhook.get_secret_value()) if payload.webhook and payload.webhook.get_secret_value().strip() else None
+    room = payload.archive_room_id
     with connect() as db:
         db.execute('BEGIN IMMEDIATE')
+        previous = None
         if robot_id:
             previous = db.execute('SELECT * FROM client_service_robots WHERE id=? AND archived=0', (robot_id,)).fetchone()
             if not previous:
                 service.error(404, '找不到此机器人。')
             if previous['revision'] != payload.revision:
                 service.error(409, '机器人配置已变化，请重新读取后编辑。')
-            db.execute('UPDATE client_service_robots SET name=?,webhook_key=?,enabled=?,revision=revision+1,updated_at=? WHERE id=?',
-                       (name, key or previous['webhook_key'], int(payload.enabled), utc_now(), robot_id))
+            if 'archive_room_id' not in payload.model_fields_set:
+                room = previous['archive_room_id']
+        if room and (previous is None or room != previous['archive_room_id']):
+            if room not in available_rooms():
+                service.error(422, '请选择已授权的企业微信存档群聊。')
+            if db.execute('SELECT 1 FROM client_service_robots WHERE archived=0 AND archive_room_id=?', (room,)).fetchone():
+                service.error(409, '该群已绑定机器人，请编辑现有配置。')
+        if key and (previous is None or key != previous['webhook_key']):
+            if db.execute('SELECT 1 FROM client_service_robots WHERE archived=0 AND webhook_key=?', (key,)).fetchone():
+                service.error(409, '这个 Webhook 已配置，请编辑现有群机器人。')
+        if previous is not None:
+            db.execute(
+                """UPDATE client_service_robots SET name=?,webhook_key=?,enabled=?,archive_room_id=?,
+                   revision=revision+1,updated_at=? WHERE id=?""",
+                (name, key or previous['webhook_key'], int(payload.enabled), room, utc_now(), robot_id),
+            )
         else:
             if not key:
                 service.error(422, '新增机器人时需要填写 Webhook 地址。')
             if db.execute('SELECT COUNT(*) FROM client_service_robots WHERE archived=0').fetchone()[0] >= 30:
                 service.error(422, '最多可配置 30 个机器人。')
             robot_id = str(uuid4())
-            db.execute('INSERT INTO client_service_robots(id,name,webhook_key,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?)',
-                       (robot_id, name, key, int(payload.enabled), utc_now(), utc_now()))
+            db.execute(
+                """INSERT INTO client_service_robots(id,name,webhook_key,enabled,created_at,updated_at,archive_room_id)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (robot_id, name, key, int(payload.enabled), utc_now(), utc_now(), room),
+            )
         row = db.execute('SELECT * FROM client_service_robots WHERE id=?', (robot_id,)).fetchone()
     return public_robot(row)
 
@@ -172,18 +211,26 @@ def archive_robot(robot_id: str, payload: RobotRevision):
 
 def card_text(card):
     from .client_service_disclosure import disclosure_lines
+    from .client_service_quality import TZ, publication_notes
     from .client_service_text import card_copy_content, without_web_links
 
     content, template = card_copy_content(card['content']), card['template']
     market = display_market(card)
-    lines = [f"【{content['brand']} · {content.get('headline') or without_web_links(template['title'])}】",
-             f"{card['service_date']} {template['time']}（北京时间）", market.get('summary', '')]
+    lines = [f"【{content['brand']} · {content.get('headline') or without_web_links(template['title'])}】"]
+    if cutoff := card.get('cutoff'):
+        cutoff_time = datetime.fromisoformat(cutoff).astimezone(TZ).strftime('%Y-%m-%d %H:%M')
+        lines.append(f'资料截止 {cutoff_time}（北京时间）')
+    else:
+        lines.append(f"服务时点 {card['service_date']} {template['time']}（北京时间）")
+    if generated_at := market.get('generated_at'):
+        generated = datetime.fromisoformat(generated_at).astimezone(TZ).strftime('%Y-%m-%d %H:%M')
+        lines.append(f'生成时间 {generated}')
+    lines.append(market.get('summary', ''))
     lines += [f"{item['label']}：{item['value']}" for item in market.get('metrics', [])]
     for key, label in [('conclusion', '今日判断'), ('action', '行动安排'), ('focus', '观察重点'), ('service', '服务说明')]:
         if content.get(key):
             lines.append(f"{label}：{content[key]}")
-    if market.get('limitations'):
-        lines.append('数据说明：' + '；'.join(market['limitations']))
+    lines.extend(publication_notes(market))
     names = dict.fromkeys(without_web_links(item.get('title') or '').strip() for item in market.get('sources', []))
     lines += [f"来源：{name}" for name in names if name]
     if content.get('market_overrides'):
@@ -257,7 +304,7 @@ def public_delivery(row):
 @router.post('/{robot_id}/send')
 def send(robot_id: str, payload: DeliveryInput):
     excluded = {'request_id'}
-    excluded.update(field for field in ('content_text', 'suggestion') if getattr(payload, field) is None)
+    excluded.update(field for field in ('content_text', 'suggestion', 'robot_revision') if getattr(payload, field) is None)
     fingerprint = hashlib.sha256(json_dump({'robot_id': robot_id, **payload.model_dump(exclude=excluded)}).encode()).hexdigest()
     with connect() as db:
         previous = db.execute('SELECT * FROM client_service_deliveries WHERE request_id=?', (payload.request_id,)).fetchone()
@@ -276,6 +323,8 @@ def send(robot_id: str, payload: DeliveryInput):
         robot = db.execute('SELECT * FROM client_service_robots WHERE id=? AND archived=0', (robot_id,)).fetchone()
         if not robot:
             service.error(404, '找不到此机器人。')
+        if payload.robot_revision is not None and robot['revision'] != payload.robot_revision:
+            service.error(409, '目标群配置已有变化，请刷新后重新确认。')
         if not robot['enabled']:
             service.error(422, '此机器人已停用，请先启用。')
         since = (datetime.now(UTC) - timedelta(minutes=1)).isoformat(timespec='seconds')

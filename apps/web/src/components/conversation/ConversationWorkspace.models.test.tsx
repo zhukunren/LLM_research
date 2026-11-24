@@ -1,29 +1,20 @@
-import { openResearchSettings } from '../../test/openResearchSettings'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { Conversation } from '../../api'
-import type { ResearchModelCatalog } from '../../modelSelection'
+import { modelCatalog } from '../../test/modelCatalog'
 import ConversationWorkspace from './ConversationWorkspace'
 
-const catalog: ResearchModelCatalog = {
-  account_tier: 'free', default_model_id: 'gpt-6-luna', default_reasoning_effort: 'high', discovery_status: 'verified',
-  models: [
-    { id: 'gpt-6-luna', label: 'GPT-6 Luna', description: '日常研究', available: true, unavailable_reason: null, default_reasoning_effort: 'high', reasoning_efforts: [{ id: 'low', label: '轻量' }, { id: 'high', label: '深入' }, { id: 'max', label: '最大' }] },
-    { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', description: '轻量研究', available: true, unavailable_reason: null, default_reasoning_effort: 'high', reasoning_efforts: [{ id: 'low', label: '轻量' }, { id: 'high', label: '深入' }] },
-    { id: 'gpt-6-astra', label: 'GPT-6 Astra', description: '复杂研究', available: false, unavailable_reason: '当前 Free 账户不可用', default_reasoning_effort: 'high', reasoning_efforts: [{ id: 'high', label: '深入' }] },
-  ],
-}
 const at = '2026-10-08T08:00:00Z'
 function original(overrides: Partial<Conversation> = {}): Conversation {
   return { id: 'model-conversation', task_id: 'model-conversation', entry_scope: 'screening', workflow_type: 'research', task_revision: 0,
-    model_id: 'gpt-6-luna', reasoning_effort: 'high', model_revision: 7, active_run_id: null, pending_execution: false,
+    model_id: 'gpt-6.2-astra', reasoning_effort: 'low', model_revision: 7, active_run_id: null, pending_execution: false,
     state: 'active', messages: [], turns: [], created_at: at, updated_at: at, ...overrides }
 }
 function json(value: unknown, status = 200) { return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } }) }
 type Body = Record<string, unknown>
 
-function backend(existing?: Conversation) {
+function backend(existing?: Conversation, unavailable?: 'instant' | 'deep') {
   const state = {
     conversation: existing,
     creates: [] as Body[], patches: [] as Body[], messages: [] as Body[],
@@ -44,11 +35,11 @@ function backend(existing?: Conversation) {
     const path = new URL(String(input), 'http://localhost').pathname
     const method = init?.method || 'GET'
     const body = init?.body ? JSON.parse(String(init.body)) as Body : {}
-    if (path === '/api/v1/research-models') return json(catalog)
+    if (path === '/api/v1/research-models') return json(modelCatalog(unavailable))
     if (path === '/api/v1/conversations' && method === 'GET') return json({ items: state.conversation ? [state.conversation] : [] })
     if (path === '/api/v1/conversations' && method === 'POST') {
       state.creates.push(body)
-      state.conversation = original({ model_id: String(body.model_id || 'gpt-6-luna'), reasoning_effort: String(body.reasoning_effort || 'high'), model_revision: 0 })
+      state.conversation = original({ model_id: String(body.model_id || 'gpt-6.2-astra'), reasoning_effort: String(body.reasoning_effort || 'low'), model_revision: 0 })
       return json(state.conversation)
     }
     if (path.endsWith('/model') && method === 'PATCH') { state.patches.push(body); return state.modelHandler ? state.modelHandler(body) : updateModel(body) }
@@ -63,12 +54,12 @@ function backend(existing?: Conversation) {
 async function ready() { await waitFor(() => expect(screen.getByRole('textbox', { name: '研究要求' })).toBeEnabled()) }
 
 describe('conversation model integration', () => {
-  it('completes ordinary research with default settings kept out of the input area', async () => {
+  it('completes ordinary research with the default instant preset', async () => {
     const { state } = backend(), user = userEvent.setup()
     render(<ConversationWorkspace initialNewDraft />)
     await ready()
     expect(screen.getByRole('button', { name: '研究设置' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('button', { name: /选择研究模型/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '即时' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByRole('button', { name: '研究方法' })).not.toBeInTheDocument()
     await user.type(screen.getByRole('textbox', { name: '研究要求' }), '分析经营变化与主要风险')
     await user.click(screen.getByRole('button', { name: '发送' }))
@@ -84,17 +75,12 @@ describe('conversation model integration', () => {
     render(<ConversationWorkspace />)
     await ready()
     expect(screen.queryByLabelText('研究深度')).not.toBeInTheDocument()
-    await openResearchSettings(user)
-    await user.click(await screen.findByRole('button', { name: '选择研究模型，GPT-5.6 Luna，轻量', hidden: true }))
-    await user.click(screen.getByRole('menuitemradio', { name: /GPT-6 Luna/ }))
-    await openResearchSettings(user)
-    await user.click(screen.getByRole('button', { name: '选择研究模型，GPT-6 Luna，轻量', hidden: true }))
-    await user.click(screen.getByRole('menuitemradio', { name: '最大' }))
-    expect(JSON.parse(sessionStorage.getItem('research.modelPreference')!)).toEqual({ model_id: 'gpt-6-luna', reasoning_effort: 'max' })
+    await user.click(screen.getByRole('button', { name: '深度' }))
+    expect(JSON.parse(sessionStorage.getItem('research.modelPreference')!)).toEqual({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' })
     await user.type(screen.getByRole('textbox', { name: '研究要求' }), '核对公司资料')
     await user.click(screen.getByRole('button', { name: '发送' }))
     await screen.findByText('模型研究已完成')
-    expect(state.creates[0]).toMatchObject({ model_id: 'gpt-6-luna', reasoning_effort: 'max' })
+    expect(state.creates[0]).toMatchObject({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' })
     expect(state.messages[0]).toMatchObject({ model_revision: 0, content: '核对公司资料' })
   })
 
@@ -107,15 +93,13 @@ describe('conversation model integration', () => {
     render(<ConversationWorkspace initialConversationId="model-conversation" />)
     await ready()
     await user.type(screen.getByRole('textbox', { name: '研究要求' }), '保留输入草稿')
-    await openResearchSettings(user)
-    await user.click(await screen.findByRole('button', { name: '选择研究模型，GPT-6 Luna，深入', hidden: true }))
-    await user.click(screen.getByRole('menuitemradio', { name: /GPT-5.6 Luna/ }))
-    expect(state.patches[0]).toEqual({ model_id: 'gpt-5.6-luna', reasoning_effort: 'high', base_revision: 7 })
-    expect(screen.getByRole('button', { name: '选择研究模型，GPT-6 Luna，深入', hidden: true })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '深度' }))
+    expect(state.patches[0]).toEqual({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max', base_revision: 7 })
+    expect(screen.getByRole('button', { name: '即时' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
     expect(JSON.parse(sessionStorage.getItem('research.modelPreference')!).reasoning_effort).toBe('low')
     await act(async () => { resolve(updateModel(state.patches[0])) })
-    expect(await screen.findByRole('button', { name: '选择研究模型，GPT-5.6 Luna，深入', hidden: true })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '深度' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('textbox', { name: '研究要求' })).toHaveValue('保留输入草稿')
     await user.click(screen.getByRole('button', { name: '发送' }))
     await screen.findByText('模型研究已完成')
@@ -129,28 +113,25 @@ describe('conversation model integration', () => {
     render(<ConversationWorkspace initialConversationId="model-conversation" />)
     await ready()
     await user.type(screen.getByRole('textbox', { name: '研究要求' }), '待发送的原问题')
-    await openResearchSettings(user)
-    await user.click(await screen.findByRole('button', { name: '选择研究模型，GPT-6 Luna，深入', hidden: true }))
-    await user.click(screen.getByRole('menuitemradio', { name: /GPT-5.6 Luna/ }))
+    await user.click(screen.getByRole('button', { name: '深度' }))
     await screen.findByText('模型设置已变化，请读取最新状态')
-    expect(await screen.findByRole('button', { name: '选择研究模型，GPT-6 Luna，深入', hidden: true })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: '即时' })).toBeEnabled()
     expect(screen.getByRole('textbox', { name: '研究要求' })).toHaveValue('待发送的原问题')
     expect(sessionStorage.getItem('research.modelPreference')).toBeNull()
   })
 
   it('blocks a confirmed unavailable saved model until the user explicitly switches', async () => {
-    const { state } = backend(original({ model_id: 'gpt-6-astra' }))
+    const { state } = backend(original({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' }), 'deep')
     const user = userEvent.setup()
     render(<ConversationWorkspace initialConversationId="model-conversation" />)
     await ready()
     await user.type(screen.getByRole('textbox', { name: '研究要求' }), '等待换模型后发送')
-    await screen.findByText('当前模型或推理档位不可用，请切换后发送。')
+    await screen.findByText('当前账户不可用')
     expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: '切换模型' }))
-    expect(await screen.findByRole('menuitemradio', { name: /GPT-6 Astra/ })).toBeDisabled()
-    await user.click(screen.getByRole('menuitemradio', { name: /GPT-6 Luna/ }))
+    expect(screen.getByRole('button', { name: '深度' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '即时' }))
     await waitFor(() => expect(screen.getByRole('button', { name: '发送' })).toBeEnabled())
-    expect(state.patches[0].model_id).toBe('gpt-6-luna')
+    expect(state.patches[0].model_id).toBe('gpt-6.2-astra')
     expect(screen.getByRole('textbox', { name: '研究要求' })).toHaveValue('等待换模型后发送')
   })
 
@@ -159,7 +140,7 @@ describe('conversation model integration', () => {
     state.messageHandler = body => {
       if (state.messages.length === 1) {
         complete(body)
-        state.conversation = { ...state.conversation!, model_id: 'gpt-5.6-luna', reasoning_effort: 'low', model_revision: 8 }
+        state.conversation = { ...state.conversation!, model_id: 'gpt-6.2-sol', reasoning_effort: 'max', model_revision: 8 }
         return json({ message: '消息响应丢失，请重试' }, 503)
       }
       return json({ message_id: 'question', turn_id: 'turn', state: 'succeeded', idempotent_replay: true })
@@ -209,7 +190,7 @@ describe('conversation model integration', () => {
     render(<ConversationWorkspace initialConversationId="model-conversation" />)
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('正在搜索网页'))
     expect(screen.queryByText('PRIVATE_SEARCH_QUERY')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '选择研究模型，GPT-6 Luna，深入', hidden: true })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '即时' })).toBeDisabled()
     fireEvent.keyDown(screen.getByRole('textbox', { name: '研究要求' }), { key: 'Enter' })
     expect(state.patches).toHaveLength(0)
   })

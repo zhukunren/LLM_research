@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { api, ApiRequestError } from '../api'
 import { marketTime, type RebalanceCardContent } from '../clientService'
 import { useWorkspaceSession } from '../WorkspaceSession'
@@ -6,7 +7,7 @@ import LoadingState from './LoadingState'
 import './client-robot-operations.css'
 
 const endpoint = '/client-service/robots'
-type Robot = { id: string; name: string; enabled: boolean }
+type Robot = { id: string; name: string; enabled: boolean; revision?: number }
 type Delivery = { id: string; robot_name: string; state: 'sending' | 'sent' | 'failed' | 'unknown'; message: string; created_at: string }
 type Review = { passed: boolean; issues: { code: string; message: string }[]; bytes: number }
 type Risks = { items: Delivery[]; paused: Pick<Robot, 'name' | 'id'>[] }
@@ -15,7 +16,7 @@ type Batch = { id: string; targets: Robot[]; body: BroadcastBody }
 type Receipt = { id: string; group: string; state: Delivery['state']; message: string }
 const deliveryNames = { sending: '发送中', sent: '已接收', failed: '发送失败', unknown: '结果未确认' }
 
-export function ClientRobotRiskMonitor() {
+export function ClientRobotRiskMonitor({ robotId }: { robotId: string }) {
   const { active } = useWorkspaceSession()
   const [risks, setRisks] = useState<Risks | null>(null)
   const [error, setError] = useState('')
@@ -26,7 +27,7 @@ export function ClientRobotRiskMonitor() {
     let timer: ReturnType<typeof setTimeout>
     async function read() {
       try {
-        const result = await api<Risks>(endpoint + '/risks', { signal: controller.signal })
+        const result = await api<Risks>(endpoint + '/risks?robot_id=' + encodeURIComponent(robotId), { signal: controller.signal })
         if (!controller.signal.aborted) { setRisks(result); setError('') }
       } catch (reason) {
         if (!controller.signal.aborted) setError((reason as Error).message)
@@ -35,23 +36,23 @@ export function ClientRobotRiskMonitor() {
     }
     void read()
     return () => { controller.abort(); clearTimeout(timer) }
-  }, [active, revision])
+  }, [active, robotId, revision])
 
-  return <section className="robot-operation" aria-label="群发风险监控">
-    <header><h3>群发风险监控</h3><button type="button" className="secondary-button workspace-button" onClick={() => setRevision(value => value + 1)}>刷新</button></header>
+  return <section className="robot-operation" aria-label="推送状态">
+    <header className="client-panel-heading"><h3>推送状态</h3><button type="button" className="secondary-button workspace-button" onClick={() => setRevision(value => value + 1)}><RefreshCw size={15} aria-hidden="true" />刷新</button></header>
     {error && <p role="alert" className="workspace-error">{error}</p>}
     {!error && !risks && <LoadingState compact label="正在读取群发状态…" />}
     {risks && <>
-      <div className="robot-risk-counts">
-        <span>发送失败 <strong>{risks.items.filter(item => item.state === 'failed').length}</strong></span>
-        <span>结果未确认 <strong>{risks.items.filter(item => item.state === 'unknown').length}</strong></span>
-        <span>发送中 <strong>{risks.items.filter(item => item.state === 'sending').length}</strong></span>
-        <span>已停用机器人 <strong>{risks.paused.length}</strong></span>
-      </div>
+      <dl className="robot-risk-counts">
+        <div><dt>发送失败</dt><dd>{risks.items.filter(item => item.state === 'failed').length}</dd></div>
+        <div><dt>结果未确认</dt><dd>{risks.items.filter(item => item.state === 'unknown').length}</dd></div>
+        <div><dt>发送中</dt><dd>{risks.items.filter(item => item.state === 'sending').length}</dd></div>
+        <div><dt>已停用机器人</dt><dd>{risks.paused.length}</dd></div>
+      </dl>
       {risks.paused.length > 0 && <p>已停用 {risks.paused.map(item => item.name).join('、')}</p>}
       {risks.items.length === 0 ? <p>目前没有失败或待确认的发送。</p> :
         <ul className="robot-operation-list">{risks.items.map(item => <li key={item.id}>
-          <strong>{item.robot_name}</strong> <span>{deliveryNames[item.state]}</span>
+          <strong>{item.robot_name}</strong> <span className={`client-delivery-state is-${item.state}`}>{deliveryNames[item.state]}</span>
           <small>{marketTime(item.created_at)} · {item.message}</small>
         </li>)}</ul>}
     </>}
@@ -59,7 +60,7 @@ export function ClientRobotRiskMonitor() {
 }
 
 function ReviewResult({ value }: { value: Review }) {
-  return <section className="robot-review-result" aria-label="文案检查结果">
+  return <section className="robot-review-result" aria-label="文案检查结果" data-passed={value.passed}>
     <strong role="status">{value.passed ? '已通过基础规则检查' : '以下内容需复核'}</strong>
     <span> · {value.bytes} 字节</span>
     {!value.passed && <ul>{value.issues.map(issue => <li key={issue.code}>{issue.message}</li>)}</ul>}
@@ -84,8 +85,8 @@ export function ClientComplianceReview({ text, onChange }: { text: string; onCha
     finally { setBusy(false) }
   }
   return <section className="robot-operation" aria-label="合规审查文案">
-    <header><h3>合规审查</h3></header>
-    <label>待审查文案<textarea aria-label="待审查文案" className="workspace-field" rows={8} maxLength={6000} value={text} disabled={busy}
+    <header className="client-panel-heading"><h3>外发文案检查</h3></header>
+    <label>待审查文案<textarea aria-label="待审查文案" className="workspace-field" rows={4} maxLength={6000} value={text} disabled={busy}
       onChange={event => onChange(event.target.value)} /></label>
     <div className="robot-operation-actions">
       <label>外发格式<select className="workspace-field" value={kind} disabled={busy} onChange={event => setKind(event.target.value === 'image' ? 'image' : 'text')}>
@@ -110,7 +111,8 @@ export function ClientBroadcastPanel({ robots, text, onTextChange, card, image, 
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<'review' | 'send' | null>(null)
   const enabled = robots.filter(robot => robot.enabled)
-  const targets = enabled.filter(robot => selected.includes(robot.id))
+  const single = robots.length === 1
+  const targets = single ? enabled : enabled.filter(robot => selected.includes(robot.id))
   const frozen = !!confirmation || !!busy
 
   async function prepare() {
@@ -135,7 +137,7 @@ export function ClientBroadcastPanel({ robots, text, onTextChange, card, image, 
         const groupResults = await Promise.all(batch.targets.slice(index, index + 4).map(async (robot) => {
           try {
             const value = await api<Delivery>(endpoint + '/' + encodeURIComponent(robot.id) + '/send', {
-              method: 'POST', body: JSON.stringify({ request_id: batch.id + ':' + robot.id, ...batch.body }),
+              method: 'POST', body: JSON.stringify({ request_id: batch.id + ':' + robot.id, robot_revision: robot.revision, ...batch.body }),
             })
             return { id: robot.id, group: robot.name, state: value.state, message: value.message }
           } catch (reason) {
@@ -152,21 +154,21 @@ export function ClientBroadcastPanel({ robots, text, onTextChange, card, image, 
     }
   }
 
-  return <section className="robot-operation" aria-label="内容群发">
-    <header><h3>{card ? '发送到多个群' : '内容群发'}</h3></header>
+  return <section className="robot-operation" aria-label="待推送内容">
+    {!onTextChange && <header className="client-panel-heading"><h3>发送到群</h3></header>}
     {card && <div role="group" aria-label="群发格式" className="robot-operation-actions">
       <button type="button" className="secondary-button workspace-button" aria-pressed={kind === 'image'} disabled={frozen}
         onClick={() => { setKind('image'); setReview(null) }}>卡片图片</button>
       <button type="button" className="secondary-button workspace-button" aria-pressed={kind === 'text'} disabled={frozen}
         onClick={() => { setKind('text'); setReview(null) }}>纯文案</button>
     </div>}
-    {onTextChange ? <label>群发文案<textarea aria-label="群发文案" className="workspace-field" rows={8} maxLength={6000} value={text}
+    {onTextChange ? <label>推送文案<textarea aria-label="推送文案" className="workspace-field" rows={4} maxLength={6000} value={text}
       disabled={frozen} onChange={event => { onTextChange(event.target.value); setReview(null) }} /></label>
       : kind === 'image' && image ? <img src={image} alt="待群发调仓卡片" className="robot-broadcast-image" />
         : <pre className="robot-broadcast-text">{text}</pre>}
     <fieldset disabled={frozen} className="robot-broadcast-targets">
       <legend>接收群</legend>
-      {enabled.length === 0 ? <p>请先配置并启用企业微信群机器人。</p> : enabled.map(robot => <label key={robot.id}>
+      {!enabled.length ? <p>请先启用接收群的机器人。</p> : single ? <strong>{enabled[0].name}</strong> : enabled.map(robot => <label key={robot.id}>
         <input type="checkbox" checked={selected.includes(robot.id)} onChange={event => {
           setSelected(current => event.target.checked ? [...current, robot.id] : current.filter(id => id !== robot.id))
         }} />{robot.name}
@@ -179,13 +181,13 @@ export function ClientBroadcastPanel({ robots, text, onTextChange, card, image, 
       <div className="robot-operation-actions">
         <button type="button" className="secondary-button workspace-button" disabled={!!busy} onClick={() => setConfirmation(null)}>返回编辑</button>
         <button type="button" className="primary-button workspace-button" disabled={!!busy} onClick={() => void send()}>
-          {busy === 'send' ? '群发中…' : `确认发送到 ${confirmation.targets.length} 个群`}
+          {busy === 'send' ? '正在推送…' : `确认发送到 ${single ? confirmation.targets[0].name : confirmation.targets.length + ' 个群'}`}
         </button>
       </div>
     </div> : <button type="button" className="primary-button workspace-button" disabled={!!busy || !text.trim() || !targets.length}
-      onClick={() => void prepare()}>{busy === 'review' ? '正在检查…' : '检查并准备群发'}</button>}
-    {receipts.length > 0 && <ul aria-label="各群发送结果" className="robot-operation-list">{receipts.map(item => <li key={item.id}>
-      <strong>{item.group}</strong> <span>{deliveryNames[item.state]}</span><small>{item.message}</small>
+      onClick={() => void prepare()}>{busy === 'review' ? '正在检查…' : '检查并准备推送'}</button>}
+    {receipts.length > 0 && <ul aria-label="推送结果" className="robot-operation-list">{receipts.map(item => <li key={item.id}>
+      <strong>{item.group}</strong> <span className={`client-delivery-state is-${item.state}`}>{deliveryNames[item.state]}</span><small>{item.message}</small>
     </li>)}</ul>}
   </section>
 }

@@ -12,8 +12,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "models.db")
     monkeypatch.setattr(market, "STOCK_FILE", tmp_path / "absent.parquet")
     monkeypatch.setattr(research_models, "llm_settings", lambda: {"configured": True, "model": "gpt-6-luna", "reasoning_effort": "high"})
-    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "free", "allowed_models": [], "reasoning_efforts": {}})
-    monkeypatch.setattr(research_models, "_discover", lambda _: (set(research_models.MODEL_DEFINITIONS), "verified"))
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "paid", "allowed_models": [], "reasoning_efforts": {}})
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
     with TestClient(main.app) as session:
         yield session
 
@@ -22,17 +22,17 @@ def create(client, **kwargs):
     return client.post("/api/v1/conversations", json={"entry_scope": "screening", "workflow_type": "research", **kwargs})
 
 
-def test_catalog_free_and_capability_discovery_fail_closed(client, monkeypatch):
+def test_catalog_checks_provider_availability_for_both_presets(client, monkeypatch):
     data = client.get("/api/v1/research-models").json()
-    assert data["account_tier"] == "free"
-    assert data["default_model_id"] == "gpt-6-luna"
+    assert data["account_tier"] == "paid"
+    assert data["default_model_id"] == "gpt-6.2-astra"
     available = {item["id"] for item in data["models"] if item["available"]}
-    assert available == {"gpt-6-luna", "gpt-5.6-luna"}
+    assert available == {"gpt-6.2-astra", "gpt-6.2-sol"}
     assert all(item["unavailable_reason"] for item in data["models"] if not item["available"])
     assert "api_key" not in str(data) and "base_url" not in str(data)
-    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6-luna", "fake-model"}, "verified"))
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "fake-model"}, "verified"))
     data = client.get("/api/v1/research-models").json()
-    assert {item["id"] for item in data["models"] if item["available"]} == {"gpt-6-luna"}
+    assert {item["id"] for item in data["models"] if item["available"]} == {"gpt-6.2-astra"}
     assert "fake-model" not in str(data)
 
 
@@ -42,15 +42,15 @@ def test_unavailable_model_cannot_be_selected_or_substituted(client, model):
     original = create(client).json()
     response = client.patch(f"/api/v1/conversations/{original['id']}/model", json={"model_id": model, "reasoning_effort": "low", "base_revision": 0})
     assert response.status_code == 422
-    assert client.get(f"/api/v1/conversations/{original['id']}").json()["model_id"] == "gpt-6-luna"
+    assert client.get(f"/api/v1/conversations/{original['id']}").json()["model_id"] == "gpt-6.2-astra"
 
 
 def test_reasoning_and_model_revision_are_frozen_and_locked(client):
-    original = create(client, model_id="gpt-5.6-luna", reasoning_effort="low").json()
+    original = create(client, model_id="gpt-6.2-astra", reasoning_effort="low").json()
     cid = original["id"]
-    assert original["model_id"] == "gpt-5.6-luna" and original["reasoning_effort"] == "low"
-    assert create(client, model_id="gpt-5.6-luna", reasoning_effort="ultra").status_code == 422
-    selection = {"model_id": "gpt-6-luna", "reasoning_effort": "max", "base_revision": 0}
+    assert original["model_id"] == "gpt-6.2-astra" and original["reasoning_effort"] == "low"
+    assert create(client, model_id="gpt-6.2-astra", reasoning_effort="ultra").status_code == 422
+    selection = {"model_id": "gpt-6.2-sol", "reasoning_effort": "max", "base_revision": 0}
     changed = client.patch(f"/api/v1/conversations/{cid}/model", json=selection)
     assert changed.status_code == 200 and changed.json()["model_revision"] == 1
     assert client.patch(f"/api/v1/conversations/{cid}/model", json=selection).status_code == 409
@@ -60,8 +60,8 @@ def test_reasoning_and_model_revision_are_frozen_and_locked(client):
     response = client.post(f"/api/v1/conversations/{cid}/messages", json=body)
     assert response.status_code == 202, response.text
     tid = response.json()["turn_id"]
-    assert response.json()["model_id"] == "gpt-6-luna" and response.json()["reasoning_effort"] == "max"
-    assert client.patch(f"/api/v1/conversations/{cid}/model", json={**selection, "reasoning_effort": "low", "base_revision": 1}).status_code == 409
+    assert response.json()["model_id"] == "gpt-6.2-sol" and response.json()["reasoning_effort"] == "max"
+    assert client.patch(f"/api/v1/conversations/{cid}/model", json={"model_id": "gpt-6.2-astra", "reasoning_effort": "low", "base_revision": 1}).status_code == 409
     assert client.post(f"/api/v1/conversations/{cid}/messages", json=body).status_code == 200
     assert client.post(f"/api/v1/conversations/{cid}/messages", json={**body, "model_revision": 0}).status_code == 409
     with db.connect() as connection:
@@ -69,7 +69,7 @@ def test_reasoning_and_model_revision_are_frozen_and_locked(client):
             connection.execute("UPDATE conversation_turns SET reasoning_effort='low' WHERE id=?", (tid,))
     conversation_store.start_turn(cid, tid)
     conversation_store.finish_turn(cid, tid, 0, "succeeded", "已完成", {})
-    client.patch(f"/api/v1/conversations/{cid}/model", json={**selection, "reasoning_effort": "low", "base_revision": 1})
+    client.patch(f"/api/v1/conversations/{cid}/model", json={"model_id": "gpt-6.2-astra", "reasoning_effort": "low", "base_revision": 1})
     assert client.get(f"/api/v1/conversations/{cid}/turns/{tid}").json()["reasoning_effort"] == "max"
     assert client.get("/api/v1/conversations").json()["items"][0]["reasoning_effort"] == "low"
 
@@ -88,15 +88,15 @@ def test_legacy_message_and_nested_creation_transaction(client):
 
 
 def test_free_policy_cannot_be_bypassed_by_allowlist(client, monkeypatch):
-    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "free", "allowed_models": ["gpt-6-astra"], "reasoning_efforts": {}})
-    assert create(client, model_id="gpt-6-astra").status_code == 422
-    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "paid", "allowed_models": ["gpt-6-astra"], "reasoning_efforts": {}})
-    assert create(client, model_id="gpt-6-astra", reasoning_effort="low").status_code == 200
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "free", "allowed_models": ["gpt-6.2-astra"], "reasoning_efforts": {}})
+    assert create(client, model_id="gpt-6.2-astra").status_code == 422
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "paid", "allowed_models": ["gpt-6.2-astra"], "reasoning_efforts": {}})
+    assert create(client, model_id="gpt-6.2-astra", reasoning_effort="low").status_code == 200
 
 
 def test_queued_turn_rechecks_account_policy_before_model_execution(client, monkeypatch, tmp_path):
     monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "paid", "allowed_models": [], "reasoning_efforts": {}})
-    cid = create(client, model_id="gpt-6-astra", reasoning_effort="low").json()["id"]
+    cid = create(client, model_id="gpt-6.2-astra", reasoning_effort="low").json()["id"]
     turn = conversation_store.add_user_message(cid, "paid-before-downgrade", 0, "读取资料")
     monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "free", "allowed_models": [], "reasoning_efforts": {}})
     monkeypatch.setattr(codex_runtime, "availability", lambda: {"available": True})
@@ -108,7 +108,7 @@ def test_queued_turn_rechecks_account_policy_before_model_execution(client, monk
 
 @pytest.mark.parametrize("old_model", ["gpt-6-astra", "retired-custom-model"])
 @pytest.mark.parametrize("has_turn_result", [True, False])
-def test_existing_model_evidence_survives_migration_without_silent_default_substitution(tmp_path, monkeypatch, old_model, has_turn_result):
+def test_existing_model_evidence_survives_migration_and_next_turn_uses_preset(tmp_path, monkeypatch, old_model, has_turn_result):
     current_migrations = _prepare_legacy_database(tmp_path, monkeypatch)
     now = db.utc_now()
     with db.connect() as connection:
@@ -121,11 +121,12 @@ def test_existing_model_evidence_survives_migration_without_silent_default_subst
     monkeypatch.setattr(db, "MIGRATIONS_DIR", current_migrations)
     db.init_db()
     conversation = conversation_store.get_conversation("legacy")
-    assert conversation["model_id"] == old_model
+    assert conversation["model_id"] == "gpt-6.2-sol"
     assert conversation["turns"][0]["model_id"] == old_model
     assert conversation["turns"][0]["reasoning_effort"] == "max"
-    with pytest.raises(conversation_store.ConversationStoreError):
-        conversation_store.add_user_message("legacy", "must-not-fallback", 0, "继续分析", model_revision=0)
+    next_turn = conversation_store.add_user_message("legacy", "next", 0, "继续分析", model_revision=0)
+    assert next_turn["model_id"] == "gpt-6.2-sol"
+    assert next_turn["reasoning_effort"] == "max"
 
 
 def _prepare_legacy_database(tmp_path, monkeypatch):
@@ -138,8 +139,8 @@ def _prepare_legacy_database(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "legacy-model.db")
     monkeypatch.setattr(db, "MIGRATIONS_DIR", legacy_migrations)
     monkeypatch.setattr(research_models, "llm_settings", lambda: {"configured": True, "model": "gpt-6-luna", "reasoning_effort": "high"})
-    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "free", "allowed_models": [], "reasoning_efforts": {}})
-    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6-luna", "gpt-5.6-luna", "gpt-6-astra"}, "verified"))
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "paid", "allowed_models": [], "reasoning_efforts": {}})
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
     db.init_db()
     return current_migrations
 
@@ -176,25 +177,25 @@ def test_evidence_free_legacy_default_is_pinned_when_first_new_message_is_sent(t
     monkeypatch.setattr(db, "MIGRATIONS_DIR", current_migrations)
     db.init_db()
     old = conversation_store.get_conversation("legacy")
-    assert old["model_id"] == "gpt-6-luna" and old["reasoning_effort"] == "max"
+    assert old["model_id"] == "gpt-6.2-sol" and old["reasoning_effort"] == "max"
     turn = conversation_store.add_user_message("legacy", "first-new-message", 0, "开始分析", model_revision=0)
     monkeypatch.setattr(research_models, "llm_settings", lambda: {"configured": True, "model": "gpt-5.6-luna", "reasoning_effort": "low"})
     current = conversation_store.get_conversation("legacy")
-    assert current["model_id"] == "gpt-6-luna" and current["reasoning_effort"] == "max"
-    assert conversation_store.get_turn("legacy", turn["turn_id"])["model_id"] == "gpt-6-luna"
+    assert current["model_id"] == "gpt-6.2-sol" and current["reasoning_effort"] == "max"
+    assert conversation_store.get_turn("legacy", turn["turn_id"])["model_id"] == "gpt-6.2-sol"
 
 
 def test_message_retry_retains_original_frozen_model_after_user_switches_models(client):
-    cid = create(client, model_id="gpt-5.6-luna", reasoning_effort="low").json()["id"]
+    cid = create(client, model_id="gpt-6.2-astra", reasoning_effort="low").json()["id"]
     body = {"client_message_id": "already-accepted", "base_revision": 0, "content": "读取资料", "model_revision": 0}
     accepted = client.post(f"/api/v1/conversations/{cid}/messages", json=body).json()
     conversation_store.start_turn(cid, accepted["turn_id"])
     conversation_store.finish_turn(cid, accepted["turn_id"], 0, "succeeded", "已完成", {})
-    assert client.patch(f"/api/v1/conversations/{cid}/model", json={"model_id": "gpt-6-luna", "reasoning_effort": "high", "base_revision": 0}).status_code == 200
+    assert client.patch(f"/api/v1/conversations/{cid}/model", json={"model_id": "gpt-6.2-sol", "reasoning_effort": "max", "base_revision": 0}).status_code == 200
     replay = client.post(f"/api/v1/conversations/{cid}/messages", json=body)
     assert replay.status_code == 200
     assert replay.json()["turn_id"] == accepted["turn_id"]
-    assert replay.json()["model_id"] == "gpt-5.6-luna" and replay.json()["reasoning_effort"] == "low"
+    assert replay.json()["model_id"] == "gpt-6.2-astra" and replay.json()["reasoning_effort"] == "low"
     assert client.post(f"/api/v1/conversations/{cid}/messages", json={**body, "client_message_id": "new-stale"}).status_code == 409
     with db.connect() as connection:
         assert connection.execute("SELECT COUNT(*) FROM conversation_turns WHERE conversation_id=?", (cid,)).fetchone()[0] == 1

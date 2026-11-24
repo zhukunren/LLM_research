@@ -110,6 +110,20 @@ def test_signal_ids_remain_stable_and_titles_follow_upstream_renames():
     assert '真实策略名称' not in json.dumps(second, ensure_ascii=False)
 
 
+@pytest.mark.parametrize('ratio', [0, 0.125, None, '0.125', True, -0.125, float('inf')])
+def test_signal_positions_project_only_the_public_ratio_and_date(ratio):
+    source = named_snapshot()
+    stock = source['strategies'][0]['buy_signals'][0]
+    stock.update(position_ratio=ratio, position_date='2026-11-13', qty=200, holding_value=8000)
+
+    result = service.named_signals(source)['strategies'][0]['buy_signals'][0]
+
+    expected = {'code': CODE, 'name': '测试股票'}
+    if type(ratio) in (int, float) and 0 <= ratio < float('inf'):
+        expected.update(position_ratio=ratio, position_date='2026-11-13')
+    assert result == expected
+
+
 def test_signal_without_a_title_still_uses_a_stable_alias():
     source = named_snapshot()
     source['strategies'][0].pop('strategy_title')

@@ -12,6 +12,7 @@ from .api_responses import bad_request
 from .condition_contract import filter_object
 from .db import connect, json_dump, json_load, utc_now
 from .model_client import ModelRequestError, complete_json
+from .model_modes import ModelMode
 from .models import DraftInput, FilterInput, PreviewInput
 from .rules import local_draft, validate_filter
 from .settings import llm_settings
@@ -19,7 +20,7 @@ from .settings import llm_settings
 router = APIRouter(prefix="/api/v1/filters")
 
 
-def _llm_filter(prompt: str, library: str) -> dict[str, Any] | None:
+def _llm_filter(prompt: str, library: str, model_mode: ModelMode) -> dict[str, Any] | None:
     config = llm_settings()
     if not config["configured"]:
         return None
@@ -49,7 +50,7 @@ def _llm_filter(prompt: str, library: str) -> dict[str, Any] | None:
         return complete_json(
             system_prompt,
             f"Library={library}\nRequest:\n{prompt}",
-            max_output_tokens=1800,
+            max_output_tokens=1800, model_mode=model_mode,
         )
     except ModelRequestError:
         return None
@@ -59,12 +60,12 @@ def _llm_filter(prompt: str, library: str) -> dict[str, Any] | None:
 def filter_draft(payload: DraftInput):
     if payload.library == "technical":
         from .condition_language import compile_plan
-        plan = compile_plan(payload.prompt)
+        plan = compile_plan(payload.prompt, model_mode=payload.model_mode)
         if plan["status"] != "ready" or len(plan["conditions"]) != 1 or plan["conditions"][0]["library"] != "technical" or plan["tree"].get("op") != "condition":
             return {"source": plan["source"], "name": "需要完整确认", "description": "请在自然语言选股工作台查看全部条件与组合关系。", "expression": {}, "status": "draft", "validation": {"valid": False, "errors": [issue["text"] for issue in plan["issues"]] or ["包含多个条件或组合关系，请使用自然语言选股工作台"]}}
         item = plan["conditions"][0]
         return {"source": plan["source"], "name": item["name"], "description": item["contract"]["summary"], "expression": item["expression"], "status": "validated", "validation": {"valid": True, "errors": []}}
-    candidate = _llm_filter(payload.prompt, payload.library)
+    candidate = _llm_filter(payload.prompt, payload.library, payload.model_mode)
     source = "configured_llm"
     if not candidate:
         name, expression, explanation = local_draft(payload.library, payload.prompt)
@@ -208,7 +209,7 @@ def preview_filter(filter_id: str, payload: PreviewInput, version: int | None = 
             bad_request("证据试算需要明确证券代码和日期")
         try:
             date.fromisoformat(payload.as_of)
-            return evaluate_question(item["library"], item["expression"], payload.stock_code, payload.as_of)
+            return evaluate_question(item["library"], item["expression"], payload.stock_code, payload.as_of, model_mode=payload.model_mode)
         except ValueError as exc:
             bad_request(str(exc))
     if item["library"] == "news":

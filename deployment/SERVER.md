@@ -11,10 +11,11 @@
 
 ## 模型与行情
 
-在 `/etc/llmr/service.env` 设置 `OPENAI_API_KEY`、`TUSHARE_TOKEN`。
-模型、API 地址及协议在 `/etc/llmr/config.ini` 设置；已按本机 Codex 用户配置接入 gpt-6.1-sol（Responses、low），Tushare Token 从部署会话环境导入；凭证仅保存在服务器配置中。
-修改后运行 `sudo systemctl restart llmr-api llmr-worker`。
-不要提交密钥，不要将本部署当作多用户隔离服务。
+模型使用 `/etc/llmr/config.ini` 中的 `[app] model_backend = local_codex`。即时档为 GPT-6.2 Astra / Low / Fast，深度档为 GPT-6.2 Sol / Max。在项目虚拟环境中安装锁定的 Codex SDK 和 CLI。
+
+以 `llmr` 运行 `codex login --device-auth`，将 `CODEX_HOME` 指向 `/var/lib/llmr/sandbox/codex-home`。服务网络需要代理时，在 `/etc/llmr/service.env` 中设置 `LLMR_CODEX_HTTPS_PROXY`。行情凭证 `TUSHARE_TOKEN` 也由该环境文件提供。
+
+修改后运行 `sudo systemctl restart llmr-api llmr-worker`，在网页的「数据与服务」分别检查两档助手连接。
 
 ## 运维
 
@@ -73,6 +74,10 @@ MCP 保留虚拟环境解释器路径，禁止 resolve 到系统 Python。使用
 按 `/home/ubuntu/fast-backtest/web/docs/daily-signals-api.md` 接入公开只读接口 `https://jshs.dwzq.top/api/strategies/signals`。浏览器通过本站 `/api/v1/daily-signals/signals` 查询。服务端返回上游策略名称 `strategy_title` 和展示所需的信号、统计数据，使用摘要生成卡片标识。初次加载读取最新缓存，可按日期和 N 手动查询与刷新。
 按策略展示买卖股票、胜率、平均每笔收益及年化收益，并提供样本与净值区间。默认仅显示有信号或未覆盖日期的策略；缺失缓存、未覆盖、没有信号、零收益与空值分别呈现。页面支持手机布局，与工作区标签和快捷导航集成。
 上线验证：78 项页面/路由/导航相关测试通过，生产构建通过。真实跨域请求确认未携带 Authorization；最新缓存与历史日期/N 查询成功。研究和选股侧栏入口均通过浏览器验证，390px/360px 手机查询栏完整显示，无横向溢出。
+
+交易信号展示股票市值占组合总资产的百分比。买入使用对应回测成交日的收盘仓位，卖出使用信号日前一交易日的收盘仓位。股票对象可带 `position_ratio` 和 `position_date` 两个字段。
+
+本次部署由 `llmr-daily-signals` 监听 `127.0.0.1:18863`，Nginx 将单个信号查询路径转发到该单元。主 API 发布包含仓位字段的版本后，可将这一查询路径切回主 API 并停用独立单元。
 
 搜索、行情面板和信号标记沿用卡片上的正式策略名称。信号源未提供名称时，页面显示“未命名策略”。
 每日信号面板详情已改为常显：样本数、有效盈亏数、盈利笔数、缓存截止、样本平仓区间、年化净值区间及交易日数直接展示；统计口径常显。页面无折叠区块，已完成桌面/手机真实数据检查、4 项页面测试及生产构建。

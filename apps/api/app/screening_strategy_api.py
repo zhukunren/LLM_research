@@ -10,6 +10,7 @@ from . import market
 from .api_responses import bad_request, csv_response
 from .db import connect, json_dump, json_load, utc_now
 from .filter_api import require_filter
+from .model_modes import DEFAULT_MODEL_MODE
 from .models import ScreenInput, StrategyInput, StrategyValidationInput
 from .rules import pattern_references, references, validate_tree
 
@@ -109,7 +110,10 @@ def save_strategy(payload: StrategyInput):
 
 
 def _submission_identity(payload: StrategyInput | ScreenInput) -> str:
-    return json.dumps(payload.model_dump(exclude={"request_id"}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    value = payload.model_dump(exclude={"request_id"})
+    if isinstance(payload, ScreenInput) and payload.model_mode is None:
+        value.pop("model_mode")
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 def _submission_replay(connection, scope: str, payload: StrategyInput | ScreenInput):
@@ -186,6 +190,7 @@ def create_screening_run(payload: ScreenInput):
             evaluation = connection.execute("SELECT id FROM report_evaluation_runs WHERE filter_id=? AND filter_version=? AND as_of=? AND status IN ('succeeded','partial') ORDER BY created_at DESC,rowid DESC LIMIT 1", (filter_id, version, payload.as_of)).fetchone()
             evaluation_ids[f"{filter_id}@{version}"] = evaluation[0] if evaluation else None
     context = {"universe": universe, "strategy_snapshot": strategy,
+               "model_mode": payload.model_mode or DEFAULT_MODEL_MODE,
                "source_fingerprint": market.source_fingerprint(), "report_evaluation_ids": evaluation_ids,
                "effective_market_date": profile.get("last_date") if payload.as_of == profile.get("last_date") else market.latest_market_date(payload.as_of)}
     run_id, now = str(uuid4()), utc_now()

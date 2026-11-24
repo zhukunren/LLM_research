@@ -16,6 +16,7 @@ from .condition_contract import filter_object
 from .condition_names import ConditionNameError, check_condition_name, normalized_condition_name
 from .db import connect, json_dump, json_load, utc_now
 from .evidence_analysis import EvidenceRequest
+from .model_modes import DEFAULT_MODEL_MODE, ModelMode
 from .screening_contracts import ContractModel
 
 router = APIRouter(prefix="/api/v1/condition-builder", tags=["可复用条件"])
@@ -60,6 +61,7 @@ class PreviewRequest(ContractModel):
     definition: Definition
     stock_code: str = Field(pattern=r"^\d{6}\.(SH|SZ|BJ)$")
     as_of: date
+    model_mode: ModelMode = DEFAULT_MODEL_MODE
 
 
 class SaveRequest(ContractModel):
@@ -78,7 +80,8 @@ def question_expression(definition: EvidenceDefinition) -> dict:
             **definition.model_dump(exclude={"kind", "lookback_calendar_days"})}
 
 
-def evaluate_question(library: str, expression: dict, stock_code: str, as_of: str, *, active=lambda: True) -> dict:
+def evaluate_question(library: str, expression: dict, stock_code: str, as_of: str, *, active=lambda: True,
+                      model_mode: ModelMode = DEFAULT_MODEL_MODE) -> dict:
     from . import news_adapter, report_adapter
     request = EvidenceRequest.model_validate({key: value for key, value in expression.items()
                                              if key not in {"op", "evaluation_mode", "lookback_calendar_days"}})
@@ -86,7 +89,7 @@ def evaluate_question(library: str, expression: dict, stock_code: str, as_of: st
     reference = {"reference_id": "sample"}
     evaluator = news_adapter.evaluate if library == "news" else report_adapter.evaluate
     result = evaluator(condition, reference, stock_code, as_of,
-                       lookback_days=expression["lookback_calendar_days"], active=active)
+                       lookback_days=expression["lookback_calendar_days"], active=active, model_mode=model_mode)
     data = result.model_dump(mode="json")
     return {"state": data["state"], "reason": data["explanation"],
             "evaluation_status": data["evaluation_status"], "reason_code": data["reason_code"],
@@ -141,7 +144,7 @@ def preview(payload: PreviewRequest):
             description = definition.question
             started = time.monotonic()
             result = evaluate_question(definition.kind, expression, payload.stock_code, as_of,
-                                       active=lambda: time.monotonic() - started < 90)
+                                       active=lambda: time.monotonic() - started < 90, model_mode=payload.model_mode)
     except HTTPException:
         raise
     except ValueError as exc:

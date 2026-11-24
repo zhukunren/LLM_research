@@ -9,7 +9,7 @@ import MobileSheet from './MobileSheet'
 
 const primaryMenus = workspaceMenus.filter(item => ['screening', 'conditions', 'watchlist', 'client-service'].includes(item.id))
 const moreMenus = workspaceMenus.filter(item => ['intelligence', 'library', 'patterns', 'qmt', 'daily-signals', 'etf', 'data-download'].includes(item.id))
-const servicePages = clientServiceMenus.filter(item => ['cards', 'opening-plan', 'suggestions'].includes(item.id))
+const servicePages = clientServiceMenus.filter(item => ['cards', 'opening-plan', 'suggestions', 'celebrations'].includes(item.id))
 const serviceManagementPages = clientServiceMenus.filter(item => !servicePages.includes(item))
 
 export default function MobileWorkspaceNavigation({ route, moreOpen, onNavigate, onMore }: {
@@ -39,7 +39,7 @@ export function MobileServiceNavigation({ view = 'cards', onSelect }: { view?: S
       </button>
     </nav>
     {managementOpen && <MobileSheet title="对客服务管理" onClose={() => setManagementOpen(false)}>
-      <nav className="mobile-sheet-list" aria-label="对客服务管理页面">
+      <nav className="mobile-sheet-list mobile-service-management-list" aria-label="对客服务管理页面">
         {serviceManagementPages.map(({ id, label, description, icon: Icon }) => <button key={id} type="button" className="mobile-sheet-row workspace-button" aria-label={label} aria-current={view === id ? 'page' : undefined} onClick={() => { setManagementOpen(false); onSelect(id) }}>
           <Icon size={20} aria-hidden="true" />
           <span className="mobile-sheet-row-copy"><strong>{label}</strong><small>{description}</small></span>

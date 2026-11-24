@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { workspaceRect, workspaceViewport } from '../workspaceGeometry'
 import { tooltipPosition } from './tooltipPosition'
 
 export default function WorkspaceTooltips({ children }: { children: ReactNode }) {
@@ -61,11 +62,10 @@ export default function WorkspaceTooltips({ children }: { children: ReactNode })
     descriptions.add(id); target.setAttribute('aria-describedby', [...descriptions].join(' '))
     const reposition = () => {
       if (!target.isConnected || !tip.current) { setActive(null); return }
-      const viewport = window.visualViewport
-      const box = target.getBoundingClientRect()
-      const bounds = { left: viewport?.offsetLeft || 0, top: viewport?.offsetTop || 0, width: viewport?.width || window.innerWidth, height: viewport?.height || window.innerHeight }
+      const box = workspaceRect(target)
+      const bounds = workspaceViewport(window.visualViewport)
       if (box.bottom < bounds.top || box.top > bounds.top + bounds.height || !target.getClientRects().length) { setActive(null); return }
-      setPosition(tooltipPosition(box, tip.current.getBoundingClientRect(), bounds))
+      setPosition(tooltipPosition(box, workspaceRect(tip.current), bounds))
     }
     reposition()
     const observer = new MutationObserver(() => {

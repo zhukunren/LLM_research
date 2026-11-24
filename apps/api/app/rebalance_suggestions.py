@@ -3,25 +3,21 @@ from __future__ import annotations
 
 from datetime import date, datetime
 import re
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from . import codex_runtime, conversation_store, research_models, research_turn_service
 from .client_service import error, now
+from .client_service_contracts import GenerationFocus
 from .client_service_text import without_web_links
 from .codex_store import web_evidence
 from .db import connect, json_dump, json_load
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode
 from .report_evidence import normalize_quote
 from .rebalance_quotes import daily_context
 from .screening_contracts import ResearchScope
 from .stock_diagnosis import DiagnosisRequest, resolve_stock
 
-
-PRESETS = {
-    "instant": ("gpt-6.2-astra", "low", "fast"),
-    "deep": ("gpt-6.2-sol", "max", "default"),
-}
 
 INSTRUCTIONS = """自主撰写一段可由投顾编辑的 A 股调仓理由。输入的调仓方向是沟通场景，围绕该场景选择有直接关系的事实、条件和风险。不猜测客户持仓、成本、盈利、成交、仓位或价位，不承诺收益。未证实的判断用条件句。止盈、减仓和止损可从波动、事件变化和风险管理出发，不能把看好公司的报告当作已知卖出动机。
 选用最能解释理由的证据。可以用系统提供的带日期日线、本地研报，也可以用原生网页检索后实际打开的公告、财报、监管披露、权威报道或研报。研报不是前提。不要把搜索摘要当原文。将预测、公司披露和自己的推断分开。没有可靠外部事实时，仍可写与该方向相关的条件性理由，只引用真实输入，不编造公司事实。
@@ -31,7 +27,8 @@ INSTRUCTIONS = """自主撰写一段可由投顾编辑的 A 股调仓理由。�
 
 class SuggestionRequest(DiagnosisRequest):
     direction: str = Field(min_length=1, max_length=30, pattern=r"^\S(?:[^\r\n]*\S)?$")
-    mode: Literal["instant", "deep"] | None = None
+    mode: ModelMode | None = None
+    generation_focus: GenerationFocus = ""
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
@@ -112,13 +109,11 @@ def start(payload: SuggestionRequest) -> dict:
     if row is None:
         if not codex_runtime.availability()["available"]:
             error(503, "AI 暂时不可用，可以手动填写理由。")
-        selection, tier = {}, None
-        if payload.mode:
-            model, effort, tier = PRESETS[payload.mode]
-            try:
-                selection = research_models.resolve_selection(model, effort)
-            except research_models.ResearchModelError as exc:
-                error(503, str(exc))
+        preset = MODEL_PRESETS[payload.mode or DEFAULT_MODEL_MODE]
+        try:
+            selection = research_models.resolve_selection(**preset.selection())
+        except research_models.ResearchModelError as exc:
+            error(503, str(exc))
         snapshot = daily_context(stock["stock_code"], cutoff)
         with connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -133,7 +128,8 @@ def start(payload: SuggestionRequest) -> dict:
                 prompt = json_dump({
                     "股票代码": stock["stock_code"], "股票名称": stock["name"],
                     "调仓场景": payload.direction, "研究截止": cutoff.isoformat(), "本地研报": reports,
-                    "日线快照": snapshot, "档位": "即时" if payload.mode == "instant" else "深度",
+                    "日线快照": snapshot, "档位": preset.label,
+                    **({"本次关注点": payload.generation_focus} if payload.generation_focus else {}),
                 })
                 message = conversation_store.add_user_message(
                     conversation_id, f"rebalance-suggestion:{payload.request_id}", 0, prompt,
@@ -143,16 +139,17 @@ def start(payload: SuggestionRequest) -> dict:
                 connection.execute("INSERT INTO client_service_turns VALUES(?,?)", (conversation_id, turn_id))
                 connection.execute(
                     """INSERT INTO client_rebalance_suggestions
-                       (request_id,stock_code,stock_name,direction,cutoff,reports_json,conversation_id,turn_id,mode,service_tier,market_json)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                       (request_id,stock_code,stock_name,direction,cutoff,reports_json,conversation_id,turn_id,mode,service_tier,market_json,generation_focus)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (payload.request_id, stock["stock_code"], stock["name"], payload.direction,
-                     cutoff.isoformat(), json_dump(reports), conversation_id, turn_id, payload.mode, tier, json_dump(snapshot)),
+                     cutoff.isoformat(), json_dump(reports), conversation_id, turn_id, payload.mode, preset.service_tier,
+                     json_dump(snapshot), payload.generation_focus),
                 )
                 row = _find(connection, payload.request_id)
 
     if (payload.code not in {row["stock_code"], row["stock_code"][:6]} or payload.direction != row["direction"]
-            or payload.mode != row["mode"]):
-        error(409, "同一生成请求不能更换股票、调仓方向或档位。")
+            or payload.mode != row["mode"] or payload.generation_focus != row["generation_focus"]):
+        error(409, "同一生成请求不能更换股票、调仓方向、模型档位或关注点。")
     try:
         research_turn_service.enqueue_turn(row["conversation_id"], row["turn_id"])
     except codex_runtime.CodexRuntimeError:
@@ -197,6 +194,7 @@ def _status(row) -> dict:
     result = {
         "request_id": row["request_id"], "code": row["stock_code"], "stock_name": row["stock_name"],
         "direction": row["direction"], "cutoff": row["cutoff"], "state": state,
+        "generation_focus": row["generation_focus"],
         "mode": row["mode"], "message": (turn.get("job") or {}).get("message") or "等待生成理由",
     }
     if state == "succeeded":

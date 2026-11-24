@@ -1,5 +1,16 @@
 export type ModelSelection = { model_id: string; reasoning_effort: string }
 import { sessionStorage } from './authStorage'
+
+export const modelModes = {
+  instant: { label: '即时', selection: { model_id: 'gpt-6.2-astra', reasoning_effort: 'low' } },
+  deep: { label: '深度', selection: { model_id: 'gpt-6.2-sol', reasoning_effort: 'max' } },
+} as const
+export type ModelMode = keyof typeof modelModes
+
+export function modelModeForSelection(value?: Partial<ModelSelection>): ModelMode {
+  return ['xhigh', 'max', 'ultra'].includes(value?.reasoning_effort ?? '') ? 'deep' : 'instant'
+}
+
 export type ResearchModel = {
   id: string
   label: string
@@ -33,7 +44,8 @@ function validatedPreference(value: unknown): ModelSelection | null {
 export function readModelPreference(): ModelSelection | null {
   try {
     const stored = sessionStorage.getItem(preferenceKey)
-    return stored ? validatedPreference(JSON.parse(stored)) : null
+    const selection = stored ? validatedPreference(JSON.parse(stored)) : null
+    return selection ? modelModes[modelModeForSelection(selection)].selection : null
   } catch { return null }
 }
 

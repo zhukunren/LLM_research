@@ -67,8 +67,8 @@ def run(work: Path, *, container: bool, external_sandbox: bool = False) -> dict:
     state.mkdir(parents=True, exist_ok=True)
     report: dict = {"sdk_version": importlib.metadata.version("openai-codex"), "platform": sys.platform,
                     "mode": "container" if container else "native_protocol_only", "external_sandbox": external_sandbox, "checks": {}}
-    if report["sdk_version"] != "0.159.0":
-        raise RuntimeError("Probe must use the project's pinned openai-codex==0.159.0")
+    if report["sdk_version"] != "0.171.0":
+        raise RuntimeError("Probe must use the project's pinned openai-codex==0.171.0")
     if external_sandbox:
         if not container:
             raise RuntimeError("External sandbox mode is only allowed in the explicit container probe")
@@ -120,7 +120,7 @@ def run(work: Path, *, container: bool, external_sandbox: bool = False) -> dict:
                 if not external_sandbox:
                     return thread.turn(inputs)
                 # The public preset enum has no externalSandbox member in
-                # 0.159.0. Use its typed app-server client only in this probe.
+                # Use the typed app-server client for the external sandbox in this probe.
                 wire = [{"type": "text", "text": item.text} if isinstance(item, TextInput)
                         else {"type": "localImage", "path": item.path} for item in inputs]
                 params = TurnStartParams.model_validate({"threadId": thread.id, "input": wire,

@@ -1,3 +1,4 @@
+import { modelCatalog } from '../test/modelCatalog'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, expect, it, vi } from 'vitest'
@@ -16,7 +17,7 @@ vi.mock('./NewsPage', () => ({ default: () => null }))
 vi.mock('../components/DisclosuresPanel', () => ({ default: () => null }))
 const stamp = '2026-10-28T00:00:00Z'
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
-const catalog = { account_tier: 'free', default_model_id: 'qa-model', default_reasoning_effort: 'high', discovery_status: 'verified', models: [{ id: 'qa-model', label: '测试模型', description: '测试', available: true, unavailable_reason: null, default_reasoning_effort: 'high', reasoning_efforts: [{ id: 'high', label: '深入' }] }] }
+const catalog = modelCatalog()
 beforeAll(async () => { await import('../components/conversation/ConversationWorkspace') }, 30000)
 
 function mockApi(failFirst = false) {
@@ -30,7 +31,7 @@ function mockApi(failFirst = false) {
     if (path === '/research-models') return json(catalog)
     if (path === '/conversations' && method === 'POST') {
       created.push(body)
-      conversation = { id: 'c1', task_id: 'c1', entry_scope: body.entry_scope, workflow_type: body.workflow_type, research_mode: body.workflow_type, research_depth: 'standard', model_id: 'qa-model', reasoning_effort: 'high', state: 'active', task_revision: 0, pending_execution: false, active_run_id: null, messages: [], turns: [], created_at: stamp, updated_at: stamp }
+      conversation = { id: 'c1', task_id: 'c1', entry_scope: body.entry_scope, workflow_type: body.workflow_type, research_mode: body.workflow_type, research_depth: 'standard', model_id: 'gpt-6.2-astra', reasoning_effort: 'low', state: 'active', task_revision: 0, pending_execution: false, active_run_id: null, messages: [], turns: [], created_at: stamp, updated_at: stamp }
       return json(conversation)
     }
     if (path === '/conversations/c1') return json(conversation)

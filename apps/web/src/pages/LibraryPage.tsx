@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, MessageSquareText, Play, Save, Sparkles } from 'lucide-react'
+import ModelModeSwitch from '../components/ModelModeSwitch'
+import type { ModelMode } from '../modelSelection'
 import { api, type Filter } from '../api'
 
 type Library = 'news' | 'technical' | 'report'
@@ -60,6 +62,7 @@ export default function LibraryPage({ library }: { library: Library }) {
   const [blockers, setBlockers] = useState<string[]>([])
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [modelMode, setModelMode] = useState<ModelMode>('instant')
 
   const refresh = () => api<{ items: Filter[] }>(`/filters?library=${library}`).then(({ items: next }) => setItems(next)).catch((error) => setNotice(error.message))
   useEffect(() => { refresh(); resetForm() }, [library])
@@ -103,7 +106,7 @@ export default function LibraryPage({ library }: { library: Library }) {
     if (!prompt.trim()) { setNotice('先写下筛选要求'); return }
     setBusy(true); setNotice('')
     try {
-      const result = await api<DraftResponse>('/filters/draft', { method: 'POST', body: JSON.stringify({ library, prompt }) })
+      const result = await api<DraftResponse>('/filters/draft', { method: 'POST', body: JSON.stringify({ library, prompt, model_mode: modelMode }) })
       setName(result.name); setDescription(result.description); setDraftSource(result.source)
       const draft = result.expression
       if (library === 'report' && draft.evaluation_mode === 'rubric') {
@@ -189,7 +192,7 @@ export default function LibraryPage({ library }: { library: Library }) {
     setBusy(true); setNotice('')
     try {
       const result = await api<ReportEvaluation & { job_id?: string }>(`/filters/${activeId}/evaluate-reports?version=${version}`, {
-        method: 'POST', body: JSON.stringify({ as_of: evaluationAsOf }),
+        method: 'POST', body: JSON.stringify({ as_of: evaluationAsOf, model_mode: modelMode }),
       })
       setEvaluation(result)
       setNotice(result.status === 'blocked_dependency' ? String(result.coverage.message ?? '评估依赖未满足') : '研报评估任务已提交')
@@ -204,7 +207,7 @@ export default function LibraryPage({ library }: { library: Library }) {
       if (activeId) {
         try {
           const refreshed = await api<ReportEvaluation>(`/filters/${activeId}/evaluate-reports?version=${version}`, {
-            method: 'POST', body: JSON.stringify({ as_of: evaluationAsOf }),
+            method: 'POST', body: JSON.stringify({ as_of: evaluationAsOf, model_mode: modelMode }),
           })
           setEvaluation(refreshed)
           setNotice(`已确认 ${result.stock_code}，正在刷新当前口径的策略证券映射。`)
@@ -238,7 +241,7 @@ export default function LibraryPage({ library }: { library: Library }) {
             <div className="panel-heading"><div><MessageSquareText size={16} /><strong>条件对话</strong></div><span>结构化草稿</span></div>
             <label className="sr-only" htmlFor="filter-prompt">筛选要求</label>
             <textarea id="filter-prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={3} className="workspace-field" />
-            <div className="conversation-footer"><span>{draftSource === 'configured_llm' ? '已配置文本模型' : library === 'report' ? '本地通用判断模板' : '本地规则解析'}</span><button className="secondary-button compact workspace-button" onClick={makeDraft} disabled={busy}><Sparkles size={14} />生成条件草稿</button></div>
+            <div className="conversation-footer"><span>{draftSource === 'configured_llm' ? '已配置文本模型' : library === 'report' ? '本地通用判断模板' : '本地规则解析'}</span><ModelModeSwitch value={modelMode} disabled={!!busy} onChange={setModelMode} /><button className="secondary-button compact workspace-button" onClick={makeDraft} disabled={busy}><Sparkles size={14} />生成条件草稿</button></div>
           </section>
 
           <section className="condition-editor">
@@ -282,7 +285,7 @@ export default function LibraryPage({ library }: { library: Library }) {
           {library !== 'news' && <section className="preview-panel">
             <div className="panel-heading"><div><Play size={15} /><strong>{library === 'report' ? '按口径评估本地研报' : '单证券试算'}</strong></div><span>{library === 'report' ? '异步 · 逐条校验引用' : '探索模式'}</span></div>
             {library === 'report' ? <>
-              <div className="preview-control"><label className="field workspace-field-label"><span>报告截止日</span><input type="date" value={evaluationAsOf} onChange={(event) => setEvaluationAsOf(event.target.value)} className="workspace-field" /></label><button className="secondary-button workspace-button" disabled={busy || !activeId} onClick={startReportEvaluation}><Play size={14} />评估研报</button></div>
+              <div className="preview-control"><label className="field workspace-field-label"><span>报告截止日</span><input type="date" value={evaluationAsOf} onChange={(event) => setEvaluationAsOf(event.target.value)} className="workspace-field" /></label><ModelModeSwitch value={modelMode} disabled={!!busy} onChange={setModelMode} /><button className="secondary-button workspace-button" disabled={busy || !activeId} onClick={startReportEvaluation}><Play size={14} />评估研报</button></div>
 
               {evaluation && <ReportEvaluationPanel evaluation={evaluation} busy={busy} onConfirmLlm={confirmReportSecurity} onJobAction={controlEvaluation} />}
             </> : <>

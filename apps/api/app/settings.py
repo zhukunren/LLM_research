@@ -5,6 +5,7 @@ import configparser
 import json
 from pathlib import Path
 
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS
 from .storage import storage_paths
 from .tushare_client import API_URL as TUSHARE_API_URL
 
@@ -46,6 +47,19 @@ def _read_config() -> configparser.ConfigParser:
 def llm_settings() -> dict[str, str | bool]:
     config = _read_config()
     app = config["app"] if config.has_section("app") else {}
+    preset = MODEL_PRESETS[DEFAULT_MODEL_MODE]
+    if app.get("model_backend", "").strip().lower() == "local_codex":
+        return {
+            "configured": True,
+            "backend": "local_codex",
+            "base_url": "",
+            "api_key": "",
+            "model": preset.model_id,
+            "reasoning_effort": preset.reasoning_effort,
+            "api_mode": "responses",
+            "api_path": "",
+            "supports_standalone_web_search": True,
+        }
     provider_name = app.get("model_provider", "OpenAI")
     provider_section = f"model_providers.{provider_name}"
     provider = config[provider_section] if config.has_section(provider_section) else {}
@@ -55,18 +69,12 @@ def llm_settings() -> dict[str, str | bool]:
         key_env = secrets.get("openai_api_key_env", "OPENAI_API_KEY")
         key = os.environ.get(key_env, "")
     base_url = provider.get("base_url", "").rstrip("/")
-    model = app.get("model", "")
-    reasoning_effort = app.get("reasoning_effort", "").strip() or os.environ.get("LLMR_REASONING_EFFORT", "high")
-    if reasoning_effort not in {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}:
-        raise ValueError("reasoning_effort 配置无效")
     api_mode = provider.get("wire_api", "chat_completions").strip().lower()
     api_path = provider.get("api_path", "/v1/responses" if api_mode == "responses" else "/v1/chat/completions")
     if not base_url:
         base_url = os.environ.get("LLMR_LLM_BASE_URL", "").rstrip("/")
     if not key:
         key = os.environ.get("LLMR_LLM_API_KEY", "")
-    if not model:
-        model = os.environ.get("LLMR_LLM_MODEL", "")
     if not config.has_section(provider_section) or not config_path().is_file():
         api_mode = os.environ.get("LLMR_LLM_API_MODE", api_mode).strip().lower()
         api_path = os.environ.get("LLMR_LLM_API_PATH", os.environ.get("LLMR_LLM_CHAT_PATH", api_path))
@@ -77,11 +85,11 @@ def llm_settings() -> dict[str, str | bool]:
     if search_capability not in configparser.ConfigParser.BOOLEAN_STATES:
         raise ValueError("supports_standalone_web_search 应为 true 或 false")
     return {
-        "configured": bool(base_url and key and model),
+        "configured": bool(base_url and key),
         "base_url": base_url,
         "api_key": key,
-        "model": model,
-        "reasoning_effort": reasoning_effort,
+        "model": preset.model_id,
+        "reasoning_effort": preset.reasoning_effort,
         "api_mode": api_mode,
         "api_path": api_path,
         "supports_standalone_web_search": configparser.ConfigParser.BOOLEAN_STATES[search_capability],
@@ -101,7 +109,7 @@ def research_model_settings() -> dict:
     """Server-owned entitlements; clients cannot upgrade their account tier."""
     config = _read_config()
     section = config["research_models"] if config.has_section("research_models") else {}
-    tier = os.environ.get("LLMR_RESEARCH_ACCOUNT_TIER", section.get("account_tier", "free")).strip().lower()
+    tier = os.environ.get("LLMR_RESEARCH_ACCOUNT_TIER", section.get("account_tier", "paid")).strip().lower()
     if tier not in {"free", "paid", "enterprise"}:
         raise ValueError("research_models.account_tier 应为 free、paid 或 enterprise")
     allowed = os.environ.get("LLMR_RESEARCH_ALLOWED_MODELS", section.get("allowed_models", "")).strip()

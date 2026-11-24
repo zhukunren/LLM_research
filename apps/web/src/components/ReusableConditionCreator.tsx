@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, LoaderCircle, Play, Save } from 'lucide-react'
 import { api, type DataStatus, type Filter, type Pattern } from '../api'
 import StockSearch from './StockSearch'
+import ModelModeSwitch from './ModelModeSwitch'
+import type { ModelMode } from '../modelSelection'
 import { useSessionState, isText } from '../useSessionState'
 import { TechnicalRuleFields, useTechnicalRules } from './screening/TechnicalRuleEditor'
 import { screeningMethodIcons } from './screening/ScreeningMethodCards'
@@ -48,6 +50,7 @@ export default function ReusableConditionCreator({ data, patterns, busy: parentB
   const [fields, setFields] = useSessionState<Record<string, string>>('condition.creator.fields', {}, record)
   const [trials, setTrials] = useSessionState<Record<string, CachedTrial>>('condition.creator.trials', {}, trialRecord)
   const [busy, setBusy] = useState('')
+  const [modelMode, setModelMode] = useState<ModelMode>('instant')
   const [error, setError] = useState('')
   const controller = useRef<AbortController | null>(null)
   const mounted = useRef(true), lock = useRef(false)
@@ -82,7 +85,10 @@ export default function ReusableConditionCreator({ data, patterns, busy: parentB
     setTrials(previous => previous[selectedKind] ? { ...previous, [selectedKind]: { ...previous[selectedKind], request_key: '' } } : previous)
     controller.current = new AbortController()
     try {
-      const result = await api<Trial>('/condition-builder/preview', { method: 'POST', signal: controller.current.signal, body: JSON.stringify({ definition, stock_code: sampleCode, as_of: asOf }) })
+      const result = await api<Trial>('/condition-builder/preview', { method: 'POST', signal: controller.current.signal, body: JSON.stringify({
+        definition, stock_code: sampleCode, as_of: asOf,
+        ...((kind === 'news' || kind === 'report') ? { model_mode: modelMode } : {}),
+      }) })
       if (mounted.current) setTrials(previous => ({ ...previous, [selectedKind]: { ...result, request_key: key } }))
     } catch (reason) { if (mounted.current && !controller.current.signal.aborted) setError((reason as Error).message) }
     finally { lock.current = false; if (mounted.current) setBusy('') }
@@ -119,6 +125,7 @@ export default function ReusableConditionCreator({ data, patterns, busy: parentB
         <p className="condition-creator-note">窗口相对于每次筛选日期计算。没有足够原文时保留“数据不足”，不会改成关键词命中。</p>
       </div>}
       <section className="condition-sample-check" aria-label="条件样本验证"><h3>验证一家公司</h3><div className="condition-creator-fields"><label className="workspace-field-label">样本公司<StockSearch label="可复用条件样本公司" value={sampleCode} disabled={disabled || !!saved} onSelectionPending={() => set('sampleCode', '')} onChange={value => set('sampleCode', value)} /></label><label className="workspace-field-label">样本截止日期<input className="workspace-field" type="date" aria-label="可复用条件样本日期" max={kind === 'technical' || kind === 'pattern' ? data?.last_date || today() : today()} disabled={disabled || !!saved} value={asOf} onChange={event => set('asOf', event.target.value)} /></label></div>
+        {(kind === 'news' || kind === 'report') && <ModelModeSwitch value={modelMode} disabled={disabled || !!saved} onChange={setModelMode} />}
         <button className="secondary-button workspace-button" type="button" disabled={disabled || !definition || !/^\d{6}\.(SH|SZ|BJ)$/.test(sampleCode) || invalidDate || !!saved} onClick={() => void preview()}>{busy === 'preview' ? <LoaderCircle size={15} className="spin" /> : <Play size={15} />}{busy === 'preview' ? '正在核对样本…' : '验证样本'}</button>
         {trial && <div className="condition-trial-result" aria-label="条件样本验证结果"><p><strong>{stateLabel(trial.result.state)}</strong> · {trial.sample.stock_code} · 截至 {trial.sample.as_of}</p>{!current && <p className="workspace-feedback workspace-feedback-warning" role="status">下方为上次验证结果，当前设置尚未完成验证。请重新验证后保存。</p>}{trial.result.reason && <p>{trial.result.reason}</p>}{typeof trial.result.similarity === 'number' && <p>相似度 {trial.result.similarity} 分 · 要求至少 {trial.result.threshold} 分</p>}{trial.result.details?.map((detail, index) => <p key={index}>{detail.name}：{stateLabel(detail.state)}{detail.reason ? ` · ${detail.reason}` : ''}</p>)}{trial.result.chart?.bars.length ? <ResponsiveMarketIndicatorChart chart={trial.result.chart} height={220} minHeight={180} /> : null}{trial.result.template_points && trial.result.candidate_points && <PatternPathChart target={trial.result.template_points} candidate={trial.result.candidate_points} label="样本走势与固定目标对照" />}
           {trial.result.evidence?.map((item, index) => <blockquote key={index}><strong>{String(item.title || `样本依据 ${index + 1}`)}</strong>{typeof item.page_number === 'number' && <span> · 第 {item.page_number} 页</span>}<p>{String(item.quote || '')}</p>{kind === 'report' && typeof item.source_id === 'string' && <a href={`/api/v1/documents/${encodeURIComponent(item.source_id)}/pdf#page=${Number(item.page_number) || 1}`} target="_blank" rel="noreferrer">打开研报原文</a>}</blockquote>)}

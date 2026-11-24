@@ -1,27 +1,33 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowDownRight, ArrowUpRight, Radio, RefreshCw } from 'lucide-react'
 import LoadingState from '../components/LoadingState'
-import { api } from '../api'
 import { StockMention } from '../components/StockMentions'
 import { dailySignalsEndpoint, parseDailySignals, signalPercent, sortDailyStrategies, type SignalSort, type SignalSortKey, type DailySignals, type DailyStrategy, type SignalStock } from '../dailySignals'
 import './daily-signals.css'
 
-type DayQuote = { code: string; date: string; volume: number | null; volume_unit: string; close: number | null; pct_chg: number | null }
-function volumeLabel(value: number | null | undefined) { return value == null ? '—' : value >= 10000 ? `${(value / 10000).toFixed(2)}万手` : `${value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}手` }
+function SignalPosition({ stock, side, asOf }: { stock: SignalStock; side: 'buy' | 'sell'; asOf: string }) {
+  if (stock.position_ratio === null) return <span className="daily-signal-position">{side === 'buy' ? '仓位待确认' : '仓位暂无'}</span>
+  const label = side === 'buy' ? '买入后仓位' : '卖出前仓位'
+  return <span className="daily-signal-position" title={`${stock.position_date} 收盘 · 持仓市值占组合总资产的比例`}>
+    {label} {signalPercent(stock.position_ratio)}
+    {side === 'buy' && stock.position_date && stock.position_date !== asOf && <> · <time dateTime={stock.position_date}>{stock.position_date.slice(5)}</time>成交</>}
+  </span>
+}
 
-function SignalList({ title, items, covered, side, asOf, quotes, strategy }: { title: string; items: SignalStock[]; covered: boolean; side: 'buy' | 'sell'; asOf: string; quotes: Record<string, DayQuote>; strategy: DailyStrategy }) {
+function SignalList({ title, items, covered, side, asOf, strategy }: { title: string; items: SignalStock[]; covered: boolean; side: 'buy' | 'sell'; asOf: string; strategy: DailyStrategy }) {
   return <section className={`daily-signal-direction daily-signal-${side}`} aria-label={title}>
     <h3>{side === 'buy' ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}{title}<span>{covered ? items.length : '—'}</span></h3>
     {!covered ? <p>无法判断</p> : !items.length ? <p>无{title}信号</p> : <ul>{items.map(stock => <li key={stock.code}>
       <StockMention code={stock.code} asOf={asOf || undefined} signalContext={{ side, strategyTitle: strategy.strategy_title, markers: [
         ...(strategy.buy_signals.some(item => item.code === stock.code) ? [{ date: asOf, side: 'buy' as const, label: strategy.strategy_title }] : []),
         ...(strategy.sell_signals.some(item => item.code === stock.code) ? [{ date: asOf, side: 'sell' as const, label: strategy.strategy_title }] : []),
-      ] }}>{stock.name && <span>{stock.name}</span>}<code>{stock.code}</code></StockMention><span className="daily-signal-volume" title={`当日成交量：${quotes[stock.code]?.volume == null ? '暂无数据' : quotes[stock.code].volume?.toLocaleString('zh-CN') + '手'}`}>量 {volumeLabel(quotes[stock.code]?.volume)}</span>
+      ] }}>{stock.name && <span>{stock.name}</span>}<code>{stock.code}</code></StockMention>
+      <SignalPosition stock={stock} side={side} asOf={asOf} />
     </li>)}</ul>}
   </section>
 }
 
-function StrategyCard({ strategy, asOf, quotes, sort, onSort }: { strategy: DailyStrategy; asOf: string; quotes: Record<string, DayQuote>; sort: SignalSort; onSort: (key: SignalSortKey) => void }) {
+function StrategyCard({ strategy, asOf, sort, onSort }: { strategy: DailyStrategy; asOf: string; sort: SignalSort; onSort: (key: SignalSortKey) => void }) {
   const s = strategy
   const active = s.buy_signals.length + s.sell_signals.length > 0
   const winRateTone = !s.covers_date || s.win_rate === null || s.win_rate === 0.5 ? '' : s.win_rate > 0.5 ? 'is-above-half' : 'is-below-half'
@@ -34,8 +40,8 @@ function StrategyCard({ strategy, asOf, quotes, sort, onSort }: { strategy: Dail
         <div><dt><button type="button" className="metric-sort-button workspace-button" aria-label="按策略年化收益排序" aria-pressed={sort?.key === 'ann_return'} onClick={() => onSort('ann_return')}>策略年化收益{sort?.key === 'ann_return' ? sort.direction === 'desc' ? ' ↓' : ' ↑' : ' ↕'}</button></dt><dd>{signalPercent(s.covers_date ? s.ann_return : null)}</dd></div>
       </dl></header>
     <div className="daily-signal-card-body">
-      <SignalList title="买入" items={s.buy_signals} covered={s.covers_date} side="buy" asOf={asOf} quotes={quotes} strategy={strategy} />
-      <SignalList title="卖出" items={s.sell_signals} covered={s.covers_date} side="sell" asOf={asOf} quotes={quotes} strategy={strategy} />
+      <SignalList title="买入" items={s.buy_signals} covered={s.covers_date} side="buy" asOf={asOf} strategy={strategy} />
+      <SignalList title="卖出" items={s.sell_signals} covered={s.covers_date} side="sell" asOf={asOf} strategy={strategy} />
     </div>
     <section className="daily-signal-details" aria-label="样本与数据范围">
       <dl className="daily-signal-detail-grid">
@@ -59,27 +65,8 @@ export default function DailySignalsPage() {
   const [error, setError] = useState('')
   const [onlySignals, setOnlySignals] = useState(true)
   const [search, setSearch] = useState('')
-  const [quotes, setQuotes] = useState<Record<string, DayQuote>>({})
-  const [quoteError, setQuoteError] = useState('')
   const [sort, setSort] = useState<SignalSort>(null)
   function changeSort(key: SignalSortKey) { setSort(current => ({ key, direction: current?.key === key && current.direction === 'desc' ? 'asc' : 'desc' })) }
-  useEffect(() => {
-    const controller = new AbortController()
-    setQuotes({}); setQuoteError('')
-    const codes = [...new Set(data?.strategies.filter(s => s.covers_date).flatMap(s => [...s.buy_signals, ...s.sell_signals]).map(s => s.code) ?? [])]
-    if (!data?.date || !codes.length) return () => controller.abort()
-    const day = data.date
-    void (async () => {
-      const quotes: Record<string, DayQuote> = {}
-      for (let i = 0; i < codes.length; i += 500) {
-        const result = await api<{ items: DayQuote[] }>('/daily-signals/market', { method: 'POST', signal: controller.signal, body: JSON.stringify({ date: day, codes: codes.slice(i, i + 500) }) })
-        if (!Array.isArray(result.items)) throw new Error('成交量数据格式异常。')
-        for (const item of result.items) if (item.date === day) quotes[item.code] = item
-      }
-      if (!controller.signal.aborted) setQuotes(quotes)
-    })().catch(error => { if (!controller.signal.aborted) setQuoteError(error instanceof Error ? error.message : '成交量暂不可用。') })
-    return () => controller.abort()
-  }, [data])
   useEffect(() => {
     const controller = new AbortController()
     let timedOut = false
@@ -134,10 +121,9 @@ export default function DailySignalsPage() {
         <div><dt>覆盖该日的策略</dt><dd>{covered.length}<small> / {data.strategies.length + data.unavailable_count}</small></dd></div>
       </dl>
       {uncovered > 0 && <p className="daily-signal-coverage" role="status">{uncovered} 个策略未覆盖查询日，已在卡片中标记。</p>}
-      {quoteError && <p className="daily-signal-coverage" role="status">{quoteError}</p>}
-      <div className="daily-signal-results">{visible.map(strategy => <StrategyCard key={strategy.strategy_name} strategy={strategy} asOf={data.date} quotes={quotes} sort={sort} onSort={changeSort} />)}</div>
+      <div className="daily-signal-results">{visible.map(strategy => <StrategyCard key={strategy.strategy_name} strategy={strategy} asOf={data.date} sort={sort} onSort={changeSort} />)}</div>
       {!visible.length && <div className="daily-signal-empty"><h3>{needle ? '没有符合筛选的策略' : !data.date ? '暂无可用的信号缓存' : !covered.length ? '查询日暂无可判断的信号数据' : '当前范围没有买卖信号'}</h3><p>{onlySignals && covered.length > 0 ? '可取消“仅看有信号的策略”，查看各策略的统计和覆盖情况。' : '可以选择其他日期，或稍后重新读取最新缓存。'}</p></div>}
-      <section className="daily-signal-method" aria-label="数据来源与统计口径"><h2>数据来源与统计口径</h2><p>来源：已保存的策略回测缓存。不同策略可能采用不同的数据截止日，读取信号不会启动回测或行情更新。</p><p>胜率与平均每笔收益使用同一批近 N 笔已平仓交易，排除未平仓和期末估值记录；样本盈亏缺失时不以更早交易替补。年化收益使用回测起点至查询日的净值，按每年 250 个交易日计算，不受 N 影响。“—”表示数据不足，0.00% 表示实际为零。</p></section>
+      <section className="daily-signal-method" aria-label="数据来源与统计口径"><h2>数据来源与统计口径</h2><p>来源：已保存的策略回测缓存。不同策略可能采用不同的数据截止日，读取信号不会启动回测或行情更新。</p><p>仓位是该股票的持仓市值占策略组合总资产的比例。买入显示回测成交日的收盘仓位，跨日成交会注明日期。卖出显示信号日前一交易日的收盘仓位。</p><p>胜率与平均每笔收益使用同一批近 N 笔已平仓交易，排除未平仓和期末估值记录；样本盈亏缺失时不以更早交易替补。年化收益使用回测起点至查询日的净值，按每年 250 个交易日计算，不受 N 影响。“—”表示数据不足，0.00% 表示实际为零。</p></section>
     </>}
   </div>
 }

@@ -1,6 +1,7 @@
 import EmptyState from '../EmptyState'
 import LoadingState from '../LoadingState'
 import { useWorkspaceSession } from '../../WorkspaceSession'
+import { workspaceRect, workspaceViewport } from '../../workspaceGeometry'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { BookOpen, Check, ChevronRight, Copy, Download, GitBranch, ListFilter, LoaderCircle, MoreHorizontal, RefreshCw, Send, Share2, Star, X } from 'lucide-react'
@@ -48,11 +49,11 @@ export default function ResearchAnswerTools({ conversation, message, locked, onC
   useLayoutEffect(() => {
     if (!menu) return
     const place = () => {
-      const rect = trigger.current?.getBoundingClientRect()
-      if (!rect) return
-      const width = Math.min(240, window.innerWidth - 24), height = popup.current?.offsetHeight || 170
-      setPosition({ width, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
-        top: Math.max(12, rect.top >= height + 12 ? rect.top - height - 6 : Math.min(rect.bottom + 6, window.innerHeight - height - 12)), maxHeight: window.innerHeight - 24 })
+      if (!trigger.current) return
+      const rect = workspaceRect(trigger.current), viewport = workspaceViewport()
+      const width = Math.min(240, viewport.width - 24), height = popup.current?.offsetHeight || 170
+      setPosition({ width, left: Math.max(12, Math.min(rect.left, viewport.width - width - 12)),
+        top: Math.max(12, rect.top >= height + 12 ? rect.top - height - 6 : Math.min(rect.bottom + 6, viewport.height - height - 12)), maxHeight: viewport.height - 24 })
     }
     place(); window.addEventListener('resize', place); window.addEventListener('scroll', place, true)
     return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }

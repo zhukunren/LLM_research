@@ -33,12 +33,7 @@
 .attachment-error,.attachment-missing { border-color:var(--ui-warning-border,#dfc7a3); }
 .composer-attachment-error { margin:3px 0 8px; color:var(--ui-text-muted,#666); font-size:12px; }
 .conversation-composer-model { margin-left:auto; min-width:0; }
-.conversation-composer-model .research-model-trigger { min-height:34px; padding:5px 6px; gap:5px; }
-.conversation-composer-model .research-model-trigger-name { font-size:12px; font-weight:500; }
-.conversation-composer-model .research-model-trigger-effort { font-size:11px; }
 @media(max-width:600px) {
   .composer-assistant-pill { max-width:120px; }
-  .conversation-composer-model .research-model-trigger { max-width:155px; }
-  .conversation-composer-model .research-model-trigger-effort { display:none; }
   .composer-attachment-chip { width:min(100%,270px); }
 }

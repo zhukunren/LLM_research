@@ -97,7 +97,7 @@
   .chat-page .research-studio .conversation-composer, .conversation-submit-actions > button { transition: none; }
 }
 @media (pointer: coarse) {
-  .chat-page .research-studio .conversation-composer-footer :is(.composer-plus,.composer-method-trigger,.my-indicators-trigger,.research-model-trigger) { min-height: 44px; }
+  .chat-page .research-studio .conversation-composer-footer :is(.composer-plus,.composer-method-trigger,.my-indicators-trigger) { min-height: 44px; }
   .chat-page .research-studio .conversation-composer-footer .composer-plus { width: 44px; height: 44px; }
   .conversation-submit-actions > button, .stock-follow-up-context > button { min-height: 44px; }
 }

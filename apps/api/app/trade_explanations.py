@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from . import conversation_store, research_turn_service, codex_runtime
 from .db import connect, json_dump, json_load, utc_now
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS, ModelMode
 from .screening_contracts import ResearchScope
 from .security_catalog import names
 
@@ -18,6 +19,7 @@ class ExplainRequest(BaseModel):
     code: str = Field(pattern=r'^\d{6}\.(SH|SZ|BJ)$')
     date: date
     side: Literal['buy','sell']
+    model_mode: ModelMode | None = None
 
 
 def technical_snapshot(history: dict) -> dict:
@@ -52,12 +54,12 @@ def _prompt(payload, stock_name, technical):
 def start_explanation(payload: ExplainRequest):
     if payload.date > datetime.now(timezone(timedelta(hours=8))).date():
         raise HTTPException(422, {'message':'不能解释未来日期的操作。'})
-    fingerprint = hashlib.sha256(json_dump(payload.model_dump(mode='json',exclude={'request_id'})).encode()).hexdigest()
+    fingerprint = hashlib.sha256(json_dump(payload.model_dump(mode='json', exclude={'request_id'}, exclude_none=True)).encode()).hexdigest()
     with connect() as db:
         previous = db.execute('SELECT * FROM trade_explanations WHERE request_id=?',(payload.request_id,)).fetchone()
     if previous:
         if previous['request_hash'] != fingerprint:
-            raise HTTPException(409, {'message':'同一请求不能更换股票、日期或方向。'})
+            raise HTTPException(409, {'message':'同一请求不能更换股票、日期、方向或模型档位。'})
         research_turn_service.enqueue_turn(previous['conversation_id'], previous['turn_id'])
         return explanation_status(payload.request_id)
     available=codex_runtime.availability()
@@ -75,7 +77,11 @@ def start_explanation(payload: ExplainRequest):
                 raise HTTPException(409, {'message':'请求内容已变化。'})
             conversation_id,turn_id=previous['conversation_id'],previous['turn_id']
         else:
-            conversation=conversation_store.create_conversation('news',workflow_type='research',_connection=db)
+            selection = MODEL_PRESETS[payload.model_mode or DEFAULT_MODEL_MODE].selection()
+            try:
+                conversation = conversation_store.create_conversation('news', workflow_type='research', _connection=db, **selection)
+            except conversation_store.ConversationStoreError as exc:
+                raise HTTPException(422, {'message': str(exc)}) from exc
             conversation_id=conversation['id']
             scope=ResearchScope(as_of=payload.date).model_dump(mode='json')
             db.execute('UPDATE conversations SET research_scope_json=?,title=? WHERE id=?',

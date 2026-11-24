@@ -2,7 +2,7 @@
 .mobile-list-checkbox { display: inline-grid; place-items: center; vertical-align: middle; }
 
 @media (max-width: 760px) {
-  .workspace-authenticated { height: var(--mobile-viewport-height, 100dvh); }
+  .workspace-authenticated { height: var(--ui-viewport-height); }
   .workspace-account-bar { display: none; }
   .workspace-sign-in {
     padding: max(48px, 12dvh, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
@@ -16,7 +16,7 @@
     --mobile-surface-radius: 16px;
     --mobile-content-width: min(640px, calc(100% - 2 * var(--mobile-gutter)));
     flex-direction: column;
-    height: var(--mobile-viewport-height, 100dvh);
+    height: var(--ui-viewport-height);
     font-size: var(--ui-body-size);
     line-height: var(--ui-body-leading);
   }
@@ -129,7 +129,7 @@
   .mobile-service-nav {
     grid-area: section;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(64px, .82fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(44px, .68fr) minmax(50px, .8fr);
     gap: 4px;
     min-width: 0;
     margin-bottom: 10px;
@@ -144,7 +144,6 @@
     min-height: 44px;
     padding: 0 2px;
     border: 0;
-    border-radius: 8px 8px 0 0;
     background: transparent;
     color: var(--ui-text-muted);
     font-size: var(--ui-label-size);
@@ -160,7 +159,6 @@
     position: absolute;
     inset: auto 12px -1px;
     height: 2px;
-    border-radius: 2px 2px 0 0;
     background: var(--ui-primary);
   }
   .mobile-service-nav > button[aria-expanded=true] { background: var(--ui-primary-soft); }
@@ -202,7 +200,7 @@
     width: min(100%, 540px);
     max-width: none;
     height: auto;
-    max-height: min(calc(var(--mobile-viewport-height, 100dvh) - max(12px, env(safe-area-inset-top))), 620px);
+    max-height: min(calc(var(--ui-viewport-height) - max(12px, env(safe-area-inset-top))), 620px);
     margin: 0 auto;
     padding: 0;
     overflow: hidden;
@@ -293,6 +291,8 @@
   .mobile-tools-grid svg, .mobile-sheet-row > svg:first-child { flex: none; color: var(--ui-primary); }
   .mobile-sheet-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--ui-border-subtle); border-radius: 14px; overflow: hidden; }
   .mobile-sheet-list > * + * { border-top: 1px solid var(--ui-border-subtle); }
+  .mobile-workspace-sheet:has(.mobile-service-management-list) { border-radius: 4px 4px 0 0; }
+  .mobile-service-management-list { border: 0; border-radius: 0; }
   .mobile-sheet-row {
     display: flex;
     align-items: center;
@@ -503,35 +503,18 @@
   .mobile-app-shell .page-frame .observation-summary-bar .observation-metric-disclosure { order: 1; justify-self: end; }
   .mobile-app-shell .page-frame .workspace-tool-page .observation-summary-bar .observation-metric-disclosure > summary { align-content: center; font-size: var(--ui-meta-size); }
   .mobile-app-shell .observation-row-action { min-width: 44px; min-height: 44px; }
-  .mobile-app-shell .page-frame > .workspace-tool-page.page-content.client-service-page { padding-inline: var(--mobile-gutter); }
-  .mobile-app-shell:has(.workspace-panel-mount:not([hidden]) .client-service-studio[data-mobile-pane=preview]) .workspace-tab-header[data-page=client-service] :is(.mobile-service-nav,.workspace-page-actions-slot) { display: none; }
-  .mobile-app-shell .client-service-page :is(.client-card-editor, .client-preview-panel) { border-radius: var(--mobile-surface-radius); }
-  .mobile-app-shell .client-service-page .client-mobile-pane-switch {
-    padding: 3px;
-    border-color: var(--ui-border-subtle);
-    border-radius: 13px;
-    background: var(--ui-surface-subtle);
-  }
-  .mobile-app-shell .client-service-page .client-mobile-pane-switch > button { min-height: var(--ui-main-action-height); border-radius: 9px; font-size: var(--ui-body-size); }
-  .mobile-app-shell .client-service-page .client-mobile-pane-switch > button[aria-pressed=true] { background: var(--ui-surface); box-shadow: var(--ui-shadow-sm); }
-  .mobile-app-shell .client-service-page .client-preview-switch > button { min-height: 44px; padding-inline: 8px; font-size: var(--ui-label-size); }
-  .mobile-app-shell .page-frame .workspace-tool-page.client-service-page .client-preview-toolbar > .secondary-button { padding-inline: 9px; font-size: var(--ui-label-size); }
-  .mobile-app-shell .client-service-page .client-preview-meta { gap: 6px 10px; flex-wrap: wrap; font-size: var(--ui-meta-size); }
-  .mobile-app-shell .client-service-page :is(.client-content-fields label,.client-content-fields label > span,.client-identity-fields label,.opening-plan-section summary) { font-size: var(--ui-label-size); }
-  .mobile-app-shell .client-service-page .opening-plan-section summary { min-height: 44px; align-content: center; }
-  .mobile-app-shell .client-service-page .client-export-bar { bottom: calc(-1 * var(--client-service-bottom-padding)); }
-  .mobile-app-shell .page-frame .workspace-tool-page.client-service-page .client-export-bar button { min-height: var(--ui-main-action-height); font-size: var(--ui-label-size); }
-  [data-mobile-keyboard] .mobile-app-shell .client-service-page :is(.client-mobile-pane-switch,.client-export-bar) { position: static; }
+  .mobile-app-shell:has(.workspace-panel-mount:not([hidden]) .client-service-studio[data-mobile-pane=preview])
+    .workspace-tab-header[data-page=client-service] :is(.mobile-service-nav,.workspace-page-actions-slot:not(:has(.client-slot-trigger)),.client-date-control) { display: none; }
   .client-card-fullscreen :is(header button, footer button) { min-width: 44px; min-height: 44px; font-size: var(--ui-label-size); }
 
   .workspace-modal-backdrop:has(> :is(.quick-navigation,.active-tasks-dialog)) {
     align-items: flex-end;
-    height: var(--mobile-viewport-height, 100dvh);
+    height: var(--ui-viewport-height);
     padding: 0;
   }
   .workspace-modal-backdrop > :is(.quick-navigation,.active-tasks-dialog).workspace-tool-dialog {
     width: min(100%, 540px);
-    max-height: calc(var(--mobile-viewport-height, 100dvh) - max(12px, env(safe-area-inset-top)));
+    max-height: calc(var(--ui-viewport-height) - max(12px, env(safe-area-inset-top)));
     padding-bottom: max(12px, env(safe-area-inset-bottom));
     border-radius: 22px 22px 0 0;
   }
@@ -550,7 +533,6 @@
   .mobile-app-shell .screening-tools-compact-label { display: none; }
   .mobile-app-shell .research-task-options { grid-template-columns: minmax(0, 1fr); }
   .mobile-app-shell .research-task-options > .research-task-option { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "icon copy arrow"; min-height: 64px; padding-block: 9px; }
-  .mobile-app-shell .page-frame .workspace-tool-page.client-service-page .client-preview-toolbar > .secondary-button { gap: 4px; padding-inline: 7px; }
 }
 
 @media (max-width: 760px) {
@@ -602,7 +584,6 @@
 }
 
 @media (max-width: 760px) and (max-height: 480px) {
-  .mobile-app-shell .client-service-page :is(.client-mobile-pane-switch,.client-export-bar) { position: static; }
 }
 
 @media (min-width: 540px) and (max-width: 760px) and (max-height: 480px) {

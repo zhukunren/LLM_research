@@ -45,6 +45,8 @@ function setup({ failPreview = false, view, researchDraft, finished = false, set
       { id: 'paused', name: '已暂停群', enabled: false, revision: 0, webhook_hint: '已配置' },
     ] }
     if (path === '/client-service/robots/deliveries') return { items: [] }
+    if (path.startsWith('/client-service/robots/risks?')) return { items: [], paused: [] }
+    if (path.endsWith('/chat')) return { state: 'unbound', message: '请绑定存档群聊。' }
     if (path === '/client-service/robots/clients/send' && init?.method === 'POST') return { state: 'sent', message: '企业微信已接收' }
     if (path === '/client-service/settings') {
       if (settingsReady) await settingsReady
@@ -70,6 +72,16 @@ function setup({ failPreview = false, view, researchDraft, finished = false, set
   return render(<ServiceWorkspace initialView={view} researchDraft={researchDraft} />)
 }
 
+async function openServiceSlots(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: /^服务时点/ }))
+  return within(screen.getByRole('dialog', { name: /服务时点$/ }))
+}
+
+async function chooseServiceSlot(user: ReturnType<typeof userEvent.setup>, name: string | RegExp) {
+  const drawer = await openServiceSlots(user)
+  await user.click(within(drawer.getByRole('navigation', { name: '服务时点' })).getByRole('button', { name }))
+}
+
 it('edits service templates through the direct entry and preserves existing cards', async () => {
   const user = userEvent.setup(); setup({ view: 'templates' })
   const library = within(await screen.findByRole('region', { name: '服务模板文案' }))
@@ -79,38 +91,40 @@ it('edits service templates through the direct entry and preserves existing card
   await screen.findByText('自动生成计划已保存')
   const saved = vi.mocked(api).mock.calls.find(([path, init]) => path === '/client-service/settings' && init?.method === 'PUT')!
   expect(JSON.parse(String(saved[1]?.body)).templates[0].content.conclusion).toBe('模板中的判断要求')
-  expect(vi.mocked(api).mock.calls.some(([path, init]) => path.startsWith('/client-service/cards/') && init?.method === 'PUT')).toBe(false)
+  expect(vi.mocked(api).mock.calls.map(([path]) => path).filter(path => path.startsWith('/client-service/'))).toEqual([
+    '/client-service/settings', '/client-service/settings',
+  ])
 })
 
 it('opens the full robot workspace from the sidebar and keeps the selected card draft when returning', async () => {
   const user = userEvent.setup()
   setup()
   const sidebar = within(screen.getByRole('navigation', { name: '主菜单' }))
-  await user.selectOptions(await screen.findByLabelText('选择服务时点'), 'midday')
+  await chooseServiceSlot(user, /午间观察/)
   fireEvent.change(screen.getByRole('textbox', { name: '今日判断' }), { target: { value: '午间判断草稿' } })
 
   await user.click(sidebar.getByRole('button', { name: '群机器人' }))
   const page = within(screen.getByRole('region', { name: '群机器人工作区' }))
   expect(page.getByRole('heading', { name: '群机器人', level: 1 })).toBeVisible()
-  expect(await page.findByText('客户沟通群')).toBeVisible()
-  expect(page.getByRole('region', { name: '最近发送记录' })).toBeVisible()
-  const functions = within(page.getByRole('navigation', { name: '群机器人功能' }))
-  for (const name of ['机器人配置', '风险监控', '合规审查', '内容群发']) {
-    expect(functions.getByRole('button', { name })).toBeVisible()
+  const groups = within(await page.findByRole('navigation', { name: '群机器人列表' }))
+  await user.click(groups.getByRole('button', { name: '客户沟通群' }))
+  expect(groups.getByRole('button', { name: '客户沟通群' })).toHaveAttribute('aria-current', 'true')
+  for (const name of ['合规监控', '信息推送', '聊天总结', '客户需求']) {
+    expect(page.getByRole('region', { name })).toBeVisible()
   }
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(screen.queryByRole('region', { name: '对客服务内容' })).not.toBeInTheDocument()
 
   await user.click(sidebar.getByRole('button', { name: '时点卡片' }))
-  expect(screen.getByLabelText('选择服务时点')).toHaveValue('midday')
+  expect(screen.getByRole('button', { name: /^服务时点.*午间观察/ })).toBeVisible()
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('午间判断草稿')
 })
 
 it('loads the direct robot view without requesting cards or previews', async () => {
   setup({ view: 'robots' })
-  expect(await screen.findByText('客户沟通群')).toBeVisible()
+  expect(await screen.findByRole('button', { name: '客户沟通群' })).toBeVisible()
   expect(vi.mocked(api).mock.calls.map(([path]) => path).filter(path => path.startsWith('/client-service/')).sort()).toEqual([
-    '/client-service/robots', '/client-service/robots/deliveries',
+    '/client-service/robots', '/client-service/robots/morning/chat', '/client-service/robots/risks?robot_id=morning',
   ])
 })
 
@@ -201,12 +215,19 @@ it('keeps the selected research passage in place while the card template loads',
   expect(screen.getByLabelText('今日判断')).toHaveValue(passage)
 })
 
-it('loads the six time slots and source-checked market state without starting a model call', async () => {
-  setup()
-  const slots = await screen.findByRole('navigation', { name: '服务时点' })
+it('opens service slots in a dismissible drawer and loads market state without a model call', async () => {
+  const user = userEvent.setup(); setup()
+  const trigger = await screen.findByRole('button', { name: /^服务时点.*关键时点/ })
+  expect(screen.queryByRole('navigation', { name: '服务时点' })).not.toBeInTheDocument()
+  const drawer = await openServiceSlots(user)
+  const slots = drawer.getByRole('navigation', { name: '服务时点' })
   expect(within(slots).getAllByRole('button')).toHaveLength(7)
   expect(within(slots).getAllByRole('button')[0]).toHaveAccessibleName('实时股评卡片')
-  await userEvent.click(await screen.findByText('市场来源与时点', { selector: 'summary' }))
+  expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog', { name: /服务时点/ })).not.toBeInTheDocument()
+  expect(trigger).toHaveFocus()
+  await user.click(await screen.findByText('市场来源与时点', { selector: 'summary' }))
   expect(screen.getByRole('region', { name: '市场来源与时点' })).toHaveTextContent('3600.00')
   expect(screen.getByRole('link', { name: '交易所原文' })).toHaveAttribute('href', 'https://www.sse.com.cn')
   expect(screen.queryByRole('textbox', { name: '市场状态' })).not.toBeInTheDocument()
@@ -252,10 +273,9 @@ it('syncs edited copy into the image preview and saves it without changing the c
 it('preserves unsaved copy when switching slots and updates only the selected default template', async () => {
   const user = userEvent.setup(); setup()
   await user.type(await screen.findByRole('textbox', { name: '今日判断' }), '保留此时点草稿')
-  const slots = screen.getByRole('navigation', { name: '服务时点' })
-  await user.click(within(slots).getByRole('button', { name: /盘前简报/ }))
+  await chooseServiceSlot(user, /盘前简报/)
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('')
-  await user.click(within(slots).getByRole('button', { name: /关键时点/ }))
+  await chooseServiceSlot(user, /关键时点/)
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('保留此时点草稿')
   await user.click(screen.getByRole('button', { name: '保存为默认模板' }))
   await screen.findByText('默认模板已保存，今后此时点沿用当前文案')
@@ -278,12 +298,14 @@ it('saves the Beijing schedule and starts research only on explicit collection',
   expect(settings.enabled).toBe(true)
   expect(settings.timezone).toBe('Asia/Shanghai')
   expect(settings.templates[2].time).toBe('10:35')
-  await user.click(screen.getByRole('button', { name: '关闭生成计划' }))
+  await user.click(screen.getByRole('button', { name: '时点卡片' }))
   expect(screen.getByText('自动生成已开启 · 北京时间')).toBeVisible()
-  await user.click(screen.getByRole('button', { name: '重新采集市场状态' }))
+  await user.click(screen.getByText('关注点（Prompt）', { selector: 'summary' }))
+  await user.type(screen.getByRole('textbox', { name: '关注点（Prompt）' }), '重点写成交量')
+  await user.click(screen.getByRole('button', { name: 'AI生成' }))
   await screen.findByText('采集已开始，关闭页面后任务仍会继续')
   const generated = vi.mocked(api).mock.calls.find(([path, init]) => path === '/client-service/cards' && init?.method === 'POST')
-  expect(JSON.parse(String(generated?.[1]?.body))).toMatchObject({ date: beijingDate(), slot_id: 'checkpoint', regenerate: true })
+  expect(JSON.parse(String(generated?.[1]?.body))).toMatchObject({ date: beijingDate(), slot_id: 'checkpoint', regenerate: true, generation_focus: '重点写成交量' })
 })
 
 it('does not allow downloading an old preview after a newer edit fails', async () => {
@@ -300,7 +322,7 @@ it('keeps schedule saves separate from the selected card draft', async () => {
   await user.type(await screen.findByRole('textbox', { name: '今日判断' }), '仅用于今天的判断')
   await user.click(screen.getByRole('button', { name: '生成计划与模板' }))
   fireEvent.change(screen.getByLabelText('关键时点生成时间'), { target: { value: '10:50' } })
-  await user.click(screen.getByRole('button', { name: '关闭生成计划' }))
+  await user.click(screen.getByRole('button', { name: '时点卡片' }))
   await user.click(screen.getByRole('button', { name: '保存为默认模板' }))
   await screen.findByText('默认模板已保存，今后此时点沿用当前文案')
   let saves = vi.mocked(api).mock.calls.filter(([path, init]) => path.endsWith('/settings') && init?.method === 'PUT')
@@ -313,7 +335,7 @@ it('keeps schedule saves separate from the selected card draft', async () => {
   await screen.findByText('自动生成计划已保存')
   saves = vi.mocked(api).mock.calls.filter(([path, init]) => path.endsWith('/settings') && init?.method === 'PUT')
   expect(JSON.parse(String(saves[1][1]?.body)).templates[2]).toMatchObject({ time: '10:50', content: { conclusion: '仅用于今天的判断' } })
-  await user.click(screen.getByRole('button', { name: '关闭生成计划' }))
+  await user.click(screen.getByRole('button', { name: '时点卡片' }))
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('不要存为默认的草稿')
 })
 
@@ -352,7 +374,7 @@ it('preserves drafts across dates and prevents collection for future slots', asy
   await user.type(await screen.findByRole('textbox', { name: '今日判断' }), '今天草稿')
   await user.click(screen.getByRole('button', { name: '后一天' }))
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('')
-  expect(screen.getByRole('button', { name: '采集市场状态' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'AI生成' })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: '今天' }))
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('今天草稿')
 })
@@ -395,56 +417,91 @@ it('downloads the latest completed preview with the selected date and slot', asy
 })
 
 
-it('opens the generation schedule in a right drawer and restores editor focus on close', async () => {
+it('opens the management pages in the workspace and restores the card draft through navigation', async () => {
   const user = userEvent.setup(); setup()
-  await screen.findByRole('textbox', { name: '今日判断' })
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await user.type(await screen.findByRole('textbox', { name: '今日判断' }), '卡片草稿')
   await user.click(screen.getByRole('button', { name: '生成计划与模板' }))
-  expect(screen.getByRole('dialog', { name: '每日生成计划' })).toHaveClass('condition-workspace-drawer')
-  await user.keyboard('{Escape}')
+  const plans = within(screen.getByRole('region', { name: '生成计划与模板工作区' }))
+  expect(plans.getByRole('region', { name: '每日生成计划' })).toBeVisible()
+  expect(plans.getByRole('region', { name: '服务模板文案' })).toBeVisible()
+  expect(screen.queryByRole('region', { name: '对客服务内容' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '发送记录' }))
+  const deliveries = within(screen.getByRole('region', { name: '发送记录工作区' }))
+  expect(await deliveries.findByText('暂无发送记录')).toBeVisible()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: '生成计划与模板' })).toHaveFocus()
+  await user.click(screen.getByRole('button', { name: '时点卡片' }))
+  expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('卡片草稿')
 })
 
 it('starts an independent instant briefing and selects it without overwriting a scheduled draft', async () => {
   const user = userEvent.setup(); setup()
   await user.type(await screen.findByRole('textbox', { name: '今日判断' }), '固定时点草稿')
   const original = vi.mocked(api).getMockImplementation()!
-  vi.mocked(api).mockImplementation(async (path, init) => path === '/client-service/briefs' ? {
+  const instant = {
     ...initialCard, id: 'instant-id', slot_id: 'live-12345678901234567890123456789012',
-    cutoff: beijingDate() + 'T16:00:00+08:00', state: 'awaiting_agent', market: null,
+    cutoff: beijingDate() + 'T16:00:00+08:00',
     content: { ...content, conclusion: '' }, template: { ...config.templates[2], id: 'live-12345678901234567890123456789012', title: '即时简报', time: '16:00' },
-  } : original(path, init))
-  await user.click(screen.getByRole('button', { name: '实时股评卡片' }))
-  await user.click(screen.getByRole('button', { name: '生成即时简报' }))
-  expect(await screen.findByRole('region', { name: '即时简报记录' })).toHaveTextContent('16:00:00')
+  }
+  vi.mocked(api).mockImplementation(async (path, init) => {
+    if (path !== '/client-service/briefs') return original(path, init)
+    const request = JSON.parse(String(init?.body))
+    return request.source_card_id ? { ...instant, id: 'replay-id', slot_id: 'live-22345678901234567890123456789012' } : instant
+  })
+  await chooseServiceSlot(user, '实时股评卡片')
+  await user.click(screen.getByRole('button', { name: 'AI生成' }))
+  expect(screen.queryByRole('region', { name: '即时简报记录' })).not.toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('')
   expect(screen.getByRole('button', { name: '保存为默认模板' })).toBeDisabled()
-  await user.click(within(screen.getByRole('navigation', { name: '服务时点' })).getByRole('button', { name: /关键时点/ }))
+  await chooseServiceSlot(user, /关键时点/)
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('固定时点草稿')
+  const drawer = await openServiceSlots(user)
+  const history = within(drawer.getByRole('region', { name: '即时简报记录' }))
+  await user.click(history.getByRole('button', { name: /资料截止 16:00:00/ }))
+  expect(screen.queryByRole('dialog', { name: /服务时点/ })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /^服务时点.*即时简报/ })).toBeVisible()
   const call = vi.mocked(api).mock.calls.find(([path]) => path === '/client-service/briefs')
   expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ theme: 'soochow' })
+  expect(JSON.parse(String(call?.[1]?.body))).not.toHaveProperty('source_card_id')
+  await user.click(screen.getByRole('checkbox', { name: '沿用当前简报的资料截止时间' }))
+  expect(vi.mocked(api).mock.calls.filter(([path]) => path === '/client-service/briefs')).toHaveLength(1)
+  await user.click(screen.getByRole('button', { name: 'AI生成' }))
+  const replay = vi.mocked(api).mock.calls.filter(([path]) => path === '/client-service/briefs').at(-1)
+  expect(JSON.parse(String(replay?.[1]?.body))).toMatchObject({ source_card_id: 'instant-id' })
+  expect(screen.getByRole('checkbox', { name: '沿用当前简报的资料截止时间' })).not.toBeChecked()
 })
 
 it('merges generated fields into an in-progress draft without replacing user edits', async () => {
   const user = userEvent.setup(); setup()
   await screen.findByRole('textbox', { name: '今日判断' })
   const original = vi.mocked(api).getMockImplementation()!
-  const live = { ...initialCard, id: 'live-merge', slot_id: 'live-12345678901234567890123456789012', state: 'running', market: null, revision: 0, content: { ...content }, template: { ...config.templates[2], id: 'live-12345678901234567890123456789012', title: '即时简报' } }
+  const focus = '优先分析行业分化'
+  const live = { ...initialCard, id: 'live-merge', slot_id: 'live-12345678901234567890123456789012', state: 'running', market: null,
+    generation_focus: focus, revision: 0, content: { ...content }, template: { ...config.templates[2], id: 'live-12345678901234567890123456789012', title: '即时简报' } }
+  const commentary = { headline: '自动生成标题', conclusion: '自动判断', action: '自动观察安排', focus: '自动观察重点' }
   let completed = false
   vi.mocked(api).mockImplementation(async (path, init) => {
-    if (path === '/client-service/briefs') return structuredClone(live)
-    if (path.startsWith('/client-service/cards?')) return { items: [initialCard, completed ? { ...live, state: 'ready', revision: 1, content: { ...content, headline: '自动生成标题', conclusion: '自动判断', action: '自动观察安排', focus: '自动观察重点' } } : live] }
+    if (path === '/client-service/briefs') {
+      expect(JSON.parse(String(init?.body)).generation_focus).toBe(focus)
+      return structuredClone(live)
+    }
+    if (path.startsWith('/client-service/cards?')) return { items: [initialCard, completed ? { ...live, state: 'ready', revision: 1,
+      market: { ...initialCard.market!, commentary }, content: { ...content, ...commentary } } : live] }
     return original(path, init)
   })
-  await user.click(screen.getByRole('button', { name: '实时股评卡片' }))
-  await user.click(screen.getByRole('button', { name: '生成即时简报' }))
-  await screen.findByRole('region', { name: '即时简报记录' })
+  await chooseServiceSlot(user, '实时股评卡片')
+  await user.click(screen.getByText('关注点（Prompt）', { selector: 'summary' }))
+  await user.type(screen.getByRole('textbox', { name: '关注点（Prompt）' }), focus)
+  await user.click(screen.getByRole('button', { name: 'AI生成' }))
+  await screen.findByText('实时股评已启动，Codex 正在检索并生成即时简报')
   await user.type(screen.getByRole('textbox', { name: '今日判断' }), '用户正在写的判断')
   completed = true
   await waitFor(() => expect(screen.getByRole('textbox', { name: '盘面主线' })).toHaveValue('自动观察安排'), { timeout: 6500 })
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('用户正在写的判断')
   expect(screen.getByRole('textbox', { name: '卡片标题' })).toHaveValue('自动生成标题')
+  expect(screen.getByText(`已提交关注点 · ${focus}`)).toBeVisible()
+  await user.click(screen.getByText('查看本次 AI 草稿'))
+  await user.click(screen.getByRole('button', { name: '采用今日判断' }))
+  expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('自动判断')
 }, 8000)
 
 it('switches theme previews, saves the card theme and retains unsaved choices per slot', async () => {
@@ -463,10 +520,9 @@ it('switches theme previews, saves the card theme and retains unsaved choices pe
   await waitFor(() => expect(screen.getByRole('button', { name: '下载草稿' })).toBeEnabled())
   const previews = vi.mocked(api).mock.calls.filter(([path]) => path.startsWith('/client-service/preview'))
   expect(JSON.parse(String(previews.at(-1)?.[1]?.body)).content.theme).toBe('jade')
-  const slots = screen.getByRole('navigation', { name: '服务时点' })
-  await user.click(within(slots).getByRole('button', { name: /盘前简报/ }))
+  await chooseServiceSlot(user, /盘前简报/)
   expect(screen.getByRole('button', { name: '东吴证券蓝' })).toHaveAttribute('aria-pressed', 'true')
-  await user.click(within(slots).getByRole('button', { name: /关键时点/ }))
+  await chooseServiceSlot(user, /关键时点/)
   expect(screen.getByRole('button', { name: '冰蓝科技' })).toHaveAttribute('aria-pressed', 'true')
   await user.click(screen.getByRole('button', { name: '保存本次卡片' }))
   await screen.findByText('本次卡片已保存')
@@ -479,7 +535,7 @@ it('applies a collection to future slots without replacing saved copy or pending
   await screen.findByRole('textbox', { name: '今日判断' })
   await user.click(screen.getByRole('button', { name: '生成计划与模板' }))
   fireEvent.change(screen.getByLabelText('关键时点生成时间'), { target: { value: '10:50' } })
-  await user.click(screen.getByRole('button', { name: '关闭生成计划' }))
+  await user.click(screen.getByRole('button', { name: '时点卡片' }))
   await user.click(screen.getByRole('button', { name: '曜金几何' }))
   await user.type(screen.getByRole('textbox', { name: '今日判断' }), '只保留在当前草稿')
   await user.click(screen.getByRole('button', { name: '设为全时点默认' }))
@@ -502,12 +558,12 @@ it('selects the realtime slot without a model call, then preserves its draft whe
     if (path === '/client-service/cards/live-create' && init?.method === 'PUT') return { ...initialCard, id: 'live-create', slot_id: 'live-12345678901234567890123456789012', content: JSON.parse(String(init.body)).content, revision: 1, template: { ...config.templates[2], id: 'live-12345678901234567890123456789012', title: '即时简报' } }
     return original(path, init)
   })
-  await user.click(within(screen.getByRole('navigation', { name: '服务时点' })).getByRole('button', { name: '实时股评卡片' }))
+  await chooseServiceSlot(user, '实时股评卡片')
   expect(screen.queryByRole('button', { name: /^实时股评$/ })).not.toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('')
   expect(vi.mocked(api).mock.calls.some(([path]) => path === '/client-service/briefs')).toBe(false)
   await user.type(screen.getByRole('textbox', { name: '今日判断' }), '准备好的即时判断')
-  await user.click(screen.getByRole('button', { name: '生成即时简报' }))
+  await user.click(screen.getByRole('button', { name: 'AI生成' }))
   await screen.findByText('实时股评已启动，Codex 正在检索并生成即时简报')
   expect(screen.getByRole('textbox', { name: '今日判断' })).toHaveValue('准备好的即时判断')
   const saved = vi.mocked(api).mock.calls.find(([path, init]) => path === '/client-service/cards/live-create' && init?.method === 'PUT')

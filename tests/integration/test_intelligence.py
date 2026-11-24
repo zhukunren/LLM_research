@@ -19,8 +19,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(intelligence, "now", lambda: datetime.fromisoformat("2026-10-20T10:00:00+08:00"))
     monkeypatch.setattr(codex_runtime, "availability", lambda: {"available": True})
     monkeypatch.setattr(research_models, "llm_settings", lambda: {"model": "gpt-6-luna", "reasoning_effort": "high", "configured": True})
-    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "free", "allowed_models": [], "reasoning_efforts": {}})
-    monkeypatch.setattr(research_models, "_discover", lambda settings: ({"gpt-6-luna"}, "verified"))
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "paid", "allowed_models": [], "reasoning_efforts": {}})
+    monkeypatch.setattr(research_models, "_discover", lambda settings: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
     with TestClient(main.app) as session:
         yield session
 

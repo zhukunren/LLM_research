@@ -7,6 +7,7 @@ from .condition_contract import describe_filter
 from .db import connect, json_load
 from .jobs import JobLease
 from .market import cached_profile, iter_recent_bars, source_fingerprint
+from .model_modes import DEFAULT_MODEL_MODE, ModelMode
 from .patterns import score_window
 from .rules import combine, evaluate_filter, pattern_references, references, resolve_filter_expression
 from .screening_contracts import TUSHARE_RULES
@@ -22,6 +23,7 @@ def _eval_tree(
     report_assessments: dict[tuple[str, int], dict[str, Any]],
     path: str = "root",
     *, as_of: str | None = None, active=lambda: True, feature_inputs: tushare_feature_rules.Inputs | None = None,
+    model_mode: ModelMode = DEFAULT_MODEL_MODE,
 ) -> tuple[str, list[dict[str, Any]], float]:
     op = node.get("op")
     if op == "filter_ref":
@@ -33,7 +35,9 @@ def _eval_tree(
             cached = report_assessments.setdefault(key, {})
             if stock_code not in cached:
                 cutoff = as_of or (bars[-1]["trade_date"] if bars else None)
-                cached[stock_code] = evaluate_question(library, item["expression"], stock_code, cutoff, active=active) if cutoff else {"state": "unknown", "reason": "缺少明确的研究截止日期"}
+                cached[stock_code] = evaluate_question(
+                    library, item["expression"], stock_code, cutoff, active=active, model_mode=model_mode
+                ) if cutoff else {"state": "unknown", "reason": "缺少明确的研究截止日期"}
             detail = dict(cached[stock_code])
         elif library == "technical":
             expression = resolve_filter_expression(library, item["expression"], node.get("parameter_overrides"))
@@ -81,7 +85,7 @@ def _eval_tree(
         details: list[dict[str, Any]] = []
         for index, child in enumerate(node["children"]):
             state, child_detail, _ = _eval_tree(child, stock_code, bars, filters, patterns, report_assessments, f"{path}.{index}",
-                                                as_of=as_of, active=active, feature_inputs=feature_inputs)
+                                                as_of=as_of, active=active, feature_inputs=feature_inputs, model_mode=model_mode)
             child_states.append(state)
             details.extend(child_detail)
         combined = combine(op, child_states)
@@ -163,6 +167,7 @@ def execute(lease: JobLease) -> None:
             raise ValueError("运行引用已失效")
         context = json_load(run[4])
         strategy = context.get("strategy_snapshot") or json_load(strategy_row[0])
+    model_mode = context.get("model_mode", DEFAULT_MODEL_MODE)
 
     filter_map, pattern_map = _load_snapshots(strategy)
     report_assessments, report_coverage = report_evaluation.load_assessments(
@@ -203,7 +208,7 @@ def execute(lease: JobLease) -> None:
                 lease.progress(min(0.98, counts["evaluated"] / max(1, profile.get("securities", 6000))), f"已评估 {counts['evaluated']:,} 只证券")
             counts["evaluated"] += 1
             state, details, score = _eval_tree(strategy["tree"], stock_code, bars, filter_map, pattern_map,
-                report_assessments, as_of=run[1], active=lease.active, feature_inputs=feature_inputs)
+                report_assessments, as_of=run[1], active=lease.active, feature_inputs=feature_inputs, model_mode=model_mode)
             stale_reason = None
             if context.get("effective_market_date") and bars[-1]["trade_date"] != context["effective_market_date"]:
                 stale_reason = "该证券在所选市场交易日没有行情；不能用更早的价格代替当前判断"
@@ -230,7 +235,7 @@ def execute(lease: JobLease) -> None:
                 unknown_samples.append(item)
         for code in sorted((selected_codes or set()) - seen_codes):
             state, details, _ = _eval_tree(strategy["tree"], code, [], filter_map, pattern_map,
-                report_assessments, as_of=run[1], active=lease.active, feature_inputs=feature_inputs)
+                report_assessments, as_of=run[1], active=lease.active, feature_inputs=feature_inputs, model_mode=model_mode)
             for detail in details:
                 detail.update({"state": "unknown", "reason": "股票池内该证券在截止日前没有可用 A 股行情", "score_contribution": 0.0})
             item = {"stock_code": code, "market": code.rsplit(".", 1)[-1], "as_of": None, "close": None, "state": "unknown", "score": 0, "details": details, "logic": logic_trace(strategy["tree"], details), "reason": "没有可用行情"}

@@ -33,7 +33,7 @@ def test_authentication_failure_does_not_enable_the_configured_model(monkeypatch
     provider = {"configured": True, "model": "gpt-6-luna", "reasoning_effort": "high",
                 "base_url": "https://provider.invalid", "api_key": "private-invalid-key"}
     monkeypatch.setattr(research_models, "llm_settings", lambda: provider)
-    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "free", "allowed_models": [], "reasoning_efforts": {}})
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "paid", "allowed_models": [], "reasoning_efforts": {}})
     def denied(request, timeout):
         raise urllib.error.HTTPError(request.full_url, 401, "private error detail", {}, None)
     monkeypatch.setattr(research_models.urllib.request, "urlopen", denied)
@@ -85,35 +85,30 @@ def test_invalid_discovery_payload_does_not_enable_unconfirmed_alternate_models(
         def read(self, count): return payload
     monkeypatch.setattr(research_models.urllib.request, "urlopen", lambda *_args, **_kwargs: Response())
     monkeypatch.setattr(research_models, "llm_settings", lambda: {"configured": True, "model": "gpt-6-luna", "reasoning_effort": "high", "base_url": "https://provider.invalid", "api_key": "test-key"})
-    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "free", "allowed_models": [], "reasoning_efforts": {}})
+    monkeypatch.setattr(research_models, "research_model_settings", lambda: {"account_tier": "paid", "allowed_models": [], "reasoning_efforts": {}})
     catalog = research_models.catalog()
-    assert not next(item for item in catalog["models"] if item["id"] == "gpt-5.6-luna")["available"]
+    assert not next(item for item in catalog["models"] if item["id"] == "gpt-6.2-sol")["available"]
     assert catalog["discovery_status"] != "verified"
 
 
-def test_codex_catalog_import_and_disabled_family_aliases(tmp_path, monkeypatch):
-    entries = [
-        {"id": "gpt-6-luna", "label": "GPT-6 Luna", "efforts": ["low", "high", "max"]},
-        {"id": "gpt-5.4", "label": "GPT-5.4", "efforts": ["low", "high"]},
-        {"id": "gpt-6", "label": "GPT-6 (Astra)", "efforts": ["low", "high"]},
-        {"id": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "efforts": ["low", "high"]},
-    ]
-    path = tmp_path / "models.json"
-    path.write_text(json.dumps({"models": entries}))
-    monkeypatch.setenv("LLMR_CODEX_MODEL_CATALOG", str(path))
-    monkeypatch.setenv("LLMR_DISABLED_MODELS", "gpt-6,gpt-6.1-sol")
-    monkeypatch.setattr(research_models, "llm_settings", lambda: {
-        "configured": True, "model": "gpt-6-luna", "reasoning_effort": "high"})
+def test_catalog_only_offers_two_presets_and_respects_model_policy(monkeypatch):
+    monkeypatch.setenv("LLMR_DISABLED_MODELS", "gpt-6.2-sol")
+    monkeypatch.setattr(research_models, "llm_settings", lambda: {"configured": True})
     monkeypatch.setattr(research_models, "research_model_settings", lambda: {
-        "account_tier": "paid", "allowed_models": [], "reasoning_efforts": {}})
-    monkeypatch.setattr(research_models, "_discover", lambda _: ({e['id'] for e in entries}, "verified"))
-    catalog = research_models.catalog()
-    models = {m['id']: m for m in catalog['models']}
-    assert set(models) == {e['id'] for e in entries}
-    assert models['gpt-5.4']['available']
-    assert [e['id'] for e in models['gpt-6-luna']['reasoning_efforts']] == ['low', 'high', 'max']
-    for model_id in ['gpt-6', 'gpt-6.1-sol']:
-        assert not models[model_id]['available']
-        with pytest.raises(research_models.ResearchModelError, match='管理员已禁用'):
-            research_models.resolve_selection(model_id, 'low')
-    assert research_models.resolve_selection()['model_id'] == 'gpt-6-luna'
+        "account_tier": "paid", "allowed_models": [], "reasoning_efforts": {"gpt-6.2-astra": ["low", "max"]},
+    })
+    monkeypatch.setattr(research_models, "_discover", lambda _: (
+        {"gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-luna", "gpt-5.4"}, "verified",
+    ))
+    models = {model["id"]: model for model in research_models.catalog()["models"]}
+    assert list(models) == ["gpt-6.2-astra", "gpt-6.2-sol"]
+    assert models["gpt-6.2-astra"]["label"] == "即时"
+    assert models["gpt-6.2-sol"]["label"] == "深度"
+    assert models["gpt-6.2-astra"]["reasoning_efforts"] == [{"id": "low", "label": "low"}]
+    assert models["gpt-6.2-astra"]["available"]
+    assert not models["gpt-6.2-sol"]["available"]
+    assert research_models.resolve_selection() == {"model_id": "gpt-6.2-astra", "reasoning_effort": "low"}
+    with pytest.raises(research_models.ResearchModelError, match="管理员已禁用"):
+        research_models.resolve_selection("gpt-6.2-sol", "max")
+    with pytest.raises(research_models.ResearchModelError, match="固定"):
+        research_models.resolve_selection("gpt-6.2-astra", "max")

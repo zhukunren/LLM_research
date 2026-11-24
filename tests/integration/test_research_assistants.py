@@ -174,7 +174,7 @@ def test_runtime_loads_the_frozen_selected_skill_not_the_later_edit(client, tmp_
     # This uses FakeCodex below, so keep model availability equally synthetic.
     # The real provider is deliberately unconfigured in a clean test checkout.
     monkeypatch.setattr(research_models, "llm_settings", lambda: {"configured": True, "model": "gpt-6-luna", "reasoning_effort": "high"})
-    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6-luna"}, "verified"))
+    monkeypatch.setattr(research_models, "_discover", lambda _: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
     profile = custom(client, "ASSISTANT_VERSION_ONE：先核对原始现金流量表。")
     cid = create(client, profile["id"]).json()["id"]
     tid = message(client, cid).json()["turn_id"]

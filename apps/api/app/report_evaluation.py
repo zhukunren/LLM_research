@@ -7,6 +7,7 @@ from uuid import uuid4
 from .db import connect, json_dump, json_load, utc_now
 from .jobs import JobLease
 from .report_evidence import EvidenceServiceError, PROMPT_VERSION, evaluate_report
+from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS
 from .settings import llm_settings
 
 
@@ -74,6 +75,8 @@ def execute(lease: JobLease) -> None:
         criteria = expression["criteria"]
 
     model = str(evaluation[5])
+    model_mode = payload.get("model_mode", DEFAULT_MODEL_MODE)
+    model_configured = bool(llm_settings()["configured"])
     rubric_hash = hashlib.sha256(json_dump({"criteria": criteria, "combine": expression["combine"], "lookback": expression["lookback_calendar_days"]}).encode("utf-8")).hexdigest()
     as_of = evaluation[3]
     start_date = evaluation[4]
@@ -116,7 +119,7 @@ def execute(lease: JobLease) -> None:
             if cache and cache[1] == "succeeded":
                 assessment = json_load(cache[0])
                 cached_count += 1
-            elif not llm_settings()["configured"] or llm_settings()["model"] != model:
+            elif not model_configured or MODEL_PRESETS[model_mode].model_id != model:
                 assessment = _empty_rubric_assessment(criteria, "未配置文本模型，未生成语义判断")
                 failed += 1
             else:
@@ -125,6 +128,7 @@ def execute(lease: JobLease) -> None:
                         criteria,
                         expression["combine"],
                         [{"page": page[0], "text": page[1]} for page in pages],
+                        model_mode=model_mode,
                     )
                     if not lease.active():
                         cancelled = True

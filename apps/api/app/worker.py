@@ -124,9 +124,9 @@ def run_worker(poll_seconds: float = 1.0, *, stop_event: Event | None = None) ->
                 stop.wait(poll_seconds)
 
     def schedule_periodic_tasks():
-        from . import client_service, news_retention
+        from . import client_service, client_service_archive, news_retention
         while not stop.is_set():
-            for tick in (client_service.scheduler_tick, news_retention.scheduler_tick):
+            for tick in (client_service.scheduler_tick, news_retention.scheduler_tick, client_service_archive.scheduler_tick):
                 try:
                     tick()
                 except Exception:

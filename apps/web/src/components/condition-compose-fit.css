@@ -103,7 +103,7 @@
 .workbench-composing .composition-quantity-field > input { padding-right: 30px; }
 .workbench-composing .composition-quantity-field > span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11px; pointer-events: none; }
 .workbench-composing .screening-field-error { font-size: 11px; line-height: 1.6; color: var(--ui-danger); }
-.workbench-composing .compose-execution-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.workbench-composing .compose-execution-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .workbench-composing .compose-execution-actions > button { min-height: 34px; padding: 6px 12px; font-size: 13px; white-space: nowrap; }
 .workbench-composing .compose-execution-actions .run-button { min-width: 120px; }
 .workbench-composing .composition-execution-status { display: flex; align-items: center; flex-wrap: wrap; grid-column: 1 / -1; gap: 6px 14px; font-size: 10px; line-height: 1.7; color: var(--ui-text-muted); }

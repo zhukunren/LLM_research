@@ -21,7 +21,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, 'DB_PATH', tmp_path / 'attachments.db')
     monkeypatch.setattr(market, 'STOCK_FILE', tmp_path / 'missing.parquet')
     monkeypatch.setattr(research_models, 'llm_settings', lambda: {'configured': True, 'model': 'gpt-6-luna', 'reasoning_effort': 'high'})
-    monkeypatch.setattr(research_models, '_discover', lambda _: ({'gpt-6-luna'}, 'verified'))
+    monkeypatch.setattr(research_models, '_discover', lambda _: ({'gpt-6.2-astra', 'gpt-6.2-sol'}, 'verified'))
     with TestClient(main.app) as session:
         yield session
 

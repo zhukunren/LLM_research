@@ -150,11 +150,12 @@ def _legacy_mode(workflow_type: str, research_depth: str) -> str:
     return "screening" if workflow_type == "screening" else "advanced" if research_depth == "deep" else "research"
 
 
-def _workflow_payload(row) -> dict[str, Any]:
+def _workflow_payload(row, *, turn_snapshot: bool = False) -> dict[str, Any]:
     from .research_assistants import metadata
-    from .research_models import legacy_selection
-    fallback = legacy_selection() if "model_id" not in row.keys() or not row["model_id"] or not row["reasoning_effort"] else {}
-    model = {key: (row[key] if key in row.keys() else None) or fallback[key] for key in ("model_id", "reasoning_effort")}
+    from .model_modes import MODEL_PRESETS, saved_model_mode
+    model = {key: row[key] if key in row.keys() else None for key in ("model_id", "reasoning_effort")}
+    if not turn_snapshot:
+        model = MODEL_PRESETS[saved_model_mode(model["reasoning_effort"])].selection()
     return {
         **model,
         "attachments": json_load(row["attachments_json"]) if "attachments_json" in row.keys() else [],
@@ -182,6 +183,7 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
                         request_id: str | None = None,
                         _connection: sqlite3.Connection | None = None) -> dict[str, Any]:
     from .research_assistants import AssistantError, metadata, selection_snapshot
+    from .model_modes import DEFAULT_MODEL_MODE, MODEL_PRESETS
     from .research_models import ResearchModelError, resolve_selection
     if research_mode not in {"research", "screening", "advanced"}:
         raise ConversationStoreError("研究模式无效")
@@ -216,7 +218,8 @@ def create_conversation(entry_scope: str, research_mode: str = "research", proje
                     "state": existing["state"], "created_at": existing["created_at"], "updated_at": existing["updated_at"],
                     "screening_draft_source": None, "idempotent_replay": True}
         try:
-            model = resolve_selection(model_id, reasoning_effort, allow_unconfigured_default=True)
+            model = (resolve_selection(model_id, reasoning_effort) if model_id or reasoning_effort
+                     else MODEL_PRESETS[DEFAULT_MODEL_MODE].selection())
         except ResearchModelError as exc:
             raise ConversationStoreError(str(exc)) from exc
         try:
@@ -696,7 +699,7 @@ def get_conversation(conversation_id: str, message_limit: int = 100) -> dict[str
                 "id": row["id"],
                 "user_message_id": row["user_message_id"],
                 "base_revision": row["base_revision"],
-                **_workflow_payload(row),
+                **_workflow_payload(row, turn_snapshot=True),
                 "state": row["state"],
                 "response_text": row["response_text"],
                 "result": json_load(row["result_json"]),
@@ -722,6 +725,7 @@ def add_user_message(
     attachment_ids: list[str] | None = None,
     execute_plan: bool = False,
     route_screening: bool = False,
+    _uses_model: bool = True,
     _connection: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
     if _connection is None:
@@ -762,7 +766,7 @@ def add_user_message(
                 "message_id": existing["message_id"],
                 "turn_id": existing["turn_id"],
                 "base_revision": existing["base_revision"],
-                **_workflow_payload(existing),
+                **_workflow_payload(existing, turn_snapshot=True),
                 "state": existing["state"],
                 "source_refs": json_load(existing["source_refs_json"]),
                 "idempotent_replay": True,
@@ -824,13 +828,11 @@ def add_user_message(
             # Legacy callers may prepare conversations before the provider is
             # configured; runtime availability still gates every actual execution.
             from .settings import llm_settings
-            if llm_settings().get("configured") or model_revision is not None:
+            if _uses_model and (llm_settings().get("configured") or model_revision is not None):
                 resolve_selection(frozen_model["model_id"], frozen_model["reasoning_effort"])
         except ResearchModelError as exc:
             raise ConversationStoreError(str(exc)) from exc
-        if not conversation["model_id"] or not conversation["reasoning_effort"]:
-            # Once an evidence-free legacy conversation sends its first new
-            # message, keep that default stable across future config changes.
+        if any(conversation[key] != frozen_model[key] for key in ("model_id", "reasoning_effort")):
             connection.execute("UPDATE conversations SET model_id=?,reasoning_effort=? WHERE id=?",
                                (frozen_model["model_id"], frozen_model["reasoning_effort"], conversation_id))
         frozen_assistant = json_load(conversation["assistant_snapshot_json"]) or selection_snapshot(connection)
@@ -889,7 +891,7 @@ def get_turn(conversation_id: str, turn_id: str) -> dict[str, Any]:
         "conversation_id": row["conversation_id"],
         "user_message_id": row["user_message_id"],
         "base_revision": row["base_revision"],
-        **_workflow_payload(row),
+        **_workflow_payload(row, turn_snapshot=True),
         "state": row["state"],
         "response_text": row["response_text"],
         "result": json_load(row["result_json"]),

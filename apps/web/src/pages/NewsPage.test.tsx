@@ -64,7 +64,7 @@ it('imports a URL with a stable retry request ID', async () => {
   await user.click(screen.getByRole('button', { name: '导入' }))
   await waitFor(() => expect(close).toHaveBeenCalled())
   const request = mocked.mock.calls.find(([path]) => path === '/news/import-url')!
-  expect(JSON.parse(request[1]!.body as string)).toEqual({ url: 'https://example.com/news', request_id: expect.any(String) })
+  expect(JSON.parse(request[1]!.body as string)).toEqual({ url: 'https://example.com/news', request_id: expect.any(String), model_mode: 'instant' })
 })
 
 it('opens URL import from management and keeps an unfinished URL after closing', async () => {

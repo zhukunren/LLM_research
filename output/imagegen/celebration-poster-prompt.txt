@@ -1,0 +1,8 @@
+使用工具 内置 ImageGen
+使用参考 用户提供的东吴证券红金喜报
+
+Use case: stylized-concept.
+Asset type: 9:16 portrait background artwork for a modern Chinese brokerage's stock performance celebration poster.
+Input image 1 is a mood and palette reference only. Reimagine its warm red paper and sculptural gold-brush flourishes in a new original premium festive poster. Rich dark cinnabar and warm deep burgundy, delicate fine-grained silk-paper texture, a few confident curved metallic-gold brush or folded silk strokes arcing near the top-right and down the outer edges. Very restrained tiny reflected sparks near the ornamental strokes. A refined gold highlight toward the right edge. Modern financial editorial quality, confident and auspicious.
+The app will typeset the two-character celebration headline, portfolio name, security and very large percentage afterward. Keep the core middle 72% width from about y=14% to y=90% a relatively clean deep red with only very low-contrast texture so all gold type will remain legible. Keep a quiet dark-red pocket at upper left for the existing white corporate logo and a dark lower edge for small disclosure. Work edge-to-edge and make it robust to a centered 9:16 crop. The external gold ornaments must frame the lettering areas rather than cross them. Strong scarlet family, no purple, no green.
+BACKGROUND ONLY with no embedded text, calligraphy, letters, numbers, characters, logotypes, brand marks, title, words, glyphs, graphs, symbols, border, frame, badge, stickers, or simulated UI.

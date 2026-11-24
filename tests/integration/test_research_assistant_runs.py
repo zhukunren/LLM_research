@@ -21,9 +21,9 @@ def client(tmp_path, monkeypatch):
         "model": "gpt-6-luna", "reasoning_effort": "high", "configured": True,
     })
     monkeypatch.setattr(research_models, "research_model_settings", lambda: {
-        "account_tier": "free", "allowed_models": [], "reasoning_efforts": {},
+        "account_tier": "paid", "allowed_models": [], "reasoning_efforts": {},
     })
-    monkeypatch.setattr(research_models, "_discover", lambda settings: ({"gpt-6-luna", "gpt-5.6-luna", "gpt-6-astra", "gpt-6-sol"}, "verified"))
+    monkeypatch.setattr(research_models, "_discover", lambda settings: ({"gpt-6.2-astra", "gpt-6.2-sol"}, "verified"))
     with TestClient(main.app) as session:
         yield session
 
@@ -53,7 +53,7 @@ def test_catalog_describes_server_owned_tasks_without_client_special_cases(clien
 
 @pytest.mark.parametrize("assistant", ["daily-hotspots", "policy-tracker", "industry-updates"])
 def test_one_click_queues_research_with_frozen_shanghai_cutoff_and_model(client, assistant):
-    response = launch(client, assistant, model_id="gpt-5.6-luna", reasoning_effort="medium")
+    response = launch(client, assistant, model_id="gpt-6.2-sol", reasoning_effort="max")
     assert response.status_code == 202, response.text
     result = response.json()
     assert result["job_id"] and result["state"] == "awaiting_agent" and result["job_state"] == "queued"
@@ -63,7 +63,7 @@ def test_one_click_queues_research_with_frozen_shanghai_cutoff_and_model(client,
     assert saved["research_scope"]["as_of"] == "2026-10-08"
     turn = conversation_store.get_turn(result["conversation_id"], result["turn_id"])
     assert turn["research_scope"] == saved["research_scope"]
-    assert turn["model_id"] == "gpt-5.6-luna" and turn["reasoning_effort"] == "medium"
+    assert turn["model_id"] == "gpt-6.2-sol" and turn["reasoning_effort"] == "max"
     chosen = research_assistants.turn_snapshot(result["conversation_id"], result["turn_id"])
     assert chosen["id"] == assistant and chosen["launch_mode"] == "immediate"
     assert chosen["skill_hash"] == result["skill_hash"]
@@ -182,7 +182,7 @@ def test_lost_enqueue_response_reuses_committed_job(client, monkeypatch):
         enqueue(*args)
         raise codex_runtime.CodexRuntimeError("连接中断")
     monkeypatch.setattr(research_turn_service, "enqueue_turn", lost_response)
-    selection = {"model_id": "gpt-5.6-luna", "reasoning_effort": "low"}
+    selection = {"model_id": "gpt-6.2-astra", "reasoning_effort": "low"}
     failed = launch(client, **selection)
     assert failed.status_code == 503 and counts()["jobs"] == 1
     original = failed.json()["details"]
@@ -213,7 +213,7 @@ def test_lost_enqueue_response_reuses_committed_job(client, monkeypatch):
     assert fresh.json()["conversation_id"] != original["conversation_id"]
 
 
-@pytest.mark.parametrize("model_id", ["gpt-6-luna", "gpt-5.6-luna"])
+@pytest.mark.parametrize("model_id", ["gpt-6.2-astra", "gpt-6.2-sol"])
 def test_catalog_choice_stays_frozen_when_defaults_and_conversation_selection_change(client, monkeypatch, model_id):
     catalog = client.get("/api/v1/research-models")
     assert catalog.status_code == 200
@@ -226,18 +226,20 @@ def test_catalog_choice_stays_frozen_when_defaults_and_conversation_selection_ch
     monkeypatch.setattr(research_models, "llm_settings", lambda: {
         "model": "gpt-6-luna", "reasoning_effort": "max", "configured": True,
     })
+    alternative = ({"model_id": "gpt-6.2-sol", "reasoning_effort": "max"} if model_id == "gpt-6.2-astra"
+                   else {"model_id": "gpt-6.2-astra", "reasoning_effort": "low"})
     turn_route = f"/api/v1/conversations/{cid}/turns/{tid}"
     saved = client.get(turn_route).json()
     assert {key: saved[key] for key in selected} == selected
     assert client.patch(f"/api/v1/conversations/{cid}/model", json={
-        "model_id": "gpt-6-luna", "reasoning_effort": "max", "base_revision": 0,
+        **alternative, "base_revision": 0,
     }).status_code == 409
     lease = jobs.claim(launched.json()["job_id"])
     conversation_store.start_turn(cid, tid)
     conversation_store.finish_turn(cid, tid, 0, "succeeded", "已核验。", {})
     assert lease.finish("succeeded", "完成")
     changed = client.patch(f"/api/v1/conversations/{cid}/model", json={
-        "model_id": "gpt-6-luna", "reasoning_effort": "max", "base_revision": 0,
+        **alternative, "base_revision": 0,
     })
     assert changed.status_code == 200
     assert changed.json()["model_revision"] == 1
@@ -248,15 +250,15 @@ def test_catalog_choice_stays_frozen_when_defaults_and_conversation_selection_ch
 
 def test_free_catalog_disables_astra_and_sol_and_launch_cannot_bypass_policy(client, monkeypatch):
     monkeypatch.setattr(research_models, "research_model_settings", lambda: {
-        "account_tier": "free", "allowed_models": ["gpt-6-astra", "gpt-6-sol"], "reasoning_efforts": {},
+        "account_tier": "free", "allowed_models": ["gpt-6.2-astra", "gpt-6.2-sol"], "reasoning_efforts": {},
     })
     catalog = client.get("/api/v1/research-models").json()
     assert catalog["account_tier"] == "free"
-    blocked = [item for item in catalog["models"] if item["id"] in {"gpt-6-astra", "gpt-6-sol"}]
+    blocked = [item for item in catalog["models"] if item["id"] in {"gpt-6.2-astra", "gpt-6.2-sol"}]
     assert len(blocked) == 2
     for model in blocked:
         assert model["available"] is False and "Free" in model["unavailable_reason"]
-        response = launch(client, request_id=model["id"], model_id=model["id"], reasoning_effort="low")
+        response = launch(client, request_id=model["id"], model_id=model["id"], reasoning_effort=model["default_reasoning_effort"])
         assert response.status_code == 422 and "Free" in response.json()["message"]
         assert not any(counts().values())
 

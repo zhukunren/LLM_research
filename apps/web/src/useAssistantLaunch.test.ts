@@ -18,7 +18,7 @@ function resultFor(path: string, init?: RequestInit): AssistantLaunchResult {
 
 beforeEach(() => {
   vi.mocked(api).mockReset()
-  vi.mocked(readModelPreference).mockReset().mockReturnValue({ model_id: 'gpt-6-luna', reasoning_effort: 'high' })
+  vi.mocked(readModelPreference).mockReset().mockReturnValue({ model_id: 'gpt-6.2-astra', reasoning_effort: 'low' })
 })
 
 it('retries an uncertain request with the same ID and frozen model selection', async () => {
@@ -27,8 +27,8 @@ it('retries an uncertain request with the same ID and frozen model selection', a
   await act(async () => { expect(await result.current.launch('daily-hotspots', '今日热点')).toBeNull() })
   expect(result.current.state).toMatchObject({ loading: false, recoverable: true, error: '网络中断', name: '今日热点' })
   const initial = JSON.parse(vi.mocked(api).mock.calls[0][1]!.body as string)
-  expect(initial).toMatchObject({ model_id: 'gpt-6-luna', reasoning_effort: 'high' })
-  vi.mocked(readModelPreference).mockReturnValue({ model_id: 'gpt-5.6-luna', reasoning_effort: 'low' })
+  expect(initial).toMatchObject({ model_id: 'gpt-6.2-astra', reasoning_effort: 'low' })
+  vi.mocked(readModelPreference).mockReturnValue({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' })
   await act(async () => { expect((await result.current.retry())?.conversation_id).toBe('conversation-1') })
   expect(vi.mocked(api).mock.calls[1][1]!.body).toBe(JSON.stringify(initial))
   expect(result.current.state).toMatchObject({ loading: false, error: '', recoverable: false })
@@ -115,11 +115,11 @@ it('creates a fresh intent after a confirmed launch and reads the new model pref
   vi.mocked(api).mockImplementation(async (path, init) => resultFor(path, init) as never)
   const { result } = renderHook(() => useAssistantLaunch())
   await act(async () => { await result.current.launch('daily-hotspots') })
-  vi.mocked(readModelPreference).mockReturnValue({ model_id: 'gpt-5.6-luna', reasoning_effort: 'low' })
+  vi.mocked(readModelPreference).mockReturnValue({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' })
   await act(async () => { await result.current.launch('daily-hotspots') })
   const bodies = vi.mocked(api).mock.calls.map(call => JSON.parse(call[1]!.body as string))
   expect(bodies[0].request_id).not.toBe(bodies[1].request_id)
-  expect(bodies[1]).toMatchObject({ model_id: 'gpt-5.6-luna', reasoning_effort: 'low' })
+  expect(bodies[1]).toMatchObject({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' })
 })
 
 it('remains retryable in memory when session storage is unavailable', async () => {
@@ -145,11 +145,11 @@ it('clears a confirmed validation rejection so a corrected model starts a new in
   expect(sessionStorage.length).toBe(0)
   await act(async () => { expect(await result.current.retry()).toBeNull() })
   expect(api).toHaveBeenCalledTimes(1)
-  vi.mocked(readModelPreference).mockReturnValue({ model_id: 'gpt-5.6-luna', reasoning_effort: 'low' })
+  vi.mocked(readModelPreference).mockReturnValue({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' })
   await act(async () => { await result.current.launch('daily-hotspots', '今日热点') })
   const second = JSON.parse(vi.mocked(api).mock.calls[1][1]!.body as string)
   expect(second.request_id).not.toBe(first.request_id)
-  expect(second).toMatchObject({ model_id: 'gpt-5.6-luna', reasoning_effort: 'low' })
+  expect(second).toMatchObject({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' })
 })
 
 it.each([
@@ -163,7 +163,7 @@ it.each([
   await act(async () => { await result.current.launch('daily-hotspots') })
   expect(result.current.state.recoverable).toBe(true)
   const body = vi.mocked(api).mock.calls[0][1]!.body
-  vi.mocked(readModelPreference).mockReturnValue({ model_id: 'gpt-5.6-luna', reasoning_effort: 'low' })
+  vi.mocked(readModelPreference).mockReturnValue({ model_id: 'gpt-6.2-sol', reasoning_effort: 'max' })
   await act(async () => { await result.current.retry() })
   expect(vi.mocked(api).mock.calls[1][1]!.body).toBe(body)
 })

@@ -106,7 +106,7 @@
 .daily-signal-direction ul { gap: 5px; }
 .daily-signal-direction li { display: inline-flex; align-items: center; flex-wrap: wrap; max-width: 100%; }
 .daily-signal-direction li .stock-mention { min-width: 0; padding: 4px 6px; gap: 4px; }
-.daily-signal-volume { padding-right: 6px; font-size: 12px; white-space: nowrap; opacity: .9; }
+.daily-signal-position { padding-inline: 4px 6px; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .daily-signal-details { margin-top: 9px; padding-top: 8px; }
 .daily-signal-detail-grid { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .daily-signal-detail-grid > div { display: flex; align-items: baseline; gap: 5px; max-width: 100%; }

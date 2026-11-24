@@ -1,6 +1,6 @@
 export const dailySignalsEndpoint = '/api/v1/daily-signals/signals'
 
-export type SignalStock = { code: string; name: string }
+export type SignalStock = { code: string; name: string; position_ratio: number | null; position_date: string }
 export type DailyStrategy = {
   strategy_name: string; strategy_title: string; generation_id: string
   buy_signals: SignalStock[]; sell_signals: SignalStock[]; covers_date: boolean
@@ -29,7 +29,16 @@ function metric(value: unknown): number | null {
 }
 function stocks(value: unknown): SignalStock[] {
   if (!Array.isArray(value)) throw new Error('股票信号格式异常。')
-  return value.map(item => { const stock = record(item); return { code: text(stock.code), name: text(stock.name) } })
+  return value.map(item => {
+    const stock = record(item)
+    const ratio = stock.position_ratio
+    return {
+      code: text(stock.code),
+      name: text(stock.name),
+      position_ratio: typeof ratio === 'number' && Number.isFinite(ratio) && ratio >= 0 ? ratio : null,
+      position_date: typeof stock.position_date === 'string' ? stock.position_date : '',
+    }
+  })
 }
 export function parseDailySignals(value: unknown): DailySignals {
   const data = record(value)

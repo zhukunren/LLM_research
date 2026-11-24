@@ -397,7 +397,8 @@ def apply_template(conversation_id: str, template_id: str, payload: ApplyTemplat
         # A message id + identical snapshot is the idempotency boundary.
         with connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            message = conversation_store.add_user_message(conversation_id, payload.client_message_id, payload.base_revision, content, _connection=connection)
+            message = conversation_store.add_user_message(conversation_id, payload.client_message_id, payload.base_revision, content,
+                                                         _uses_model=False, _connection=connection)
             source_message_id = message["message_id"]
             turn = connection.execute("SELECT id,state,base_revision,result_json FROM conversation_turns WHERE conversation_id=? AND user_message_id=?", (conversation_id, source_message_id)).fetchone()
             if not turn or turn["base_revision"] != payload.base_revision:

@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Check, Copy, Download, Maximize2, Save, Sparkles } from 'lucide-react'
+import { Check, Copy, Download, Maximize2, Save } from 'lucide-react'
 import planTemplate from '../../../api/app/assets/client-service/opening-plan.json'
 import { api } from '../api'
-import { beijingDate, cardArtworkPosition, cardThemes, defaultCardTheme, fixedDisclosure, marketTime, withoutWebLinks, type CardTheme } from '../clientService'
+import { cardArtworkPosition, cardThemes, defaultCardTheme, fixedDisclosure, isGenerationFocus, marketTime, withoutWebLinks, type CardTheme } from '../clientService'
 import { ClientCardFullscreen, ClientCardImageStage, ClientCardPreviewSwitch, type CardPreviewMode } from '../components/ClientCardPreview'
 import ClientThemePicker from '../components/ClientThemePicker'
 import EditableClientCard from '../components/EditableClientCard'
 import LoadingState from '../components/LoadingState'
-import WorkspacePageHeading from '../components/WorkspacePageHeading'
+import type { ModelMode } from '../modelSelection'
 import { useClientCardPreview } from '../useClientCardPreview'
 import { useClientServiceCollection } from '../useClientServiceCollection'
-import { useMobileWorkspace } from '../useMobileWorkspace'
 import { useSessionState } from '../useSessionState'
 import { useWorkspaceSession } from '../WorkspaceSession'
-import './client-service.css'
+import ClientServiceLayout, { ClientServiceEditor, ClientServiceGeneration, ClientServicePreview, ClientServiceStudio, useClientServicePane } from './ClientServiceLayout'
 import './opening-plan.css'
 
 const endpoint = '/client-service/opening-plans'
@@ -26,11 +25,11 @@ type Content = { sections: Sections; theme: CardTheme }
 type Draft = { sections: Sections; appliedRequest: string; theme?: CardTheme }
 type Saved = { revision: number; content: Content; collection_request_id: string | null }
 type Editor = { template: Saved; saved: Saved | null }
-type Request = { id: string; date: string; accepted: boolean }
+type Request = { id: string; date: string; accepted: boolean; modelMode?: ModelMode; generationFocus?: string }
 type Source = { title: string; url: string; published_at: string }
 type Market = { index: string; trade_date: string; close: string; pct_change: string | null; source: string }
 type Status = {
-  request_id: string; plan_date: string; cutoff: string; message: string
+  request_id: string; plan_date: string; cutoff: string; message: string; generation_focus?: string
 } & (
   { state: 'succeeded' | 'partial'; sections: Sections; sources: Source[]; market: Market | null }
   | { state: 'awaiting_agent' | 'running' | 'no_evidence' | 'failed' | 'cancelled' }
@@ -41,12 +40,20 @@ const initialContent: Content = { sections: {}, theme: defaultCardTheme }
 const requestPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/
 const adviser = `投资顾问：${fixedDisclosure.adviser}　执业编码：${fixedDisclosure.license}`
 const weekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long', timeZone: 'UTC' })
-const submission = (request: Request) => ({ request_id: request.id, plan_date: request.date })
+const submission = (request: Request) => ({
+  request_id: request.id, plan_date: request.date, model_mode: request.modelMode, generation_focus: request.generationFocus,
+})
 
 function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value <= '0001-01-01') return false
   const day = new Date(value + 'T00:00:00Z')
   return Number.isFinite(day.valueOf()) && day.toISOString().slice(0, 10) === value
+}
+
+async function upcomingPlanDate(signal?: AbortSignal) {
+  const { plan_date } = await api<{ plan_date: string }>(endpoint + '/default-date', { signal })
+  if (!validDate(plan_date)) throw new Error('服务未返回有效的计划日期，请重试。')
+  return plan_date
 }
 
 function validDraft(value: unknown): value is Draft {
@@ -62,6 +69,8 @@ function validRequest(value: unknown): value is Request | null {
   const item = value as Partial<Request> | undefined
   return typeof item?.id === 'string' && requestPattern.test(item.id)
     && validDate(item.date) && typeof item.accepted === 'boolean'
+    && (item.modelMode === undefined || item.modelMode === 'instant' || item.modelMode === 'deep')
+    && (item.generationFocus === undefined || isGenerationFocus(item.generationFocus))
 }
 
 function sameContent(first: Content, second: Content) {
@@ -76,43 +85,89 @@ function planTitle(date: string) {
 }
 
 export default function OpeningPlanPage() {
+  const { active } = useWorkspaceSession()
   const inputId = useId()
-  const page = useRef<HTMLDivElement>(null)
-  const scroll = useRef({ edit: 0, preview: 0 })
-  const [date, setDate] = useSessionState('client-service.opening.date', beijingDate(), validDate)
+  const { pageRef, pane, switchPane } = useClientServicePane()
+  const dateLookup = useRef<AbortController | null>(null)
+  const [automaticDate, setAutomaticDate] = useState('')
+  const [manualDate, setManualDate] = useState('')
+  const [dateError, setDateError] = useState('')
+  const [dateAttempt, setDateAttempt] = useState(0)
+  const [checkingDate, setCheckingDate] = useState(false)
+  const [launch, setLaunch] = useState<Request | null>(null)
   const [saving, setSaving] = useState<Saving>(null)
-  const [pane, setPane] = useState<Pane>('edit')
   const [mode, setMode] = useState<CardPreviewMode>('image')
+  const date = manualDate || automaticDate
+  const launchConsumed = useCallback((id: string) => setLaunch(current => current?.id === id ? null : current), [])
 
-  function switchPane(next: Pane) {
-    if (next === pane) return
-    if (page.current) scroll.current[pane] = page.current.scrollTop
-    setPane(next)
-    requestAnimationFrame(() => { if (page.current) page.current.scrollTop = scroll.current[next] })
+  useEffect(() => {
+    if (!active || manualDate) return
+    const controller = new AbortController()
+    dateLookup.current = controller
+    setDateError('')
+    void upcomingPlanDate(controller.signal).then(value => {
+      if (!controller.signal.aborted) setAutomaticDate(value)
+    }).catch((reason: Error) => {
+      if (!controller.signal.aborted) setDateError(reason.message)
+    })
+    return () => controller.abort()
+  }, [active, manualDate, dateAttempt])
+
+  async function collect(modelMode: ModelMode, generationFocus?: string) {
+    setDateError('')
+    dateLookup.current?.abort()
+    setCheckingDate(true)
+    try {
+      const target = manualDate || await upcomingPlanDate()
+      if (!manualDate) setAutomaticDate(target)
+      setLaunch({ id: crypto.randomUUID(), date: target, accepted: false, modelMode, generationFocus })
+    } catch (reason) {
+      setDateError((reason as Error).message)
+    } finally {
+      setCheckingDate(false)
+    }
   }
 
-  return <div ref={page} className="page-content workspace-tool-page client-service-page opening-plan-page" aria-label="开盘计划">
-    <WorkspacePageHeading actions={<div className="opening-plan-date">
+  return <ClientServiceLayout view="opening-plan" pageRef={pageRef} actions={
+    <div className="client-service-actions">
       <label htmlFor={inputId}>计划日期</label>
-      <input id={inputId} type="date" className="workspace-field" value={date} disabled={!!saving}
-        onChange={event => { if (validDate(event.target.value)) setDate(event.target.value) }} />
-    </div>}><h1>开盘计划</h1></WorkspacePageHeading>
-    <OpeningPlanEditor key={date} date={date} pane={pane} onSwitchPane={switchPane} mode={mode} setMode={setMode} saving={saving} setSaving={setSaving} />
-  </div>
+      <div className="client-date-control">
+        <input id={inputId} type="date" className="workspace-field" value={date} disabled={!!saving || checkingDate}
+          onChange={event => {
+            if (validDate(event.target.value)) {
+              setManualDate(event.target.value)
+              setDateError('')
+            }
+          }} />
+        {manualDate && <button type="button" className="workspace-button client-date-reset" disabled={!!saving || checkingDate}
+          onClick={() => { setAutomaticDate(''); setManualDate('') }}>使用自动日期</button>}
+      </div>
+    </div>}>
+    {dateError && <p role="alert" className="workspace-error client-service-feedback">{dateError}{' '}
+      <button type="button" className="text-button workspace-button" onClick={() => setDateAttempt(value => value + 1)}>重试读取日期</button>
+    </p>}
+    {date ? <OpeningPlanEditor key={date} date={date} pane={pane} onSwitchPane={switchPane} mode={mode} setMode={setMode}
+      saving={saving} setSaving={setSaving} checkingDate={checkingDate} onCollect={collect}
+      launch={launch?.date === date ? launch : null} onLaunchConsumed={launchConsumed} />
+      : !dateError && <LoadingState label="正在确认计划日期…" />}
+  </ClientServiceLayout>
 }
 
 type Pane = 'edit' | 'preview'
 type Saving = 'saved' | 'template' | null
 
-function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, setSaving }: {
+function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, setSaving, checkingDate, onCollect, launch, onLaunchConsumed }: {
   date: string; pane: Pane; onSwitchPane: (next: Pane) => void; mode: CardPreviewMode; setMode: (mode: CardPreviewMode) => void
   saving: Saving; setSaving: (saving: Saving) => void
+  checkingDate: boolean; onCollect: (mode: ModelMode, generationFocus?: string) => Promise<void>
+  launch: Request | null; onLaunchConsumed: (id: string) => void
 }) {
   const { active } = useWorkspaceSession()
-  const mobile = useMobileWorkspace()
   const savedVersion = useRef(0)
   const [draft, setDraft, storage] = useSessionState(`client-service.opening.draft.${date}`, initialDraft, validDraft)
   const [request, setRequest] = useSessionState<Request | null>(`client-service.opening.request.${date}`, null, validRequest)
+  const [modelMode, setModelMode] = useState<ModelMode>(() => request?.modelMode ?? 'instant')
+  const [generationFocus, setGenerationFocus] = useState('')
   const [workspace, setWorkspace] = useState<Editor | null>(null)
   const [readAttempt, setReadAttempt] = useState(0)
   const [readError, setReadError] = useState('')
@@ -139,6 +194,14 @@ function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, se
   basis.current = { sections: baseline.sections, saved: !!saved, sourceId }
 
   useEffect(() => {
+    if (!launch) return
+    setRequest(launch)
+    setModelMode(launch.modelMode ?? 'instant')
+    setGenerationFocus('')
+    onLaunchConsumed(launch.id)
+  }, [launch, onLaunchConsumed, setRequest])
+
+  useEffect(() => {
     if (!active) return
     const controller = new AbortController()
     const startedVersion = savedVersion.current
@@ -163,7 +226,7 @@ function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, se
     })
   }, [date, setDraft])
   const collectionRequest = workspace || !reading ? request || savedRequest : null
-  const { current, error, busy, stopping, begin, stop, retry, stopError } = useClientServiceCollection(
+  const { current, error, busy, stopping, stop, retry, stopError } = useClientServiceCollection(
     endpoint, collectionRequest, setRequest, submission, onResult,
   )
   const collected = (current?.state === 'succeeded' || current?.state === 'partial') && current.plan_date === date ? current : null
@@ -201,10 +264,10 @@ function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, se
   }
 
   function collect() {
-    if (busy || stopping || (!workspace && reading)) return
+    if (checkingDate || busy || stopping || (!workspace && reading)) return
     setNotice('')
     setCopyError('')
-    begin({ id: crypto.randomUUID(), date, accepted: false })
+    void onCollect(modelMode, generationFocus.trim() || undefined)
   }
 
   async function save(target: 'saved' | 'template') {
@@ -277,8 +340,6 @@ function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, se
   }
 
   const heading = isDraft ? '草稿预览' : '成品预览'
-  const saveCurrent = <button type="button" className="primary-button workspace-button" disabled={!workspace || reading || !!saving || !canExport || (!!saved && !dirty)}
-    onClick={() => void save('saved')}><Save size={15} />{saving === 'saved' ? '正在保存…' : '保存本次卡片'}</button>
   const saveFeedback = <>
     {(readError || saveError) && <div role="alert" className="workspace-error client-service-feedback">
       <span>{readError || saveError}</span><button type="button" className="text-button workspace-button" disabled={reading || !!saving} onClick={() => {
@@ -289,24 +350,27 @@ function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, se
     {saveNotice && <p role="status" className="workspace-feedback-success client-service-feedback"><Check size={15} />{saveNotice}</p>}
   </>
   return <>
-    <nav className="client-mobile-pane-switch opening-plan-toolbar" aria-label="开盘计划编辑视图">
-      <button type="button" className="workspace-button" aria-pressed={pane === 'edit'} onClick={() => onSwitchPane('edit')}>编辑</button>
-      <button type="button" className="workspace-button" aria-pressed={pane === 'preview'} onClick={() => onSwitchPane('preview')}>预览</button>
-      {mobile && pane === 'edit' && <><div className="opening-plan-mobile-commit">
-        {dirty && <small role="status">{storage.persisted ? '本机已暂存' : '尚未保存'}</small>}{saveCurrent}
-      </div>{saveFeedback}</>}
-    </nav>
-    <div className="client-service-studio opening-plan-studio" data-mobile-pane={pane}>
-      <section className="client-card-editor" aria-label="编辑开盘计划">
-        <header className="client-editor-title"><h2>模板编辑</h2></header>
-        <div className="opening-plan-collection">
-          <button type="button" className="primary-button workspace-button" disabled={busy || stopping || (!workspace && reading)} onClick={collect}>
-            <Sparkles size={16} />AI 采集资料
-          </button>
-          {busy && <LoadingState compact label={current?.state === 'running' ? '正在核对行情和盘前资料…' : '等待开始采集…'} />}
-          {busy && request?.accepted && <button type="button" className="text-button workspace-button"
-            disabled={stopping} onClick={() => void stop()}>{stopping ? '正在停止…' : '停止采集'}</button>}
+    <ClientServiceStudio pane={pane} onChange={onSwitchPane} label="开盘计划编辑视图">
+      <ClientServiceEditor label="编辑开盘计划" title="计划内容"
+        generation={<ClientServiceGeneration mode={modelMode} onModeChange={setModelMode}
+          canGenerate={!!workspace || !reading} busy={checkingDate || busy} locked={stopping} onGenerate={collect}
+          focus={{ value: generationFocus, onChange: setGenerationFocus, example: '例如，优先补充盘前速览和今日观察方向。', submitted: current?.generation_focus }}
+          progress={(checkingDate || busy) && <>
+            <LoadingState compact label={checkingDate ? '正在确认计划日期…' : current?.state === 'running' ? '正在核对行情和盘前资料…' : '等待开始生成…'} />
+            {busy && request?.accepted && <button type="button" className="text-button workspace-button"
+              disabled={stopping} onClick={() => void stop()}>{stopping ? '正在停止…' : '停止生成'}</button>}
+          </>} />}
+        footer={<>
+        {saveFeedback}
+        <p className="client-editor-status">{reading ? '正在读取模板…' : dirty ? (storage.persisted ? '未提交的修改已留在本机' : '有未提交的修改')
+          : saved ? '本次开盘计划已保存' : '正在使用默认模板'}</p>
+        <div className="client-editor-actions">
+          <button type="button" className="primary-button workspace-button" disabled={!workspace || reading || !!saving || !canExport || (!!saved && !dirty)}
+            onClick={() => void save('saved')}><Save size={15} />{saving === 'saved' ? '正在保存…' : '保存本次卡片'}</button>
+          <button type="button" className="secondary-button workspace-button" disabled={!workspace || reading || !!saving}
+            onClick={() => void save('template')}>{saving === 'template' ? '正在保存…' : '保存为默认模板'}</button>
         </div>
+      </>}>
         {error && <div role="alert" className="workspace-error client-service-feedback">
           {error.message} {error.retry && <button type="button" className="text-button workspace-button" onClick={retry}>重试连接</button>}
         </div>}
@@ -329,16 +393,6 @@ function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, se
             </div>
           })}
         </details>}
-        <div className="opening-plan-save">
-          <p className="opening-plan-status">{reading ? '正在读取模板…' : dirty ? (storage.persisted ? '未提交的修改已留在本机' : '有未提交的修改')
-            : saved ? '本次开盘计划已保存' : '正在使用默认模板'}</p>
-          <div className="client-editor-actions">
-            {!mobile && saveCurrent}
-            <button type="button" className="secondary-button workspace-button" disabled={!workspace || reading || !!saving}
-              onClick={() => void save('template')}>{saving === 'template' ? '正在保存…' : '保存为默认模板'}</button>
-          </div>
-          {!mobile && saveFeedback}
-        </div>
         {planTemplate.groups.map((group, index) => <details className="opening-plan-section" key={group.label} open={index < 2}>
           <summary>{group.label}</summary>
           <div className="client-content-fields">{group.fields.map(editorField)}</div>
@@ -351,36 +405,31 @@ function OpeningPlanEditor({ date, pane, onSwitchPane, mode, setMode, saving, se
             <p>{planTemplate.risk}</p><div><p>{adviser}</p><p>{fixedDisclosure.institution}</p></div>
           </div>
         </details>
-      </section>
-      <section className="client-preview-workspace" aria-label="开盘计划预览">
-        <section className="client-preview-panel" aria-label={heading}>
-          <header>
-            <h2>{heading}</h2>
-            <div className="client-preview-toolbar">
-              <button type="button" className="secondary-button workspace-button" disabled={!preview.preview} onClick={() => setFullscreen(true)}><Maximize2 size={14} />全屏查看</button>
-              <ClientCardPreviewSwitch mode={mode} onChange={setMode} />
-            </div>
-          </header>
-          <div className="client-preview-meta">
-            <span>{themeName}{mode === 'image' && ' · 点击图片文字可编辑'}</span>
-            {mode === 'image' && <span>{preview.preview ? `${preview.preview.width} × ${preview.preview.height} px` : preview.error ? '预览暂不可用' : '正在同步…'}</span>}
-          </div>
-          {mode === 'image' ? <ClientCardImageStage pending={!preview.preview && !preview.error} onStep={switchTheme}>{previewImage()}</ClientCardImageStage>
-            : <div className="client-text-preview" aria-label="文案预览"><pre aria-label="可复制的开盘计划">{outgoing}</pre></div>}
-          <div className="client-export-bar" data-draft={isDraft}>
-            {isDraft && <p>{canExport ? '保存本次卡片后可导出成品' : '填写任意段落后即可导出'}</p>}
-            {copyError && <p role="alert" className="workspace-error">{copyError}</p>}
-            {notice && <p role="status" className="workspace-feedback-success"><Check size={15} />{notice}</p>}
-            <div>
-              <button type="button" className="secondary-button workspace-button" disabled={!canExport} onClick={() => void copy()}><Copy size={15} />复制文案</button>
-              <button type="button" className={`${isDraft ? 'secondary' : 'primary'}-button workspace-button`} disabled={!preview.preview || !canExport} onClick={download}><Download size={15} />{downloadLabel}</button>
-            </div>
-          </div>
-        </section>
-        <ClientThemePicker theme={theme} onSelect={selectTheme} ariaLabel="开盘计划底图" caption="开盘计划专用插画"
-          thumbnail={id => <span className="client-theme-thumbnail" style={{ backgroundImage: `url(/client-service/themes/${id}-logo-safe.png)`, backgroundPosition: cardArtworkPosition(artworkSlot) }} />} />
-      </section>
-    </div>
+      </ClientServiceEditor>
+      <ClientServicePreview label="开盘计划预览" title={heading}
+        toolbar={<>
+          <button type="button" className="secondary-button workspace-button" disabled={!preview.preview} onClick={() => setFullscreen(true)}><Maximize2 size={14} />全屏查看</button>
+          <ClientCardPreviewSwitch mode={mode} onChange={setMode} />
+        </>}
+        meta={<>
+          <span>{themeName}{mode === 'image' && ' · 点击图片文字可编辑'}</span>
+          {mode === 'image' && <span>{preview.preview ? `${preview.preview.width} × ${preview.preview.height} px` : preview.error ? '预览暂不可用' : '正在同步…'}</span>}
+        </>}
+        status={<>
+          {isDraft && <p>{canExport ? '保存本次卡片后可导出成品' : '填写任意段落后即可导出'}</p>}
+          {copyError && <p role="alert" className="workspace-error">{copyError}</p>}
+          {notice && <p role="status" className="workspace-feedback-success"><Check size={15} />{notice}</p>}
+        </>}
+        actions={<>
+          <button type="button" className="secondary-button workspace-button" disabled={!canExport} onClick={() => void copy()}><Copy size={15} />复制文案</button>
+          <button type="button" className="primary-button workspace-button" disabled={!preview.preview || !canExport} onClick={download}><Download size={15} />{downloadLabel}</button>
+        </>}
+        themes={<ClientThemePicker theme={theme} onSelect={selectTheme} ariaLabel="开盘计划底图" caption="开盘计划专用插画"
+          thumbnail={id => <span className="client-theme-thumbnail" style={{ backgroundImage: `url(/client-service/themes/${id}-logo-safe.png)`, backgroundPosition: cardArtworkPosition(artworkSlot) }} />} />}>
+        {mode === 'image' ? <ClientCardImageStage pending={!preview.preview && !preview.error} onStep={switchTheme}>{previewImage()}</ClientCardImageStage>
+          : <div className="client-text-preview" aria-label="文案预览"><pre aria-label="可复制的开盘计划">{outgoing}</pre></div>}
+      </ClientServicePreview>
+    </ClientServiceStudio>
     {fullscreen && <ClientCardFullscreen title={isDraft ? '草稿全屏预览' : '成品全屏预览'} description={`${themeName} · 开盘计划`}
       theme={themeName} downloadLabel={downloadLabel} canDownload={canExport && !!preview.preview}
       onDownload={download} onStep={switchTheme} onClose={() => setFullscreen(false)}>{previewImage}</ClientCardFullscreen>}

@@ -12,11 +12,11 @@ export function ClientCardPreviewSwitch({ mode, onChange }: { mode: CardPreviewM
   </div>
 }
 
-export function ClientCardImageStage({ pending, onStep, children }: { pending: boolean; onStep: StepTheme; children: ReactNode }) {
+export function ClientCardImageStage({ pending, onStep, children }: { pending: boolean; onStep?: StepTheme; children: ReactNode }) {
   return <div className="client-preview-stage">
-    <button type="button" className="workspace-button client-theme-arrow client-theme-previous" aria-label="上一套底图" title="切换上一套底图" onClick={() => onStep(-1)}><ChevronLeft size={22} /></button>
+    {onStep && <button type="button" className="workspace-button client-theme-arrow client-theme-previous" aria-label="上一套底图" title="切换上一套底图" onClick={() => onStep(-1)}><ChevronLeft size={22} /></button>}
     <div className="client-card-canvas" aria-busy={pending}>{children}</div>
-    <button type="button" className="workspace-button client-theme-arrow client-theme-next" aria-label="下一套底图" title="切换下一套底图" onClick={() => onStep(1)}><ChevronRight size={22} /></button>
+    {onStep && <button type="button" className="workspace-button client-theme-arrow client-theme-next" aria-label="下一套底图" title="切换下一套底图" onClick={() => onStep(1)}><ChevronRight size={22} /></button>}
   </div>
 }
 
