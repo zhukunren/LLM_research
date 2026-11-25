@@ -1,0 +1,23 @@
+[Unit]
+Description=LLM Research Workbench MCP
+After=network-online.target llmr-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=llmr
+Group=llmr
+WorkingDirectory=/opt/llmr-workbench-mcp
+Environment=LLMR_WORKBENCH_ORIGIN=http://127.0.0.1:18860
+Environment=LLMR_WORKBENCH_PUBLIC_ORIGIN=https://zjg.dwzq.top
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/llmr-workbench-mcp/workbench.py http --port 18861
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

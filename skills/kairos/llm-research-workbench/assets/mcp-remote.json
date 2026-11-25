@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "llm-research-workbench-remote": {
+      "type": "streamableHttp",
+      "url": "https://zjg.dwzq.top/mcp"
+    }
+  }
+}

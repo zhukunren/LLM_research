@@ -9,6 +9,20 @@
 - Nginx：`/etc/nginx/sites-available/zjg.dwzq.top`。
 - HTTPS 使用 Certbot 自动续期，deploy hook 重新加载 Nginx。
 
+## 开阳同智远程 MCP
+
+远程地址为 `https://zjg.dwzq.top/mcp`。Nginx 转发到 `127.0.0.1:18861` 上的 `llmr-workbench-mcp`，MCP 调用同机 `18860` 上的投研 API。网关进程和站点专用凭据分别部署，网页继续使用站点原有登录。业务代码基线是 `c0e8879`。
+
+网关部署文件为 `deployment/llmr-workbench-mcp.service`、`deployment/llmr-workbench-mcp.nginx.conf` 和技能目录下的 `scripts/workbench.py`。个人连接配置由维护者发放，参赛 ZIP 保留通用地址模板。站点当前使用单用户工作区，维护者按该工作区的授权范围发放配置。
+
+网关 1.4.1 用 MCP 图片内容交付时点卡片、开盘计划、调仓建议和喜报预览的完整 PNG。时点卡片下载同时返回原图和网页链接。业务 API 和任务进程部署了盘前文案补丁，使用历史收盘数据时以该时点的冻结快照为准。群机器人和发送操作仍由网页入口管理。
+
+```sh
+sudo systemctl status llmr-workbench-mcp
+sudo journalctl -u llmr-workbench-mcp -n 60 --no-pager
+curl -fsS http://127.0.0.1:18861/health
+```
+
 ## 模型与行情
 
 模型使用 `/etc/llmr/config.ini` 中的 `[app] model_backend = local_codex`。即时档为 GPT-6.2 Astra / Low / Fast，深度档为 GPT-6.2 Sol / Max。在项目虚拟环境中安装锁定的 Codex SDK 和 CLI。

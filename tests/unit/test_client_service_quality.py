@@ -2,7 +2,9 @@ from copy import deepcopy
 from pathlib import Path
 import pytest
 
-from apps.api.app.client_service_quality import compact_metrics, layout_checks, observation_span
+from apps.api.app.client_service_quality import (
+    compact_metrics, ground_preopen_close_copy, layout_checks, observation_span, validate_generated_copy,
+)
 
 
 def metric(label,value,**extra):
@@ -78,6 +80,44 @@ def test_renderer_keeps_times_dates_and_closing_punctuation_together():
 def test_observation_span_keeps_both_dates_for_mixed_day_quotes():
     market = {'metrics': [metric('上证指数', '3600点'), metric('上涨家数', '2000家', observed_at='2026-11-17T09:30:00+08:00')]}
     assert observation_span(market) == '11-16 10:30–11-17 09:30'
+
+
+def preopen_copy():
+    return {
+        'cutoff': '2026-11-25T08:45:00+08:00', 'quality': 'verified', 'limitations': [],
+        'metrics': [metric(label, value, observed_at='2026-11-24T15:00:00+08:00') for label, value in (
+            ('上证指数', '+0.10%'), ('深证成指', '-0.20%'), ('创业板指', '-0.30%'),
+        )],
+        'summary': '上一交易日三大指数涨跌不一。',
+        'commentary': {'headline': '指数涨跌不一', 'conclusion': '盘面局部修复。科创50收涨1.81%。'},
+    }
+
+
+def test_preopen_copy_replaces_unscoped_closing_claim_with_frozen_prior_session():
+    value = preopen_copy()
+    metrics = deepcopy(value['metrics'])
+    with pytest.raises(ValueError, match='今日判断使用了收盘措辞'):
+        validate_generated_copy(value)
+    ground_preopen_close_copy(value)
+    validate_generated_copy(value)
+    assert value['metrics'] == metrics
+    assert value['summary'] == '上一交易日三大指数涨跌不一。'
+    assert value['commentary']['conclusion'] == '上一交易日（11月24日）收盘，上证指数+0.10%、深证成指-0.20%、创业板指-0.30%。'
+    assert value['quality'] == 'partial'
+
+
+@pytest.mark.parametrize('change', [
+    {'observed_at': '2026-11-21T15:00:00+08:00'}, {'observed_at': '2026-11-24T11:30:00+08:00'},
+    {'source_url': None},
+])
+def test_preopen_copy_still_rejects_unverified_or_mixed_session_evidence(change):
+    value = preopen_copy()
+    value['metrics'][0].update(change)
+    start = deepcopy(value)
+    ground_preopen_close_copy(value)
+    assert value == start
+    with pytest.raises(ValueError, match='今日判断使用了收盘措辞'):
+        validate_generated_copy(value)
 
 
 def test_compact_snapshot_keeps_horizon_once_and_shortens_breadth_counts():

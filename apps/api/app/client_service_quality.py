@@ -1,7 +1,7 @@
 """Compact, source-preserving display contracts for client-facing market metrics."""
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+from datetime import datetime, time
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 import re
@@ -9,6 +9,11 @@ import re
 INDEXES = [('上证指数', r'上证(?:指数|综指|指)?|沪指'), ('深证成指', r'深证成指|深成指|深证指数'), ('创业板指', r'创业板(?:指数|指)?')]
 FORMAT_VERSION = 4
 TZ = ZoneInfo('Asia/Shanghai')
+SENTENCES = re.compile(r'[。！？；\n]')
+CLOSING_LANGUAGE = re.compile(r'收涨|收跌|收平|收报|报收|(?:全天|全日)成交|截至(?:当日|今日)?收盘')
+SPECIFIED_SESSION = re.compile(
+    r'(?:午间|午盘|上午|早盘|半日)(?:收盘|收涨|收跌|收平|收报|报收|成交)|截至(?:午间|午盘|上午)|昨[日天]|上(?:一|个)交易日|前一交易日'
+)
 
 
 def _number(value):
@@ -153,6 +158,56 @@ def publication_notes(market, *, include_time=True):
     return notes
 
 
+def _copy_fields(market):
+    commentary = market['commentary']
+    return (
+        (market, 'summary', '市场速览'), (commentary, 'headline', '卡片标题'),
+        (commentary, 'conclusion', '今日判断'), (commentary, 'action', '盘面主线'),
+    )
+
+
+def ground_preopen_close_copy(market):
+    """Replace ambiguous closing copy with verified prior-session observations."""
+    cutoff = datetime.fromisoformat(market['cutoff']).astimezone(TZ)
+    if cutoff.time() >= time(9, 25):
+        return
+    fields = [
+        (container, key) for container, key, _ in _copy_fields(market)
+        if any(CLOSING_LANGUAGE.search(sentence) and not SPECIFIED_SESSION.search(sentence)
+               for sentence in SENTENCES.split(container.get(key, '')))
+    ]
+    if not fields:
+        return
+    by_label = {item['label']: item for item in market['metrics']}
+    dates, changes, advances = set(), [], 0
+    for name, _ in INDEXES:
+        item = by_label.get(name) or {}
+        if not item.get('source_url') or not item.get('observed_at'):
+            return
+        observed = datetime.fromisoformat(item['observed_at']).astimezone(TZ)
+        change = re.search(r'[+\-]\d+(?:\.\d+)?%', item.get('value', ''))
+        if not change or observed.date() >= cutoff.date() or observed.time() < time(15):
+            return
+        dates.add(observed.date())
+        changes.append(f'{name}{change[0]}')
+        advances += Decimal(change[0][:-1]) > 0
+    if len(dates) != 1:
+        return
+    observed_date = next(iter(dates))
+    verified_close = f'上一交易日（{observed_date.month}月{observed_date.day}日）收盘，' + '、'.join(changes) + '。'
+    replacements = {
+        'headline': '盘前回看主要指数',
+        'summary': verified_close,
+        'conclusion': (f'上一交易日三大指数中有{advances}个收涨。开盘后观察指数强弱。'
+                       if any(key == 'summary' for _, key in fields) else verified_close),
+        'action': '开盘后观察三大指数的涨跌方向和成交变化。',
+    }
+    for container, key in fields:
+        container[key] = replacements[key]
+    market['quality'] = 'partial'
+    market.setdefault('limitations', []).append('时点不明确的盘前文案已用上一交易日的已核实收盘数据替换。')
+
+
 def validate_generated_copy(market):
     commentary = market['commentary']
     if '修复分化' in commentary.get('headline', ''):
@@ -167,14 +222,9 @@ def validate_generated_copy(market):
         if observed.date() == cutoff.date() and observed.hour >= 15:
             closing_quotes.add(item['label'])
     has_closing_quotes = closing_quotes == index_names
-    for label, copy in (
-        ('市场速览', market['summary']), ('卡片标题', commentary.get('headline', '')),
-        ('今日判断', commentary.get('conclusion', '')), ('盘面主线', commentary.get('action', '')),
-    ):
-        for sentence in re.split(r'[。！？；\n]', copy):
-            closing_language = re.search(r'收涨|收跌|收平|收报|报收|(?:全天|全日)成交|截至(?:当日|今日)?收盘', sentence)
-            specified_session = re.search(r'(?:午间|午盘|上午|早盘|半日)(?:收盘|收涨|收跌|收平|收报|报收|成交)|截至(?:午间|午盘|上午)|昨[日天]|上(?:一|个)交易日|前一交易日', sentence)
-            if not has_closing_quotes and closing_language and not specified_session:
+    for container, key, label in _copy_fields(market):
+        for sentence in SENTENCES.split(container.get(key, '')):
+            if not has_closing_quotes and CLOSING_LANGUAGE.search(sentence) and not SPECIFIED_SESSION.search(sentence):
                 raise ValueError(f'文案校验未通过。{label}使用了收盘措辞，当前行情需标明实际时段。')
             causal_claim = re.search(r'催化|(?:直接|主要)导致|驱动(?:市场|板块|指数|相关题材)', sentence)
             qualified_cause = re.search(
