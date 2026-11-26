@@ -1,0 +1,20 @@
+[Unit]
+Description=LLM Research Workbench browser entry
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+RuntimeDirectory=llmr-workbench-browser
+RuntimeDirectoryMode=0750
+UMask=0007
+ExecStart=/usr/bin/python3 /opt/llmr-workbench-browser/workbench_browser.py --socket /run/llmr-workbench-browser/browser.sock --origin https://zjg.dwzq.top
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

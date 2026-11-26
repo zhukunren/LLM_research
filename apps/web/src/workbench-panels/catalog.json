@@ -1,0 +1,140 @@
+{
+  "projects": {
+    "title": "研究项目", "operation": "GET /api/v1/research-projects", "items": "items",
+    "search": "搜索项目名称或研究目标", "filter": "status", "chart": {"group": "status", "title": "项目状态分布"},
+    "columns": [
+      {"key": "name", "label": "项目名称", "edit": 100},
+      {"key": "objective", "label": "研究目标", "edit": 8000},
+      {"key": "status", "label": "项目状态", "labels": {"active": "进行中", "archived": "已归档"}},
+      {"key": "company_count", "label": "公司", "format": "number"},
+      {"key": "note_count", "label": "笔记", "format": "number"},
+      {"key": "updated_at", "label": "最近更新", "format": "time"}
+    ], "identity": ["id", "revision"]
+  },
+  "research": {
+    "title": "研究对话", "operation": "GET /api/v1/conversations", "items": "items", "query": {"workflow_type": "research", "limit": 12},
+    "search": "搜索研究对话", "filter": "last_turn_state", "chart": {"group": "last_turn_state", "title": "对话进度"},
+    "columns": [
+      {"key": "title", "label": "对话标题"},
+      {"key": "assistant.name", "label": "研究助手"},
+      {"key": "last_turn_state", "label": "最近一轮", "labels": {"queued": "排队中", "running": "研究中", "succeeded": "已完成", "partial": "部分完成", "failed": "失败", "cancelled": "已取消"}},
+      {"key": "updated_at", "label": "最近更新", "format": "time"}
+    ], "identity": ["id"]
+  },
+  "screening-plans": {
+    "title": "管理方案", "operation": "GET /api/v1/saved-screening-tasks", "items": "items",
+    "search": "搜索方案名称", "chart": {"label": "name", "metric": "version", "title": "方案保存版本"},
+    "columns": [
+      {"key": "name", "label": "方案名称"},
+      {"key": "version", "label": "保存版本", "format": "number"},
+      {"key": "created_at", "label": "保存时间", "format": "time"}
+    ], "identity": ["id"]
+  },
+  "screening-runs": {
+    "title": "筛选记录", "operation": "GET /api/v1/screening-runs", "items": "items", "query": {"limit": 12},
+    "search": "搜索筛选批次", "filter": "status", "chart": {"group": "status", "title": "批次状态分布"},
+    "columns": [
+      {"key": "name", "label": "筛选批次"},
+      {"key": "as_of", "label": "截止日"},
+      {"key": "strategy_version", "label": "方案版本", "format": "number"},
+      {"key": "status", "label": "执行状态", "labels": {"queued": "排队中", "running": "执行中", "succeeded": "已完成", "partial": "部分数据不足", "failed": "执行失败", "cancelled": "已取消"}}
+    ], "identity": ["id"]
+  },
+  "conditions": {
+    "title": "条件库", "operation": "GET /api/v1/filters", "items": "items", "query": {"library": "all", "limit": 12},
+    "search": "搜索条件名称或说明", "filter": "library", "chart": {"group": "library", "title": "条件来源分布"},
+    "columns": [
+      {"key": "name", "label": "条件名称"},
+      {"key": "library", "label": "类别", "labels": {"technical": "技术条件", "report": "研报条件", "concept": "概念条件"}},
+      {"key": "description", "label": "说明"},
+      {"key": "version", "label": "版本", "format": "number"}
+    ], "identity": ["id"]
+  },
+  "observation": {
+    "title": "观察池", "operation": "GET /api/v1/observation/entries", "items": "items",
+    "query": {"limit": 12, "include_metrics": true}, "fallbackQuery": {"include_metrics": false}, "fallbackMessage": "行情统计暂不可用，涨跌幅和回撤按实际缺失展示。",
+    "search": "股票、备注或所属", "filter": "status", "secondFilter": "owner_type", "chart": {"group": "status", "title": "观察状态分布"},
+    "columns": [
+      {"key": "name", "label": "股票", "detail": "stock_code"},
+      {"key": "owner_type", "label": "所属", "detail": "owner_label", "format": "observation-owner"},
+      {"key": "joined_at", "label": "加入时间", "format": "time"},
+      {"key": "return_latest", "label": "至今涨跌幅", "format": "market-percent"},
+      {"key": "max_drawdown", "label": "最大回撤", "format": "market-percent"},
+      {"key": "status", "label": "观察状态", "format": "observation-status", "edit": "select"},
+      {"key": "note", "label": "关注备注", "edit": 2000}
+    ], "identity": ["entry_key", "kind", "candidate_id", "run_id", "stock_code", "updated_at"]
+  },
+  "intelligence": {
+    "title": "情报台", "operation": "GET /api/v1/intelligence", "items": "items", "query": {"kind": "market", "limit": 12},
+    "search": "搜索议题和简报", "filter": "state", "chart": {"group": "state", "title": "简报状态分布"},
+    "columns": [
+      {"key": "title", "label": "简报标题"},
+      {"key": "kind", "label": "类型", "labels": {"market": "市场简报", "policy": "政策追踪", "industry": "产业跟踪"}},
+      {"key": "state", "label": "生成状态", "labels": {"queued": "排队中", "running": "生成中", "succeeded": "已完成", "partial": "部分完成", "failed": "失败", "cancelled": "已取消"}},
+      {"key": "cutoff_at", "label": "资料截止", "format": "time"},
+      {"key": "item_count", "label": "条目", "format": "number"}
+    ], "identity": ["id"]
+  },
+  "reports": {
+    "title": "研报与公告", "operation": "GET /api/v1/documents", "items": "items", "query": {"limit": 12},
+    "search": "搜索标题或证券代码", "filter": "source", "chart": {"group": "source", "title": "资料来源分布"},
+    "columns": [
+      {"key": "title", "label": "资料名称"},
+      {"key": "source", "label": "来源"},
+      {"key": "stock_code", "label": "证券代码"},
+      {"key": "published_at", "label": "发布日期", "format": "time"}
+    ], "identity": ["id"]
+  },
+  "news": {
+    "title": "资讯库", "operation": "GET /api/v1/news", "items": "items", "query": {"limit": 12},
+    "search": "搜索资讯标题或来源", "filter": "source", "chart": {"group": "source", "title": "资讯来源分布"},
+    "columns": [
+      {"key": "title", "label": "资讯标题"},
+      {"key": "source", "label": "来源"},
+      {"key": "published_at", "label": "发布时间", "format": "time"}
+    ], "identity": ["id"]
+  },
+  "patterns": {
+    "title": "形态库", "operation": "GET /api/v1/patterns", "items": "items", "query": {"limit": 12},
+    "search": "搜索形态样本", "chart": {"label": "name", "metric": "version", "title": "样本版本"},
+    "columns": [
+      {"key": "name", "label": "形态名称"},
+      {"key": "version", "label": "版本", "format": "number"},
+      {"key": "created_at", "label": "保存时间", "format": "time"}
+    ], "identity": ["id"]
+  },
+  "daily-signals": {
+    "title": "每日信号汇总", "operation": "GET /api/v1/daily-signals/signals", "items": "strategies", "query": {"n": 20}, "dateField": "date",
+    "search": "筛选策略名称", "chart": {"label": "strategy_title", "metric": "win_rate", "title": "近期胜率", "format": "signal-percent"},
+    "columns": [
+      {"key": "strategy_title", "label": "策略"},
+      {"key": "buy_count", "label": "买入信号", "format": "number"},
+      {"key": "sell_count", "label": "卖出信号", "format": "number"},
+      {"key": "win_rate", "label": "胜率", "format": "signal-percent"},
+      {"key": "avg_trade_return", "label": "平均每笔收益", "format": "signal-percent"},
+      {"key": "ann_return", "label": "年化收益", "format": "signal-percent"}
+    ], "identity": ["strategy_name"]
+  },
+  "client-service": {
+    "title": "对客服务 · 时点卡片", "operation": "GET /api/v1/client-service/cards", "items": "items", "currentDate": true,
+    "search": "搜索卡片或时点", "filter": "state", "chart": {"group": "state", "title": "卡片采集状态"},
+    "columns": [
+      {"key": "template.title", "label": "时点卡片"},
+      {"key": "template.time", "label": "时点"},
+      {"key": "state", "label": "采集状态", "format": "service-state"},
+      {"key": "service_date", "label": "服务日期"},
+      {"key": "revision", "label": "版本", "format": "number"}
+    ], "identity": ["id"]
+  },
+  "data-status": {
+    "title": "数据与服务 · 行情覆盖", "operation": "GET /api/v1/data/status", "items": null,
+    "search": "搜索行情日期或口径",
+    "columns": [
+      {"key": "first_date", "label": "最早日期"},
+      {"key": "last_date", "label": "最新日期"},
+      {"key": "securities", "label": "证券数量", "format": "number"},
+      {"key": "rows", "label": "行情行数", "format": "number"},
+      {"key": "price_basis", "label": "价格口径", "labels": {"unadjusted": "未复权", "forward_adjusted": "前复权", "back_adjusted": "后复权", "unknown": "待核实"}}
+    ], "identity": []
+  }
+}

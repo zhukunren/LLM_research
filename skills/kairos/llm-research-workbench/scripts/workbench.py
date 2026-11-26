@@ -33,8 +33,6 @@ FILE_PATH_ROUTES = {
     "/api/v1/conversations/{conversation_id}/research-files/{path}",
 }
 ATTACHMENT_OPERATION = "POST /api/v1/conversations/{conversation_id}/attachments"
-DEMO_IMPORT_PATH = "/api/v1/competition-demo/import"
-DEMO_MANIFEST = Path(__file__).resolve().parent.parent / "assets" / "demo" / "manifest.json"
 SERVICE_CARD_PNG_PATH = "/api/v1/client-service/cards/{card_id}/image.png"
 SERVICE_PREVIEW_PATHS = {
     "/api/v1/client-service/preview", "/api/v1/client-service/opening-plans/preview",
@@ -44,7 +42,7 @@ PNG_DATA_URL = "data:image/png;base64,"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 HOSTED_WEB_ONLY = (
     "/api/v1/auth", "/api/v1/settings", "/api/v1/maintenance", "/api/v1/documents/import-local",
-    "/api/v1/client-service/robots", "/api/v1/competition-demo",
+    "/api/v1/client-service/robots",
 )
 FILE_EXTENSIONS = {
     "application/json": ".json", "application/pdf": ".pdf", "text/csv": ".csv",
@@ -53,7 +51,7 @@ FILE_EXTENSIONS = {
 }
 GROUPS = {
     "projects": ("研究项目、证据和投资跟踪", "research-projects research-evidence investment-tracking observation watchlists"),
-    "research": ("研究对话、研究方法、文件与交付", "conversations research-assistants research-models tasks competition-demo"),
+    "research": ("研究对话、研究方法、文件与交付", "conversations research-assistants research-models tasks"),
     "library": ("研报、资料和原始披露", "documents report-evaluations disclosures disclosure-imports"),
     "financial": ("财务数据与证据", "companies financial-data financial-facts"),
     "market": ("市场和情报", "news intelligence daily-signals securities security-catalog indicators"),
@@ -63,7 +61,6 @@ GROUPS = {
 }
 RESOURCE_GROUPS = {resource: group for group, (_, names) in GROUPS.items() for resource in names.split()}
 OPERATION_LABELS = {
-    f"POST {DEMO_IMPORT_PATH}": "一键导入泉阳泉参赛示例",
     "GET /api/v1/research-projects": "查找研究项目",
     "GET /api/v1/research-projects/{project_id}": "打开已有项目",
     "POST /api/v1/research-projects/{project_id}/companies/{stock_code}/changes": "检查项目的资料变化",
@@ -455,23 +452,6 @@ class Workbench:
             return {**info, "connection": "remote", "mcp": self.public_origin + "/mcp"}
         return {**info, "launcher": self.launcher}
 
-    def import_demo(self):
-        if f"POST {DEMO_IMPORT_PATH}" not in self.operations():
-            raise BridgeError("当前工作台版本未接入参赛示例，请启动与技能包配套的工作台版本。")
-        self.require_local()
-        try:
-            digest = sha256(DEMO_MANIFEST.read_bytes()).hexdigest()
-        except OSError as exc:
-            raise BridgeError("技能包缺少案例清单，请重新导入完整 ZIP。") from exc
-        _, result = request(
-            self.base, DEMO_IMPORT_PATH, method="POST", content_type="application/json",
-            data=json.dumps({"manifest_sha256": digest}).encode("utf-8"),
-        )
-        web = self.web or (self.base if result["web_available"] else None)
-        return {"ok": True, **result,
-                "workbench_url": f"{web}{result['workbench_path']}" if web else None,
-                "demo_url": f"{self.base}/api/v1/competition-demo/view"}
-
     def operations(self):
         result = {}
         for path, actions in self.verify().get("paths", {}).items():
@@ -643,7 +623,6 @@ def tool(name, description, properties=None, required=(), *, read_only=True, des
 
 TOOLS = [
     tool("workbench_status", "检查投研工作台以及 Agent 连接的服务实例。"),
-    tool("workbench_import_demo", "按用户要求导入泉阳泉参赛示例，返回项目、研究对话和演示附件。包含明确标注的模拟日线。", read_only=False),
     tool("workbench_catalog", "按业务领域、关键词或 API 路径搜索完整工作台操作。无参数时列出领域与操作数量。",
          {"query": {"type": "string"}, "group": {"type": "string"}, "offset": {"type": "integer", "minimum": 0},
           "limit": {"type": "integer", "minimum": 1, "maximum": 50}}),
@@ -656,16 +635,10 @@ TOOLS = [
 ]
 
 
-def available_tools():
-    if hosted_origin() or not DEMO_MANIFEST.is_file():
-        return [item for item in TOOLS if item["name"] != "workbench_import_demo"]
-    return TOOLS
-
-
 def call(name, arguments, *, root=None, human_confirm=None):
     if not isinstance(arguments, dict):
         raise BridgeError("工具参数必须是 JSON 对象。")
-    definitions = {entry["name"]: entry["inputSchema"] for entry in available_tools()}
+    definitions = {entry["name"]: entry["inputSchema"] for entry in TOOLS}
     if name not in definitions:
         raise BridgeError(f"找不到工具 {name}。")
     schema = definitions[name]
@@ -685,8 +658,6 @@ def call(name, arguments, *, root=None, human_confirm=None):
     client = Workbench(root=root)
     if name == "workbench_status":
         return client.status()
-    if name == "workbench_import_demo":
-        return client.import_demo()
     if name == "workbench_catalog":
         return client.catalog(**arguments)
     if name == "workbench_describe":
@@ -734,7 +705,7 @@ def rpc(raw, *, root=None, human_confirm=None):
             result = {"protocolVersion": preferred if preferred in versions else "2025-06-18",
                       "capabilities": {"tools": {}}, "serverInfo": {"name": "llm-research-workbench", "version": VERSION}}
         elif method == "tools/list":
-            result = {"tools": available_tools()}
+            result = {"tools": TOOLS}
         elif method == "tools/call":
             approve = (lambda operation, arguments: human_confirm(rpc_id, operation, arguments)) if human_confirm else None
             value = run_tool(params.get("name"), params.get("arguments", {}), root=root, human_confirm=approve)

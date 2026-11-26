@@ -5,6 +5,8 @@ import AuthBoundary from './AuthBoundary'
 import WorkspaceTooltips from './components/WorkspaceTooltips'
 import { SecuritiesProvider } from './components/StockSearch'
 import { StockInteractionsProvider } from './components/StockMentions'
+import KairosDesktopViewport from './components/KairosDesktopViewport'
+import { getKairosDesktopFrameUrl } from './kairosDesktopViewport'
 import './tokens.css'
 import './reset-and-shell.css'
 import './components.css'
@@ -47,8 +49,11 @@ import './deployment-layout.css'
 import './research-navigation.css'
 import './mobile-workspace.css'
 
+const desktopFrame = getKairosDesktopFrameUrl(window.location.href, navigator.userAgent)
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <WorkspaceTooltips><AuthBoundary><SecuritiesProvider><StockInteractionsProvider><App /></StockInteractionsProvider></SecuritiesProvider></AuthBoundary></WorkspaceTooltips>
+    {desktopFrame ? <KairosDesktopViewport address={desktopFrame} />
+      : <WorkspaceTooltips><AuthBoundary><SecuritiesProvider><StockInteractionsProvider><App /></StockInteractionsProvider></SecuritiesProvider></AuthBoundary></WorkspaceTooltips>}
   </React.StrictMode>,
 )

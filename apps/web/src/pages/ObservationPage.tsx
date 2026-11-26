@@ -4,7 +4,9 @@ import LoadingState from '../components/LoadingState'
 import WorkspacePageHeading from '../components/WorkspacePageHeading'
 import { lazy, Suspense, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { localStorage } from '../authStorage'
-import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, CalendarDays, ClipboardList, Download, RefreshCw, Search, SlidersHorizontal, Star, Telescope, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUp, ArrowUpDown, CalendarDays, ClipboardList, Download, RefreshCw, SlidersHorizontal, Star, Telescope, Trash2, X } from 'lucide-react'
+import { WorkspaceDataTable, WorkspaceMetric, WorkspaceSearchField, WorkspaceSelect } from '../components/WorkspaceDataControls'
+import { observationOwners, percent, returnClass, watchLabels } from '../observationPresentation'
 import { api, type DataStatus, type ScreeningTaskRevision } from '../api'
 import { TaskLogic } from '../components/conversation/TaskBrief'
 import ObservationChart from '../components/ObservationChart'
@@ -55,13 +57,11 @@ type Props = {
   onStartResearch?: () => void; initialRunId?: string; initialCode?: string; initialCandidateId?: string; initialTab?: ObservationTab
   onLocationChange?: (tab: ObservationTab | null, id: string, userNavigation?: boolean, code?: string) => void
 }
-const watchLabels: Record<string, string> = { watching: '观察中', priority: '重点关注', ended: '结束观察' }
 const runLabels: Record<string, string> = { queued: '排队中', running: '执行中', succeeded: '已完成', partial: '部分数据不足', failed: '执行失败', cancelled: '已取消' }
 const keyOf = (item: Entry) => item.kind === 'candidate' ? 'candidate:' + item.candidate_id : 'screening:' + item.run_id + ':' + item.stock_code
 const timestamp = (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false })
 export const number = (value: number | null | undefined) => value == null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
-export const percent = (value: number | null | undefined) => value == null ? '—' : (value > 0 ? '+' : '') + value.toFixed(2) + '%'
-const returnClass = (value: number | null | undefined) => value == null || value === 0 ? 'observation-neutral' : value > 0 ? 'observation-up' : 'observation-down'
+export { percent } from '../observationPresentation'
 const metricText = (value: number | null | undefined, loading: boolean) => value === undefined && loading ? '计算中…' : percent(value)
 const metricTitle = (item: Entry) => item.metric_reason || ('起算 ' + (item.base_date || item.basis_date) + ' · 行情截至 ' + (item.price_date || '—'))
 const defaultSortDirection = (value: ObservationSort): 'asc' | 'desc' => ['updated', 'priority', 'return'].includes(value) ? 'desc' : 'asc'
@@ -386,7 +386,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     </>}><h1>观察池</h1><p className="page-description">研究、手动关注和选股入选记录集中跟踪</p></WorkspacePageHeading>
     <div id={eventsId} hidden={!showEvents}>{showEvents && <Suspense fallback={<LoadingState label="正在打开事件日历…" skeleton />}><ObservationEvents /></Suspense>}</div>
     <div className="observation-unified-toolbar observation-control-bar workspace-filters">
-      <label className="observation-search workspace-field-shell"><Search size={17} /><input aria-label="搜索观察记录" disabled={batchBusy} placeholder="股票、备注或所属" value={query} onChange={event => changeFilter(() => setQuery(event.target.value))} className="workspace-field" /></label>
+      <WorkspaceSearchField className="observation-search" aria-label="搜索观察记录" disabled={batchBusy} placeholder="股票、备注或所属" value={query} onChange={event => changeFilter(() => setQuery(event.target.value))} />
       {mobile && <button type="button" className="mobile-filter-button workspace-button" data-active={activeFilters > 0 || undefined} aria-haspopup="dialog" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}>
         <SlidersHorizontal size={17} aria-hidden="true" />筛选{activeFilters ? ` ${activeFilters}` : ''}
       </button>}
@@ -412,18 +412,18 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
     {notice && <p className="observation-save-message observation-list-message workspace-feedback workspace-feedback-success" role="status"><span>{notice}</span><button type="button" className="icon-button workspace-button" aria-label="关闭观察提示" onClick={() => setNotice('')}><X size={14} /></button></p>}
     {undoRemoval && <p className="observation-save-message observation-list-message workspace-feedback" role="status"><span>60 秒内可撤销最近一次移除：{undoRemoval.label}。再次成功移除会替换此撤销项。</span><button type="button" className="text-button workspace-button" disabled={removalBusy} aria-label={'撤销移除' + undoRemoval.label} onClick={() => void restoreRemoval()}>{removalBusy ? '正在处理…' : '撤销移除'}</button></p>}
     <section className="observation-summary-bar" aria-label="当前筛选范围汇总">
-      <SummaryCard label="观察记录" value={loading ? '—' : total.toLocaleString('zh-CN') + ' 条'} />
-      <SummaryCard label="研究 / 手动" value={summary ? summary.research_count.toLocaleString('zh-CN') + ' 条' : '—'} breakdown />
-      <SummaryCard label="选股" value={summary ? summary.screening_count.toLocaleString('zh-CN') + ' 条' : '—'} breakdown />
-      <SummaryCard label="平均涨跌幅" value={summary ? percent(summary.average_return) : '—'} tone={returnClass(summary?.average_return)} hint={summary ? summary.priced_count + ' 条有可用行情' : undefined} />
-      <SummaryCard label="最深回撤" value={summary ? percent(summary.worst_drawdown) : '—'} tone={returnClass(summary?.worst_drawdown)} />
+      <WorkspaceMetric label="观察记录" value={loading ? '—' : total.toLocaleString('zh-CN') + ' 条'} />
+      <WorkspaceMetric label="研究 / 手动" value={summary ? summary.research_count.toLocaleString('zh-CN') + ' 条' : '—'} breakdown />
+      <WorkspaceMetric label="选股" value={summary ? summary.screening_count.toLocaleString('zh-CN') + ' 条' : '—'} breakdown />
+      <WorkspaceMetric label="平均涨跌幅" value={summary ? percent(summary.average_return) : '—'} tone={returnClass(summary?.average_return)} hint={summary ? summary.priced_count + ' 条有可用行情' : undefined} />
+      <WorkspaceMetric label="最深回撤" value={summary ? percent(summary.worst_drawdown) : '—'} tone={returnClass(summary?.worst_drawdown)} />
       <details className="observation-metric-disclosure"><summary>{metricsLoading && !loading ? '统计计算中…' : metricError ? '统计暂不可用' : '数据口径'}</summary><div className="observation-metric-popover"><p className="observation-metric-note">{metricsLoading && !loading ? '正在计算涨跌幅与回撤…' : metricError ? '行情统计暂不可用：' + metricError : metricNote || '涨跌幅从各记录的起算日计算；选股沿用信号日。'}</p>{summary && <p>{summary.priced_count} 条记录有可用行情。</p>}{data?.last_date && <p>行情截至 {data.last_date}</p>}</div></details>
     </section>
     <div className="observation-unified-workspace">
       <section className="observation-card observation-results" aria-label="观察记录列表" aria-busy={loading}>
         {loading && !items.length ? <LoadingState label="正在读取观察记录…" skeleton /> : <>
           <div ref={tableScrollRef} className="observation-table-scroll workspace-table-scroll workspace-table-cards">
-            <table className="workspace-data-table" aria-label="观察记录">
+            <WorkspaceDataTable aria-label="观察记录">
               <thead><tr><th className="observation-check-column"><input type="checkbox" aria-label="勾选本页全部观察记录" checked={items.length > 0 && items.every(item => checkedKeys.includes(keyOf(item)))} disabled={batchBusy || !!savingKeys.length} onChange={event => setCheckedKeys(event.target.checked ? items.map(keyOf) : [])} className="workspace-check" /></th>{renderSortHeader('name', '股票 / 状态')}{renderSortHeader('owner', '所属')}{renderSortHeader('joined', '加入时间')}{renderSortHeader('return', '至今涨跌幅')}{renderSortHeader('drawdown', '最大回撤')}{renderSortHeader('note', '关注备注')}<th>操作</th></tr></thead>
               <tbody>{items.map((item, index) => <tr key={keyOf(item)} className={detailOpen && selectedKey === keyOf(item) ? 'selected' : ''} onClick={event => { if (!(event.target as Element).closest('button,select,input,label,textarea,a')) choose(item) }}>
                 <td data-label="勾选" className="observation-check-column" onClick={event => event.stopPropagation()}><label className="mobile-list-checkbox"><input type="checkbox" aria-label={`勾选观察记录 ${item.stock_code} ${item.owner_label}`} checked={checkedKeys.includes(keyOf(item))} disabled={batchBusy || savingKeys.includes(keyOf(item))} onChange={() => toggleChecked(item)} className="workspace-check" /></label></td>
@@ -431,13 +431,13 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
                   <button className="stock-link workspace-button" aria-label={'查看' + (item.name || item.stock_code) + '观察详情'} onClick={event => { event.stopPropagation(); choose(item) }}>
                     {item.name || item.stock_code}{item.name && <small>{item.stock_code}</small>}
                   </button>
-                  <select className="observation-inline-status workspace-field workspace-select" aria-label={`修改${item.name || item.stock_code}观察状态`}
+                  <WorkspaceSelect className="observation-inline-status" aria-label={`修改${item.name || item.stock_code}观察状态`}
                     value={item.status} disabled={batchBusy || savingKeys.includes(keyOf(item))}
                     onClick={event => event.stopPropagation()} onChange={event => void changeEntryStatus(item, event.target.value)}>
                     {Object.entries(watchLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                  </WorkspaceSelect>
                 </div></td>
-                <td data-label="所属"><span className={'observation-kind observation-kind-' + item.owner_type}>{item.owner_type === 'screening' ? '选股' : item.owner_type === 'manual' ? '手动' : '研究'}</span><span className="observation-owner-label" data-tooltip={item.owner_label}>{item.owner_label}</span></td>
+                <td data-label="所属"><span className={'observation-kind observation-kind-' + item.owner_type}>{observationOwners[item.owner_type]}</span><span className="observation-owner-label" data-tooltip={item.owner_label}>{item.owner_label}</span></td>
                 <td data-label="加入时间"><TimeLabel value={item.joined_at} hour12={false} /></td>
                 <td data-label="至今涨跌幅" className={`observation-numeric ${returnClass(item.return_latest)}`} data-tooltip={metricTitle(item)}>
                   <strong>{metricText(item.return_latest, metricsLoading)}</strong>
@@ -454,7 +454,7 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
                   </>}</ObservationRowMenu>
                 </div></td>
               </tr>)}</tbody>
-            </table>
+            </WorkspaceDataTable>
           </div>
           {!items.length && <EmptyState icon={Telescope} title={filtered ? '没有匹配的观察记录' : '还没有观察记录'} description={filtered ? '调整股票、所属或状态筛选，查看其他观察记录。' : '在研究或行情中关注一家公司，即可在这里持续跟踪。'} actions={filtered && <button className="secondary-button workspace-button" onClick={clearFilters}>显示全部观察</button>} />}
           <Pagination pageSize={30} inset label="观察列表分页" disabled={loading || batchBusy} offset={offset} total={total} onChange={changePage} />
@@ -488,10 +488,6 @@ export default function ObservationPage({ data, onNavigateScreening, onOpenResea
       </section>
     </div>}
   </div>
-}
-
-function SummaryCard({ label, value, tone = '', hint, breakdown }: { label: string; value: string; tone?: string; hint?: string; breakdown?: boolean }) {
-  return <div className="observation-summary-value" data-breakdown={breakdown || undefined} data-tooltip={hint} aria-label={label + ' ' + value + (hint ? ' · ' + hint : '')}><span>{label}</span><strong className={tone}>{value}</strong></div>
 }
 
 function SortableHeader({ sortKey, label, currentSort, direction, onClick }: {

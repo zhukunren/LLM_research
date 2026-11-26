@@ -29,6 +29,31 @@ html {
   scrollbar-gutter: stable;
 }
 
+html:has(.kairos-desktop-viewport) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
+html:has(.kairos-desktop-viewport) body {
+  zoom: 1;
+}
+
+.kairos-desktop-viewport {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: clip;
+  background: var(--ui-canvas);
+}
+
+.kairos-desktop-viewport iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 0;
+  transform-origin: top left;
+}
+
 body {
   zoom: var(--ui-page-scale);
   font-family: var(--ui-font-sans);

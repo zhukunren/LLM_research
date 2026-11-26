@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2, Maximize2, Copy, Download, Image, PanelRightOpen, Radio, RefreshCw, RotateCcw, Save, Send } from 'lucide-react'
 import { api } from '../api'
+import { serviceStateLabels as stateLabels } from '../clientServicePresentation'
 import ConditionWorkspaceDrawer from '../components/ConditionWorkspaceDrawer'
 import ClientRobotPanel, { ClientCardSendDialog } from '../components/ClientRobotPanel'
 import ClientCardReview from '../components/ClientCardReview'
@@ -32,7 +33,6 @@ function isDrafts(value: unknown): value is Drafts {
   return !!value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item =>
     !!item && typeof item === 'object' && (!('market_overrides' in item) || isMarketOverrides(item.market_overrides)) && (!('theme' in item) || cardThemes.some(theme => theme.id === item.theme)) && contentFields.every(field => typeof item[field.key] === 'string' && item[field.key].length <= field.max))
 }
-const stateLabels = { awaiting_agent: '等待采集', running: '采集中', ready: '已采集', failed: '采集失败' }
 const prompts: Partial<Record<keyof CardContent, string>> = {
   conclusion: '用一两句话说明当前判断，以及判断成立的前提。',
   action: '写清今天的应对安排、适用情形与需要等待的信号。',

@@ -1,7 +1,7 @@
 # zjg.dwzq.top 单用户部署
 
 - 源码：`/data/projects/LLM_research`，部署基线 `d8b308d`。
-- 地址：`https://zjg.dwzq.top`；Nginx Basic Auth 保护整个站点，共享一个工作空间。
+- 地址：`https://zjg.dwzq.top`。网站使用登录表单和会话校验，共享一个工作空间。
 - 账户记录：`sudo cat /etc/llmr/login.txt`。密码哈希：`/etc/nginx/llmr.htpasswd`。
 - 服务：`llmr-api`、`llmr-worker`，开机自动启动，API 仅监听 `127.0.0.1:18860`。
 - 配置：`/etc/llmr/config.ini`、`/etc/llmr/service.env`。
@@ -22,6 +22,26 @@ sudo systemctl status llmr-workbench-mcp
 sudo journalctl -u llmr-workbench-mcp -n 60 --no-pager
 curl -fsS http://127.0.0.1:18861/health
 ```
+
+## 网页登录
+
+将 `deployment/workbench_browser.py` 安装到 `/opt/llmr-workbench-browser/workbench_browser.py`，使用 `deployment/llmr-workbench-browser.service` 启动登录服务。在站点的 HTTPS 配置中包含 `deployment/llmr-workbench-browser.nginx.conf`。站点使用 `/etc/nginx/llmr.htpasswd` 校验网页账号。
+
+在代理主站的 `location /` 中加入以下指令。单独代理的每日信号接口及其回退位置共用前两项会话校验。
+
+```nginx
+satisfy any;
+auth_request /_workbench/browser/check;
+error_page 401 = @llmr_browser_sign_in;
+```
+
+开阳聊天中的站点链接使用本机文件预览嵌入网页。登录服务允许该预览加载登录页，并为内嵌环境签发独立存储的会话 Cookie。普通浏览器访问时使用常规会话。登录服务重启后，浏览器需要重新登录。
+
+## 聊天共享面板
+
+共享面板的入口是 `apps/web/src/workbench-panels/frame.tsx`。用 `apps/web/scripts/build-workbench-panels.mjs` 构建 JS 和 CSS，经 `deployment/llmr-workbench-panels.nginx.conf` 发布。将片段包含在 `zjg.dwzq.top` 的 HTTPS 虚拟主机中。
+
+每次构建的两个文件放在 `/opt/llmr-workbench-panels/<内容摘要>/`。摘要由 `scripts/build_kairos_workbench_skill.py` 的 `panel_runtime_path` 计算。打包 Skill 时传入同一份构建目录，ZIP 会带上这版资产的 HTTPS 地址和完整性校验值。保留仍在使用的摘要目录，便于已安装的 Skill 继续加载。公开资源路径只发布 JS 和 CSS，面板数据通过已授权的工作台工具读取。
 
 ## 模型与行情
 

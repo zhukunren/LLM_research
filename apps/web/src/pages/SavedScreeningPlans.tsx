@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { api, type Conversation, type ConversationScope, type DataStatus, type SavedScreeningTask, type Strategy, type WorkflowType } from '../api'
 import SavedTaskLibrary from '../components/conversation/SavedTaskLibrary'
 import { readModelPreference } from '../modelSelection'
-import { Library, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { Library, Plus, RefreshCw, X } from 'lucide-react'
+import { WorkspaceSearchField } from '../components/WorkspaceDataControls'
 import CompositionPlanList from '../components/CompositionPlanList'
 import './scheme-center.css'
 import { useWorkspaceSession } from '../WorkspaceSession'
@@ -67,7 +68,7 @@ export default function SavedScreeningPlans({ data, onOpenConversation, strategi
   return <StockText><section className="scheme-center saved-screening-page" aria-label="我的方案">
     <header className="scheme-center-heading"><div><h1>我的方案</h1><p className="page-description">管理和复用选股方案，在这里创建条件组合或管理条件库。</p></div><div className="scheme-center-actions">{onOpenConditionLibrary && <button type="button" className="secondary-button workspace-button" disabled={busy} onClick={onOpenConditionLibrary}><Library size={15} />管理条件库</button>}{onNewComposition && <button type="button" className="primary-button workspace-button" disabled={busy} onClick={onNewComposition}><Plus size={15} />新建条件组合</button>}</div></header>
     {compositionDraft && onContinueComposition && <section className="scheme-current-draft" aria-label="当前组合草稿"><div><strong>{compositionDraft.name}</strong><p>{compositionDraft.conditionCount} 个条件 · {compositionDraft.saved ? `已保存${compositionDraft.version ? ` v${compositionDraft.version}` : ''}` : '当前草稿，尚未保存为方案版本'}</p></div><button type="button" className="secondary-button workspace-button" disabled={busy} onClick={onContinueComposition}>{compositionDraft.saved ? '打开当前方案' : '继续编辑草稿'}</button></section>}
-    <div className="saved-plan-toolbar scheme-center-toolbar"><label className="conversation-search workspace-field-shell"><Search size={16} /><input aria-label="搜索全部筛选方案" placeholder="搜索方案名称或对话方案中的条件" value={query} onChange={event => setQuery(event.target.value)} className="workspace-field" />{query && <button type="button" className="icon-button workspace-button" aria-label="清除方案搜索" onClick={() => setQuery('')}><X size={14} /></button>}</label><button type="button" className="icon-button workspace-button" aria-label="刷新方案来源" disabled={busy || loading} onClick={() => { setRefresh(value => value + 1); onRefreshCompositions?.() }}><RefreshCw size={16} /></button></div>
+    <div className="saved-plan-toolbar scheme-center-toolbar"><WorkspaceSearchField className="conversation-search" aria-label="搜索全部筛选方案" placeholder="搜索方案名称或对话方案中的条件" value={query} onChange={event => setQuery(event.target.value)}>{query && <button type="button" className="icon-button workspace-button" aria-label="清除方案搜索" onClick={() => setQuery('')}><X size={14} /></button>}</WorkspaceSearchField><button type="button" className="icon-button workspace-button" aria-label="刷新方案来源" disabled={busy || loading} onClick={() => { setRefresh(value => value + 1); onRefreshCompositions?.() }}><RefreshCw size={16} /></button></div>
     <nav className="scheme-center-types" aria-label="方案类型">{([{ key: 'all', label: '全部方案' }, { key: 'composition', label: '条件组合' }, { key: 'conversation', label: '对话方案' }] as const).map(item => <button type="button" key={item.key} className="workspace-button" aria-pressed={kind === item.key} onClick={() => setKind(item.key)}>{item.label}</button>)}</nav>
     {error && <p className="research-error workspace-error" role="alert">{error}</p>}
     <div className="scheme-center-results">
