@@ -39,7 +39,7 @@ error_page 401 = @llmr_browser_sign_in;
 
 ## 聊天共享面板
 
-共享面板的入口是 `apps/web/src/workbench-panels/frame.tsx`。用 `apps/web/scripts/build-workbench-panels.mjs` 构建 JS 和 CSS，经 `deployment/llmr-workbench-panels.nginx.conf` 发布。将片段包含在 `zjg.dwzq.top` 的 HTTPS 虚拟主机中。
+共享面板的入口是 `apps/web/src/workbench-panels/frame.ts`。用 `apps/web/scripts/build-workbench-panels.mjs` 构建 JS 和 CSS，经 `deployment/llmr-workbench-panels.nginx.conf` 发布。将片段包含在 `zjg.dwzq.top` 的 HTTPS 虚拟主机中。
 
 每次构建的两个文件放在 `/opt/llmr-workbench-panels/<内容摘要>/`。摘要由 `scripts/build_kairos_workbench_skill.py` 的 `panel_runtime_path` 计算。打包 Skill 时传入同一份构建目录，ZIP 会带上这版资产的 HTTPS 地址和完整性校验值。保留仍在使用的摘要目录，便于已安装的 Skill 继续加载。公开资源路径只发布 JS 和 CSS，面板数据通过已授权的工作台工具读取。
 

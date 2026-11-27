@@ -93,6 +93,15 @@ def panel_runtime_path(asset_dir: Path) -> str:
     return "/_workbench/panels/" + sha256(fingerprints).hexdigest()[:16]
 
 
+def panel_support_files() -> dict[str, str]:
+    renderer = "scripts/render-workspace-panel.ps1"
+    return {
+        "assets/workbench-panels.json": PANEL_CATALOG.read_text(encoding="utf-8"),
+        "references/workspace-panels.md": (SOURCE / "references/workspace-panels.md").read_text(encoding="utf-8"),
+        renderer: "\ufeff" + (SOURCE / renderer).read_text(encoding="utf-8-sig"),
+    }
+
+
 def shared_panel_files(asset_dir: Path) -> dict[str, str]:
     runtime = panel_runtime_path(asset_dir)
     endpoint = json.loads((SOURCE / MCP_TEMPLATE).read_text(encoding="utf-8"))["mcpServers"][MCP_NAME]["url"]
@@ -103,8 +112,7 @@ def shared_panel_files(asset_dir: Path) -> dict[str, str]:
     script_url, script_hash = assets["workbench-panel.js"]
     style_url, style_hash = assets["workbench-panel.css"]
     return {
-        "assets/workbench-panels.json": PANEL_CATALOG.read_text(encoding="utf-8"),
-        "references/workspace-panels.md": (SOURCE / "references/workspace-panels.md").read_text(encoding="utf-8"),
+        **panel_support_files(),
         "assets/workspace-panel.html": f'''<!doctype html>
 <html lang="zh-CN">
 <meta charset="utf-8">

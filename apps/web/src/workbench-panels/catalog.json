@@ -76,13 +76,13 @@
     ], "identity": ["id"]
   },
   "reports": {
-    "title": "研报与公告", "operation": "GET /api/v1/documents", "items": "items", "query": {"limit": 12},
-    "search": "搜索标题或证券代码", "filter": "source", "chart": {"group": "source", "title": "资料来源分布"},
+    "title": "研报与公告", "operation": "GET /api/v1/documents", "items": "items",
+    "search": "搜索标题或证券代码", "chart": {"group": "stock_code", "title": "研报证券分布"},
     "columns": [
-      {"key": "title", "label": "资料名称"},
-      {"key": "source", "label": "来源"},
+      {"key": "title", "label": "资料名称", "fallback": "filename"},
       {"key": "stock_code", "label": "证券代码"},
-      {"key": "published_at", "label": "发布日期", "format": "time"}
+      {"key": "publication_date", "label": "发布日期"},
+      {"key": "pages", "label": "页数", "format": "number"}
     ], "identity": ["id"]
   },
   "news": {
@@ -91,11 +91,12 @@
     "columns": [
       {"key": "title", "label": "资讯标题"},
       {"key": "source", "label": "来源"},
-      {"key": "published_at", "label": "发布时间", "format": "time"}
+      {"key": "published_at", "label": "发布时间", "format": "time"},
+      {"key": "snippet", "label": "正文摘录"}
     ], "identity": ["id"]
   },
   "patterns": {
-    "title": "形态库", "operation": "GET /api/v1/patterns", "items": "items", "query": {"limit": 12},
+    "title": "形态库", "operation": "GET /api/v1/patterns", "items": "items", "previewPoints": "points",
     "search": "搜索形态样本", "chart": {"label": "name", "metric": "version", "title": "样本版本"},
     "columns": [
       {"key": "name", "label": "形态名称"},
@@ -104,12 +105,13 @@
     ], "identity": ["id"]
   },
   "daily-signals": {
-    "title": "每日信号汇总", "operation": "GET /api/v1/daily-signals/signals", "items": "strategies", "query": {"n": 20}, "dateField": "date",
+    "title": "每日信号汇总", "operation": "GET /api/v1/daily-signals/signals", "items": "strategies", "query": {"n": 20}, "dateField": "date", "sampleSizeField": "n",
     "search": "筛选策略名称", "chart": {"label": "strategy_title", "metric": "win_rate", "title": "近期胜率", "format": "signal-percent"},
     "columns": [
       {"key": "strategy_title", "label": "策略"},
-      {"key": "buy_count", "label": "买入信号", "format": "number"},
-      {"key": "sell_count", "label": "卖出信号", "format": "number"},
+      {"key": "covers_date", "label": "查询日覆盖", "labels": {"true": "已覆盖", "false": "未覆盖"}},
+      {"key": "buy_count", "label": "买入信号", "format": "number", "countOf": "buy_signals"},
+      {"key": "sell_count", "label": "卖出信号", "format": "number", "countOf": "sell_signals"},
       {"key": "win_rate", "label": "胜率", "format": "signal-percent"},
       {"key": "avg_trade_return", "label": "平均每笔收益", "format": "signal-percent"},
       {"key": "ann_return", "label": "年化收益", "format": "signal-percent"}
